@@ -74,6 +74,7 @@ import type { RotundaVoice } from "./voice.ts";
 import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig } from "./senateActor.ts";
 import { senatePoses, senatorOf } from "./senators.ts";
 import { debateAt, debateLines, debateOpen } from "./debates.ts";
+import { ambientKey } from "./heard.ts";
 
 /**
  * The Senate in 3D (#740), Today's chamber: the round 3 concept (concepts/2026-11-04-today-boiler, r3/rotunda.js)
@@ -126,6 +127,21 @@ export interface RotundaOpts {
   safeBottom: () => number;
   /** The voices (#755): the choreography waits on each spoken line; without one (or with the sound off) it reads. */
   voice?: RotundaVoice;
+  /** What this viewer has already heard (#900, heard.ts): each item and status line is said once, never looped. */
+  memory?: SenateMemoryLink;
+}
+
+/** The scene's view of the Senate's memory. Without one, the scene still never repeats itself within a visit. */
+export interface SenateMemoryLink {
+  /** Not yet said at this version (and not put away). */
+  fresh: (key: string, ver: string) => boolean;
+  /** An interlude's line by its key (heard.ts, `ambientKey`): said yet? */
+  heard: (key: string) => boolean;
+  /** Marks an interlude's line said. */
+  hear: (key: string) => void;
+  /** The recess's next debate, and moving it on. */
+  recess: () => number;
+  setRecess: (n: number) => void;
 }
 
 export interface Rotunda {
@@ -940,6 +956,15 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // ---- the session ------------------------------------------------------------------------------------------------
   let docket: RiteItem[] = [];
   let ambient: { by: string; text: string }[] = [];
+  // Said this visit (#900): a safety net under the viewer's memory, so nothing loops even if it can't be kept.
+  const saidHere = new Set<string>();
+  const fresh = (m: RiteItem) => !saidHere.has(`${m.key}@${m.ver}`) && (opts.memory?.fresh(m.key, m.ver) ?? true);
+  const ambientFresh = (a: { by: string; text: string }) => {
+    const k = ambientKey(a.by, a.text);
+    return !saidHere.has(k) && !(opts.memory?.heard(k) ?? false);
+  };
+  /** The item on the floor now, if one is. */
+  let floorKey: string | null = null;
   let token = 0;
   let dead = false;
   // The session runs on the scene's own clock, so it pauses with the chamber (out of view, a hidden tab) and picks up where it was.
@@ -1023,6 +1048,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   ];
 
   async function runItem(m: RiteItem, tk: number) {
+    floorKey = m.key;
     kind = m.kind;
     opts.onFloor(m.key);
     clearCaps();
@@ -1045,6 +1071,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       } else chair(m.say?.text ?? "");
       await line(p ? m.by : "kernel", spoken(m.say), tk);
       chair(m.done);
+      saidHere.add(`${m.key}@${m.ver}`);
       opts.onDone(m.key);
       voteTo = 1;
       shareTo = 0.85;
@@ -1081,6 +1108,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         }
       }
       chair(m.done);
+      saidHere.add(`${m.key}@${m.ver}`);
       opts.onDone(m.key);
       voteTo = 1;
       shareTo = 0.5;
@@ -1115,6 +1143,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         await line(m.risk.by, spoken(m.risk.say), tk);
       }
       chair(m.done);
+      saidHere.add(`${m.key}@${m.ver}`);
       opts.onDone(m.key);
       lookTo.set(0, 2.4, 0.6);
       dollyTo = 1;
@@ -1126,18 +1155,22 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     voteTo = 0;
     shareTo = 0;
     kind = "idle";
+    floorKey = null;
+    opts.onFloor(null);
     await sleep(ITEM_GAP_MS, tk);
   }
-  async function interlude(k: number, tk: number) {
+  /** The next status line not yet said, from a member with a seat. */
+  const nextAmbient = () => ambient.find((a) => byId(a.by) && ambientFresh(a)) ?? null;
+  async function interlude(it: { by: string; text: string }, tk: number) {
     chair("");
     opts.onFloor(null);
     kind = "idle";
-    const it = ambient.length ? ambient[k % ambient.length]! : null;
-    const p = it ? byId(it.by) : null;
-    if (!it || !p) {
-      await sleep(ITEM_GAP_MS + 2_000, tk);
-      return;
-    }
+    // Said once (#900): marked as it starts, so a cut-off line isn't tried again and again.
+    const ak = ambientKey(it.by, it.text);
+    saidHere.add(ak);
+    opts.memory?.hear(ak);
+    const p = byId(it.by);
+    if (!p) return;
     voice?.prefetch([{ by: it.by, text: it.text }]);
     goIn(p, "u");
     focus = p;
@@ -1157,9 +1190,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // the floor than any item brings. The opener and those who concur take the a, c and b spots; the dissent takes the red
   // counter spot. Each stays on the floor until its spot is wanted again, so the floor fills as the argument grows. Real
   // business preempts it: a docket that fills starts a new session, which cancels this one mid-line.
-  let recess = 0;
+  // The recess picks up where this viewer left it, so a reload doesn't start the same debate over (#900).
+  let recess = opts.memory?.recess() ?? 0;
   async function debate(tk: number) {
     const d = debateAt(recess++);
+    opts.memory?.setRecess(recess);
     kind = "decision";
     opts.onFloor(null);
     clearCaps();
@@ -1213,15 +1248,23 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     voice?.stop();
     allHome();
     clearCaps();
+    floorKey = null;
+    // Each item is said once (#900): a card brought to the floor first, then whatever is new, in docket order, with a
+    // new status line between; once nothing new is left, the recess. Nothing already said is read out again.
+    let first = startKey ? (docket.find((m) => m.key === startKey) ?? null) : null;
     try {
-      let i = startKey ? Math.max(0, docket.findIndex((m) => m.key === startKey)) : 0;
-      for (let k = 0; ; k++) {
-        const m = docket.length ? docket[i % docket.length] : null;
+      for (;;) {
+        const m = first ?? docket.find(fresh) ?? null;
+        first = null;
         if (m) {
           await runItem(m, tk);
-          await interlude(k, tk);
-        } else await debate(tk);
-        i = m ? (docket.findIndex((x) => x.key === m.key) + 1 || i + 1) : 0;
+          const a = nextAmbient();
+          if (a) await interlude(a, tk);
+          continue;
+        }
+        const a = nextAmbient();
+        if (a) await interlude(a, tk);
+        else await debate(tk);
       }
     } catch {
       /* a new session took over, or the chamber closed */
@@ -1838,10 +1881,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   return {
     setSeats,
     setDocket: (items) => {
-      const was = docket.length;
       docket = items;
-      // The first business of the day: start from item one rather than waiting out an interlude.
-      if (!was && items.length) void session(null);
+      // New business preempts the recess or an interlude at once; an item put away while on the floor leaves it. An item
+      // already being said finishes, and the next new one follows it.
+      const gone = floorKey !== null && !items.some((m) => m.key === floorKey);
+      if (gone || (floorKey === null && items.some(fresh))) void session(null);
     },
     setAmbient: (lines) => {
       ambient = lines;

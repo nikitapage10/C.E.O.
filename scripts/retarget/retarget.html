@@ -145,13 +145,16 @@
       const duration = job.end != null ? job.end - (job.start ?? 0) : clip.duration;
       const n = Math.max(2, Math.round(duration * fps) + 1);
       const times = [];
-      const tracks = {};
-      for (const b of order) tracks[b.name] = { q: [] };
-      tracks[job.targetRoot].p = [];
+      // Keyed by bone name, which comes from the model file and the job, so a Map: a bone called "__proto__" stays a bone.
+      const tracks = new Map();
+      for (const b of order) tracks.set(b.name, { q: [] });
+      const rootTrack = tracks.get(job.targetRoot);
+      if (!rootTrack) throw new Error(`target root ${job.targetRoot} is not a bone`);
+      rootTrack.p = [];
       const feet = job.feet.map((f) => ({ name: f, pts: [] }));
 
       const srcBindQ = new Map();
-      for (const [t, s] of final) srcBindQ.set(s, rot(S.bind.get(s)).premultiply(sf.qN));
+      for (const s of final.values()) srcBindQ.set(s, rot(S.bind.get(s)).premultiply(sf.qN));
       // Travel is read off the hip joint: a rig's root node can sit at the origin in its bind pose and still carry
       // the body in its clips.
       const rootBindP = pos(S.bind.get(job.sourceHip)).applyQuaternion(sf.qN);
@@ -190,7 +193,7 @@
             const sp = pos(S.bones.get(job.sourceHip).matrixWorld).applyQuaternion(sf.qN).sub(rootBindP).multiplyScalar(scale);
             // The root's parent is the armature, in the shared frame already.
             tmpP.copy(restLocalP.get(b)).add(sp.applyQuaternion(tf.qN.clone().invert()));
-            tracks[b.name].p.push(tmpP.x, tmpP.y, tmpP.z);
+            rootTrack.p.push(tmpP.x, tmpP.y, tmpP.z);
           }
           let w;
           if (s) {
@@ -211,18 +214,18 @@
           }
           worldQ.set(b, w);
           // Where the bone lands, to find the floor afterwards.
-          const lp = b.name === job.targetRoot && tracks[b.name].p.length ? new THREE.Vector3().fromArray(tracks[b.name].p, tracks[b.name].p.length - 3) : restLocalP.get(b);
+          const lp = b.name === job.targetRoot && rootTrack.p.length ? new THREE.Vector3().fromArray(rootTrack.p, rootTrack.p.length - 3) : restLocalP.get(b);
           const wp = par ? worldP.get(par).clone().add(lp.clone().applyQuaternion(parentW)) : lp.clone();
           worldP.set(b, wp);
           if (job.targetFeet.includes(b.name)) lowestFoot = Math.min(lowestFoot, wp.y);
           const local = tmpQ.copy(parentW).invert().multiply(w);
-          tracks[b.name].q.push(local.x, local.y, local.z, local.w);
+          tracks.get(b.name).q.push(local.x, local.y, local.z, local.w);
         }
         for (const f of feet) f.pts.push(pos(S.bones.get(f.name).matrixWorld).applyQuaternion(sf.qN).multiplyScalar(scale));
       }
 
       // Travel: the root's drift over the clip, and how far the planted feet carry the body per cycle.
-      const rp = tracks[job.targetRoot].p;
+      const rp = rootTrack.p;
       const drift = [rp[rp.length - 3] - rp[0], rp[rp.length - 2] - rp[1], rp[rp.length - 1] - rp[2]];
       if (job.loop) {
         // Take the linear drift out so the clip loops in place; the runtime moves the cat.
@@ -260,18 +263,18 @@
       if (job.loop) stride = Math.max(stride, reach);
 
       // Only keep bones that actually move, plus the root.
-      for (const [name, tr] of Object.entries(tracks)) {
+      for (const [name, tr] of tracks) {
         if (name === job.targetRoot) continue;
         const [x, y, z, w] = tr.q;
         let still = true;
         for (let i = 4; i < tr.q.length && still; i += 4) if (Math.abs(tr.q[i] - x) + Math.abs(tr.q[i + 1] - y) + Math.abs(tr.q[i + 2] - z) + Math.abs(tr.q[i + 3] - w) > 1e-5) still = false;
-        if (still && !final.has(name)) delete tracks[name];
+        if (still && !final.has(name)) tracks.delete(name);
       }
 
       window.__result = {
         name: job.name,
         times,
-        tracks,
+        tracks: Object.fromEntries(tracks),
         stride,
         drift,
         lift,

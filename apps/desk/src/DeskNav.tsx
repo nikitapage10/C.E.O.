@@ -3,6 +3,7 @@ import { loadLattice, navigateTo, NAV_ORDER, usePathname, type Route, type RoomR
 import { sectionOf, type RoomSection } from "@ceo/engine/web/sections.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { link } from "./nav.ts";
+import { insideDrop, onDropEvent, shownDrop, type DropEvent } from "./navDrop.ts";
 import { pageName, pageSections, type DeskPage } from "./roomPages.ts";
 import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
@@ -160,6 +161,8 @@ function AccountMenu() {
 /** Where an open drop-down sits, under its room's name in the bar, and how it was opened (a pointer's hover closes on leaving). */
 interface Drop {
   id: DeskPage;
+  /** The address it was opened on: it is never drawn on another page (navDrop.ts). */
+  path: string;
   left: number;
   top: number;
   pinned: boolean;
@@ -231,7 +234,8 @@ export function DeskNav({ route, owed }: { route: Exclude<Route, "lattice">; owe
 
   // The open drop-down (#871), placed under its room's name; a hover's waits a moment before closing, so the pointer
   // can cross to it.
-  const [drop, setDrop] = useState<Drop | null>(null);
+  const [opened, setDrop] = useState<Drop | null>(null);
+  const drop = shownDrop(opened, pathname);
   const shut = useRef(0);
   const hold = () => window.clearTimeout(shut.current);
   const later = () => {
@@ -243,32 +247,60 @@ export function DeskNav({ route, owed }: { route: Exclude<Route, "lattice">; owe
     const h = head.current?.getBoundingClientRect();
     const r = at.getBoundingClientRect();
     if (!h) return;
-    setDrop({ id, left: Math.round(r.left - h.left), top: Math.round(r.bottom - h.top), ...how });
+    setDrop({ id, path: window.location.pathname, left: Math.round(r.left - h.left), top: Math.round(r.bottom - h.top), ...how });
   };
   const close = (back: boolean) => {
     hold();
     if (back && drop) head.current?.querySelector<HTMLElement>(`[data-drop="${drop.id}"] .wv-tabcaret`)?.focus();
     setDrop(null);
   };
-  // Shut on a move, a tap elsewhere, Escape, the bar scrolling sideways or the window resizing.
-  useEffect(() => setDrop(null), [pathname]);
+  // Shut on a move to another page, a tap or click elsewhere, Escape, the mouse leaving it and its room's name, the
+  // window losing focus, the bar scrolling sideways or the window resizing (navDrop.ts). Listened for in the capture
+  // phase, so a page that stops its own events (a canvas, a sheet) can't keep a menu open over it.
+  useEffect(() => {
+    hold();
+    setDrop(null);
+  }, [pathname, route]);
   useEffect(() => {
     if (!drop) return;
-    const away = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (!t?.closest?.(".wv-drop") && !t?.closest?.(`[data-drop="${drop.id}"]`)) setDrop(null);
+    const act = (e: DropEvent) => {
+      const what = onDropEvent(drop, e);
+      if (what === "close") {
+        hold();
+        setDrop(null);
+      } else if (what === "soon") {
+        hold();
+        shut.current = window.setTimeout(() => setDrop(null), 180);
+      } else if (e.kind === "pointermove") {
+        hold();
+      }
     };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setDrop(null);
-    const off = () => setDrop(null);
+    const down = (e: PointerEvent) => act({ kind: "pointerdown", inside: insideDrop(e.target as Element | null, drop.id) });
+    const move = (e: PointerEvent) => act({ kind: "pointermove", inside: insideDrop(e.target as Element | null, drop.id), pointerType: e.pointerType });
+    const key = (e: KeyboardEvent) => act({ kind: "key", key: e.key });
+    const out = (e: MouseEvent) => !e.relatedTarget && act({ kind: "leave-window" });
+    const blur = () => act({ kind: "blur" });
+    const hidden = () => document.visibilityState === "hidden" && act({ kind: "hidden" });
+    const off = () => act({ kind: "resize" });
     const row = tabs.current;
-    document.addEventListener("pointerdown", away);
-    document.addEventListener("keydown", esc);
+    document.addEventListener("pointerdown", down, true);
+    document.addEventListener("pointermove", move, true);
+    document.addEventListener("keydown", key, true);
+    document.addEventListener("mouseout", out);
+    document.addEventListener("visibilitychange", hidden);
+    window.addEventListener("blur", blur);
     window.addEventListener("resize", off);
+    window.addEventListener("popstate", off);
     row?.addEventListener("scroll", off, { passive: true });
     return () => {
-      document.removeEventListener("pointerdown", away);
-      document.removeEventListener("keydown", esc);
+      document.removeEventListener("pointerdown", down, true);
+      document.removeEventListener("pointermove", move, true);
+      document.removeEventListener("keydown", key, true);
+      document.removeEventListener("mouseout", out);
+      document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("blur", blur);
       window.removeEventListener("resize", off);
+      window.removeEventListener("popstate", off);
       row?.removeEventListener("scroll", off);
     };
   }, [drop]);

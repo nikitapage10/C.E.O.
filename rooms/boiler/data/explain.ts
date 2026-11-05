@@ -118,9 +118,14 @@ export function featureExplain(id: string): Explain {
 /** The two alert counts. Counts only: the page never shows an open alert's details. */
 export const ALERT_EXPLAIN: Record<keyof SecurityFeed["alerts"], Explain> = {
   codeScanning: {
-    what: "How many findings from CodeQL and Scorecard are open and how many were fixed.",
+    what: "How many code findings (CodeQL) are open and how many were fixed.",
     connects: "The repo's Security tab, where the details stay; this page shows only the counts.",
     why: "A rising open count means fixes are falling behind the scans.",
+  },
+  posture: {
+    what: "How many of Scorecard's repo-posture checks it filed as alerts: how the repo is run (reviews, branch protection, fuzzing), not a bug in the code.",
+    connects: "Scorecard's weekly run; most close from the repo's settings on GitHub, not from a code change.",
+    why: "Worth raising over time, but none is a hole in what ships, so none turns the scans' pipe amber.",
   },
   dependabot: {
     what: "How many vulnerable-package alerts are open and how many were fixed.",

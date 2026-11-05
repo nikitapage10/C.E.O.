@@ -5,7 +5,7 @@ import type { SecurityFeed } from "./feed.ts";
 import { BOUNDARIES } from "./model.ts";
 import { boundaryPaths } from "../web/CheckList.tsx";
 import { BoilerFrame } from "../web/frame.tsx";
-import { complianceNeeds, controlsNeeds, dailySeries, frameworkBars, linkTally, needsLayout, securityNeeds, severityTotals, syncMark, type LinkRow, type Need } from "./pages.ts";
+import { complianceNeeds, controlsNeeds, dailySeries, frameworkBars, linkTally, needsLayout, actionableAlerts, securityHeadline, securityNeeds, severityTotals, syncMark, type LinkRow, type Need } from "./pages.ts";
 
 const NOW = Date.UTC(2026, 10, 5, 0, 30);
 const HOUR = 3_600_000;
@@ -102,6 +102,32 @@ describe("Security's reads", () => {
   it("adds alerts up by severity, and says so when the feed sent no split", () => {
     expect(severityTotals(feed().alerts)).toEqual({ critical: 1, high: 0, medium: 1, low: 1 });
     expect(severityTotals({ codeScanning: { open: 1, fixed: 0, more: false }, dependabot: null })).toBeNull();
+  });
+
+  // As main read on 2026-11-05: 3 CodeQL findings (2 medium, 1 note) and 8 Scorecard posture checks (4 high).
+  const passing = feed().workflows.map((w) => ({ ...w, state: "pass" as const }));
+  const posture = { open: 8, fixed: 2, more: false, severity: { critical: 0, high: 4, medium: 2, low: 2 } };
+  const nov5 = (over: Partial<SecurityFeed["alerts"]> = {}) =>
+    feed({ workflows: passing, alerts: { codeScanning: { open: 3, fixed: 9, more: false, severity: { critical: 0, high: 0, medium: 2, low: 1 } }, dependabot: { open: 0, fixed: 0, more: false, severity: { critical: 0, high: 0, medium: 0, low: 0 } }, posture, ...over } });
+
+  it("never calls the scans all clear while code findings are open, and leaves Scorecard's posture checks out (#901)", () => {
+    expect(securityHeadline(nov5())).toEqual({ tone: "warn", lead: "Scans pass ·", em: "3 code findings open." });
+    expect(securityHeadline(nov5({ codeScanning: { open: 1, fixed: 0, more: false }, dependabot: { open: 2, fixed: 0, more: false } }))).toEqual({ tone: "warn", lead: "Scans pass ·", em: "1 code finding, 2 package alerts open." });
+    // Only posture checks open: the scans are honestly all passing.
+    expect(securityHeadline(nov5({ codeScanning: { open: 0, fixed: 12, more: false } }))).toEqual({ tone: "pass", lead: "Every scan is", em: "passing." });
+    expect(securityHeadline(feed()).tone).toBe("fail");
+    expect(securityHeadline(feed()).lead).toBe("One scan is");
+    expect(securityHeadline(null).tone).toBe("wait");
+  });
+
+  it("counts only code findings and package alerts as actionable, so posture never asks for Nikita or turns a pipe amber (#901)", () => {
+    expect(actionableAlerts(nov5().alerts)).toEqual({ open: 3, code: 3, deps: 0, more: false });
+    expect(actionableAlerts({ codeScanning: { open: 0, fixed: 0, more: false }, dependabot: null, posture })).toEqual({ open: 0, code: 0, deps: 0, more: false });
+    expect(actionableAlerts({ codeScanning: null, dependabot: null, posture })).toBeNull();
+    expect(actionableAlerts(undefined)).toBeNull();
+    // Four high posture checks are not a "4 high code scanning alerts" need.
+    expect(securityNeeds(nov5())).toEqual([]);
+    expect(severityTotals(nov5().alerts)).toEqual({ critical: 0, high: 0, medium: 2, low: 1 });
   });
 
   it("draws every trust boundary, fanning out the ones between the same two zones", () => {

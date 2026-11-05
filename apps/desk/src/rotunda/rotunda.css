@@ -138,6 +138,19 @@
 .desk .rt-mo.is-decision .rt-act.is-p{background:none;color:var(--rt-gold);border-color:rgba(227,201,141,.5)}
 .desk .rt-act.is-opt{border-color:rgba(227,201,141,.55)}
 .desk .rt-act.is-opt.is-pick{background:rgba(227,201,141,.14)}
+/* Got it (#900): quiet, at the end of the row; the card leaves for Archived. */
+.desk .rt-act.is-x{margin-left:auto;border-color:var(--rt-line);color:var(--rt-soft);font-weight:500}
+.desk .rt-act.is-x:hover,.desk .rt-act.is-x:focus-visible{color:var(--rt-gold);border-color:rgba(201,168,92,.4)}
+/* Archived (#900): a small toggle over the docket; the cards put away, each to open or restore. */
+.desk .rt-away{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:0 0 8px}
+.desk .rt-away-t{padding:3px 10px;border:1px solid var(--rt-line);background:rgba(11,12,18,.85);font:600 10.5px var(--rt-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--rt-mute);cursor:pointer}
+.desk .rt-away-t:hover,.desk .rt-away-t:focus-visible,.desk .rt-away-t[aria-expanded="true"]{color:var(--rt-gold);border-color:rgba(201,168,92,.4)}
+.desk .rt-away-l{list-style:none;margin:0;padding:6px 0;width:min(560px,100%);max-height:200px;overflow:auto;background:rgba(9,10,15,.95);border:1px solid var(--rt-line)}
+.desk .rt-away-l li{display:flex;align-items:center;gap:8px;padding:6px 12px}
+.desk .rt-away-l li+li{border-top:1px solid var(--rt-line)}
+.desk .rt-away-x{display:flex;flex-direction:column;flex:1;min-width:0}
+.desk .rt-away-x em{font:500 9.5px var(--rt-sans);font-style:normal;letter-spacing:.14em;text-transform:uppercase;color:var(--rt-faint)}
+.desk .rt-away-x b{overflow:hidden;font:500 14px/1.3 var(--rt-serif);color:var(--rt-soft);white-space:nowrap;text-overflow:ellipsis}
 .desk .rt-carried{display:flex;align-items:center;gap:6px;margin:0;font:600 12px var(--rt-sans);color:var(--rt-gold)}
 .desk .rt-carried svg{width:14px;height:14px}
 .desk .rt-stamp{position:absolute;right:12px;top:30px;padding:2px 6px;font:600 10px var(--rt-sans);letter-spacing:.16em;text-transform:uppercase;color:var(--tc);border:1px solid var(--tc);transform:rotate(-4deg);opacity:0;transition:opacity .5s;pointer-events:none}

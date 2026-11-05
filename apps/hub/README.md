@@ -23,6 +23,12 @@ and a pair code from the Desk:
 
     curl -fsSL https://ceo.nikita.page/relay/install.sh | bash
 
+Before the first send, allow BlueBubbles to control Messages: System Settings > Privacy & Security > Automation >
+BlueBubbles > Messages on. BlueBubbles sends with AppleScript (its Private API stays off), so without it every send
+fails; macOS asks the first time BlueBubbles sends, and the dialog waits on the Mac's screen until someone clicks
+Allow. A send that fails for it shows "Not sent: the Mac needs permission for Messages" on the Desk, and `relay status`
+warns about it (#767). BlueBubbles also needs Full Disk Access and Accessibility for itself.
+
 Then `relay status`, `relay off`, `relay on`, `relay wipe [--all]` and `relay wipe --verify`.
 
 `src/index.ts` keeps the older, general hub interfaces (`EventSource`, `ActionExecutor`) from phase 2's plan.

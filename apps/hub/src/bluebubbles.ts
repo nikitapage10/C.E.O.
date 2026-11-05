@@ -1,3 +1,4 @@
+import type { Reason } from "../../../api/_relay/texts.ts";
 import { BLUEBUBBLES } from "./config.ts";
 import { errorClass } from "./log.ts";
 
@@ -44,7 +45,7 @@ export interface BlueBubbles {
   contacts(): Promise<Contact[]>;
   /** The chat's latest messages, newest first. */
   messages(chat: string, limit: number): Promise<Message[]>;
-  /** Sends one text; true when BlueBubbles took it. */
+  /** Sends one text: true when BlueBubbles took it; otherwise it throws a BlueBubblesError (sendReason says why). */
   send(chat: string, text: string, tempGuid: string): Promise<boolean>;
   /** The guids of Messages' one-to-one chats (iMessage;-;… and SMS;-;…), for finding the chat a new text goes in (#536). */
   chats(): Promise<string[]>;
@@ -173,6 +174,22 @@ async function body(res: Response, secrets: readonly string[]): Promise<{ data?:
 export const BB_TIMEOUT_MS = 15_000;
 export const BB_SEND_TIMEOUT_MS = 30_000;
 
+/** Words in BlueBubbles' error that mean macOS kept it from controlling Messages (TCC Automation, error -1743). */
+const AUTOMATION = /-1743|not authori[sz]ed to send apple events|not allowed to send apple ?events|automation/i;
+
+/**
+ * Why a send through BlueBubbles didn't go, as a reason code for the Desk (#767). A timeout may still have sent; the
+ * rest did not. Never BlueBubbles' own words: only which kind of failure.
+ */
+export function sendReason(e: unknown): Reason {
+  if (!(e instanceof BlueBubblesError)) return "bb-refused";
+  if (e.kind === "timeout") return "bb-timeout";
+  if (e.kind === "unreachable") return "bb-down";
+  if (e.kind === "http" && e.status === 401) return "bb-auth";
+  if (e.kind === "http" && AUTOMATION.test(e.detail)) return "mac-permission";
+  return "bb-refused";
+}
+
 /** A failed BlueBubbles call in plain words for the Terminal, the password never in it; "" for any other error. */
 export function describeFailure(e: unknown): string {
   if (!(e instanceof BlueBubblesError)) return "";
@@ -233,13 +250,12 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
       if (!Array.isArray(data)) throw new BlueBubblesError("not-json", 200);
       return (data as Record<string, unknown>[]).map(readPolled).filter((p): p is Polled => p !== null);
     },
+    // AppleScript sends (Private API off) need a tempGuid; BlueBubbles answers once Messages has the message, or
+    // with an error (500) that names why, such as macOS refusing it Automation access to Messages (#767). The error
+    // goes up, so the hub can say why instead of only "failed".
     send: async (chat, text, tempGuid) => {
-      try {
-        await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
-        return true;
-      } catch {
-        return false;
-      }
+      await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
+      return true;
     },
   };
 }

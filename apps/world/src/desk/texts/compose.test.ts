@@ -157,6 +157,12 @@ describe("what the card says", () => {
     expect(sendWords(req("refused"))!.resend).toBe(false);
   });
 
+  it("says why the Mac didn't send it, with Resend only where another try helps (#767)", () => {
+    expect(sendWords({ ...req("failed"), reason: "mac-permission" })).toEqual({ text: "Not sent: the Mac needs permission for Messages. Allow BlueBubbles to control Messages: System Settings > Privacy & Security > Automation.", resend: true });
+    expect(sendWords({ ...req("refused"), reason: "answered" })).toEqual({ text: "Not sent: Messages already shows your reply.", resend: false });
+    expect(sendWords({ ...req("failed"), reason: "no-answer" })!.text).toMatch(/^Not sent: the Mac took it but never answered/);
+  });
+
   it("says the Mac didn't answer when no card comes back in time", () => {
     expect(phaseOf(base(), undefined, undefined, NOW + 60_000)).toBe("drafting");
     expect(phaseOf(base(), undefined, undefined, NOW + 4 * 60_000)).toBe("error");

@@ -3,6 +3,7 @@ import { formatWait } from "../deskData.ts";
 import { useDictation, dictationSupported } from "../dictate.ts";
 import { Private } from "../Private.tsx";
 import { useDeskAuth } from "../signin.ts";
+import { REASON_WORDS, RESENDABLE } from "../../../../../api/_relay/texts.ts";
 import { startTexts, STALE_MS, textsLine, useTexts, type TextItem, type TextRequestView } from "./texts.ts";
 import "./texts.css";
 
@@ -24,12 +25,14 @@ const CHAIN = ["MacBook awake", "BlueBubbles", "The hub, paired", "Sort and draf
 const hhmm = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
 /** What a request's state says on the row. */
-export function requestWords(r: Pick<TextRequestView, "kind" | "state">): { text: string; resend: boolean; warn: boolean } | null {
+export function requestWords(r: Pick<TextRequestView, "kind" | "state" | "reason">): { text: string; resend: boolean; warn: boolean } | null {
   if (r.kind !== "send") {
     if (r.state === "waiting" || r.state === "taken") return { text: "On its way to the Mac…", resend: false, warn: false };
     if (r.state === "expired") return { text: "Not done, Mac was offline", resend: false, warn: true };
     return null;
   }
+  // The Mac said why it didn't go (#767): its words, with Resend when another try can help.
+  if (r.reason && (r.state === "failed" || r.state === "refused")) return { text: `Not sent: ${REASON_WORDS[r.reason]}`, resend: RESENDABLE.includes(r.reason), warn: true };
   switch (r.state) {
     case "waiting":
       return { text: "On its way to the Mac…", resend: false, warn: false };
@@ -116,6 +119,8 @@ function Row({ item, now, requests, unlocked }: { item: TextItem; now: number; r
   const ask = useTexts((s) => s.ask);
   const unlock = useTexts((s) => s.unlock);
   const busy = useTexts((s) => s.busy);
+  const error = useTexts((s) => s.error);
+  const [tapped, setTapped] = useState(false);
   const { listening, start, stop } = useDictation((finished, tail) => setSaid(`${finished} ${tail}`.trim()));
   const last = requests.filter((r) => r.thread === item.id).sort((a, b) => b.created - a.created)[0];
   const words = last ? requestWords(last) : null;
@@ -153,7 +158,10 @@ function Row({ item, now, requests, unlocked }: { item: TextItem; now: number; r
               )}
               <div className="tx-do">
                 {unlocked ? (
-                  <button type="button" className="fl-btn is-go" disabled={!text.trim() || !!sending || busy !== null} onClick={() => void ask({ action: "send", thread: item.id, draftAt, text })}>
+                  <button type="button" className="fl-btn is-go" disabled={!text.trim() || !!sending || busy !== null} onClick={() => {
+                      setTapped(true);
+                      void ask({ action: "send", thread: item.id, draftAt, text });
+                    }}>
                     Send
                   </button>
                 ) : (
@@ -186,6 +194,11 @@ function Row({ item, now, requests, unlocked }: { item: TextItem; now: number; r
                 )}
               </div>
             </>
+          )}
+          {tapped && error && busy === null && (
+            <p className="tx-req" data-warn="">
+              Not sent: {error}
+            </p>
           )}
           {words && (
             <p className="tx-req" data-warn={words.warn || undefined}>

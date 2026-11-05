@@ -7,7 +7,7 @@ import { handlePost as authPost } from "../desk-auth.ts";
 import { CEILING, MemorySpendStore, relayBudget, SPEND_PATH, type Ledger } from "./budget.ts";
 import { COMPOSE_SYSTEM, composeRequest, DRAFT_MODEL, draftRequest, readComposeInput, readDraft, readSort, SORT_MODEL, sortRequest, type ClaudeBody } from "./models.ts";
 import { askRuled, cleanWho, maskHandle, matchContacts } from "./compose.ts";
-import { GET, HUB_PATH, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
+import { GET, HUB_PATH, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, resendable, shownReason, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { cleanPng, emailPhotoHash, macPhotoKey, normalHandle, photoEmailKey, photoIdOf, PHOTO_MAX_BYTES, readPhotoList } from "./photos.ts";
 import { BlobRelayStore, MemoryRelayStore, PRIVATE_PATH, readPrivate, relaySealKey } from "./store.ts";
@@ -469,6 +469,36 @@ describe("send requests (single-use, 10 minutes, Resend)", () => {
     const e = { req: { until: NOW } as TextRequest, state: "taken" as const, takenAt: NOW - 1, doneAt: null };
     expect(shownState(e, NOW + 4 * 60_000)).toBe("taken");
     expect(shownState(e, NOW + 5 * 60_000)).toBe("failed");
+    expect(shownReason(e, NOW + 4 * 60_000)).toBeUndefined();
+    expect(shownReason(e, NOW + 5 * 60_000)).toBe("no-answer");
+  });
+
+  it("keep the hub's reason code for a refusal or failure, show it on the Desk, and offer Resend when another try can help (#767)", async () => {
+    const d = await unlocked();
+    const { rid } = (await (await d.send()).json()) as { rid: string };
+    await d.requests();
+    // Only a code from the closed list is kept: words from the Mac never are.
+    await d.hub("POST", "?view=results", { results: [{ rid, result: "failed", reason: "mac-permission", note: "Not authorized" }] });
+    const shown = (await d.listed()).requests[0]! as { state: string; reason?: string };
+    expect(shown).toMatchObject({ state: "failed", reason: "mac-permission" });
+    const again = await d.post({ action: "resend", rid });
+    expect(again.status).toBe(200);
+    const fresh = ((await again.json()) as { rid: string }).rid;
+    await d.requests();
+    await d.hub("POST", "?view=results", { results: [{ rid: fresh, result: "refused", reason: "made-up words" }] });
+    const last = (await d.listed()).requests.find((r) => r.rid === fresh)! as { state: string; reason?: string };
+    expect(last.state).toBe("refused");
+    expect(last.reason).toBeUndefined();
+    // A plain refusal needs a look first: no Resend.
+    expect((await d.post({ action: "resend", rid: fresh })).status).toBe(409);
+  });
+
+  it("allow Resend after a refusal only for a reason another try can fix", () => {
+    const at = { req: { until: NOW, kind: "send" } as TextRequest, takenAt: NOW - 1, doneAt: NOW };
+    expect(resendable({ ...at, state: "refused", reason: "paused" }, NOW)).toBe(true);
+    expect(resendable({ ...at, state: "refused", reason: "new-message" }, NOW)).toBe(false);
+    expect(resendable({ ...at, state: "refused", reason: "answered" }, NOW)).toBe(false);
+    expect(resendable({ ...at, state: "refused" }, NOW)).toBe(false);
   });
 
   it("are made only by the Desk's own actions", () => {

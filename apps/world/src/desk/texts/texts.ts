@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { readRelayStatus, type RelayStatus } from "@ceo/core";
-import { readTextCard, readTextItem, REQUEST_STATES, type RequestState, type TextCard, type TextItem } from "../../../../../api/_relay/texts.ts";
+import { readReason, readTextCard, readTextItem, REQUEST_STATES, type Reason, type RequestState, type TextCard, type TextItem } from "../../../../../api/_relay/texts.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "../signin.ts";
 
@@ -32,6 +32,8 @@ export interface TextRequestView {
   created: number;
   until: number;
   state: RequestState;
+  /** Why the Mac refused or failed it (#767): a code, shown in words with Resend where it helps. */
+  reason?: Reason;
 }
 
 export interface TextsPrivate {
@@ -59,7 +61,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
   const spend = o.spend as Record<string, unknown> | null;
   const requests: TextRequestView[] = (o.requests as Record<string, unknown>[]).flatMap((r) =>
     r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
-      ? [{ rid: r.rid, kind: r.kind as TextRequestView["kind"], thread: r.thread, text: typeof r.text === "string" ? r.text.slice(0, 2_000) : "", created: r.created, until: r.until, state: r.state as RequestState }]
+      ? [{ rid: r.rid, kind: r.kind as TextRequestView["kind"], thread: r.thread, text: typeof r.text === "string" ? r.text.slice(0, 2_000) : "", created: r.created, until: r.until, state: r.state as RequestState, ...(readReason(r.reason) && { reason: readReason(r.reason) }) }]
       : [],
   );
   return {

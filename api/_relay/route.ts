@@ -76,7 +76,7 @@ import { BlobSpendStore, monthSpend, relayBudget, reserveSpend, settleSpend, typ
 import { liveClaude } from "./claude.js";
 import { claudeProvider, DRAFT_MODEL, readComposeInput, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
 import { pickRelayStore, update, type PrivateState, type RelayStore, type RequestEntry } from "./store.js";
-import { DICTATED_MAX, MAX_CARDS, readTextsView, RESULTS, RID, SEND_MAX, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
+import { DICTATED_MAX, MAX_CARDS, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
 import { askRuled, cleanGist, cleanWho } from "./compose.js";
 import { privateParts } from "../_privacy.js";
 import { cleanPng, emptyPhotoIndex, MAX_PHOTOS, PHOTO_ID, photoEmailKey, readPhotoIndex, readPhotoList } from "./photos.js";
@@ -159,6 +159,21 @@ export function shownState(e: RequestEntry, now: number): RequestState {
   return e.state;
 }
 
+/** Why a request didn't go, as the Desk sees it (#767): the hub's code, or "no-answer" for one it took and never reported. */
+export function shownReason(e: RequestEntry, now: number): Reason | undefined {
+  if (e.reason) return e.reason;
+  return e.state === "taken" && shownState(e, now) === "failed" ? "no-answer" : undefined;
+}
+
+/** Whether Resend may make a new request from this one: expired, failed, or refused for a reason another try can fix. */
+export function resendable(e: RequestEntry, now: number): boolean {
+  if (e.req.kind !== "send") return false;
+  const shown = shownState(e, now);
+  if (shown === "expired" || shown === "failed") return true;
+  const why = shownReason(e, now);
+  return shown === "refused" && why !== undefined && RESENDABLE.includes(why);
+}
+
 /** The hub's token, checked: signed by this Desk key, for the pairing on record, with the hash on record. */
 async function hubOf(request: Request, deps: RelayRouteDeps): Promise<{ pairId: string } | null> {
   const token = bearer(request);
@@ -219,7 +234,7 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
         texts: hub ? (priv.texts?.items ?? []) : [],
         cards: hub ? (priv.texts?.cards ?? []) : [],
         textsAt: hub ? (priv.texts?.at ?? null) : null,
-        requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" || e.req.kind === "compose" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now) })),
+        requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" || e.req.kind === "compose" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now), ...(shownReason(e, deps.now) && { reason: shownReason(e, deps.now) }) })),
         spend: { usd: spent ? Math.round(monthSpend(spent, deps.now).usd * 10_000) / 10_000 : 0, budget: deps.budget },
       }),
       signed,
@@ -321,8 +336,7 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
       let fields: { thread: unknown; draftAt: unknown; text: unknown } = { thread: body?.thread, draftAt: body?.draftAt, text: body?.text };
       if (action === "resend") {
         const old = typeof body?.rid === "string" && RID.test(body.rid) ? s.requests.find((e) => e.req.rid === body!.rid) : undefined;
-        const shown = old ? shownState(old, deps.now) : null;
-        if (!old || old.req.kind !== "send" || (shown !== "expired" && shown !== "failed")) return { next: s, result: { error: "no-resend" as const } };
+        if (!old || !resendable(old, deps.now)) return { next: s, result: { error: "no-resend" as const } };
         fields = { thread: old.req.thread, draftAt: old.req.draftAt, text: old.req.text };
       }
       return makeRequest(s, sendKey, "send", fields, deps.now);
@@ -564,10 +578,24 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
   if (view === "results") {
     const list = (body as { results?: unknown })?.results;
     if (!Array.isArray(list) || list.length > 50) return json({ error: "bad-request" }, 400);
-    const results = new Map<string, RequestResult>();
-    for (const r of list as Record<string, unknown>[]) if (typeof r?.rid === "string" && RID.test(r.rid) && (RESULTS as readonly string[]).includes(r.result as string)) results.set(r.rid, r.result as RequestResult);
+    const results = new Map<string, { result: RequestResult; reason?: Reason }>();
+    for (const r of list as Record<string, unknown>[]) {
+      if (typeof r?.rid !== "string" || !RID.test(r.rid) || !(RESULTS as readonly string[]).includes(r.result as string)) continue;
+      // A reason only with a refusal or a failure, and only a code from the closed list (#767): never words from the Mac.
+      const reason = r.result === "refused" || r.result === "failed" ? readReason(r.reason) : undefined;
+      results.set(r.rid, { result: r.result as RequestResult, ...(reason && { reason }) });
+    }
     // Only a request the hub took, once: a result for anything else changes nothing.
-    await update(store, (s) => ({ next: { ...s, requests: s.requests.map((e) => (e.state === "taken" && results.has(e.req.rid) ? { ...e, state: results.get(e.req.rid)!, doneAt: deps.now } : e)) }, result: true }));
+    await update(store, (s) => ({
+      next: {
+        ...s,
+        requests: s.requests.map((e) => {
+          const got = e.state === "taken" ? results.get(e.req.rid) : undefined;
+          return got ? { ...e, state: got.result, doneAt: deps.now, ...(got.reason && { reason: got.reason }) } : e;
+        }),
+      },
+      result: true,
+    }));
     return json({ ok: true });
   }
 

@@ -27,8 +27,6 @@ const KNOWN_GAPS = new Set<string>([
   "spire: every integration is in THREAT-MODEL.md",
   "exchange: every integration is in THREAT-MODEL.md",
   "green: every integration is in THREAT-MODEL.md",
-  // A key with no threat-model id (the Studio's OpenAI key is set, its line isn't built).
-  "studio: a room that holds keys or endpoints has a threat-model id",
   // Rooms whose lore lives only in the cast table, with no section of their own in lore/syntherion.md.
   "foundry: its lore section is its own",
   "exchange: its lore section is its own",

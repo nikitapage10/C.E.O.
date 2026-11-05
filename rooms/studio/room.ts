@@ -12,7 +12,7 @@ export default defineRoom({
   auth: {},
   keys: ["OPENAI_STUDIO_KEY"],
   usesClaude: false,
-  threat: [],
+  threat: ["TB2"],
   budgetKb: 16,
   purpose: {
     goal: "Will make short explainer videos through writing, voice and render agents, Nikita's path into an agent-run content line once it is real.",

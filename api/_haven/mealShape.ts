@@ -1,7 +1,7 @@
 /**
  * The Haven Kitchen's meal planner (#678): the shapes, the reader that checks every file and body as untrusted data,
  * and the pure edits. No I/O and nothing Node-only, so the server (api/_haven/meals.ts) and the Desk
- * (apps/world/src/desk/haven/MealPlanner.tsx) run the very same `applyEdit`: the Desk shows an edit at once and the
+ * (rooms/haven/web/MealPlanner.tsx) run the very same `applyEdit`: the Desk shows an edit at once and the
  * server's answer replaces it.
  *
  * One file holds it all (`haven/meals.json` in the private store, passkey-only):

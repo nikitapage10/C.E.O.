@@ -23,8 +23,13 @@ export const FAKE_PLAN: HavenPlan = {
     [220, 470, 220, 530], [660, 560, 660, 660], [180, 1040, 180, 1120],
   ],
   windows: [
-    [300, 40, 520, 40], [660, 40, 900, 40], [960, 100, 960, 400], [960, 520, 960, 740], [300, 800, 600, 800], [300, 1260, 700, 1260],
+    [300, 40, 520, 40], [660, 40, 900, 40], [960, 100, 960, 300], [960, 520, 960, 640], [300, 800, 600, 800], [300, 1260, 700, 1260],
   ],
+  // Made-up balcony doors: one off the living room, one off the study (#747).
+  balconies: [[960, 330, 960, 420], [960, 670, 960, 760]],
+  // The made-up living room's TV wall: the solid wall facing its windows.
+  tv: [[600, 40, 600, 300]],
+  openings: true,
   items: [
     { k: "counter", x: 224, y: 44, w: 300, h: 30, round: false }, { k: "upper", x: 224, y: 42, w: 300, h: 12, round: false },
     { k: "range", x: 360, y: 46, w: 60, h: 26, round: false }, { k: "sink", x: 260, y: 48, w: 50, h: 22, round: false },
@@ -52,7 +57,7 @@ export const FAKE_PLAN: HavenPlan = {
     { kind: "wet-feeder", x: 420, y: 446, lift: 0, lights: null },
     { kind: "dry-feeder", x: 460, y: 446, lift: 0, lights: null },
     { kind: "fountain", x: 500, y: 446, lift: 0, lights: null },
-    { kind: "litter", x: 180, y: 500, lift: 0, lights: null },
+    { kind: "litter", x: 84, y: 500, lift: 0, lights: null },
     { kind: "thermostat", x: 560, y: 456, lift: 52, lights: "living" },
   ],
   path: [[130, 40], [130, 14], [14, 14], [14, 1080], [180, 1080]],

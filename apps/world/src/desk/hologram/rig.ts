@@ -3,7 +3,7 @@ import type { Band } from "../../agents/bodies/recolor.ts";
 import type { Pose } from "./persona.ts";
 
 /**
- * Skippy's rig, shared by the Talk hologram (holoScene.ts) and the Senate Rotunda on Today (rotunda/rotundaScene.ts,
+ * Skippy's rig, shared by the Talk hologram (holoScene.ts) and the Senate on Today (rotunda/rotundaScene.ts,
  * #666): the can's navy band, his head and face cap, and the arm poses. Kept apart so Today never loads the hologram.
  */
 /** The admiral can's navy (Library.tsx, SKIPPY_NAVY): the band a submind repaints in its room's colour. */
@@ -38,6 +38,26 @@ export const POSES: Record<Pose, Aims> = {
   hands: { LeftArm: [0.35, -0.75, 0.55], LeftForeArm: [-0.35, -0.1, 1], RightArm: [-0.35, -0.75, 0.55], RightForeArm: [0.35, -0.1, 1] },
   // Leaning in, hands up and ready (the Messenger, the Commentator thinking).
   ready: { LeftArm: [0.5, -0.7, 0.5], LeftForeArm: [0.05, 0.4, 1], RightArm: [-0.5, -0.7, 0.5], RightForeArm: [-0.05, 0.4, 1] },
+  // The Senate's gestures (#775, rotunda/senators.ts). The Director framing a shot: both hands up before its eyes.
+  frame: { LeftArm: [0.55, -0.2, 0.8], LeftForeArm: [-0.45, 0.75, 0.5], RightArm: [-0.55, -0.2, 0.8], RightForeArm: [0.45, 0.75, 0.5] },
+  // The Bookie counting it off: one hand across the can like a ledger, the other up, ticking.
+  count: { LeftArm: [0.45, -0.8, 0.45], LeftForeArm: [-0.55, -0.05, 0.85], RightArm: [-0.45, -0.55, 0.6], RightForeArm: [0.05, 0.9, 0.45] },
+  // The Executive presenting: one open hand out to the side, the other easy.
+  present: { LeftArm: [0.38, -1, 0.25], LeftForeArm: [0.12, -1, 0.4], RightArm: [-0.85, -0.3, 0.5], RightForeArm: [-0.7, 0.15, 0.75] },
+  // The Stagehand calling a cue: one hand at the headset, the other pointing out. "Go."
+  cue: { LeftArm: [0.55, -0.15, 0.15], LeftForeArm: [-0.35, 0.9, -0.15], RightArm: [-0.75, 0.05, 0.65], RightForeArm: [-0.65, 0.12, 0.75] },
+  // The Historian lecturing: a book held before it, one finger raised.
+  lecture: { LeftArm: [0.4, -0.9, 0.4], LeftForeArm: [-0.25, -0.2, 1], RightArm: [-0.45, -0.65, 0.4], RightForeArm: [-0.05, 1, 0.2] },
+  // The Artiste's flourish: one arm swept up and out, the other trailing.
+  flourish: { LeftArm: [0.5, -0.85, 0.2], LeftForeArm: [0.25, -0.55, 0.8], RightArm: [-0.85, 0.5, 0.25], RightForeArm: [-0.45, 0.9, 0.15] },
+  // The Steward's hands folded low before it, at service.
+  clasp: { LeftArm: [0.3, -0.9, 0.45], LeftForeArm: [-0.75, -0.3, 0.6], RightArm: [-0.3, -0.9, 0.45], RightForeArm: [0.75, -0.3, 0.6] },
+  // The Commentator pointing at the play, the other hand up at its mic.
+  point: { LeftArm: [0.5, -0.6, 0.5], LeftForeArm: [-0.2, 0.6, 0.8], RightArm: [-0.6, 0.25, 0.8], RightForeArm: [-0.3, 0.35, 1] },
+  // The Life of the Party waving one arm high, the other on its hip.
+  wave: { LeftArm: [0.95, 0.5, 0.1], LeftForeArm: [0.2, 1, 0.05], RightArm: [-0.6, -0.8, 0.1], RightForeArm: [0.55, -0.2, 0.5] },
+  // A shrug: arms out low, palms up. Who could say.
+  shrug: { LeftArm: [0.75, -0.65, 0.2], LeftForeArm: [0.6, 0.3, 0.75], RightArm: [-0.75, -0.65, 0.2], RightForeArm: [-0.6, 0.3, 0.75] },
 };
 
 /** Fits the face cap onto his head: cast from the head's centre through each vertex, then smooth, never dipping under a hit. */

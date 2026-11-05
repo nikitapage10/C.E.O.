@@ -268,6 +268,8 @@ export function defaultCast(): Cast {
       { a: "vellum", b: "d20", kind: "mentor", note: "The Historian corrects D20's dates, D20's dice and D20's spelling of 'initiative'. D20 rolls to ignore it. Fails." },
       { a: "fizz", b: "kevin", kind: "best-friend", note: "Kevin is always on break; the Life of the Party is always throwing one. Kevin runs the decks, it runs the glitter. Neither leaves early." },
       { a: "fizz", b: "memo", kind: "friend", note: "Memo floats in to dodge meetings. The Life of the Party throws it a welcome party every time, then floats it right back to the meeting." },
+      { a: "fizz", b: "soot", kind: "rival", note: "In the Senate the Party spins in its pod and the Pessimist groans out loud. The Party winks back, every time. The Pessimist has started waiting for it." },
+      { a: "tally", b: "putty", kind: "rival", note: "The Director frames each speaker with its hands; the Artiste's arm goes up mid-idea and ruins the shot. 'Inspiration,' says one. 'Upstaging,' says the other." },
       { a: "soot", b: "drop", kind: "best-friend", note: "The Pessimist says the pipe will burst. Drop beeps and plugs into it. It doesn't burst. The Pessimist is delighted. Gary started it; Drop keeps it going." },
       { a: "soot", b: "clause", kind: "friend", note: "Two worriers, one room. The Pessimist expects the worst; Clause has a form for it, and the odds. They have never been calmer." },
       { a: "soot", b: "kevin", kind: "friend", note: "Kevin naps on the warm side. The Pessimist is sure it'll blow under him. It never has. The Pessimist keeps watching, just in case." },

@@ -27,7 +27,13 @@ function base(g: Ctx) {
   g.fillRect(0, 0, FACE_W, FACE_H);
 }
 
-function eye(g: Ctx, x: number, look: readonly [number, number], lid: number, sy = 1) {
+/** The modifiers drawFace was given (the Senate's blinks and eye-rolls, #775): set per draw, read by eye(). */
+const mod = { blink: 0, lx: 0, ly: 0 };
+
+function eye(g: Ctx, x: number, look0: readonly [number, number], lid0: number, sy = 1) {
+  const lx = look0[0] + mod.lx;
+  const ly = look0[1] + mod.ly;
+  const lid = lid0 + (1 - lid0) * mod.blink;
   g.save();
   g.translate(x, EY);
   g.scale(1.55, 1.45 * sy);
@@ -46,14 +52,14 @@ function eye(g: Ctx, x: number, look: readonly [number, number], lid: number, sy
   g.clip();
   g.fillStyle = "#0d1018";
   g.beginPath();
-  g.ellipse(look[0], look[1] + 2, 30, 34, 0, 0, Math.PI * 2);
+  g.ellipse(lx, ly + 2, 30, 34, 0, 0, Math.PI * 2);
   g.fill();
   g.fillStyle = "#fff";
   g.beginPath();
-  g.arc(look[0] + 11, look[1] - 12, 8, 0, Math.PI * 2);
+  g.arc(lx + 11, ly - 12, 8, 0, Math.PI * 2);
   g.fill();
   g.beginPath();
-  g.arc(look[0] - 10, look[1] + 12, 3.5, 0, Math.PI * 2);
+  g.arc(lx - 10, ly + 12, 3.5, 0, Math.PI * 2);
   g.fill();
   if (lid > 0) {
     g.fillStyle = SKIN;
@@ -130,9 +136,15 @@ function openMouth(g: Ctx, w: number, h: number, lean = 0) {
   g.stroke();
 }
 
-/** Draws a face (his moods and the subminds' own, persona.ts) with the mouth `open` (0 shut, 1 wide). */
-export function drawFace(g: Ctx, expr: Face, open: number) {
+/**
+ * Draws a face (his moods and the subminds' own, persona.ts) with the mouth `open` (0 shut, 1 wide). The Senate also
+ * passes `blink` (0 open, 1 shut) and where the eyes slide to, `lx` and `ly`, in the face's pixels (an eye-roll looks up).
+ */
+export function drawFace(g: Ctx, expr: Face, open: number, blink = 0, lx = 0, ly = 0) {
   const o = Math.max(0, Math.min(1, open));
+  mod.blink = Math.max(0, Math.min(1, blink));
+  mod.lx = lx;
+  mod.ly = ly;
   base(g);
   const [l, r] = EX;
   switch (expr) {
@@ -287,6 +299,120 @@ export function drawFace(g: Ctx, expr: Face, open: number) {
           g.quadraticCurveTo(0, -2, 30, 4);
           g.stroke();
         } else openMouth(g, 32, 6 + 26 * o, 2);
+      });
+      break;
+    // The Senate's own faces (#775, rotunda/senators.ts).
+    // The Executive: level, a touch lidded, a closed confident smile that opens into a pitch.
+    case "poised":
+      eye(g, l, [0, 0], 0.22);
+      eye(g, r, [0, 0], 0.22);
+      brow(g, l, -0.06, -20);
+      brow(g, r, 0.06, -20);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-52, -6);
+          g.quadraticCurveTo(0, 24, 52, -6);
+          g.stroke();
+        } else openMouth(g, 44, 10 + 32 * o, 0);
+      });
+      break;
+    // The Historian: looking down its nose, one brow up, lips pursed round a correction.
+    case "pedant":
+      eye(g, l, [0, 14], 0.44);
+      eye(g, r, [0, 14], 0.36);
+      brow(g, l, 0.06, 2);
+      brow(g, r, -0.32, -36);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-22, 6);
+          g.quadraticCurveTo(0, -2, 22, 6);
+          g.stroke();
+        } else {
+          g.beginPath();
+          g.ellipse(0, 8, 12 + 8 * o, 8 + 20 * o, 0, 0, Math.PI * 2);
+          g.fill();
+          g.stroke();
+        }
+      });
+      break;
+    // The Artiste: eyes half shut and up and away at the next idea, brows lifted in the middle, a wistful mouth.
+    case "dreamy":
+      eye(g, l, [-14, -16], 0.4);
+      eye(g, r, [-14, -16], 0.4);
+      brow(g, l, -0.24, -30);
+      brow(g, r, 0.24, -30);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-34, 4);
+          g.quadraticCurveTo(0, 16, 36, -8);
+          g.stroke();
+        } else openMouth(g, 30, 8 + 34 * o, 6);
+      });
+      break;
+    // The Life of the Party: a wink and the grin that goes with it.
+    case "wink":
+      arcEye(g, l);
+      eye(g, r, [0, -6], 0, 1.1);
+      brow(g, l, -0.1, -18);
+      brow(g, r, 0.22, -42);
+      mouth(g, () => {
+        const h = 28 + 40 * o;
+        g.beginPath();
+        g.moveTo(-66, -10);
+        g.quadraticCurveTo(0, 0, 66, -22);
+        g.quadraticCurveTo(54, h, 0, h + 2);
+        g.quadraticCurveTo(-54, h, -66, -10);
+        g.closePath();
+        g.fill();
+        g.stroke();
+      });
+      break;
+    // The Director: one eye screwed shut down the lens, the other wide, a mouth that opens all the way for its call.
+    case "squint":
+      eye(g, l, [8, 0], 0.74, 0.9);
+      eye(g, r, [8, -6], 0, 1.1);
+      brow(g, l, 0.4, 14, 80);
+      brow(g, r, 0.2, -38);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-36, 4);
+          g.lineTo(36, -2);
+          g.stroke();
+        } else openMouth(g, 44, 10 + 46 * o, 6);
+      });
+      break;
+    // The Steward: soft eyes and a quiet, kind smile.
+    case "warm":
+      eye(g, l, [0, 2], 0.26);
+      eye(g, r, [0, 2], 0.26);
+      brow(g, l, -0.14, -22);
+      brow(g, r, 0.14, -22);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-40, 0);
+          g.quadraticCurveTo(0, 22, 40, 0);
+          g.stroke();
+        } else openMouth(g, 34, 8 + 28 * o, 0);
+      });
+      break;
+    // The Stagehand: level and unbothered, a short flat mouth that calls a cue and shuts.
+    case "deadpan":
+      eye(g, l, [0, 0], 0.3, 0.95);
+      eye(g, r, [0, 0], 0.3, 0.95);
+      brow(g, l, 0, -6);
+      brow(g, r, 0, -6);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-28, 4);
+          g.lineTo(28, 4);
+          g.stroke();
+        } else openMouth(g, 28, 6 + 22 * o, 0);
       });
       break;
   }

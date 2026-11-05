@@ -1,7 +1,7 @@
 import "./roomHooks.ts";
-import { lazy, Suspense, useEffect, useRef, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from "react";
 import { startFoundry } from "../foundry.ts";
-import { warmLattice } from "../latticeWarm.ts";
+import { keepLattice, warmLattice } from "../latticeWarm.ts";
 import { navigate, renamedPath, usePathname } from "../route.ts";
 import { useSystems } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
@@ -22,6 +22,8 @@ import { HologramCall } from "./hologram/HologramCall.tsx";
 import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
+import { keptAfter, SCENE_ROOMS } from "./keptRooms.ts";
+import { canWarm, warmRotunda } from "./rotunda/warm.ts";
 import "./desk.css";
 import "./chronicle.css";
 import "./weave.css";
@@ -38,13 +40,28 @@ const loaders = {
 const PAGES: Partial<Record<DeskPage, ComponentType<PageProps>>> = Object.fromEntries(Object.entries(PAGE_LOADERS).map(([id, load]) => [id, lazy(load)]));
 const SkippyChat = lazy(() => loaders.skippy().then((m) => ({ default: m.SkippyChat })));
 
-/** Fetch the other pages once the browser is idle after first paint. Failures are ignored: opening the page retries. */
-function prefetchTabs() {
-  const run = () => Object.values(loaders).forEach((load) => void load().catch(() => {}));
+// The rooms' 3D scenes (#759): Today's Rotunda and the Haven's house, with the shared three.js chunk they pull in.
+const scenes = [() => import("./rotunda/rotundaScene.ts"), () => import("./haven/house.ts")];
+
+const idle = (run: () => void, timeout: number) => {
   const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };
-  if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout: 5000 });
-  else setTimeout(run, 2000);
+  if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout });
+  else setTimeout(run, Math.min(timeout, 2000));
+};
+
+/**
+ * Fetch the other pages, then the 3D scenes, once the browser is idle after first paint (never before it, so the first
+ * load is unchanged). Failures are ignored: opening the page retries.
+ */
+function prefetchTabs() {
+  idle(() => {
+    Object.values(loaders).forEach((load) => void load().catch(() => {}));
+    idle(() => scenes.forEach((load) => void load().catch(() => {})), 8000);
+  }, 5000);
 }
+
+/** A room with a 3D scene holds its cover until the scene's first frame, up to this long (#759); the rest, 4 s. */
+const SCENE_CAP_MS = 7000;
 
 /** Each page's colour, as its manifest names it (rooms/<id>/room.ts `accent`): the room loader's motes wear it. */
 const accentOf = (route: DeskPage) => (route === "today" ? "--ice" : `--room-${route}`);
@@ -56,8 +73,8 @@ const accentOf = (route: DeskPage) => (route === "today" ? "--ice" : `--room-${r
  * on the MacBook is connected.
  */
 
-/** The tab's title: the page's name (its manifest's), Today's the Desk's own, the Boiler Room's by its subpage. */
-const titleOf = (route: DeskPage, pathname: string) => (route === "boiler" ? systemsTitle(pathname) : route === "today" ? "C.E.O. — Desk" : `${pageName(route)} · C.E.O.`);
+/** The tab's title: the page's name (its manifest's), the Senate's in full, the Boiler Room's by its subpage. */
+const titleOf = (route: DeskPage, pathname: string) => (route === "boiler" ? systemsTitle(pathname) : route === "today" ? "The Senate · C.E.O." : `${pageName(route)} · C.E.O.`);
 
 export function Desk({ route }: { route: DeskPage }) {
   const awaySince = useAwaySince();
@@ -116,9 +133,29 @@ export function Desk({ route }: { route: DeskPage }) {
     document.title = titleOf(route, pathname);
   }, [route, pathname]);
 
+  // The rooms kept mounted (#759, keptRooms.ts): the one on screen and the last scene rooms visited, hidden and paused.
+  const [kept, setKept] = useState<DeskPage[]>([route]);
+  if (kept[0] !== route) setKept(keptAfter(kept, route, keepLattice()));
+
+  // Today, warmed while the Desk is idle on another room (rotunda/warm.ts): the likeliest next room opens quickly.
+  const todayKept = kept.includes("today");
+  useEffect(() => {
+    if (todayKept || !canWarm()) return;
+    let gone = false;
+    const t = window.setTimeout(() => idle(() => !gone && void warmRotunda(), 6000), 3000);
+    return () => {
+      gone = true;
+      window.clearTimeout(t);
+    };
+  }, [todayKept]);
+
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
   const connected = hub !== "off";
-  const Page = PAGES[route];
+
+  const page = (r: DeskPage) => {
+    const Page = PAGES[r];
+    return Page ? <Page data={data} now={now} connected={connected} awaySince={awaySince} /> : <Today data={data} now={now} connected={connected} awaySince={awaySince} />;
+  };
 
   return (
     <div className="desk" data-route={route} data-hide={hide || undefined}>
@@ -126,15 +163,18 @@ export function Desk({ route }: { route: DeskPage }) {
       <DeskNav route={route} owed={owed} now={now} />
 
       {/* The room loader (#752, @ceo/engine): covers the page while its code, scene and first data come in, then fades.
-          Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. */}
-      <RoomLoader key={route} room={route} name={pageName(route)} accent={accentOf(route)}>
-        <main className="desk__main" data-room={route === "today" ? undefined : route}>
-          <Suspense fallback={null}>
-            {Page ? <Page data={data} now={now} connected={connected} awaySince={awaySince} /> : <Today data={data} now={now} connected={connected} awaySince={awaySince} />}
-            <RoomMounted />
-          </Suspense>
-        </main>
-      </RoomLoader>
+          Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. A kept room (#759) stays
+          mounted, hidden and inert, with no cover, until it is back on screen. */}
+      {[...kept].sort((a, b) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(b)).map((r) => (
+        <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} cap={SCENE_ROOMS.has(r) ? SCENE_CAP_MS : undefined}>
+          <main className="desk__main" hidden={r !== route} inert={r !== route} data-room={r === "today" ? undefined : r}>
+            <Suspense fallback={null}>
+              {page(r)}
+              <RoomMounted />
+            </Suspense>
+          </main>
+        </RoomLoader>
+      ))}
 
       {/* Skippy's dialogue (#224), on every page: the bar's button, Today's avatar and the Ask line all open it. Focus goes
           back to whichever of them opened it. */}

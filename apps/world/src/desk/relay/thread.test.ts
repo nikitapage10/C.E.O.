@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EmailItem } from "../email/email.ts";
 import type { TextItem } from "../texts/texts.ts";
-import { allowed, codexOf, commandOf, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
+import { allowed, codexOf, commandOf, isOrder, olderInOrder, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
 import { GHOST, MAX_LIVE, room, SigilStage, SIGILS } from "./sigils.ts";
 
 /* Relay's Thread (#615). Every person and message here is made up. */
@@ -11,14 +11,34 @@ const mail = (over: Partial<EmailItem> = {}): EmailItem => ({ id: "aa11bb22cc33"
 const text = (over: Partial<TextItem> = {}): TextItem => ({ id: "0123456789abcdef", name: "Sam Test", channel: "iMessage", group: false, state: "owed", sort: "normal", since: NOW - 4 * 60_000, laterUntil: null, gist: "Asks whether to start without you", draft: { text: "start without me! running 10 late", at: NOW - 60_000 }, summary: null, ...over });
 
 describe("the queue", () => {
-  it("holds needs-you mail and owed one-to-one texts, sooner first, then the longest waiting", () => {
+  it("holds needs-you mail and owed one-to-one texts, newest first (#803)", () => {
     const q = queueOf(
       [mail(), mail({ id: "aa11bb22cc34", kind: "fyi" }), mail({ id: "aa11bb22cc35", done: true })],
-      [text(), text({ id: "1123456789abcdef", group: true }), text({ id: "2123456789abcdef", state: "settled" }), text({ id: "3123456789abcdef", sort: "sooner", since: NOW - 60_000, draft: null })],
+      [text(), text({ id: "1123456789abcdef", group: true, state: "settled" }), text({ id: "2123456789abcdef", state: "settled" }), text({ id: "3123456789abcdef", since: NOW - 60_000, draft: null })],
     );
-    expect(q.map((x) => x.key)).toEqual(["t:3123456789abcdef", "e:aa11bb22cc33", "t:0123456789abcdef"]);
-    expect(q[1]).toMatchObject({ line: "email", sendable: false, body: "Robin asks about the picnic." });
-    expect(q[2]).toMatchObject({ line: "text", sendable: true, draft: "start without me! running 10 late", draftAt: NOW - 60_000 });
+    expect(q.map((x) => x.key)).toEqual(["t:3123456789abcdef", "t:0123456789abcdef", "e:aa11bb22cc33"]);
+    expect(q[2]).toMatchObject({ line: "email", sendable: false, body: "Robin asks about the picnic." });
+    expect(q[1]).toMatchObject({ line: "text", sendable: true, draft: "start without me! running 10 late", draftAt: NOW - 60_000 });
+  });
+
+  it("orders by the toggle on the line: newest, oldest, or priority (sooner first, then the longest waiting)", () => {
+    const items = [text({ id: "3123456789abcdef", since: NOW - 60_000 }), text({ id: "4123456789abcdef", since: NOW - 9 * 60_000, sort: "sooner" })];
+    const keys = (o: "newest" | "oldest" | "priority") => queueOf([mail()], items, [], false, o).map((x) => x.key);
+    expect(keys("newest")).toEqual(["t:3123456789abcdef", "t:4123456789abcdef", "e:aa11bb22cc33"]);
+    expect(keys("oldest")).toEqual(["e:aa11bb22cc33", "t:4123456789abcdef", "t:3123456789abcdef"]);
+    expect(keys("priority")).toEqual(["t:4123456789abcdef", "e:aa11bb22cc33", "t:3123456789abcdef"]);
+    expect(isOrder("newest")).toBe(true);
+    expect(isOrder("loudest")).toBe(false);
+    const older = [{ since: 2 }, { since: 3 }, { since: 1 }];
+    expect(olderInOrder(older, "newest").map((o) => o.since)).toEqual([3, 2, 1]);
+    expect(olderInOrder(older, "oldest").map((o) => o.since)).toEqual([1, 2, 3]);
+  });
+
+  it("holds a group once it asked or named Nikita (#758), never sendable, with its own texts", () => {
+    const messages = [{ text: "Nikita, are you coming?", at: NOW - 60_000, from: "Sam Test" }];
+    const q = queueOf([], [text({ id: "1123456789abcdef", group: true, draft: null, summary: { text: "Plans for Friday.", asked: true }, messages })]);
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ group: true, sendable: false, body: "Plans for Friday.", messages });
   });
 
   it("puts skipped ones at the back, in the order skipped", () => {
@@ -169,10 +189,18 @@ describe("the four numbers", () => {
   const texts = { v: 1, at: NOW, hub: "listening", messages: "up", models: "up", owed: 3, sooner: 1, overdue: 0, later: 0, settled: 4, draftsReady: 2, sentToday: 6, streakDays: 0, week: [], nextNudgeAt: null } as never;
 
   it("are dashes with no line, counts signed out, and the queue signed in", () => {
-    expect(metricsOf(null, null, null, 0)).toEqual({ waiting: null, drafted: null, sent: null, filtered: null });
-    expect(metricsOf(email, texts, null, 0)).toEqual({ waiting: 5, drafted: 2, sent: 6, filtered: 39 });
+    expect(metricsOf(null, null, null, 0)).toEqual({ waiting: null, drafted: null, sent: null, filtered: null, unread: null });
+    expect(metricsOf(email, texts, null, 0)).toEqual({ waiting: 5, drafted: 2, sent: 6, filtered: 39, unread: null });
     const q = queueOf([mail()], [text()]);
-    expect(metricsOf(email, texts, q, 0)).toEqual({ waiting: 2, drafted: 1, sent: 6, filtered: 39 });
+    expect(metricsOf(email, texts, q, 0)).toEqual({ waiting: 2, drafted: 1, sent: 6, filtered: 39, unread: 0 });
+  });
+
+  it("count unread texts (#758) without hiding a read one", () => {
+    expect(metricsOf(email, { ...(texts as object), unread: 2 } as never, null, 0).unread).toBe(2);
+    const q = queueOf([], [{ ...text(), unread: true }, { ...text(), id: "b".repeat(16) }]);
+    expect(q).toHaveLength(2);
+    expect(q.filter((x) => x.unread)).toHaveLength(1);
+    expect(metricsOf(email, texts, q, 0).unread).toBe(1);
   });
 });
 
@@ -249,12 +277,13 @@ describe("Open the codex", () => {
 describe("the Codex (#642)", () => {
   const q = queueOf([mail(), mail({ id: "aa11bb22cc36", at: NOW - 2 * 86_400_000 })], [text(), text({ id: "4123456789abcdef", since: NOW - 3 * 3_600_000 })]);
 
-  it("is one line of numbers and two lists, oldest first, each exchange once", () => {
+  it("is one line of numbers and two lists, newest first (#803), each exchange once", () => {
     const c = codexOf(q, NOW);
     expect(c.waiting).toBe(4);
     expect(c.oldest).toBe(2 * 86_400_000);
-    expect(c.email.map((r) => r.ex.id)).toEqual(["aa11bb22cc36", "aa11bb22cc33"]);
-    expect(c.texts.map((r) => r.ex.id)).toEqual(["4123456789abcdef", "0123456789abcdef"]);
+    expect(c.email.map((r) => r.ex.id)).toEqual(["aa11bb22cc33", "aa11bb22cc36"]);
+    expect(c.texts.map((r) => r.ex.id)).toEqual(["0123456789abcdef", "4123456789abcdef"]);
+    expect(codexOf(q, NOW, undefined, "oldest").email.map((r) => r.ex.id)).toEqual(["aa11bb22cc36", "aa11bb22cc33"]);
     const keys = [...c.email, ...c.texts].map((r) => r.ex.key);
     expect(new Set(keys).size).toBe(keys.length);
   });

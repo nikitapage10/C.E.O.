@@ -6,8 +6,8 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * Lists on Today (#735): the built site with /api/haven stubbed in the browser. Signed in, every list shows as a tab
- * with its count; the open one lists its items, ticks one off, takes a quick add and clears what's ticked. Signed out,
+ * Lists in the Haven (#735): the built site with /api/haven stubbed in the browser. The panel and every list start
+ * folded; signed in, a list opens to its items, ticks one off, takes a quick add and clears what's ticked. Signed out,
  * the counts only and never an item. Every item here is made up.
  */
 
@@ -65,15 +65,20 @@ async function stub(page: Page, signedIn: boolean) {
   return lists;
 }
 
-test("the Lists on Today: tabs with counts, tick, quick add and clear (signed in, a phone)", async ({ page }) => {
+test("the Lists in the Haven: folded panel, counts, tick, quick add and clear (signed in, a phone)", async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 860 });
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const lists = await stub(page, true);
-  await page.goto(BASE + "/");
-  const box = page.getByRole("region", { name: "Lists" });
-  await expect(box.getByRole("tab", { name: /Groceries/ })).toBeVisible();
-  await box.getByRole("tab", { name: /Things to buy/ }).click();
+  await page.goto(BASE + "/haven");
+  const box = page.getByRole("complementary", { name: "Lists" });
+  // Folded to start with.
+  await expect(box.getByRole("button", { name: /^Lists/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(box.getByRole("button", { name: /Groceries/ })).toHaveCount(0);
+  await box.getByRole("button", { name: /^Lists/ }).click();
+  await expect(box.getByRole("button", { name: /Things to buy/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(box.getByText("phone charger")).toHaveCount(0);
+  await box.getByRole("button", { name: /Things to buy/ }).click();
   await expect(box.getByText("phone charger")).toBeVisible();
   await expect(box.getByRole("button", { name: "Clear ticked (1)" })).toBeVisible();
 
@@ -99,8 +104,9 @@ test("the Lists on Today: tabs with counts, tick, quick add and clear (signed in
 test("signed out, the Lists show counts and never an item", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await stub(page, false);
-  await page.goto(BASE + "/");
-  const box = page.getByRole("region", { name: "Lists" });
+  await page.goto(BASE + "/haven");
+  const box = page.getByRole("complementary", { name: "Lists" });
+  await box.getByRole("button", { name: /^Lists/ }).click();
   await expect(box.getByText("Things to buy")).toBeVisible();
   await expect(box).toContainText("Groceries 3");
   await expect(box.getByText("phone charger")).toHaveCount(0);

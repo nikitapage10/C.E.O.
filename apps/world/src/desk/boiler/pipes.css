@@ -20,7 +20,8 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
-  grid-template-rows: auto auto clamp(500px, 70vh, 720px);
+  /* The chip row is one slim line; the map takes any height the panel beside it needs (#751). */
+  grid-template-rows: auto 40px minmax(clamp(500px, 70vh, 720px), auto);
   margin: 0 0 32px;
   overflow: hidden;
   isolation: isolate;
@@ -76,14 +77,19 @@
 [data-room="boiler"] .bp .bp-tabs a:focus-visible { outline: 2px solid var(--bp-brass); outline-offset: 2px; }
 
 /* The rooms over the map: picking one focuses its manifold. */
-[data-room="boiler"] .bp .bp-rooms { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--bp-line); background: #0d1015; }
+[data-room="boiler"] .bp .bp-rooms { grid-column: 1; display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; height: 40px; padding: 0 10px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; border-bottom: 1px solid var(--bp-line); background: #0d1015; }
+[data-room="boiler"] .bp .bp-rooms::-webkit-scrollbar { display: none; }
 [data-room="boiler"] .bp .bp-rooms button {
   display: inline-flex;
   align-items: center;
+  flex: none;
   gap: 6px;
-  padding: 4px 10px;
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid transparent;
   border-radius: 999px;
+  line-height: 1;
+  white-space: nowrap;
   background: none;
   color: var(--bp-mut);
   font-family: var(--bp-cond);
@@ -182,6 +188,12 @@
 [data-room="boiler"] .bp .bp-lb.is-room { pointer-events: auto; cursor: pointer; font-size: 14px; background: #0b0d11d0; border: 1px solid #ffffff14; }
 [data-room="boiler"] .bp .bp-lb.is-room.is-sel { border-color: currentColor; }
 [data-room="boiler"] .bp .bp-lb.is-st.is-show { pointer-events: auto; cursor: pointer; }
+/* A room's own run (#789): every part named, the room's hub in its colour. */
+[data-room="boiler"] .bp .bp-lb.is-node { max-width: 128px; font-size: 11px; }
+[data-room="boiler"] .bp .bp-lb.is-node.is-hub { max-width: 160px; font-size: 13.5px; letter-spacing: 0.1em; background: #0b0d11d0; border: 1px solid #ffffff1c; }
+@media (max-width: 760px) {
+  [data-room="boiler"] .bp .bp-lb.is-node { max-width: 96px; font-size: 10px; }
+}
 [data-room="boiler"] .bp .bp-nogl { position: absolute; inset: auto 16px 16px; margin: 0; color: var(--bp-mut); }
 [data-room="boiler"] .bp .bp-key {
   position: absolute;
@@ -305,7 +317,7 @@
 
 /* A phone: the map runs top to bottom above the panel. */
 @media (max-width: 760px) {
-  [data-room="boiler"] .bp { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 600px auto; margin-inline: -4px; }
+  [data-room="boiler"] .bp { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 40px 600px auto; margin-inline: -4px; }
   [data-room="boiler"] .bp .bp-rooms { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   [data-room="boiler"] .bp .bp-rooms button { flex: none; }
   [data-room="boiler"] .bp .bp-panel { grid-column: 1; grid-row: auto; }
@@ -319,3 +331,46 @@
   [data-room="boiler"] .bp .bp-lb.is-room { font-size: 12px; margin-left: 0 !important; }
   [data-room="boiler"] .bp .bp-key { display: none; }
 }
+
+/* ── A room's own schematic (#751): plates and pipes in the brass, over the map's place ── */
+[data-room="boiler"] .bp .bp-map.is-schem > .bp-canvas,
+[data-room="boiler"] .bp .bp-map.is-schem > .bp-lbls { display: none; }
+[data-room="boiler"] .bp .bp-schem { position: absolute; inset: 0; overflow: auto; padding: 10px 8px 40px; background: radial-gradient(80% 60% at 50% 40%, #121722, var(--bp-ink)); }
+[data-room="boiler"] .bp .bp-schem-h { margin: 0 6px 6px; font: 500 11.5px var(--bp-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--bp-mut); }
+[data-room="boiler"] .bp .bp-schem-h b { font-family: var(--bp-cond); font-size: 15px; letter-spacing: 0.08em; }
+[data-room="boiler"] .bp .bp-schem-h em { font-style: normal; color: var(--bp-coral); }
+[data-room="boiler"] .bp .bp-schem-svg { display: block; margin: 0 auto; max-width: none; }
+[data-room="boiler"] .bp .sc-link, [data-room="boiler"] .bp .sc-node { cursor: pointer; outline: none; }
+[data-room="boiler"] .bp .sc-case { fill: none; stroke: #07090c; stroke-width: 10; stroke-linecap: round; }
+[data-room="boiler"] .bp .sc-core { fill: none; stroke: var(--sc, var(--bp-brass)); stroke-width: 5; stroke-linecap: round; opacity: 0.85; }
+[data-room="boiler"] .bp .sc-flow { fill: none; stroke: #fff6; stroke-width: 2; stroke-dasharray: 2 14; stroke-linecap: round; }
+[data-room="boiler"] .bp .sc-hit { fill: none; stroke: transparent; stroke-width: 18; }
+[data-room="boiler"] .bp .sc-link.is-ok { --sc: var(--bp-brass); }
+[data-room="boiler"] .bp .sc-link.is-late { --sc: var(--bp-amber); }
+[data-room="boiler"] .bp .sc-link.is-shut { --sc: #ff9a5c; }
+[data-room="boiler"] .bp .sc-link.is-leak { --sc: var(--bp-coral); }
+[data-room="boiler"] .bp .sc-link.is-dry .sc-core { stroke: var(--bp-dim); stroke-width: 3; stroke-dasharray: 6 6; opacity: 0.8; }
+[data-room="boiler"] .bp .sc-link.is-dry .sc-case { stroke-width: 6; }
+[data-room="boiler"] .bp .sc-link:hover .sc-core, [data-room="boiler"] .bp .sc-link:focus-visible .sc-core, [data-room="boiler"] .bp .sc-link.is-cur .sc-core { stroke-width: 7; opacity: 1; }
+[data-room="boiler"] .bp .sc-lbl { fill: var(--bp-mut); font: 500 11px var(--bp-mono); paint-order: stroke; stroke: var(--bp-ink); stroke-width: 4px; }
+[data-room="boiler"] .bp .sc-crack circle { fill: var(--bp-ink); stroke: var(--sc); stroke-width: 2; }
+[data-room="boiler"] .bp .sc-crack path { stroke: var(--sc); stroke-width: 2.4; stroke-linecap: round; }
+[data-room="boiler"] .bp .sc-plate { fill: #121620; stroke: #2c3340; stroke-width: 1.2; }
+[data-room="boiler"] .bp .sc-band { fill: var(--rc, var(--bp-brass)); }
+[data-room="boiler"] .bp .sc-port { fill: #07090c; stroke: var(--bp-brass); stroke-width: 1.5; }
+[data-room="boiler"] .bp .sc-name { fill: var(--bp-fg); font: 650 15px var(--bp-cond); letter-spacing: 0.04em; }
+[data-room="boiler"] .bp .sc-sub { fill: var(--bp-mut); font: 400 11px var(--bp-mono); }
+[data-room="boiler"] .bp .sc-kind { fill: var(--bp-dim); font: 500 9.5px var(--bp-mono); letter-spacing: 0.12em; text-transform: uppercase; }
+[data-room="boiler"] .bp .sc-lamp { fill: var(--bp-ok); }
+[data-room="boiler"] .bp .sc-node.is-late .sc-lamp { fill: var(--bp-amber); }
+[data-room="boiler"] .bp .sc-node:is(.is-leak, .is-shut) .sc-lamp { fill: var(--bp-coral); }
+[data-room="boiler"] .bp .sc-node:is(.is-leak, .is-shut) .sc-plate { stroke: var(--bp-coral); }
+[data-room="boiler"] .bp .sc-node.is-dry .sc-lamp { fill: var(--bp-dim); }
+[data-room="boiler"] .bp .sc-node.is-dry .sc-plate { fill: #0e1118; stroke-dasharray: 5 4; }
+[data-room="boiler"] .bp .sc-node.is-dry .sc-name { fill: var(--bp-mut); }
+[data-room="boiler"] .bp .sc-node:hover .sc-plate, [data-room="boiler"] .bp .sc-node:focus-visible .sc-plate, [data-room="boiler"] .bp .sc-node.is-cur .sc-plate { stroke: var(--bp-brass); stroke-width: 2; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-room="boiler"] .bp .sc-flow { animation: sc-flow 1.4s linear infinite; }
+  [data-room="boiler"] .bp .sc-link.is-late .sc-flow { animation-duration: 3.2s; }
+}
+@keyframes sc-flow { to { stroke-dashoffset: -16; } }

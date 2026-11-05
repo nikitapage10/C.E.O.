@@ -42,7 +42,7 @@ export const FEED_TOKEN = "SUBMIND_FEED_TOKEN";
 export const MIN_ROOM_KEY = 32;
 
 /** The settings a room key may never equal: a copy of one of these would make the room key a master key. */
-const OTHER_SECRETS = ["FOUNDRY_DESK_KEY", "SITE_BYPASS_TOKEN", "SITE_SESSION_SECRET", "DESK_PINGS_SECRET", "GMAIL_TOKEN_KEY"] as const;
+const OTHER_SECRETS = ["FOUNDRY_DESK_KEY", "SITE_BYPASS_TOKEN", "SITE_SESSION_SECRET", "DESK_PINGS_SECRET", "GMAIL_TOKEN_KEY", "BUILDER_READ_KEY"] as const;
 
 export type RoomKey = "log" | "feed";
 

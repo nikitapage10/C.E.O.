@@ -160,7 +160,8 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
    | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
    | `paypal-client-id`, `paypal-client-secret` (the Spire's invoices, #279; Azure only, see [PAYPAL.md](PAYPAL.md)) | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
-   | `submind-log-token`, `submind-feed-token` (the subminds' room keys, #281, #312; Azure only, at least 32 random characters; see [The subminds' room keys](#the-subminds-room-keys)) | `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` |
+   | `builder-read-key` (the Builder's read-only key, #800; Azure only, added by hand, see [The Builder's read key](#the-builders-read-key)) | `BUILDER_READ_KEY` |
+| `submind-log-token`, `submind-feed-token` (the subminds' room keys, #281, #312; Azure only, at least 32 random characters; see [The subminds' room keys](#the-subminds-room-keys)) | `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
    same Claude account; with Vercel no longer spending (#313) they are the code's own defaults, the ones Vercel ran
@@ -352,6 +353,31 @@ For the value, in Chrome on any page press F12 → **Console** (type `allow past
 press Enter, copy what it prints into **Secret value**, **Create**, close the console. Then **Function App** →
 **func-ceo-besgu7fnckib2** → **Overview** → **Restart**, and replace the variable's value in the cloud environment
 as in step 2.
+
+### The Builder's read key
+
+> **What this does.** Service: Azure (the Key Vault and the Function App), then Claude (the cloud environment). Adds one
+> read-only key so the Builder (Claude Code cloud sessions) can read Nikita's private Haven files, the floor plan
+> (`/api/haven-plan`), the meal planner (`/api/haven-meals`) and the meal photos (`/api/haven-photos`), with no passkey
+> (#800). It opens GET and HEAD of those three routes and nothing else ([SECURITY.md](SECURITY.md), "The Builder's read
+> key"). Why: so a Haven change is checked against the real data before it ships. What you'll see: the Builder's
+> `GET /api/haven-plan` answers `{ "plan": ... }` instead of 401 `site-locked`. Cost: nothing.
+
+1. In Chrome, open any page, F12 > **Console** (type `allow pasting` if Chrome asks), paste this and press Enter:
+
+   ```js
+   console.log("BUILDER_READ_KEY",btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""));
+   ```
+
+   Copy the value it prints. Close the console.
+2. In the [Azure portal](https://portal.azure.com): **Key vaults** > **kv-ceo-besgu7fnckib2** > **Objects > Secrets** >
+   **Generate/Import**: name `builder-read-key`, value the one you copied > **Create**.
+3. Restart the Function App (**Function App** > **Overview** > **Restart**) so it reads the new secret.
+4. In Claude (claude.ai): the **C.E.O.** project > **Project settings** > **Cloud environment** > the **gear**. Under
+   **Network access**, `ceo.nikita.page` is already allowed for the room keys. Edit that host's **network secret** (one
+   per host) and add a header: `x-ceo-builder-key`, value the same key. Save, then start a new session.
+5. Check, from a new Builder session: `GET https://ceo.nikita.page/api/haven-plan` answers 200 with the plan. Never paste the
+   key into a thread, an issue or a file. To change it, repeat steps 1 to 4 with a new version.
 
 ### The site lock on Azure
 

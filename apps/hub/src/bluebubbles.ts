@@ -1,3 +1,4 @@
+import type { Reason } from "../../../api/_relay/texts.ts";
 import { BLUEBUBBLES } from "./config.ts";
 import { errorClass } from "./log.ts";
 
@@ -18,6 +19,26 @@ export interface Message {
   at: number;
   /** The sender's handle (a number or address); "" for Nikita's own. */
   handle: string;
+  /** Messages has a read time for it (BlueBubbles' `dateRead`, from chat.db; #758). Only meaningful for someone else's. */
+  read?: boolean;
+}
+
+/**
+ * One chat from BlueBubbles' chat query (#758), for the backlog scan: its guid, whether it is a group, the one-to-one
+ * chat's other handle (from its participants: the chat query's last message carries no handle), and its last message.
+ * Memory only, for one scan.
+ */
+export interface ChatInfo {
+  chat: string;
+  group: boolean;
+  /** A group's name, or "". */
+  name: string;
+  /** A one-to-one chat's other person (a number or address); "" for a group. */
+  handle: string;
+  /** The last message, read like any other; null for a reaction, a system item or a chat with none. */
+  last: Message | null;
+  /** When the last item of any kind came (ms); 0 for none. */
+  lastAt: number;
 }
 
 export interface Contact {
@@ -44,7 +65,7 @@ export interface BlueBubbles {
   contacts(): Promise<Contact[]>;
   /** The chat's latest messages, newest first. */
   messages(chat: string, limit: number): Promise<Message[]>;
-  /** Sends one text; true when BlueBubbles took it. */
+  /** Sends one text: true when BlueBubbles took it; otherwise it throws a BlueBubblesError (sendReason says why). */
   send(chat: string, text: string, tempGuid: string): Promise<boolean>;
   /** The guids of Messages' one-to-one chats (iMessage;-;… and SMS;-;…), for finding the chat a new text goes in (#536). */
   chats(): Promise<string[]>;
@@ -52,6 +73,8 @@ export interface BlueBubbles {
   contactPhotos(): Promise<ContactPhoto[]>;
   /** Messages dated at or after `after` (ms), oldest first, `limit` at most (#749): the hub's way in. */
   since(after: number, limit: number): Promise<Polled[]>;
+  /** Every chat with its last message (#758), page by page: `/api/v1/chat/query` with `with: ["lastmessage"]`. */
+  chatList(offset: number, limit: number): Promise<ChatInfo[]>;
 }
 
 /** One message from a poll: its guid and time move the cursor; `inbound` is null for a reaction or a system item. */
@@ -85,7 +108,24 @@ export function readMessage(o: Record<string, unknown> | null | undefined): Mess
   // Reactions, edits and system items carry an associated guid or a non-zero item type: not a message to answer.
   if (o.associatedMessageGuid || (typeof o.itemType === "number" && o.itemType !== 0)) return null;
   const handle = o.handle && typeof o.handle === "object" ? str((o.handle as Record<string, unknown>).address, 200) : "";
-  return { text: str(o.text), fromMe: o.isFromMe === true, at: num(o.dateCreated), handle: o.isFromMe === true ? "" : handle };
+  return { text: str(o.text), fromMe: o.isFromMe === true, at: num(o.dateCreated), handle: o.isFromMe === true ? "" : handle, read: num(o.dateRead) > 0 };
+}
+
+/**
+ * One chat from `/api/v1/chat/query` (#758), read: null without a guid. BlueBubbles 1.9.12 (ChatInterface.get) fills
+ * `lastMessage` from a join that loads no handle, so a one-to-one chat's other person comes from `participants`.
+ */
+export function readChat(o: Record<string, unknown> | null | undefined): ChatInfo | null {
+  if (!o || typeof o !== "object") return null;
+  const chat = str(o.guid, 300);
+  if (!chat) return null;
+  const group = isGroupChat(chat) || o.style === 43;
+  const parts = Array.isArray(o.participants) ? (o.participants as Record<string, unknown>[]) : [];
+  const handle = group ? "" : str(parts[0]?.address, 200) || chat.split(";").pop() || "";
+  const lm = o.lastMessage && typeof o.lastMessage === "object" ? (o.lastMessage as Record<string, unknown>) : null;
+  const read = readMessage(lm);
+  const last = read ? { ...read, handle: read.fromMe ? "" : read.handle || handle } : null;
+  return { chat, group, name: group ? str(o.displayName, 80) : "", handle, last, lastAt: num(lm?.dateCreated) };
 }
 
 /** One message from `/api/v1/message/query` (with its chats), read: null when it has no guid or time. */
@@ -173,6 +213,22 @@ async function body(res: Response, secrets: readonly string[]): Promise<{ data?:
 export const BB_TIMEOUT_MS = 15_000;
 export const BB_SEND_TIMEOUT_MS = 30_000;
 
+/** Words in BlueBubbles' error that mean macOS kept it from controlling Messages (TCC Automation, error -1743). */
+const AUTOMATION = /-1743|not authori[sz]ed to send apple events|not allowed to send apple ?events|automation/i;
+
+/**
+ * Why a send through BlueBubbles didn't go, as a reason code for the Desk (#767). A timeout may still have sent; the
+ * rest did not. Never BlueBubbles' own words: only which kind of failure.
+ */
+export function sendReason(e: unknown): Reason {
+  if (!(e instanceof BlueBubblesError)) return "bb-refused";
+  if (e.kind === "timeout") return "bb-timeout";
+  if (e.kind === "unreachable") return "bb-down";
+  if (e.kind === "http" && e.status === 401) return "bb-auth";
+  if (e.kind === "http" && AUTOMATION.test(e.detail)) return "mac-permission";
+  return "bb-refused";
+}
+
 /** A failed BlueBubbles call in plain words for the Terminal, the password never in it; "" for any other error. */
 export function describeFailure(e: unknown): string {
   if (!(e instanceof BlueBubblesError)) return "";
@@ -233,13 +289,20 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
       if (!Array.isArray(data)) throw new BlueBubblesError("not-json", 200);
       return (data as Record<string, unknown>[]).map(readPolled).filter((p): p is Polled => p !== null);
     },
+    // BlueBubbles 1.9.12 (chatValidator.queryRules, ChatInterface.get): `with` an array, `sort` only "lastmessage",
+    // `limit` 1 to 1000. A page is the chats in Messages' own order (newest made first), sorted by last message
+    // within the page only, so the scan reads every page and sorts for itself.
+    chatList: async (offset, limit) => {
+      const data = await post("/api/v1/chat/query", { with: ["lastmessage"], sort: "lastmessage", offset: Math.max(0, Math.floor(offset)), limit: Math.max(1, Math.min(1000, Math.floor(limit))) }, 60_000);
+      if (!Array.isArray(data)) throw new BlueBubblesError("not-json", 200);
+      return (data as Record<string, unknown>[]).map(readChat).filter((c): c is ChatInfo => c !== null);
+    },
+    // AppleScript sends (Private API off) need a tempGuid; BlueBubbles answers once Messages has the message, or
+    // with an error (500) that names why, such as macOS refusing it Automation access to Messages (#767). The error
+    // goes up, so the hub can say why instead of only "failed".
     send: async (chat, text, tempGuid) => {
-      try {
-        await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
-        return true;
-      } catch {
-        return false;
-      }
+      await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
+      return true;
     },
   };
 }

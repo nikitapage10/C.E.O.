@@ -80,6 +80,14 @@ export interface DeviceReading {
   /** The wet feeder's bowls for today, and the dry feeder's schedule for today. */
   meals?: PetMeal[];
   plan?: PetMeal[];
+  /** The wet feeder without a plan: the device list's own next meal and whether the schedule is switched on. */
+  nextFeed?: { time: string; end?: string };
+  planOn?: boolean;
+  /** The wet feeder: bowls opened from here today, and the heads-up when the next meal's bowl isn't in front. */
+  served?: number[];
+  heads?: string;
+  /** The wet plan read's shape (signed in only): counts and key names, never a value. */
+  wetPlanShape?: WetPlanShape;
   drawer?: number | null;
   litter?: number | null;
   lastUse?: string | null;
@@ -107,6 +115,30 @@ export interface PetMeal {
   portions?: number;
   on?: boolean;
   status?: MealStatus;
+  /** A wet meal's name in the Petlibro app (often what's in the bowl), up to 40 characters. Private. */
+  label?: string;
+}
+
+/** The wet plan read's shape (api/_haven/devices/types.ts, WetPlanShape): counts and key names only. */
+export interface WetPlanShape {
+  read: "ok" | "failed";
+  template: boolean;
+  entries: number;
+  disabled: number;
+  badTime: number;
+  keys: string[];
+  top: string[];
+}
+
+const KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,39}$/;
+const names = (v: unknown) => (Array.isArray(v) ? v.filter((k): k is string => typeof k === "string" && KEY_NAME.test(k)).slice(0, 40) : []);
+
+/** The wet plan's shape, checked; undefined when it isn't one. */
+export function planShapeOf(v: unknown): WetPlanShape | undefined {
+  const s = o(v);
+  if (s.read !== "ok" && s.read !== "failed") return undefined;
+  const n = (x: unknown) => whole(x, 1000) ?? 0;
+  return { read: s.read, template: s.template === true, entries: n(s.entries), disabled: n(s.disabled), badTime: n(s.badTime), keys: names(s.keys), top: names(s.top) };
 }
 
 const HHMM = /^\d{2}:\d{2}$/;
@@ -132,6 +164,7 @@ export function mealsOf(v: unknown): PetMeal[] | undefined {
       ...(portions !== undefined && { portions }),
       ...(typeof m.on === "boolean" && { on: m.on }),
       ...(MEAL_STATUSES.includes(m.status as MealStatus) && { status: m.status as MealStatus }),
+      ...(typeof m.label === "string" && m.label.trim() && { label: m.label.trim().slice(0, 40) }),
     });
   }
   return out;
@@ -280,6 +313,17 @@ function petDayOf(d: Record<string, unknown>): Partial<DeviceReading> {
   if (FEED_UNITS.includes(d.feedUnit as FeedUnit)) out.feedUnit = d.feedUnit as FeedUnit;
   set("meals", mealsOf(d.meals));
   set("plan", mealsOf(d.plan));
+  if (d.kind === "wet-feeder") {
+    const nf = o(d.nextFeed);
+    if (typeof nf.time === "string" && HHMM.test(nf.time)) out.nextFeed = { time: nf.time, ...(typeof nf.end === "string" && HHMM.test(nf.end) && { end: nf.end }) };
+    if (typeof d.planOn === "boolean") out.planOn = d.planOn;
+    if (Array.isArray(d.served)) {
+      const served = [...new Set(d.served.filter((n): n is number => whole(n, 3) !== undefined && n >= 1))].sort();
+      if (served.length) out.served = served;
+    }
+    if (typeof d.heads === "string" && d.heads.trim()) out.heads = d.heads.trim().slice(0, 200);
+    set("wetPlanShape", planShapeOf(d.wetPlanShape));
+  }
   return out;
 }
 

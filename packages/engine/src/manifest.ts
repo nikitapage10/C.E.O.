@@ -143,6 +143,7 @@ export const ENGINE_KEYS: readonly string[] = [
   "DESK_PINGS_SECRET",
   "SUBMIND_LOG_TOKEN",
   "SUBMIND_FEED_TOKEN",
+  "BUILDER_READ_KEY",
   "CLAUDE_API_KEY",
   "ELEVENLABS_API_KEY",
 ];

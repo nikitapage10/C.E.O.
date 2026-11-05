@@ -141,7 +141,7 @@
   box-sizing: border-box;
 }
 .cx-folio {
-  transition: opacity 0.55s var(--cx-e);
+  transition: opacity 0.25s var(--cx-e);
 }
 .cx-entry:not([data-focus]) .cx-folio {
   opacity: 0.55;
@@ -208,6 +208,69 @@
   letter-spacing: -0.015em;
   overflow-wrap: anywhere;
 }
+/* Their own texts (#758): one line each, smaller than a gist alone, oldest first. */
+.cx-said {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.cx-said .cx-msg {
+  font-size: 22px;
+  line-height: 1.35;
+}
+.cx-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--cx-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cx-mute);
+  margin-bottom: 2px;
+}
+.cx-mface {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+.cx-minit {
+  display: inline-grid;
+  place-items: center;
+  background: rgba(134, 182, 255, 0.14);
+  color: var(--cx-hi);
+  font-size: 11px;
+}
+.cx-gist {
+  margin: 10px 0 0;
+  color: var(--cx-mute);
+  font-size: 13.5px;
+}
+.cx-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+.cx-groups h4 {
+  margin: 0 0 4px;
+  font-family: var(--cx-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 19px;
+}
+.cx-groups .cx-said .cx-msg {
+  font-size: 15px;
+}
+@media (max-width: 560px) {
+  .cx-said .cx-msg {
+    font-size: 18px;
+  }
+}
 .cx-note {
   margin: 10px 0 0;
   font-family: var(--cx-mono);
@@ -269,7 +332,7 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 10px 22px;
-  animation: cx-up 0.4s var(--cx-e);
+  animation: cx-up 0.2s var(--cx-e);
 }
 @keyframes cx-up {
   from {
@@ -552,6 +615,33 @@
 .cx-rows button:hover .cx-what {
   color: var(--cx-ink);
 }
+/* An older unanswered chat (#758): shown, not opened. */
+.cx-rows .cx-still {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 11em) minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: baseline;
+  padding: 11px 0;
+}
+.cx-older b {
+  color: var(--cx-soft);
+}
+/* Unread in Messages (#758): a mark only. */
+.cx-unread {
+  color: var(--cx-blue);
+  font-family: var(--cx-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 560px) {
+  .cx-rows .cx-still {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .cx-rows .cx-still .cx-what {
+    display: none;
+  }
+}
 .cx-wide {
   max-width: none;
 }
@@ -666,6 +756,111 @@
     0 0 0 1px rgba(134, 182, 255, 0.35),
     0 0 26px rgba(10, 124, 255, 0.35);
   margin-bottom: 10px;
+}
+
+/* #803: an entry is all right of the line (who, then their words); the left is the queue's wave */
+.cx-entry .cx-body {
+  grid-column: 2;
+}
+.cx-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.cx-head .cx-face {
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  flex: none;
+}
+.cx-head .cx-init {
+  font-size: 60px;
+  margin: 0;
+  min-width: 40px;
+  text-align: center;
+}
+.cx-id {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.cx-youlab {
+  margin: 0 0 8px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.cx-youlab .cx-lab.is-you {
+  color: var(--cx-hi);
+}
+.cx-gist .cx-lab {
+  margin-right: 6px;
+  font-size: 8.5px;
+  color: var(--cx-faint);
+}
+
+/* your own words (#803): sent exactly as typed */
+.cx-own textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 3.2em;
+  background: rgba(134, 182, 255, 0.04);
+  border: 0;
+  border-left: 2px solid var(--cx-blue);
+  border-radius: 0 6px 6px 0;
+  color: var(--cx-you);
+  font: 300 22px/1.4 var(--cx-sans);
+  letter-spacing: -0.01em;
+  padding: 10px 14px;
+}
+.cx-own textarea::placeholder {
+  color: var(--cx-faint);
+}
+.cx-own textarea:focus {
+  outline: none;
+  background: rgba(134, 182, 255, 0.07);
+}
+.cx-own .cx-ask {
+  margin-top: 14px;
+}
+
+/* the order (#803): one small segmented toggle sitting on the line */
+.cx-order {
+  position: absolute;
+  left: var(--spine);
+  top: 64px;
+  transform: translateX(-50%);
+  z-index: 34;
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--cx-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--cx-line),
+    0 0 0 6px var(--cx-bg);
+}
+.cx .cx-order button {
+  font: 500 9.5px/1 var(--cx-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cx-mute);
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition:
+    color 0.2s var(--cx-e),
+    background-color 0.2s var(--cx-e);
+}
+.cx .cx-order button:hover {
+  color: var(--cx-ink);
+}
+.cx .cx-order button[aria-checked="true"] {
+  color: #fff;
+  background: rgba(10, 124, 255, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(134, 182, 255, 0.5);
 }
 .cx-adv {
   margin: 18px 0 0;
@@ -865,6 +1060,42 @@
     height: 40px;
     margin: 0;
   }
+  /* #803: the order toggle, then the queue's flat wave, above the entry */
+  .cx-stage {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+  .cx-order {
+    position: static;
+    grid-row: 2;
+    justify-self: start;
+    transform: none;
+    margin: 10px 0 0 calc(var(--spine) + var(--gut));
+    box-shadow: inset 0 0 0 1px var(--cx-line);
+  }
+  .cx-pages {
+    grid-row: 4;
+  }
+  .cx-dock {
+    grid-row: 5;
+  }
+  .cx-entry .cx-body {
+    grid-column: auto;
+  }
+  .cx-head {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .cx-head .cx-face {
+    width: 40px;
+    height: 40px;
+  }
+  .cx-head .cx-init {
+    font-size: 40px;
+    min-width: 28px;
+  }
+  .cx-own textarea {
+    font-size: 18px;
+  }
   .cx-adv {
     font-size: 14px;
   }
@@ -1013,7 +1244,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cx-heard {
+  .cx-heard,
+  .cx-folio {
     transition: none;
   }
   .cx-ask,

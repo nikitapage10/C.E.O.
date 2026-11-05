@@ -266,9 +266,9 @@ for (const width of [1440, 400]) {
     // R opens the ready draft.
     await page.keyboard.press("r");
     await expect(focused(page).getByText("Send to Jordan?")).toBeVisible();
-    // J and K move through the codex.
+    // J and K move through the codex (newest first, #803: Sam, Jordan, Priya).
     await page.keyboard.press("k");
-    await expect(focused(page)).toContainText("Priya Madeup");
+    await expect(focused(page)).toContainText("Sam Test");
     await page.keyboard.press("j");
     await expect(focused(page)).toContainText("Jordan Test");
     await page.keyboard.press("y");
@@ -334,7 +334,7 @@ test("email without the send grant: Open in Gmail, Copy and a quiet reconnect; f
 });
 
 for (const width of [1440, 400]) {
-  test(`the Codex: one line of numbers, Email and Texts oldest first, the rest behind Settings (${width} wide)`, async ({ page }) => {
+  test(`the Codex: one line of numbers, Email and Texts newest first, the rest behind Settings (${width} wide)`, async ({ page }) => {
     await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
     await stub(page);
     await page.goto(`${BASE}/relay`);
@@ -350,7 +350,7 @@ for (const width of [1440, 400]) {
     await expect(email.first()).toContainText("1 h");
     const texts = codex.locator('.cx-sec[data-list="texts"]').locator("li");
     await expect(texts).toHaveCount(2);
-    await expect(texts.first()).toContainText("Jordan Test");
+    await expect(texts.first()).toContainText("Sam Test");
     // Settings is folded; its rules and style are there when opened.
     const style = codex.getByRole("heading", { name: "How you write" });
     await expect(style).toBeHidden();
@@ -436,4 +436,24 @@ test("signed out: counts only, never a name", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign in" }).first()).toBeVisible();
   await expect(page.getByText("Sam Test")).toHaveCount(0);
   await expect(page.getByText("Priya Madeup")).toHaveCount(0);
+  await expect(page.locator(".rq")).toHaveCount(0);
+});
+
+test("the queue on the wave (#803): what comes next left of the line, a tap jumps there, and the order toggle", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await stub(page);
+  await page.goto(`${BASE}/relay`);
+  const wave = page.getByRole("navigation", { name: "Up next" });
+  await expect(wave.locator(".rq-item[data-cur]")).toContainText("Sam Test");
+  await wave.getByRole("button", { name: /Next: Jordan Test/ }).click();
+  await expect(focused(page)).toContainText("Jordan Test");
+  await expect(wave.locator(".rq-item[data-cur]")).toContainText("Jordan Test");
+  // Oldest first puts Priya's mail at the top; the one in focus stays in focus.
+  await page.getByRole("radio", { name: "Oldest" }).click();
+  await expect(page.getByRole("radio", { name: "Oldest" })).toHaveAttribute("aria-checked", "true");
+  await expect(focused(page)).toContainText("Jordan Test");
+  await expect(page.locator(".cx-entry").first()).toContainText("Priya Madeup");
+  // Remembered on this device.
+  await page.reload();
+  await expect(page.getByRole("radio", { name: "Oldest" })).toHaveAttribute("aria-checked", "true");
 });

@@ -15,7 +15,6 @@ import { forwardHavenResult } from "./homeDevices.ts";
 import { clockState, useWorldClock } from "../worldClock.ts";
 import { useTodoSync } from "./todos/TodoBits.tsx";
 import { awayRefs, useTodos } from "./todos/todos.ts";
-import { Lists } from "./Lists.tsx";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
@@ -30,12 +29,12 @@ export const loadTodayMore = () => import("./TodayMore.tsx");
 const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore })));
 
 /**
- * Today, as the Senate Rotunda (#740; the round 3 concept Nikita picked, 2026-11-04). Skippy chairs a round chamber
+ * Today, as the Senate (#740; the round 3 concept Nikita picked, 2026-11-04). Skippy chairs a round chamber
  * and the Council's subminds sit round it on bronze pods (rotunda/Rotunda.tsx, 3D in its own chunk, flat CSS until it
  * loads). What needs Nikita is the docket along the chamber's foot, one card per item, each a duty, a decision or a
  * repair that plays on the floor in turn (rotunda/rite.ts): a duty is moved and seconded, a decision is debated and
  * put to him as buttons, a repair is reported with one fix. Every card still answers in place (TodayNow, TodayActs).
- * Under the chamber, his own to-dos under "still left", the add line, and the Lists (#735, Lists.tsx). Under the fold,
+ * Under the chamber, his own to-dos under "still left", the add line. Under the fold,
  * everything that can wait stays folded away under "Not worth knowing now" (TodayMore, loaded on demand). Ask Skippy
  * stays bottom right. Real data only: a part that isn't connected says it's waiting.
  */
@@ -109,13 +108,12 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
 
   return (
     <div className="today wv-page td rt-page">
-      <section className="rt" aria-label="Today">
+      <section className="rt" aria-label="The Senate">
         <TodayNow
             rotunda={{
               name: "Nikita",
               bench,
               chamber: (link) => <Rotunda link={link} pulses={council} now={now} since={since} held={heldBy} skippySays={says} hotRef={hot} />,
-              aside: <Lists />,
             }}
             now={now}
             pulses={pulses}

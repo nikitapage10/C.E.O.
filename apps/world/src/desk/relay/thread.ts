@@ -7,7 +7,8 @@ import { closingOf, draftAsk, skipOf } from "../../../../../api/_email/intentWor
  * Relay's Thread (#615), the logic with no DOM: one exchange at a time, from the two live lines.
  *
  *   queueOf      the email that needs Nikita (Gmail, #263) and the texts they owe (the Mac hub, #535), as one queue of
- *                exchanges, the ones to answer sooner and the longest waiting first; skipped ones go to the back.
+ *                exchanges, newest first (or oldest first, or by priority: the toggle on the line, #803); skipped
+ *                ones go to the back.
  *   commandOf    what a spoken or typed line means: yes, no, skip, later, change it, filter these out, block this
  *                sender, undo, or (anything else) words for a reply.
  *   allowed      the gate. A command only works in the state it belongs to: "send" and "yes" only while a draft is on
@@ -59,6 +60,12 @@ export interface Exchange {
   logo?: string;
   /** A text whose ready draft is folded until Reply (#642). */
   ready?: boolean;
+  /** A text whose latest message Messages shows unread (#758): a mark only; a read one is just as owed. */
+  unread?: boolean;
+  /** Their own texts (#758): the newest unanswered ones, real words, sealed; a group's with each sender. */
+  messages?: TextItem["messages"];
+  /** A group text: owed only when Nikita was asked or named, never drafted for. */
+  group?: boolean;
 }
 
 const firstName = (who: string) => who.trim().split(/\s+/)[0] || who;
@@ -73,20 +80,36 @@ export function fromEmail(i: EmailItem, canSend = false): Exchange {
 
 /** One text thread as an exchange. */
 export function fromText(i: TextItem): Exchange {
-  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group, ...(i.photo && { photo: i.photo }) };
+  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group, ...(i.photo && { photo: i.photo }), ...(i.unread && { unread: true }), ...(i.messages?.length && { messages: i.messages }), ...(i.group && { group: true }) };
 }
 
-/** The queue: email that needs Nikita and texts they owe (not groups, not settled), sooner first, then oldest; skipped and later at the back. */
-export function queueOf(email: EmailItem[] | undefined, texts: TextItem[] | undefined, skipped: readonly string[] = [], canSend = false): Exchange[] {
+/**
+ * How the queue is ordered (#803, the toggle on the line): newest first (the default), oldest first, or priority
+ * (Dialtone's "reply sooner" ones first, then the longest waiting, the order before #803).
+ */
+export type Order = "newest" | "oldest" | "priority";
+export const ORDERS: readonly Order[] = ["newest", "oldest", "priority"];
+export const isOrder = (v: unknown): v is Order => typeof v === "string" && (ORDERS as readonly string[]).includes(v);
+
+/** Two exchanges in an order: newest or oldest by when they came, or priority (sooner first, then the longest waiting). */
+export function byOrder(order: Order): (a: Exchange, b: Exchange) => number {
+  if (order === "oldest") return (a, b) => a.at - b.at;
+  if (order === "priority") return (a, b) => Number(b.sooner) - Number(a.sooner) || a.at - b.at;
+  return (a, b) => b.at - a.at;
+}
+
+/** The queue: email that needs Nikita and texts they owe (a group only once it asked or named them, #758; never settled ones), in `order` (newest first unless asked otherwise, #803); skipped and later at the back. */
+export function queueOf(email: EmailItem[] | undefined, texts: TextItem[] | undefined, skipped: readonly string[] = [], canSend = false, order: Order = "newest"): Exchange[] {
   const all = [
     ...(email ?? []).filter((i) => !i.done && (i.kind === "needs-you" || i.kind === "unsorted")).map((i) => fromEmail(i, canSend)),
-    ...(texts ?? []).filter((i) => !i.group && i.state !== "settled").map(fromText),
+    ...(texts ?? []).filter((i) => i.state !== "settled").map(fromText),
   ];
   const back = (x: Exchange) => {
     const s = skipped.indexOf(x.key);
     return s >= 0 ? 2 + s : x.later ? 1 : 0;
   };
-  return all.sort((a, b) => back(a) - back(b) || Number(b.sooner) - Number(a.sooner) || a.at - b.at);
+  const by = byOrder(order);
+  return all.sort((a, b) => back(a) - back(b) || by(a, b));
 }
 
 /* ── commands ── */
@@ -247,6 +270,8 @@ export interface Metrics {
   drafted: number | null;
   sent: number | null;
   filtered: number | null;
+  /** Owed texts whose latest message is unread in Messages (#758); null while the texts line isn't on. */
+  unread: number | null;
 }
 
 /**
@@ -256,12 +281,13 @@ export interface Metrics {
 export function metricsOf(email: EmailStatus | null, texts: RelayStatus | null, queue: Exchange[] | null, sentHere: number): Metrics {
   const emailOn = !!email && email.gmail === "connected" && email.agent !== "waiting";
   const textsOn = !!texts && texts.hub !== "off" && texts.hub !== "wiped";
-  if (!emailOn && !textsOn) return { waiting: null, drafted: null, sent: null, filtered: null };
+  if (!emailOn && !textsOn) return { waiting: null, drafted: null, sent: null, filtered: null, unread: null };
   const waiting = queue ? queue.length : (emailOn ? email.needsYou : 0) + (textsOn ? texts.owed : 0);
   const drafted = queue ? queue.filter((x) => x.draft).length : textsOn ? texts.draftsReady : 0;
   const sent = Math.max(textsOn ? texts.sentToday : 0, sentHere);
   const filtered = (emailOn ? email.noise + email.skipped : 0) + (textsOn ? texts.settled : 0);
-  return { waiting, drafted, sent, filtered };
+  const unread = !textsOn ? null : queue ? queue.filter((x) => x.line === "text" && x.unread).length : (texts.unread ?? null);
+  return { waiting, drafted, sent, filtered, unread };
 }
 
 /** The latest request on a thread. */
@@ -326,17 +352,21 @@ export interface Codex {
   waiting: number | null;
   /** How long the oldest has waited (ms); null with nothing waiting or signed out. */
   oldest: number | null;
-  /** Email that needs action, oldest first; texts owed, oldest first. Each exchange once. */
+  /** Email that needs action and texts owed, each in the queue's order (newest first by default, #803). Each exchange once. */
   email: CodexRow[];
   texts: CodexRow[];
 }
 
-/** The Codex from the queue: the same exchanges the Thread holds, so a Done leaves both at once. */
-export function codexOf(queue: Exchange[] | null, now: number, fallback: { email: number | null; texts: number | null } = { email: null, texts: null }): Codex {
+/** The Codex from the queue: the same exchanges the Thread holds, in its order, so a Done leaves both at once. */
+export function codexOf(queue: Exchange[] | null, now: number, fallback: { email: number | null; texts: number | null } = { email: null, texts: null }, order: Order = "newest"): Codex {
   if (!queue) return { waiting: fallback.email === null && fallback.texts === null ? null : (fallback.email ?? 0) + (fallback.texts ?? 0), oldest: null, email: [], texts: [] };
-  const rows = [...queue].sort((a, b) => a.at - b.at).map((ex) => ({ ex, waited: Math.max(0, now - ex.at) }));
-  return { waiting: queue.length, oldest: rows[0]?.waited ?? null, email: rows.filter((r) => r.ex.line === "email"), texts: rows.filter((r) => r.ex.line === "text") };
+  const rows = [...queue].sort(byOrder(order)).map((ex) => ({ ex, waited: Math.max(0, now - ex.at) }));
+  const oldest = rows.reduce<number | null>((m, r) => (m === null || r.waited > m ? r.waited : m), null);
+  return { waiting: queue.length, oldest, email: rows.filter((r) => r.ex.line === "email"), texts: rows.filter((r) => r.ex.line === "text") };
 }
+
+/** The "older unanswered" fold (#758) in the Thread's order: the hub sends it newest first; "oldest" turns it round. */
+export const olderInOrder = <T extends { since: number }>(items: readonly T[], order: Order): T[] => [...items].sort((a, b) => (order === "oldest" ? a.since - b.since : b.since - a.since));
 
 /** Sent this week, both lines: the hub's last seven days of texts and the email agent's own count. */
 export function weekSent(texts: Pick<RelayStatus, "week"> | null, emailWeek: number): number {

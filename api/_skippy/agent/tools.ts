@@ -28,7 +28,7 @@ import { plainLine } from "../../foundry.js";
 import type { ReadName } from "../voicereads.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
-import { componentFor, DAY_NAME, DAYS, findMeal, mealNamed, readEdit, ROLES, weekWords, type Day, type EditResult, type MealEdit, type MealsFile, type Role, type Spice } from "../../_haven/mealShape.js";
+import { componentFor, DAY_NAME, DAYS, findMeal, mealNamed, readEdit, ROLES, weekWords, type Day, type EditResult, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
 export const ALL_TOOLS: readonly RoomTool[] = [...TODAY, ...FOUNDRY, ...RELAY, ...GREEN, ...EXCHANGE, ...BOILER, ...HAVEN];
@@ -309,7 +309,18 @@ const EXECUTORS: Record<string, Executor> = {
   },
   meals_night: {
     run: async (i, host) => {
-      const e = { op: "night" as const, day: dayOf(i.day), ...(typeof i.hellofresh === "boolean" && { helloFresh: i.hellofresh }), ...(typeof i.for_two === "boolean" && { forTwo: i.for_two }), ...(typeof i.in_cart === "boolean" && { inCart: i.in_cart }) };
+      // Skip (#788): the day's dinner, lunch or both, with the reason he gave; unskip has them again.
+      const why: SkipReason | null = i.unskip === true ? null : i.reason === "out" || i.reason === "leftovers" ? i.reason : "skip";
+      const skip = i.skip === "dinner" || i.skip === "lunch" || i.skip === "day" ? i.skip : null;
+      const e = {
+        op: "night" as const,
+        day: dayOf(i.day),
+        ...(typeof i.hellofresh === "boolean" && { helloFresh: i.hellofresh }),
+        ...(typeof i.for_two === "boolean" && { forTwo: i.for_two }),
+        ...(typeof i.in_cart === "boolean" && { inCart: i.in_cart }),
+        ...((skip === "dinner" || skip === "day") && { skipDinner: why }),
+        ...((skip === "lunch" || skip === "day") && { skipLunch: why }),
+      };
       return mealEdit(host, Object.keys(e).length > 2 ? e : "Say what to change about the night.");
     },
   },

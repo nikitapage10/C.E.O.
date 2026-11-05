@@ -240,7 +240,7 @@ export function DecisionAct({ a, style }: { a: DeskAction; style?: CardStyle }) 
 }
 
 /**
- * A decision's options as buttons on its Rotunda docket card (#740): the same answers as DecisionAct's, put to Nikita
+ * A decision's options as buttons on its Senate docket card (#740): the same answers as DecisionAct's, put to Nikita
  * once the floor has debated them. A button with a link opens it; the rest answer the decision in place.
  */
 export function DecisionChoices({ a }: { a: DeskAction }) {

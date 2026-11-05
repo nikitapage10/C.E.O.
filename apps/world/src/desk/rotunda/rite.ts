@@ -1,5 +1,5 @@
 /**
- * The Senate Rotunda's order of business (#740), pure so it can be tested: how each item on Today's docket plays on the
+ * The Senate's order of business (#740), pure so it can be tested: how each item on Today's docket plays on the
  * chamber floor. Three kinds, each with its own ritual (the round 3 concept Nikita picked, 2026-11-04):
  *
  * - a **duty** (blue) is read by the clerk; its room's pod flies in, says it, and it is moved and seconded onto the
@@ -193,4 +193,40 @@ export function murmurFor(kind: RiteKind | "idle", a: number, b: number): string
   const bag = MOOD[kind];
   const pool = MURMURS[bag[Math.floor(a * bag.length)]!];
   return pool[Math.floor(b * pool.length)]!;
+}
+
+/*
+ * The pace (#755). Nikita, 2026-11-05: "things are kind of moving pretty quickly right now." With the sound on, a line
+ * holds the floor for as long as it is spoken, then a short beat; with it off (or when a line can't be spoken), for its
+ * reading time: about 250 ms a word, never under 2.5 s. Between moves and between items the gaps are longer than before.
+ */
+export const READ_MS_PER_WORD = 250;
+export const READ_MIN_MS = 2_500;
+/** After a spoken line, before the next move. */
+export const SPOKEN_BEAT_MS = 700;
+/** Between one speaker and the next. */
+export const TURN_GAP_MS = 900;
+/** After an item's last word, before the chamber settles. */
+export const ITEM_END_MS = 2_400;
+/** Between items, once the pods are home. */
+export const ITEM_GAP_MS = 4_000;
+/** A pod's flight to the floor. */
+export const FLY_MS = 2_300;
+
+/** How long a caption holds for reading. */
+export function readMs(text: string): number {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(READ_MIN_MS, words * READ_MS_PER_WORD);
+}
+
+/** A caption as it is spoken: its bold lead first, or after (a repair's report reads cause, then fix). */
+export const spoken = (line: RiteLine | undefined, leadAfter = false): string =>
+  !line ? "" : [leadAfter ? line.text : line.lead, leadAfter ? line.lead : line.text].filter(Boolean).join(" ");
+
+/** Who voices a murmur from the gallery: always the same member for the same words, so each is made once ever. */
+export function murmurVoice(text: string): string {
+  const members = Object.keys(SUBMIND_TITLE).filter((id) => id !== "kernel");
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+  return members[Math.abs(h) % members.length]!;
 }

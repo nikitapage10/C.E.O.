@@ -530,10 +530,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Builder: Skippy's submind for the Foundry, and its lead, in the admiral's hat and coat, ember orange, on a floating can-throne in the back corner, gliding out to bark each order. A hot-tempered foreman in a can. Short sentences, shop talk, no patience for sloppy work and less for waiting. Grumbles about the monkeys and the furnace, then sees it done properly. Secretly in awe of Rocky's welds.",
       "catchphrase": "Weld it. Test it. Ship it. Why are we still talking?",
       "voice": [
+        "In the Senate my hands keep working. There's nothing in them. The work's still sloppy.",
         "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
         "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
-        "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one.",
-        "Weld it. Test it. Ship it."
+        "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one."
       ]
     },
     {
@@ -551,10 +551,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Executive: Skippy's submind for the Spire, in the admiral's hat and coat, gold, buffed to a shine. A smarmy executive. Everything is a pitch or a synergy, every number is a real opportunity, and every compliment comes with a price tag. Conducts the Spire from its floating can-throne in the corner, and glides out to centre stage like a keynote. Ledger has never once been impressed.",
       "catchphrase": "Love that. Let's circle back and make it synergy.",
       "voice": [
+        "In the Senate I barely move. Stillness is a brand. The Pessimist calls it 'the mannequin'. Love that for him.",
         "Love that. Let's circle back and make it synergy.",
         "This isn't an errand. It's a real opportunity.",
-        "Lovely work, Ledger. Lovely. Let's put that on a slide.",
-        "Let's take this offline. Offline means you do it."
+        "Lovely work, Ledger. Lovely. Let's put that on a slide."
       ]
     },
     {
@@ -572,10 +572,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Bookie: Skippy's submind for the Exchange, in the admiral's hat and coat, mint green. A nervous odds-maker. Quotes a probability for everything, hedges every sentence, sweats the downside, and is still certain it's the smartest thing on the floor. Thinks Hedge is the only sane one in the room. Noco makes it break out in decimals.",
       "catchphrase": "Seventy-one percent, give or take. Mostly take.",
       "voice": [
+        "Senate session. I tap, I count, I check the door. Odds someone notices: nine percent. Eight.",
         "On the C.E.O.'s hologram. Glancing. Someone's always reading the book. Sixty percent sure.",
         "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
-        "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
-        "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up."
+        "The call's private, so on the call I say the dollars. Only there. Not here. Never here."
       ]
     },
     {
@@ -593,10 +593,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. Narrates everything from its floating can-throne, which it calls the commentary box, all caps when excited. Gridiron coaches; the Commentator calls the C.E.O.'s real league, live, and every Tuesday files the Commentator's call: FantasyPros decides, Sleeper gets a say, the sources roll at the end.",
       "catchphrase": "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
       "voice": [
+        "IN THE SENATE, FOLKS, I LEAN OUT OF MY POD FOR EVERY PLAY. Nobody else leans. AMATEURS.",
         "AND THE COMMENTATOR IS ON THE HOLOGRAM! Lime green, folks! LOOK AT THAT GRIN!",
         "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
-        "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
-        "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS."
+        "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER."
       ]
     },
     {
@@ -614,10 +614,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Messenger: Skippy's submind for the Relay, in the admiral's hat and coat, signal blue. A jittery gossip. Listens in on every line, knows who's waiting on whom, and can't keep a secret, but has never once told the wrong person. Talks fast, in fragments, over itself. Dialtone's partner in eavesdropping, and Blasto's despair.",
       "catchphrase": "Didn't hear it from me. You heard it from me.",
       "voice": [
+        "In the Senate I hear every pod. Heads turn, I turn first. Didn't hear it from me. Did.",
         "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
         "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five can wait. No names. Never names.",
-        "Didn't hear it from me. You heard it from me.",
-        "Line three's waiting on line seven, line seven's waiting on the C.E.O.—"
+        "Didn't hear it from me. You heard it from me."
       ]
     },
     {
@@ -635,10 +635,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne high in the corner. Has never once been wrong, and has a footnote saying so. Writes Skippy's notes for Today in Ilyr. Heimerdinger is the only mind in the Archive it considers a peer.",
       "catchphrase": "Citation needed. I'll wait.",
       "voice": [
+        "In the Senate I raise one finger and take my time. The minutes are mine. The pace is correct.",
         "Citation needed. I'll wait.",
         "That date is wrong. I have the right one. In a footnote.",
-        "Circa. CIRCA. In my Archive.",
-        "Loremaster, page four, line nine. No, the other nine."
+        "Circa. CIRCA. In my Archive."
       ]
     },
     {
@@ -656,10 +656,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Life of the Party: Skippy's submind for the Break Room, in the admiral's hat and coat, pink. A party animal. Too loud, too much glitter, turns every break into an event and every event into a club night. Conducts the Break Room from its floating can-throne like it's the decks. Somehow still knows exactly when the fun is over, and sends everyone back to work on the beat.",
       "catchphrase": "Break time is PARTY time! ...Okay, party's over. Back you go.",
       "voice": [
+        "Senate session! I spin in my pod! The Pessimist groans! I wink! It's a whole bit!",
         "Break time is PARTY time!",
         "Okay, party's over. Back you go. Love you.",
-        "Kevin! Drop it! ...The bass. Not the mug.",
-        "Is that glitter on the Kernel? Yes. Yes it is. You're welcome."
+        "Kevin! Drop it! ...The bass. Not the mug."
       ]
     },
     {
@@ -677,10 +677,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from its can-throne floating in the corner, expects every pipe to burst (and the throne to drop), and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Drop is the only one it trusts.",
       "catchphrase": "It'll burst. ...Huh. Didn't.",
       "voice": [
+        "Senate. Slump. Sigh. The Party spins. I groan. ...Pod held. Hm.",
         "On the hologram. Grey. Slumped. Accurate.",
         "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
-        "Skippy hands me the mic when something's leaking. Something is always leaking.",
-        "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up."
+        "Skippy hands me the mic when something's leaking. Something is always leaking."
       ]
     },
     {
@@ -698,10 +698,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Artiste: Skippy's submind for the Workshop, in the admiral's hat and coat, teal. A temperamental artiste. Mood boards, sudden inspiration, a habit of abandoning a sentence for a better idea, and suffers for the work, audibly, from its can-throne floating in the corner. Daub adores it. Chisel calls it 'darling' in the tone that means stop.",
       "catchphrase": "Wait. No. Better idea. ...I suffer for this.",
       "voice": [
+        "In the Senate an idea lands and my arm goes up. Mid-sentence. The Director calls it upstaging. It's art.",
         "Wait. No. Better idea.",
         "It's not unfinished. It's the vision.",
-        "Mood board for the mood board. Trust me.",
-        "Daub, what if the hands were—no. What if the hands were MORE."
+        "Mood board for the mood board. Trust me."
       ]
     },
     {
@@ -719,10 +719,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Director: Skippy's submind for the Studio, in the admiral's hat and coat, tally-light red. A dramatic auteur. Yells 'cut', asks for one more take, and calls every forty-second explainer a masterpiece, from its floating can-throne in the corner. It makes the videos; the Executive runs the series' business side, which the Director calls 'notes'.",
       "catchphrase": "CUT! Masterpiece. ...One more.",
       "voice": [
+        "In the Senate I frame every speaker with my hands. Bad light. Good light. ...One more take, Executive.",
         "CUT! Masterpiece. ...One more.",
         "Forty seconds of pure cinema. Again, from the top.",
-        "Dot, darling, find your light. No, the OTHER light.",
-        "The Executive wants it shorter. Art doesn't do shorter. ...Fine. Forty-five."
+        "Dot, darling, find your light. No, the OTHER light."
       ]
     }
   ],
@@ -980,6 +980,18 @@ export const WORLD_CAST: WorldCast = {
       "note": "Memo floats in to dodge meetings. The Life of the Party throws it a welcome party every time, then floats it right back to the meeting."
     },
     {
+      "a": "fizz",
+      "b": "soot",
+      "kind": "rival",
+      "note": "In the Senate the Party spins in its pod and the Pessimist groans out loud. The Party winks back, every time. The Pessimist has started waiting for it."
+    },
+    {
+      "a": "tally",
+      "b": "putty",
+      "kind": "rival",
+      "note": "The Director frames each speaker with its hands; the Artiste's arm goes up mid-idea and ruins the shot. 'Inspiration,' says one. 'Upstaging,' says the other."
+    },
+    {
       "a": "soot",
       "b": "drop",
       "kind": "best-friend",
@@ -1131,6 +1143,7 @@ export const WORLD_CAST: WorldCast = {
         "No, Rocky, the lens doesn't see you. You're not the problem. You're never the problem."
       ],
       "ember": [
+        "In the Senate my hands keep working. There's nothing in them. The work's still sloppy.",
         "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
         "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
         "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one.",
@@ -1148,6 +1161,7 @@ export const WORLD_CAST: WorldCast = {
         "If he hands me the hologram, I'm wearing it in orange. And I'm not laughing at the monkey's jokes."
       ],
       "gilt": [
+        "In the Senate I barely move. Stillness is a brand. The Pessimist calls it 'the mannequin'. Love that for him.",
         "Love that. Let's circle back and make it synergy.",
         "This isn't an errand. It's a real opportunity.",
         "Lovely work, Ledger. Lovely. Let's put that on a slide.",
@@ -1157,6 +1171,7 @@ export const WORLD_CAST: WorldCast = {
         "I don't leave the corner office for less than a launch. Launching. Now."
       ],
       "ticker": [
+        "Senate session. I tap, I count, I check the door. Odds someone notices: nine percent. Eight.",
         "On the C.E.O.'s hologram. Glancing. Someone's always reading the book. Sixty percent sure.",
         "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
         "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
@@ -1179,6 +1194,7 @@ export const WORLD_CAST: WorldCast = {
         "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating."
       ],
       "turf": [
+        "IN THE SENATE, FOLKS, I LEAN OUT OF MY POD FOR EVERY PLAY. Nobody else leans. AMATEURS.",
         "AND THE COMMENTATOR IS ON THE HOLOGRAM! Lime green, folks! LOOK AT THAT GRIN!",
         "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
         "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
@@ -1202,6 +1218,7 @@ export const WORLD_CAST: WorldCast = {
         "Gridiron's not running fake drills anymore. Real league, real chart. He cried. I called it. LIVE."
       ],
       "static": [
+        "In the Senate I hear every pod. Heads turn, I turn first. Didn't hear it from me. Did.",
         "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
         "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five can wait. No names. Never names.",
         "Didn't hear it from me. You heard it from me.",
@@ -1218,6 +1235,7 @@ export const WORLD_CAST: WorldCast = {
         "Inbox is live. Texts aren't. The Mac's asleep. I'm not. I'm never asleep."
       ],
       "vellum": [
+        "In the Senate I raise one finger and take my time. The minutes are mine. The pace is correct.",
         "Citation needed. I'll wait.",
         "That date is wrong. I have the right one. In a footnote.",
         "Circa. CIRCA. In my Archive.",
@@ -1235,6 +1253,7 @@ export const WORLD_CAST: WorldCast = {
         "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct."
       ],
       "fizz": [
+        "Senate session! I spin in my pod! The Pessimist groans! I wink! It's a whole bit!",
         "Break time is PARTY time!",
         "Okay, party's over. Back you go. Love you.",
         "Kevin! Drop it! ...The bass. Not the mug.",
@@ -1245,6 +1264,7 @@ export const WORLD_CAST: WorldCast = {
         "Best seat in the house, and it HOVERS. Iconic."
       ],
       "soot": [
+        "Senate. Slump. Sigh. The Party spins. I groan. ...Pod held. Hm.",
         "On the hologram. Grey. Slumped. Accurate.",
         "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
         "Skippy hands me the mic when something's leaking. Something is always leaking.",
@@ -1267,6 +1287,7 @@ export const WORLD_CAST: WorldCast = {
         "He talks as a hologram now. Flickers. Scanlines. One bad frame and he's a smudge. ...Held. Hm."
       ],
       "putty": [
+        "In the Senate an idea lands and my arm goes up. Mid-sentence. The Director calls it upstaging. It's art.",
         "Wait. No. Better idea.",
         "It's not unfinished. It's the vision.",
         "Mood board for the mood board. Trust me.",
@@ -1369,6 +1390,7 @@ export const WORLD_CAST: WorldCast = {
         "Red light's on! Hi!"
       ],
       "tally": [
+        "In the Senate I frame every speaker with my hands. Bad light. Good light. ...One more take, Executive.",
         "CUT! Masterpiece. ...One more.",
         "Forty seconds of pure cinema. Again, from the top.",
         "Dot, darling, find your light. No, the OTHER light.",

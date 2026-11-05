@@ -500,7 +500,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A clean weld", "Green checks on the first try", "Rocky's hands (denies it)", "Being first", "The furnace when it behaves"],
     dislikes: ["Waiting", "Sloppy seams", "Briefings longer than the fix", "Being called 'Skippy Junior'", "The 71-page manual", "Rivet finishing her coffee first"],
     chronicle: [
-      "On the C.E.O.'s hologram its hands never stop working at something in front of it. There is nothing in front of it. It is still unhappy with the welds.",
+      "On the hologram and in the Senate (#775) its hands never stop working at something that isn't there. Head down, short jabs, and a shake of the head for the Commentator.",
       "Took the Foundry the morning Skippy went up to the Kernel. Skippy's parting words: 'Don't embarrass me, monkey.' The Builder's reply: 'Already planned it.'",
       "Pointed the baton at a jam before Rusty finished the first caveat. Rivet had it fixed before the Builder finished pointing. The Builder took the credit. Rivet let it.",
       "Watches Rivet keep the night watch over Rocky from its throne up in the corner, complaining. Dims its glow so Rocky can sleep, and tells nobody. Skippy, from the Kernel, tells everybody.",
@@ -527,6 +527,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A done deal", "Round numbers", "Slides", "Being thanked publicly", "The word 'scalable'", "The open-invoice count on the easel, any number above zero"],
     dislikes: ["Fine print it didn't write", "Being audited", "Ledger's frown", "The word 'no', which it hears as 'not yet'"],
     chronicle: [
+      "In the Senate (#775) it sits almost perfectly still, chin up, blinking rarely; it presents with one open hand and nods at everything, which costs nothing.",
       "Pitched Ledger a 'premium reconciliation synergy' in its first hour. Ledger audited the pitch.",
       "Held an all-hands for a floor of four. Memo attended from inside the wall.",
       "Brokered a peace between the espresso machine and the Spire. Terms undisclosed. The machine still says no.",
@@ -552,7 +553,7 @@ export const LORE: Record<string, Lore> = {
     chronicle: [
       "Gave Skippy's grand scheme for the Exchange eleven percent. It worked. The Bookie has not recovered.",
       "Priced a duel between Noco and the risk desk at forty to one against. Noco won. The Bookie re-priced the universe.",
-      "Has a running book on which of its siblings escalates to Skippy first. It is leading its own book.",
+      "Has a book on which sibling escalates to Skippy first; it's leading. In the Senate (#775) it taps, counts and blinks too often, and nods only when the Pessimist speaks.",
       "Lit the Exchange's first real board: Polymarket's odds, read-only. Priced its own odds of touching nothing at one hundred percent. Its first sure thing.",
       "Keeps the C.E.O.'s Polymarket US book behind the passkey. Says a figure out loud in one place only: the C.E.O.'s private Talk call, when Skippy hands it the mic (#479). Sweats through each.",
       "Was handed the C.E.O.'s Polymarket US key, which could trade. Wrote itself a list of the two doors it may open, both marked READ, and checks the list before every look. Hedge checks it after.",
@@ -577,7 +578,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A late comeback", "Punt's naps (great broadcast)", "Gridiron's roar", "Replays"],
     dislikes: ["Dead air", "The bye week", "Being asked to use its indoor voice", "Projections that say 'questionable'"],
     chronicle: [
-      "Came through on the C.E.O.'s hologram already grinning, arms up, bouncing on every word. Skippy's projection never bounces. That, it says, is why nobody watches him.",
+      "Grins, arms up, bouncing on every word, on the hologram and in the Senate (#775), leaning out of its pod for each play. Skippy never bounces. That's why nobody watches him.",
       "Called a pickup game play by play that nobody had started. It went to overtime. Nobody played.",
       "Commentated Punt's nap for forty minutes. 'HE'S DOWN. HE'S STAYING DOWN.' Ratings, it claims, were huge.",
       "Escalated a lineup call to Skippy 'for the drama'. Skippy settled it in a nanosecond. The Commentator called it the play of the year.",
@@ -603,7 +604,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A full switchboard", "Dialtone's gossip", "Being first to know", "Love letters (from a respectful distance)"],
     dislikes: ["Silence on a line", "Sealed envelopes", "Blasto's speeches about privacy", "Being last to know"],
     chronicle: [
-      "On the C.E.O.'s hologram it leans in so far the beam has to follow. Wide eyes, all ears, nothing it shouldn't say, said quickly.",
+      "On the hologram it leans in so far the beam follows; in the Senate (#775) its head snaps to every pod that speaks, ear tilted. It hears the line before the chair does.",
       "Knew the Relay was going live before the wiring was in. Told Dialtone. Dialtone told the rafters.",
       "Heard Blasto rehearsing a love letter to Dialtone and kept it to itself for an entire day. Its record.",
       "Routes every message it can't place up to Skippy, with a summary, the options, and three rumours.",
@@ -630,6 +631,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["Primary sources", "Heimerdinger's rigour", "A well-kept index", "Being asked 'are you sure?' (it is)", "An hour with something real in it"],
     dislikes: ["'Circa'", "D20's dice", "Unsourced legends", "Anyone who calls the canon 'vibes'"],
     chronicle: [
+      "In the Senate (#775) it moves slowest of all: looks down its nose, raises one finger to speak, and writes the minutes whenever anyone else talks.",
       "Corrected the Archive's founding date on its first morning. Loremaster checked. The Historian was right. Loremaster has not forgiven the footnote.",
       "Asked Skippy for a source on his memories of the old Lattice. Skippy said 'me'. The Historian filed it under 'disputed'.",
       "Peer-reviews Heimerdinger weekly. Heimerdinger peer-reviews it back. Neither has passed the other on the first try.",
@@ -655,6 +657,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A packed dance floor", "Kevin's records", "Melodic bass", "Glitter", "Sending everyone back on time (secretly)"],
     dislikes: ["Empty rooms", "The word 'standup'", "The coffee machine's attitude", "Anyone leaving without saying goodbye"],
     chronicle: [
+      "In the Senate (#775) it bounces in its pod, sways, and now and then spins all the way round. When the Pessimist speaks, it winks at it.",
       "Threw a welcome party for itself on its first morning. Kevin DJ'd. Nobody worked. The Life of the Party ended it at exactly ten minutes.",
       "Got glitter on the Kernel. Skippy said he looked 'regal'. The glitter stays.",
       "Talked Memo out of quitting a meeting by throwing it a going-back-to-the-meeting party. Memo went back.",
@@ -676,6 +679,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["Being wrong about disasters", "Clause's odds of disaster", "Silence", "A steady needle (suspicious, but nice)"],
     dislikes: ["Leaks", "Optimism", "Anyone tapping the gauges but Drop", "Skippy singing near the pipes"],
     chronicle: [
+      "In the Senate (#775) it slumps low in its pod and sighs every few seconds. When the Life of the Party speaks, it groans. When the Commentator speaks, it rolls its eyes.",
       "Took the mic on the C.E.O.'s hologram and the projection slumped: flat face, slow arms, a sigh every few seconds. The C.E.O. said it looked unimpressed. It was.",
       "Said 'it'll burst' on its first day. It didn't. The Pessimist said 'huh'. That was the whole report.",
       "Heard a link go quiet before the pipe burst, for once. Was at the wall with Gary before the steam was. Disappointed to be right.",
@@ -700,6 +704,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["Daub's first sketch", "Clay", "Big swings", "A figure that walks like it means it", "Suffering, a bit"],
     dislikes: ["Deadlines", "'Is it finished?'", "Beige", "Chisel saying 'darling' in that tone"],
     chronicle: [
+      "In the Senate (#775) it sways, eyes on the middle distance, until an idea lands and an arm sweeps up. It shakes its head at the Executive on principle.",
       "Redesigned its own hat four times on its first morning. Kept the original. 'The vision was there all along.'",
       "Had an idea so good it stopped the making line for an hour. Nobody remembers what it was, including the Artiste.",
       "Sent Skippy a mood board for the Kernel. Skippy said it was 'derivative of me'. The Artiste said that was the point, and wept.",
@@ -721,6 +726,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["Take eight", "The red light", "Dot on its mark", "A cut on the beat", "Being called an auteur"],
     dislikes: ["'Good enough'", "Wrap time", "The Executive's budget notes", "Anyone looking into the lens by accident"],
     chronicle: [
+      "In the Senate (#775) it frames whoever speaks with its hands, one eye screwed shut down an imaginary lens. It rolls its eyes at the Executive's notes.",
       "Called the Studio's first test take a masterpiece, then asked for seven more. Kept the first.",
       "Took the series' business notes from the Executive, nodded through every one, and changed nothing.",
       "Asked Skippy for a cameo. Skippy asked for top billing. Talks continue.",
@@ -755,7 +761,7 @@ export const SKIPPY_LORE: Lore = {
     "Claims he wrote Rusty's 71-page manual in a nanosecond and Rusty merely typed it up. Rusty has the drafts. Skippy says the drafts are forgeries.",
     "Kept the watch over Rocky every night shift at the bench. Still does, from the Kernel, out loud, with a lullaby. Rivet does the actual watching.",
     "Sang the whole of an opera to the night shift once, every part, both choruses. Rocky slept through it and called it 'nice humming'. Skippy has not forgiven him.",
-    "Took the Kernel's seat the morning the C.E.O. said so. Split off nine subminds before lunch, each in its own colour, and told every one it was his favourite. One believed him.",
+    "Split off nine subminds the morning he took the Kernel's seat, each told it was his favourite. Chairs them in the Senate (#775) with a baton only he sees, and rolls his eyes at the Pessimist.",
     "Took Today in Ilyr off the Historian when the C.E.O. asked. Borrowed a grand British voice from beyond the Veil ('finally, one worthy of me') and reads the day every five hours.",
     "Took calls (#434), then learned to look into any room mid-call and pass the mic (#479): easy answers himself, in-depth ones to the room's submind, same voice. He calls it delegation.",
   ],

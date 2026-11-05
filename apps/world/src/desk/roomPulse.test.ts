@@ -4,7 +4,7 @@ import type { WorldFeed } from "../chronicle.ts";
 import { EMPTY_FOUNDRY, type Crate } from "../foundry.ts";
 import type { Link } from "../systems.ts";
 import { PORTRAITS } from "./portraits.ts";
-import { ROOM_META, ROOM_ORDER, roomPhrase, roomPulses, skippyLine, type PulseInput } from "./roomPulse.ts";
+import { downNames, namesPhrase, ROOM_META, ROOM_ORDER, roomPhrase, roomPulses, skippyLine, type PulseInput } from "./roomPulse.ts";
 
 const NOW = Date.parse("2026-10-22T19:00:00Z");
 const DAY = new Date(NOW).setHours(0, 0, 0, 0);
@@ -114,5 +114,39 @@ describe("room pulses", () => {
     expect(skippyLine(0, pulses)).toMatch(/^Nothing needs a human/);
     expect(skippyLine(1, pulses)).toMatch(/^One thing needs a human/);
     expect(skippyLine(3, pulses)).toMatch(/^Three things need a human/);
+  });
+});
+
+describe("the Boiler Room names what's down (Nikita, 2026-11-05)", () => {
+  const named = (id: string, label: string, state: Link["state"]): Link => ({ ...link(id, state), label });
+  const boiler = (links: Link[]) => roomPulses(input({ links })).find((p) => p.id === "boiler")!;
+
+  it("names one down link and opens Controls on its card", () => {
+    const p = boiler([named("gmail", "Gmail", "down"), named("checks", "Checks", "ok")]);
+    expect(p).toMatchObject({ state: "down", status: "Gmail is down", short: "Gmail down", href: "/boiler/controls#link-gmail" });
+    expect(p.drive).toBe("1 of 2 links up · Gmail down");
+    expect(p.report).toMatch(/^Gmail is down\. /);
+    expect(roomPhrase(p)).toBe("Gmail down in the Boiler Room");
+  });
+
+  it("calls the hub and the MacBook one thing, since the MacBook mirrors the hub", () => {
+    const p = boiler([named("hub", "Hub", "down"), named("mac", "MacBook", "down"), named("checks", "Checks", "ok")]);
+    expect(p).toMatchObject({ status: "Mac hub is down", short: "Mac hub down", href: "/boiler/controls#link-hub" });
+  });
+
+  it("names two, then the first and how many more", () => {
+    expect(boiler([named("hub", "Hub", "down"), named("mac", "MacBook", "down"), named("bluebubbles", "BlueBubbles", "down")]).status).toBe("Mac hub and BlueBubbles down");
+    const p = boiler([named("gmail", "Gmail", "down"), named("paypal", "PayPal", "down"), named("world", "World clock", "down")]);
+    expect(p).toMatchObject({ status: "Gmail +2 more down", short: "Gmail +2 more down", href: "/boiler/controls#link-gmail" });
+    expect(p.report).toMatch(/^Gmail and 2 others are down\. /);
+  });
+
+  it("keeps the room's own address when nothing is down", () => {
+    expect(boiler([named("checks", "Checks", "ok")]).href).toBe("/boiler");
+  });
+
+  it("keeps the MacBook on its own when the hub isn't down", () => {
+    expect(downNames([link("hub", "slow"), named("mac", "MacBook", "down")])).toEqual([{ id: "mac", name: "MacBook" }]);
+    expect(namesPhrase([])).toBe("");
   });
 });

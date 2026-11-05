@@ -316,5 +316,6 @@ test("the Desk opens first without loading the Lattice", async ({ page }) => {
   // Relay's heading says what's waiting since #438, not the page's name: the page's own stage and title say it's Relay.
   await expect(page.getByRole("region", { name: "Relay at a glance" })).toBeVisible();
   await expect(page).toHaveTitle(/^Relay\b/);
-  expect(scripts.some((u) => /three|App\.tsx|\/App-/.test(u))).toBe(false);
+  // Compared as a list so a failure names the script that slipped in (the nightly run of 63a3857 failed here without saying which, #798).
+  expect(scripts.filter((u) => /three|App\.tsx|\/App-/.test(u))).toEqual([]);
 });

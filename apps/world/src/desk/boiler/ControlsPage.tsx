@@ -20,6 +20,7 @@ import { PhonesPanel } from "../security/PhonesPanel.tsx";
 import { useDeskAuth } from "../signin.ts";
 import { startInvoices } from "../spire/invoices.ts";
 import { SystemsNav } from "../SystemsNav.tsx";
+import { startTexts } from "../texts/texts.ts";
 import { mtTime } from "../todaySchedule.ts";
 import { startHome, useHome } from "../homeDevices.ts";
 import { GoogleLinks, HAVEN_RESULT, KrogerSetup, PetSetup, RoborockSetup } from "./HouseSetup.tsx";
@@ -729,6 +730,7 @@ export function ControlsPage({ now }: { now: number }) {
   useEffect(() => startGreen(), []);
   useEffect(() => startInvoices(), []);
   useEffect(() => startHome(), []);
+  useEffect(() => startTexts(), []);
   const usage = useUsage().feed;
   const shown = useMeterSpecs(now, signedIn);
   const rows = useLinkRows();
@@ -745,12 +747,33 @@ export function ControlsPage({ now }: { now: number }) {
     toggle(OPEN_FOR[id] ?? id, true);
     requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" })));
   };
+  // A down link named on Today or in the Senate (#link-hub) lands on its "Needs you" card, scrolled to and lit; if
+  // the link isn't down by the time the links have read, it opens the connections instead.
+  const [focus, setFocus] = useState<string | null>(null);
+  const needIds = needs.map((x) => x.id).join(" ");
+  useEffect(() => {
+    if (!focus) return;
+    const card = document.querySelector<HTMLElement>(`.bx-need[data-need="${CSS.escape(focus)}"]`);
+    if (card) {
+      card.classList.add("is-focus");
+      card.scrollIntoView({ block: "center" });
+      setFocus(null);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setFocus(null);
+      openTo("ct-links");
+    }, 5000);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, needIds]);
   // A deep link (#ct-house, #ct-keys, a Haven or King Soopers return) opens the circuit it points into.
   useEffect(() => {
     const fromHash = () => {
       const h = window.location.hash.slice(1);
       const q = new URLSearchParams(window.location.search);
       if (OPEN_FOR[h]) openTo(h);
+      else if (h.startsWith("link-")) setFocus(h);
       else if (q.get("haven") || q.get("kroger")) openTo("ct-house");
     };
     fromHash();

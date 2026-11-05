@@ -4,10 +4,11 @@ import { SESSION_COOKIE } from "../_desk/session.ts";
 import { SoftPasskey } from "../_desk/softPasskey.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { handlePost as authPost } from "../desk-auth.ts";
-import { CEILING, MemorySpendStore, relayBudget, SPEND_PATH, type Ledger } from "./budget.ts";
+import { CEILING, LEARN_CEILING, MemorySpendStore, relayBudget, SPEND_PATH, type Ledger } from "./budget.ts";
+import { cleanTrait, LEARN_SYSTEM, learnRequest, readLearn, readLearnInput, readVoice } from "./voice.ts";
 import { COMPOSE_SYSTEM, composeRequest, DRAFT_MODEL, draftRequest, readComposeInput, readDraft, readSort, SORT_MODEL, sortRequest, type ClaudeBody } from "./models.ts";
 import { askRuled, cleanWho, maskHandle, matchContacts } from "./compose.ts";
-import { GET, HUB_PATH, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
+import { GET, HUB_PATH, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, resendable, shownReason, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { cleanPng, emailPhotoHash, macPhotoKey, normalHandle, photoEmailKey, photoIdOf, PHOTO_MAX_BYTES, readPhotoList } from "./photos.ts";
 import { BlobRelayStore, MemoryRelayStore, PRIVATE_PATH, readPrivate, relaySealKey } from "./store.ts";
@@ -260,8 +261,23 @@ describe("the hub's token", () => {
     expect(readTextsView({ ...view(), phone: "x" }, NOW)).toBeNull();
   });
 
-  it("drops items older than seven days", () => {
-    expect(readTextsView(view([item({ since: NOW - 8 * 24 * HOUR })]), NOW)?.items).toEqual([]);
+  it("drops a settled item after seven days and an owed one after the 30-day window (#758)", () => {
+    expect(readTextsView(view([item({ since: NOW - 8 * 24 * HOUR, state: "settled" })]), NOW)?.items).toEqual([]);
+    expect(readTextsView(view([item({ since: NOW - 8 * 24 * HOUR })]), NOW)?.items).toHaveLength(1);
+    expect(readTextsView(view([item({ since: NOW - 31 * 24 * HOUR })]), NOW)?.items).toEqual([]);
+  });
+
+  it("keeps a shown text as long as its owed window (#803, was a week), and checks who sent each (#758)", () => {
+    const at = (days: number) => NOW - days * 24 * HOUR;
+    // A backlog thread from three weeks ago shows its texts, not only its gist.
+    const one = readTextsView(view([item({ since: at(25), messages: [{ text: "old one", at: at(31) }, { text: "three weeks", at: at(22) }, { text: "new one", at: at(1) }] })]), NOW)!;
+    expect(one.items[0]!.messages?.map((m) => m.text)).toEqual(["three weeks", "new one"]);
+    const gone = readTextsView(view([item({ since: at(25), messages: [{ text: "old one", at: at(31) }] })]), NOW)!;
+    expect(gone.items[0]!.messages).toBeUndefined();
+    // A one-to-one item names no sender; a group's lines each must.
+    expect(readTextsView(view([item({ messages: [{ text: "hi", at: NOW, from: "Riley Test" }] })]), NOW)).toBeNull();
+    expect(readTextsView(view([item({ group: true, messages: [{ text: "hi", at: NOW }] })]), NOW)).toBeNull();
+    expect(readTextsView(view([item({ messages: [{ text: "x".repeat(1001), at: NOW }] })]), NOW)).toBeNull();
   });
 });
 
@@ -469,6 +485,36 @@ describe("send requests (single-use, 10 minutes, Resend)", () => {
     const e = { req: { until: NOW } as TextRequest, state: "taken" as const, takenAt: NOW - 1, doneAt: null };
     expect(shownState(e, NOW + 4 * 60_000)).toBe("taken");
     expect(shownState(e, NOW + 5 * 60_000)).toBe("failed");
+    expect(shownReason(e, NOW + 4 * 60_000)).toBeUndefined();
+    expect(shownReason(e, NOW + 5 * 60_000)).toBe("no-answer");
+  });
+
+  it("keep the hub's reason code for a refusal or failure, show it on the Desk, and offer Resend when another try can help (#767)", async () => {
+    const d = await unlocked();
+    const { rid } = (await (await d.send()).json()) as { rid: string };
+    await d.requests();
+    // Only a code from the closed list is kept: words from the Mac never are.
+    await d.hub("POST", "?view=results", { results: [{ rid, result: "failed", reason: "mac-permission", note: "Not authorized" }] });
+    const shown = (await d.listed()).requests[0]! as { state: string; reason?: string };
+    expect(shown).toMatchObject({ state: "failed", reason: "mac-permission" });
+    const again = await d.post({ action: "resend", rid });
+    expect(again.status).toBe(200);
+    const fresh = ((await again.json()) as { rid: string }).rid;
+    await d.requests();
+    await d.hub("POST", "?view=results", { results: [{ rid: fresh, result: "refused", reason: "made-up words" }] });
+    const last = (await d.listed()).requests.find((r) => r.rid === fresh)! as { state: string; reason?: string };
+    expect(last.state).toBe("refused");
+    expect(last.reason).toBeUndefined();
+    // A plain refusal needs a look first: no Resend.
+    expect((await d.post({ action: "resend", rid: fresh })).status).toBe(409);
+  });
+
+  it("allow Resend after a refusal only for a reason another try can fix", () => {
+    const at = { req: { until: NOW, kind: "send" } as TextRequest, takenAt: NOW - 1, doneAt: NOW };
+    expect(resendable({ ...at, state: "refused", reason: "paused" }, NOW)).toBe(true);
+    expect(resendable({ ...at, state: "refused", reason: "new-message" }, NOW)).toBe(false);
+    expect(resendable({ ...at, state: "refused", reason: "answered" }, NOW)).toBe(false);
+    expect(resendable({ ...at, state: "refused" }, NOW)).toBe(false);
   });
 
   it("are made only by the Desk's own actions", () => {
@@ -727,7 +773,7 @@ describe("the site gate lets the hub through on its token alone", () => {
   it("opens exactly the hub's own calls with a token this Desk key signed", async () => {
     const c = await gateCtx();
     const { token } = mintPairing(DESK)!;
-    for (const [path, method] of [["/api/relay-hub", "POST"], ["/api/relay-hub?view=texts", "POST"], ["/api/relay-hub?view=results", "POST"], ["/api/relay-hub?view=sort", "POST"], ["/api/relay-hub?view=draft", "POST"], ["/api/relay-hub?view=skip", "GET"], ["/api/relay-hub?view=requests", "GET"]] as const) {
+    for (const [path, method] of [["/api/relay-hub", "POST"], ["/api/relay-hub?view=texts", "POST"], ["/api/relay-hub?view=results", "POST"], ["/api/relay-hub?view=sort", "POST"], ["/api/relay-hub?view=draft", "POST"], ["/api/relay-hub?view=learn", "POST"], ["/api/relay-hub?view=skip", "GET"], ["/api/relay-hub?view=requests", "GET"]] as const) {
       expect(decide(at(path, method, token), c), `${method} ${path}`).toEqual({ allow: true, why: "relay-hub" });
     }
     expect(decide(at("/api/relay-pair", "POST"), c)).toEqual({ allow: true, why: "relay-pair" });
@@ -872,5 +918,107 @@ describe("contact photos from the Mac", () => {
     // Unpair forgets every photo.
     await d.post({ action: "unpair" });
     expect(d.relay.photos.size).toBe(0);
+  });
+});
+
+/* ── #758: the backlog's Rescan, "Learn from my texts" ── */
+
+const STATS = { texts: 1_200, length: 28, long: 90, capitals: 0.2, lowercase: 0.7, emoji: 0.3, stops: 0.05, exclaims: 0.2, questions: 0.15, ellipses: 0.02, signOffs: 0.04, doubles: 0.3, replyMinutes: 12, replyHour: 0.7 };
+const SAMPLE = { contacts: [{ label: "C1", texts: ["omw, Contact", "haha yes", "see u at [time]"] }, { label: "C2", texts: ["Thanks for the update, will review tomorrow.", "Sounds good."] }] };
+const LEARNED = { traits: ["lowercase, rarely capitalises", "no full stop at the end", "haha over lol"], family: [], friends: ["more emoji"], work: ["full sentences, a full stop"], relations: [{ label: "C1", kind: "friends" }, { label: "C2", kind: "work" }] };
+
+describe("the backlog's Rescan and the learn chore (#758)", () => {
+  it("makes single-use, signed chore requests with no thread of the list and no text, one waiting at a time", async () => {
+    const d = await ready();
+    for (const action of ["rescan", "learn"] as const) {
+      expect((await d.post({ action })).status).toBe(200);
+      expect((await d.post({ action })).status).toBe(409);
+    }
+    const got = await d.requests();
+    expect(got.map((r) => r.kind).sort()).toEqual(["learn", "rescan"]);
+    for (const r of got) {
+      expect(readTextRequest(r)).toMatchObject({ text: "", draftAt: 0 });
+      expect(requestSigned(Buffer.from(d.hubSendKey, "base64url"), r, r.sig)).toBe(true);
+      expect(r.thread).not.toBe(THREAD);
+    }
+    // Handed out once.
+    expect(await d.requests()).toEqual([]);
+    // A chore that carries text is off the shape.
+    expect(readTextRequest({ ...got[0]!, text: "hi" })).toBeNull();
+  });
+
+  it("learns with one Sonnet call over the sample, the rules again on the site, checked traits and the cost back", async () => {
+    const d = await ready();
+    d.answer = { ...LEARNED, traits: [...LEARNED.traits, 'says "see u at 6"', "texts 555-0100"] };
+    const withMoney = { contacts: [...SAMPLE.contacts, { label: "C3", texts: ["the rent payment is overdue", "ok"] }] };
+    const res = await d.hub("POST", "?view=learn", withMoney);
+    expect(res.status).toBe(200);
+    const got = (await res.json()) as { answer: typeof LEARNED; usd: number };
+    // A trait with a quote or a number never comes back.
+    expect(got.answer.traits).toEqual(LEARNED.traits);
+    expect(got.answer.relations).toEqual(LEARNED.relations);
+    expect(got.usd).toBeGreaterThan(0);
+    expect(got.usd).toBeLessThan(0.1);
+    const body = d.calls.at(-1)!;
+    expect(body.model).toBe(DRAFT_MODEL);
+    expect(body.system).toBe(LEARN_SYSTEM);
+    expect(Object.keys(body).sort()).toEqual(["max_tokens", "messages", "model", "output_config", "system", "thinking"]);
+    expect(body.messages[0].content).not.toContain("rent payment");
+    expect(body.messages[0].content).toContain('<contact label="C1">');
+    // The ledger: reserved at the learn ceiling, settled to the real cost.
+    const ledger = JSON.parse(d.spend.json!) as Ledger;
+    expect(Object.values(ledger)[0]!.usd).toBeCloseTo(got.usd, 6);
+    expect(LEARN_CEILING).toBeLessThan(0.1);
+  });
+
+  it("refuses a sample off the shape before any call", async () => {
+    const d = await ready();
+    const before = d.calls.length;
+    for (const bad of [{ ...SAMPLE, extra: 1 }, { contacts: [{ label: "Riley", texts: ["hi"] }] }, { contacts: [{ label: "C1", texts: Array.from({ length: 31 }, () => "hi") }] }, { contacts: [{ label: "C1", texts: ["x".repeat(201)] }] }, { contacts: [] }]) {
+      expect((await d.hub("POST", "?view=learn", bad)).status).toBe(400);
+    }
+    expect(d.calls.length).toBe(before);
+    expect(readLearnInput({ contacts: Array.from({ length: 40 }, (_, i) => ({ label: `C${i + 1}`, texts: Array.from({ length: 30 }, () => "hi") })) })).toBeNull();
+  });
+
+  it("caps the learn call's input and keeps the answer to style", () => {
+    const big = { contacts: Array.from({ length: 60 }, (_, i) => ({ label: `C${i + 1}`, texts: Array.from({ length: 30 }, () => "y".repeat(200)) })) };
+    const body = learnRequest(big);
+    expect(body.messages[0].content.match(/<text>/g)!.length).toBeLessThanOrEqual(1_000);
+    // Every sample character is a "y" here, so counting them counts the text that went, with no tag stripping.
+    expect(body.messages[0].content.split("y").length - 1).toBeLessThanOrEqual(60_000);
+    expect(readLearn({ ...LEARNED, relations: [{ label: "C9", kind: "family" }] }, ["C1"])?.relations).toEqual([]);
+    expect(readLearn({ ...LEARNED, extra: "x" }, ["C1"])).toBeNull();
+    expect(cleanTrait("“see you soon”")).toBe("");
+    expect(cleanTrait("visit www.example.com")).toBe("");
+  });
+
+  it("carries the learned voice into a draft, fenced, and refuses a voice off the shape", async () => {
+    const d = await ready();
+    d.answer = { draft: "yep!" };
+    const voice = { traits: ["lowercase"], relation: "friends", tone: ["more emoji"], stats: STATS };
+    const lines = [{ from: "them", text: "you around?", ago: 3 }];
+    expect((await d.hub("POST", "?view=draft", { lines, examples: [], profile: { length: 20, capitals: 0, emoji: 0, stops: 0 }, voice })).status).toBe(200);
+    const content = d.calls.at(-1)!.messages[0].content;
+    expect(content).toContain("<voice>");
+    expect(content).toContain("With friends:");
+    expect(content).toContain("median 28 characters");
+    expect((await d.hub("POST", "?view=draft", { lines, examples: [], profile: { length: 20, capitals: 0, emoji: 0, stops: 0 }, voice: { ...voice, stats: { ...STATS, texts: "many" } } })).status).toBe(400);
+  });
+
+  it("keeps older unanswered, the scan time and the voice in the sealed list, checked", async () => {
+    const d = await ready();
+    const voice = { traits: ["lowercase"], tones: { family: [], friends: [], work: [] }, stats: STATS, from: 400, contacts: 20, at: NOW, usd: 0.04 };
+    const older = { count: 3, items: [{ id: "fedcba9876543210", name: "Sam Sample", channel: "SMS", since: NOW - 40 * 24 * HOUR, unread: true }] };
+    expect((await d.hub("POST", "?view=texts", { ...view([item({ unread: true })]), older, scannedAt: NOW, voice })).status).toBe(200);
+    const got = (await (await d.get()).json()) as { texts: TextItem[]; older: unknown; voice: unknown; scannedAt: number };
+    expect(got.texts[0]!.unread).toBe(true);
+    expect(got.older).toEqual(older);
+    expect(got.voice).toEqual(voice);
+    expect(got.scannedAt).toBe(NOW);
+    // A number can't ride on an older row, and a trait with a quote in it is dropped.
+    expect((await d.hub("POST", "?view=texts", { ...view(), older: { count: 1, items: [{ ...older.items[0], name: "Sam", phone: "+15555550123" }] } })).status).toBe(422);
+    expect(readVoice({ ...voice, traits: ['"hey"'] })?.traits).toEqual([]);
+    expect(readTextsView({ ...view(), older: { count: 0, items: older.items } }, NOW)).toBeNull();
   });
 });

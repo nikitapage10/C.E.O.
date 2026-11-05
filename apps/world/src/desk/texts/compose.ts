@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { RequestState } from "../../../../../api/_relay/texts.ts";
+import { REASON_WORDS, RESENDABLE, type RequestState } from "../../../../../api/_relay/texts.ts";
 import { useDeskAuth } from "../signin.ts";
 import { errorWords, useTexts, type TextCard, type TextRequestView } from "./texts.ts";
 
@@ -101,6 +101,8 @@ export function phaseOf(c: Compose, card: TextCard | undefined, req: TextRequest
 /** What a finished send request says on the card (the Texts panel's own words, #535). */
 export function sendWords(req: TextRequestView | undefined): { text: string; resend: boolean } | null {
   if (!req || req.kind !== "send") return null;
+  // The Mac said why it didn't go (#767).
+  if (req.reason && (req.state === "failed" || req.state === "refused")) return { text: `Not sent: ${REASON_WORDS[req.reason]}.`, resend: RESENDABLE.includes(req.reason) };
   if (req.state === "expired") return { text: "Not sent, Mac was offline.", resend: true };
   if (req.state === "failed") return { text: "Not confirmed: it may have sent. Check Messages before you resend.", resend: true };
   if (req.state === "refused") return { text: "Not sent: the Mac refused it (already sent, the text changed, or too late).", resend: false };

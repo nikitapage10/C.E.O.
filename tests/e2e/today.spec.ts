@@ -6,7 +6,7 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * Today as the Senate Rotunda (#740): the built site with made-up data stubbed in the browser. Skippy chairs a round
+ * Today as the Senate (#740): the built site with made-up data stubbed in the browser. Skippy chairs a round
  * chamber with the Council's subminds on bronze pods; what needs Nikita is the docket along its foot, each item a duty,
  * a decision or a repair that plays on the floor and answers in place. His own to-dos and the Lists sit under the
  * chamber. Signed out, the page keeps the chamber and the counts only.
@@ -186,7 +186,7 @@ test("signed in: the docket in the chamber, the Council's pods, the to-dos and t
 
   // The bar, and Ask Skippy bottom right.
   const bar = page.getByRole("navigation", { name: "Desk" });
-  await expect(bar.getByRole("link")).toHaveText(["Today", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
+  await expect(bar.getByRole("link")).toHaveText(["Senate", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
   await expect(page.getByRole("button", { name: "Ask Skippy", exact: true }).first()).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -216,6 +216,43 @@ test("reduced motion: the chamber holds near still and the page still works", as
   // No murmurs from the gallery under reduced motion.
   await page.waitForTimeout(4_000);
   await expect(page.locator(".rt-mur.on")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("the sound: off by default, on with a tap, remembered, and every line asked for in its member's voice", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await stub(page, true);
+  // ElevenLabs is "capped" here: no audio comes back, so the chamber falls back to reading pace without a sound.
+  const asked: { room?: string; speak?: string; as?: string }[] = [];
+  await page.route(`${BASE}/api/skippy-room`, (r) => {
+    const body = JSON.parse(r.request().postData() ?? "{}") as { room?: string; speak?: string; as?: string };
+    asked.push(body);
+    return r.fulfill({ json: { say: body.speak, kind: "spoken" } });
+  });
+  await page.goto(BASE + "/");
+  const sound = page.getByRole("button", { name: /Sound (on|off)/ });
+  await expect(sound).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".rt-stage")).toHaveAttribute("data-gl", "on", { timeout: 90_000 });
+  await page.waitForTimeout(3_000);
+  expect(asked).toEqual([]);
+  await sound.click();
+  await expect(sound).toHaveAttribute("aria-pressed", "true");
+  await expect(sound.locator(".rt-sound-lv")).toBeVisible();
+  await expect.poll(() => asked.length, { timeout: 60_000 }).toBeGreaterThan(0);
+  for (const a of asked) {
+    expect(a.room).toBe("today");
+    expect(a.as).toMatch(/^(kernel|foundry|relay|exchange|green|spire|archive|boiler|breakroom|workshop|studio|annex|haven)$/);
+    expect(a.speak).not.toMatch(/Book the vet|Oat milk/);
+  }
+  // Without audio the session still runs, at reading pace.
+  await expect(page.locator(".rt-chair")).toContainText(/Item i|The chair recognizes|put to you|a duty/, { timeout: 60_000 });
+  // A fresh visit on the same device remembers the choice.
+  await page.goto("about:blank");
+  await page.goto(BASE + "/");
+  await expect(page.getByRole("button", { name: /Sound (on|off)/ })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /Sound (on|off)/ }).click();
+  await expect(page.getByRole("button", { name: /Sound (on|off)/ })).toHaveAttribute("aria-pressed", "false");
   expect(errors).toEqual([]);
 });
 

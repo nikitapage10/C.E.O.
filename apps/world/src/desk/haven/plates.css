@@ -1,0 +1,488 @@
+/*
+ * The device plates (#766, DevicePlates.tsx): each device on its own dark plate, the render large, the reading laid on
+ * the product in gold hairlines and serif numbers. In the Haven's night palette; reduced motion stills it all.
+ */
+[data-room="haven"] .hv-plates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+[data-room="haven"] .hv-plate {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--hv-line);
+  border-radius: 18px;
+  background: #050507;
+  position: relative;
+}
+[data-room="haven"] .hv-plate::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--hv-gold), 0.4), transparent);
+  z-index: 1;
+}
+[data-room="haven"] .hv-plStage {
+  position: relative;
+}
+[data-room="haven"] .hv-plRd {
+  position: relative;
+  aspect-ratio: 1;
+  width: 100%;
+  max-height: 440px;
+  margin: 0 auto;
+}
+[data-room="haven"] .hv-plRd img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  transition: filter 0.8s, opacity 0.8s;
+}
+[data-room="haven"] .hv-plRd.is-dim img {
+  filter: brightness(0.45) saturate(0.6);
+}
+[data-room="haven"] .hv-plOv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+[data-room="haven"] .hv-plOv text {
+  font-family: var(--hv-text);
+  fill: var(--hv-soft);
+}
+[data-room="haven"] .hv-plBig {
+  font-family: var(--hv-disp) !important;
+  font-size: 5.4px;
+  fill: var(--hv-ink) !important;
+}
+[data-room="haven"] .hv-plPct {
+  font-size: 3px;
+  fill: var(--hv-mute);
+}
+[data-room="haven"] .hv-plLbl {
+  font-size: 2.6px;
+  letter-spacing: 0.02em;
+}
+[data-room="haven"] .hv-plTick line,
+[data-room="haven"] .hv-plTickLine {
+  stroke: rgb(var(--hv-gold));
+  stroke-width: 0.35;
+}
+[data-room="haven"] .hv-plTick circle {
+  fill: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-plTick {
+  transition: transform 1.4s cubic-bezier(0.5, 0, 0.2, 1);
+}
+[data-room="haven"] .hv-plTick.is-warn line {
+  stroke: var(--hv-warn);
+}
+[data-room="haven"] .hv-plTick.is-warn circle,
+[data-room="haven"] .hv-plTick.is-warn text {
+  fill: var(--hv-warn) !important;
+}
+[data-room="haven"] .hv-plTick.is-wait line {
+  stroke: var(--hv-faint);
+}
+[data-room="haven"] .hv-plTick.is-wait circle,
+[data-room="haven"] .hv-plTick.is-wait text {
+  fill: var(--hv-mute) !important;
+}
+
+/* dry feeder: the window above the food is shaded; feeding drops kibble motes into the bowl */
+[data-room="haven"] .hv-plDryShade {
+  fill: rgba(4, 4, 7, 0.84);
+  transform-box: fill-box;
+  transform-origin: top;
+  transition: transform 1.4s cubic-bezier(0.5, 0, 0.2, 1);
+}
+[data-room="haven"] .hv-plKib {
+  fill: #c48c4e;
+  opacity: 0;
+}
+[data-room="haven"] [data-feeding] .hv-plKib {
+  animation: hv-plKib 0.9s cubic-bezier(0.5, 0, 1, 1) infinite;
+}
+@keyframes hv-plKib {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* wet feeder: a warm pool where the lid is open, and the tray from above in the corner */
+[data-room="haven"] .hv-plWetPool {
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+[data-room="haven"] .hv-plWetPool.is-on {
+  opacity: 0.8;
+  animation: hv-plBreathe 3.4s ease-in-out infinite;
+}
+[data-room="haven"] .hv-plTrayAt {
+  position: absolute;
+  right: 7%;
+  bottom: 9%;
+  width: 34%;
+  max-width: 160px;
+}
+[data-room="haven"] .hv-plTray {
+  position: relative;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 8px 18px #000);
+}
+[data-room="haven"] .hv-plDisc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  transition: transform 1.8s cubic-bezier(0.6, 0, 0.25, 1);
+}
+[data-room="haven"] .hv-plDisc img {
+  position: absolute;
+  inset: -9%;
+  width: 118%;
+  height: 118%;
+  -webkit-mask-image: radial-gradient(closest-side, #000 92%, transparent 99%);
+  mask-image: radial-gradient(closest-side, #000 92%, transparent 99%);
+}
+[data-room="haven"] .hv-plFront {
+  position: absolute;
+  left: 50%;
+  bottom: -3%;
+  width: 40%;
+  height: 46%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(var(--hv-gold), 0.26), transparent);
+  pointer-events: none;
+}
+[data-room="haven"] .hv-plChip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--hv-gold), 0.38);
+  background: rgba(8, 8, 12, 0.75);
+  color: var(--hv-ink);
+  font: 600 13px/1 var(--hv-disp);
+  transition: left 1.8s cubic-bezier(0.6, 0, 0.25, 1), top 1.8s cubic-bezier(0.6, 0, 0.25, 1), background 0.6s;
+}
+[data-room="haven"] .hv-plChip.is-on {
+  background: rgb(var(--hv-gold));
+  border-color: rgb(var(--hv-gold));
+  color: #120f08;
+}
+[data-room="haven"] .hv-plMark {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  font: 500 9px/1 var(--hv-text);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(var(--hv-gold));
+}
+
+/* fountain: the tank's x-ray on the base, a drifting surface, ripples and a glint while it flows */
+[data-room="haven"] .hv-plTank {
+  opacity: 0.55;
+}
+[data-room="haven"] .hv-plSurf {
+  stroke: #7cc4ff;
+  stroke-width: 0.35;
+  fill: none;
+  opacity: 0.9;
+  animation: hv-plSurf 3.2s ease-in-out infinite;
+}
+[data-room="haven"] [data-still] .hv-plSurf {
+  animation: none;
+}
+@keyframes hv-plSurf {
+  50% {
+    transform: translateX(-3px);
+  }
+}
+[data-room="haven"] .hv-plTick.is-water line {
+  stroke: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-plRip {
+  fill: none;
+  stroke: rgba(210, 236, 255, 0.7);
+  stroke-width: 0.25;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: hv-plRip 2.6s ease-out infinite;
+}
+[data-room="haven"] .hv-plRip.r1 {
+  animation-delay: -0.9s;
+}
+[data-room="haven"] .hv-plRip.r2 {
+  animation-delay: -1.7s;
+}
+@keyframes hv-plRip {
+  0% {
+    transform: scale(0.25);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+[data-room="haven"] .hv-plGlint {
+  mix-blend-mode: screen;
+  animation: hv-plGlint 4.5s linear infinite;
+}
+@keyframes hv-plGlint {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(125px);
+  }
+}
+
+/* Litter-Robot: a band of light round the globe and a running arc while it cycles; the drawer below */
+[data-room="haven"] .hv-plBand {
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform-box: view-box;
+  transform-origin: 52px 41px;
+}
+[data-room="haven"] [data-cycling] .hv-plBand {
+  opacity: 1;
+  animation: hv-plTurn 3.6s cubic-bezier(0.55, 0, 0.35, 1) infinite alternate;
+}
+@keyframes hv-plTurn {
+  from {
+    transform: rotate(-35deg);
+  }
+  to {
+    transform: rotate(-150deg);
+  }
+}
+[data-room="haven"] .hv-plRingBg {
+  fill: none;
+  stroke: rgba(var(--hv-gold), 0.14);
+  stroke-width: 0.45;
+}
+[data-room="haven"] .hv-plRingRun {
+  fill: none;
+  stroke: rgba(var(--hv-gold), 0.9);
+  stroke-width: 0.45;
+  stroke-linecap: round;
+  transform-box: view-box;
+  transform-origin: 52px 41px;
+  animation: hv-plSpin 2.8s linear infinite;
+}
+@keyframes hv-plSpin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+[data-room="haven"] .hv-plDisp {
+  fill: #cfe8ff;
+  opacity: 0.45;
+}
+[data-room="haven"] [data-cycling] .hv-plDisp {
+  opacity: 1;
+  animation: hv-plBreathe 1.6s ease-in-out infinite;
+}
+[data-room="haven"] .hv-plDrawerBg {
+  fill: rgba(255, 255, 255, 0.08);
+}
+[data-room="haven"] .hv-plDrawer {
+  fill: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-plDrawer.is-warn {
+  fill: var(--hv-warn);
+}
+
+/* vacuum: the dock's strip and a floor pool breathe while charging; a battery ring round the turret; out, the robot dims */
+[data-room="haven"] .hv-plStrip {
+  fill: rgb(var(--hv-gold));
+}
+[data-room="haven"] [data-dock="charging"] .hv-plStrip,
+[data-room="haven"] [data-dock="charging"] .hv-plPool {
+  animation: hv-plBreathe 3.4s ease-in-out infinite;
+}
+[data-room="haven"] .hv-plRing {
+  fill: none;
+  stroke: rgb(var(--hv-gold));
+  stroke-width: 0.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s;
+}
+[data-room="haven"] .hv-plBatt .hv-plRingBg {
+  stroke-width: 0.5;
+  stroke: rgba(var(--hv-gold), 0.16);
+}
+[data-room="haven"] .hv-plAway {
+  fill: rgba(5, 5, 8, 0.86);
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+[data-room="haven"] [data-dock="away"] .hv-plAway {
+  opacity: 1;
+}
+[data-room="haven"] [data-dock="away"] .hv-plStrip,
+[data-room="haven"] [data-dock="away"] .hv-plPool,
+[data-room="haven"] [data-dock="off"] .hv-plStrip,
+[data-room="haven"] [data-dock="off"] .hv-plPool {
+  opacity: 0.12;
+  animation: none;
+}
+[data-room="haven"] [data-dock="away"] .hv-plBatt {
+  opacity: 0.55;
+}
+@keyframes hv-plBreathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* the reading under the render */
+[data-room="haven"] .hv-plRead {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 2px 12px;
+  padding: 12px 18px 18px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-plRead h3 {
+  margin: 0;
+  font: italic 400 23px/1.1 var(--hv-disp);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-plNum {
+  font: 500 30px/1 var(--hv-disp);
+  color: var(--hv-ink);
+  text-align: right;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+[data-room="haven"] .hv-plNum small {
+  margin-left: 2px;
+  font-size: 15px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-plNum.is-warn {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-plNum.is-ok {
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-plNum.is-wait {
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-plBody {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+[data-room="haven"] .hv-plBody > .hv-row:first-child,
+[data-room="haven"] .hv-plBody > .hv-note:first-child {
+  margin-top: 4px;
+}
+
+/* the vacuum's plate in the Hall: its state words and alerts */
+[data-room="haven"] .hv-plChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+[data-room="haven"] .hv-plChips span {
+  padding: 3px 10px;
+  border: 1px solid var(--hv-line);
+  border-radius: 99px;
+  font-size: 12px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-plChips span.is-warn {
+  border-color: rgba(255, 154, 106, 0.45);
+  color: var(--hv-warn);
+}
+
+/* The Pets plates, compact (#806, Nikita: "smaller, concise, to the point"): the render a small square at the left, the
+   reading and the buttons beside it, so all four fit on a screen. */
+[data-room="haven"] .hv-plates.is-compact {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 10px;
+}
+[data-room="haven"] .is-compact .hv-plate {
+  flex-direction: row;
+  align-items: stretch;
+}
+[data-room="haven"] .is-compact .hv-plStage {
+  flex: none;
+  width: 150px;
+  border-right: 1px solid var(--hv-line);
+}
+[data-room="haven"] .is-compact .hv-plRd {
+  max-height: 150px;
+}
+[data-room="haven"] .is-compact .hv-plRead {
+  flex: 1;
+  min-width: 0;
+  align-content: start;
+  padding: 10px 14px 12px;
+  border-top: 0;
+}
+[data-room="haven"] .is-compact .hv-plRead h3 {
+  font-size: 18px;
+}
+[data-room="haven"] .is-compact .hv-plNum {
+  font-size: 22px;
+}
+/* Device art inside the home-screen pop-ups (#806): the same plate renders, at pop-up size. */
+[data-room="haven"] .hv-dp-stage {
+  flex: none;
+  width: 110px;
+}
+[data-room="haven"] .hv-dp-stage .hv-plRd {
+  max-height: 110px;
+}
+
+@media (max-width: 860px) {
+  [data-room="haven"] .is-compact .hv-plStage {
+    width: 112px;
+  }
+  [data-room="haven"] .is-compact .hv-plRd {
+    max-height: 112px;
+  }
+  [data-room="haven"] .hv-plates {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .hv-plate *,
+  [data-room="haven"] .hv-plate *::before,
+  [data-room="haven"] .hv-plate *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

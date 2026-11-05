@@ -9,10 +9,12 @@ import { modelReady } from "../modelCache.ts";
 import { reducedMotion } from "../wvCanvas.ts";
 import type { ChamberLink } from "../TodayNow.tsx";
 import type { Rotunda as Scene, RotundaSeat } from "./rotundaScene.ts";
+import { createVoice, setSound, useRotundaSound, type RotundaVoice } from "./voice.ts";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./rotunda.css";
 
 /**
- * The Senate Rotunda (#740, the round 3 concept Nikita picked on 2026-11-04): Today's Council as a round chamber.
+ * The Senate (#740, the round 3 concept Nikita picked on 2026-11-04): Today's Council as a round chamber.
  * Skippy chairs it from the podium; the subminds sit round the bowl on bronze pods, each floating on a short field of
  * sigils and motes in its room's colour. A pod is lit from real state: dim when its submind isn't active, glowing when
  * it is, brightest while its room is at work (live.ts). The docket's items play on the floor one by one (rite.ts), and
@@ -57,6 +59,8 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   const scene = useRef<Scene | null>(null);
   const seatEls = useRef(new Map<string, HTMLElement>());
   const [gl, setGl] = useState<GL>("idle");
+  // Today's room loader (#752, #759) holds until the chamber's first real frame (or its flat fallback, without WebGL).
+  useRoomReady(gl === "on" || gl === "off");
   const [hot, setHot] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [phone, setPhone] = useState(isPhone);
@@ -102,6 +106,8 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
     if (!cv || !el) return;
     let dead = false;
     const placed = new Map<string, { x: number; y: number }>();
+    // The voices (#755): quiet until the sound button is on; the scene paces itself by them.
+    const voice: RotundaVoice | undefined = typeof Audio === "function" ? createVoice() : undefined;
     const start = () => {
       if (dead) return;
       setGl("loading");
@@ -111,6 +117,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
             phone: isPhone(),
             reduce: reducedMotion(),
             seats: live.current.seats,
+            voice,
             onFloor: (key) => live.current.link.onFloor(key),
             onDone: (key) => live.current.link.onDone(key),
             onPlace: (id, x, y, visible) => {
@@ -151,6 +158,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       else window.clearTimeout(idle);
       scene.current?.dispose();
       scene.current = null;
+      voice?.dispose();
     };
   }, []);
 
@@ -190,7 +198,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   const point = (id: string | null) => setHot(id);
 
   return (
-    <div ref={stage} className="rt-stage" data-gl={gl} role="group" aria-label={`The Council of Skippies: ${active} of ${pulses.length} subminds active`}>
+    <div ref={stage} className="rt-stage" data-gl={gl} role="group" aria-label={`The Senate, the Council of Skippies in session: ${active} of ${pulses.length} subminds active`}>
       <div className="rt-flat" aria-hidden="true">
         <i className="rt-flat-shaft" />
         <i className="rt-flat-podium" />
@@ -245,7 +253,39 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
           </button>
         );
       })}
+      <SoundButton />
       {sel && <MemberCard id={sel} pulses={pulses} now={now} since={since} held={held} skippySays={skippySays} active={active} phone={phone} onClose={() => setSel(null)} />}
     </div>
+  );
+}
+
+/**
+ * The chamber's sound (#755): off by default, remembered on this device. On, the chair and the subminds speak their
+ * lines (voice.ts) and a small level moves while one does.
+ */
+function SoundButton() {
+  const on = useRotundaSound((s) => s.on);
+  const speaking = useRotundaSound((s) => s.speaking);
+  return (
+    <button
+      type="button"
+      className={`rt-sound${on ? " is-on" : ""}${on && speaking ? " is-speaking" : ""}`}
+      aria-pressed={on}
+      title={on ? "Turn the chamber's voices off" : "Hear the chamber: Skippy and the subminds speak their lines"}
+      onClick={() => setSound(!on)}
+    >
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path className="rt-sound-c" d="M3 7.5h3l4-3.5v12l-4-3.5H3z" />
+        {on ? <path className="rt-sound-w" d="M13 7a4 4 0 0 1 0 6M15.2 5a7 7 0 0 1 0 10" /> : <path className="rt-sound-w" d="M13.5 8l4 4M17.5 8l-4 4" />}
+      </svg>
+      <span className="rt-sound-t">{on ? "Sound on" : "Sound off"}</span>
+      {on && (
+        <span className="rt-sound-lv" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+      )}
+    </button>
   );
 }

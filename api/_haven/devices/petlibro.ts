@@ -23,8 +23,12 @@
  *   POST /device/wetFeedingPlan/stopFeedNow       closes the lid of a manual opening ({ deviceSn, feedId: manualFeedId });
  *                                                 the Home's auto-close calls it two hours after an opening (#713)
  *
- * The wet plan (wetListV3's `plan`: each meal's `plate` and `executionStartTime`) is read into the reading as `meals`,
- * so the rails can tell when a manual turn or opening may throw off the next scheduled meal (rails.ts, the wet tray).
+ * The wet plan (wetListV3's `templateName` and `plan`: each meal's `plate`, `label`, `executionStartTime` and
+ * `executionEndTime`) is read into the reading as `meals`, so the rails can tell when a manual turn or opening may
+ * throw off the next scheduled meal (rails.ts, the wet tray). The plan is read by deviceSn, so an account the feeder
+ * is shared to should get it too; `wetPlanShape` (counts and key names, signed in only, and logged once per cold
+ * start) tells a plan that comes back empty from one the parser drops. Without a plan, the device list's own
+ * `nextFeedingTime` and `enableFeedingPlan` still say when the next meal is, or that the schedule is off.
  *
  * The day's numbers and plans (#685) are read only: field names come from the community integration, so each is
  * taken only when it has the expected shape and left out otherwise (the Desk hides what isn't there). They are private
@@ -44,7 +48,7 @@
 
 import { randomUUID } from "node:crypto";
 import { callJson, VendorError, type Fetch } from "./http.js";
-import { FEED_UNITS, isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceKind, type DeviceReading, type DryMeal, type Found, type MealStatus, type RunArgs, type RunResult, type VendorProblem, type WetMeal } from "./types.js";
+import { FEED_UNITS, isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceKind, type DeviceReading, type DryMeal, type Found, type MealStatus, type RunArgs, type RunResult, type VendorProblem, type WetMeal, type WetPlanShape } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
 
 export const PETLIBRO_API = "https://api.us.petlibro.com";
@@ -227,7 +231,25 @@ export function petlibroReading(id: string, kind: DeviceKind, item: unknown, rea
   // The wet feeder: a manual feed is open while the plan carries its id.
   const wet = obj(extra.wet);
   const open = wet.manualFeedId !== undefined && wet.manualFeedId !== null;
-  return { ...base, foodLow, lastFed: null, ...feederDay(extra.grain, kind), state: online ? (open ? "lid open" : "closed") : "offline" };
+  const at = Number(r.platePosition);
+  const meals = wetMeals(extra.wet, now);
+  // The device list's own next meal and plan switch (the integration's nextFeedingTime, nextFeedingEndTime and
+  // enableFeedingPlan): what the card can still say when the plan itself doesn't come back to this account.
+  const nextTime = planTime(d.nextFeedingTime);
+  const nextEnd = planTime(d.nextFeedingEndTime);
+  const planOn = onOff(d.enableFeedingPlan);
+  return {
+    ...base,
+    foodLow,
+    lastFed: null,
+    ...feederDay(extra.grain, kind),
+    ...(Number.isInteger(at) && at >= 1 && at <= 3 && { plate: at }),
+    ...(meals.length > 0 && { meals }),
+    ...(nextTime && { nextFeed: { time: nextTime, ...(nextEnd && nextEnd !== nextTime && { end: nextEnd }) } }),
+    ...(planOn !== undefined && { planOn }),
+    ...("wet" in extra && { wetPlanShape: wetPlanShape(extra.wet, extra.wet === null) }),
+    state: online ? (open ? "lid open" : "closed") : "offline",
+  };
 }
 
 export interface PetlibroDeps {
@@ -240,6 +262,8 @@ export interface PetlibroDeps {
   now: () => number;
   /** Waits between two turns of the wet tray (tests pass one that doesn't wait). */
   pause?: (ms: number) => Promise<void>;
+  /** The Function's log (the wet plan's shape once per cold start: counts and key names, never a value). */
+  log?: (line: string) => void;
 }
 
 /** The gap between two turns of the wet tray, so the device finishes the first. */
@@ -259,17 +283,91 @@ export interface PetlibroRef {
   feedId?: number | string;
 }
 
-/** A plan time as "HH:MM" in Denver: "18:00", "6:00", or epoch seconds or milliseconds. Null when it isn't one. */
+/** Minutes in a day: a whole number below this is a time of day as minutes since midnight, not an epoch. */
+const DAY_MIN = 24 * 60;
+
+/**
+ * A plan time as "HH:MM" in Denver, from any of the shapes Petlibro's plans have used: "18:00", "6:00", "18:00:00",
+ * "6:00 PM", a date with its time ("2026-11-05 18:00:00", taken as written), an ISO time with its zone, minutes since
+ * midnight (0 to 1439, a number or digits), or epoch seconds or milliseconds. Null when it isn't one.
+ */
 export function planTime(v: unknown): string | null {
   if (typeof v === "string") {
-    const m = /^(\d{1,2}):(\d{2})/.exec(v.trim());
-    if (m && Number(m[1]) < 24 && Number(m[2]) < 60) return `${m[1]!.padStart(2, "0")}:${m[2]}`;
-    if (!/^\d{9,13}$/.test(v.trim())) return null;
-    v = Number(v);
+    const t = v.trim();
+    const m = /^(?:\d{4}-\d{2}-\d{2}[ T])?(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*(?:([ap])\.?m\.?)?$/i.exec(t);
+    if (m) {
+      let h = Number(m[1]);
+      const min = Number(m[2]);
+      if (m[3]) {
+        if (h < 1 || h > 12) return null;
+        h = (h % 12) + (m[3].toLowerCase() === "p" ? 12 : 0);
+      }
+      return h < 24 && min < 60 ? `${String(h).padStart(2, "0")}:${m[2]}` : null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:?\d{2})$/i.test(t)) v = Date.parse(t);
+    else if (/^\d{1,4}$/.test(t) || /^\d{9,13}$/.test(t)) v = Number(t);
+    else return null;
   }
-  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return null;
+  if (Number.isInteger(v) && v < DAY_MIN) return `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`;
+  // Below 1e8 (1973) is neither minutes nor an epoch the feeder would send.
+  if (v < 1e8) return null;
   const ms = v < 1e12 ? v * 1000 : v;
   return new Intl.DateTimeFormat("en-GB", { timeZone: "America/Denver", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ms));
+}
+
+/** A switch as Petlibro may send it: true or false, 1 or 0, or those as words. Undefined when it isn't one. */
+export function onOff(v: unknown): boolean | undefined {
+  if (v === true || v === 1 || v === "1" || v === "true") return true;
+  if (v === false || v === 0 || v === "0" || v === "false") return false;
+  return undefined;
+}
+
+/** The wet plan's entries as wetListV3 sends them (`plan`), or the answer itself when it comes back as a bare list. */
+function wetEntries(wet: unknown): Record<string, unknown>[] {
+  const plan = Array.isArray(wet) ? wet : obj(wet).plan;
+  return Array.isArray(plan) ? plan.map(obj) : [];
+}
+
+/** An entry's start and end: the integration's executionStartTime and executionEndTime, or the shorter names. */
+const startOf = (o: Record<string, unknown>) => o.executionStartTime ?? o.startTime ?? o.executionTime ?? o.time;
+const endOf = (o: Record<string, unknown>) => o.executionEndTime ?? o.endTime;
+/** A plate number as sent (a number or a digit); NaN when there is none. */
+const plateNum = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && /^\d$/.test(v.trim()) ? Number(v) : NaN);
+
+/** A meal's name from the app, without control characters, squeezed and cut to 40 characters. */
+export function cleanLabel(v: unknown): string {
+  // eslint-disable-next-line no-control-regex
+  return typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40) : "";
+}
+
+/** A key name worth showing in the diagnostic: letters, digits and underscores, up to 40 characters. */
+const KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,39}$/;
+const keyNames = (objs: Record<string, unknown>[]) => [...new Set(objs.flatMap((o) => Object.keys(o)).filter((k) => KEY_NAME.test(k)))].sort().slice(0, 40);
+
+/**
+ * What the wet plan read came back as (private diagnostic): whether it went through, whether it has a template, how
+ * many entries, how many are switched off or have no time the parser reads, and the key names on the entries and on
+ * the answer. Names and counts only, never a value. Pure.
+ */
+export function wetPlanShape(wet: unknown, failed = false): WetPlanShape {
+  const w = obj(wet);
+  const entries = wetEntries(wet);
+  const t = w.templateName;
+  return {
+    read: failed ? "failed" : "ok",
+    template: typeof t === "string" ? t.trim() !== "" : t !== undefined && t !== null,
+    entries: entries.length,
+    disabled: entries.filter((o) => onOff(o.enable) === false).length,
+    badTime: entries.filter((o) => planTime(startOf(o)) === null).length,
+    keys: keyNames(entries),
+    top: keyNames([w]),
+  };
+}
+
+/** The shape in one log line: counts and key names only. */
+export function shapeLine(s: WetPlanShape): string {
+  return `petlibro: wet plan read=${s.read} template=${s.template} entries=${s.entries} disabled=${s.disabled} badTime=${s.badTime} keys=[${s.keys.join(",")}] top=[${s.top.join(",")}]`;
 }
 
 /**
@@ -278,16 +376,20 @@ export function planTime(v: unknown): string | null {
  * closed, open now inside it, and the first still to come is next. Pure.
  */
 export function wetMeals(wet: unknown, now?: number): WetMeal[] {
-  const plan = obj(wet).plan;
+  const entries = wetEntries(wet).slice(0, 12);
+  // The integration's plates are 1 to 3 (as platePosition and manualFeedNow); a plan that numbers them 0 to 2 is shifted.
+  const plates = entries.map((o) => plateNum(o.plate)).filter((n) => !Number.isNaN(n));
+  const shift = plates.includes(0) && plates.every((n) => n >= 0 && n <= 2) ? 1 : 0;
   const out: WetMeal[] = [];
-  for (const p of Array.isArray(plan) ? plan.slice(0, 12) : []) {
-    const o = obj(p);
-    if (o.enable === false) continue;
-    const time = planTime(o.executionStartTime);
+  for (const o of entries) {
+    // The integration reads no switch on a wet meal; when one is there, false or 0 means off.
+    if (onOff(o.enable) === false) continue;
+    const time = planTime(startOf(o));
     if (!time) continue;
-    const plate = Number(o.plate);
-    const end = planTime(o.executionEndTime);
-    out.push({ time, ...(Number.isInteger(plate) && plate >= 1 && plate <= 3 && { plate }), ...(end && end !== time && { end }) });
+    const plate = plateNum(o.plate) + shift;
+    const end = planTime(endOf(o));
+    const label = cleanLabel(o.label);
+    out.push({ time, ...(Number.isInteger(plate) && plate >= 1 && plate <= 3 && { plate }), ...(end && end !== time && { end }), ...(label && { label }) });
   }
   out.sort((a, b) => a.time.localeCompare(b.time));
   if (now === undefined) return out;
@@ -325,6 +427,7 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
   private holdUntil = 0;
   private signingIn: Promise<string> | null = null;
   private reading: Promise<Found<PetlibroRef>[]> | null = null;
+  private shapeLogged = false;
   constructor(private readonly deps: PetlibroDeps) {}
 
   async connected(): Promise<boolean> {
@@ -472,10 +575,12 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
       const reading = petlibroReading(deviceId(idKey, "petlibro", serial), kind, item, real, extra, now);
       let feedId: number | string | undefined;
       if (kind === "wet-feeder") {
-        if (at >= 1 && at <= 3) reading.plate = at;
-        const meals = wetMeals(extra.wet, now);
-        if (meals.length) reading.meals = meals;
         feedId = feedIdOf(obj(extra.wet).manualFeedId);
+        // Once per cold start: what the plan read came back as, counts and key names only.
+        if (!this.shapeLogged && reading.wetPlanShape) {
+          this.shapeLogged = true;
+          this.deps.log?.(shapeLine(reading.wetPlanShape));
+        }
       }
       out.push({ reading, ref: { serial, plate, ...(feedId !== undefined && { feedId }) } });
     }

@@ -6,7 +6,7 @@
  *
  * What it does, against apps/world/dist (run `npm run build` first), served the way Vercel serves it
  * (tests/e2e/dist-server.ts reads vercel.json, so the CSP applies too):
- *   1. `/`        the Desk renders its Today page: no page error, no console error from the app, the boot screen gone.
+ *   1. `/`        the Desk renders its Senate page (once Today, #775): no page error, no console error from the app, the boot screen gone.
  *   2. `/foundry` a lazily loaded Desk tab renders its own page.
  *   3. `/lattice` the map (#332): its lazy chunk runs and the 2D map draws, without fetching three.js or a model.
  *      `/lattice?room=foundry` one room in 3D: a WebGL canvas and the HUD mount and window.__ceo is there, and nothing
@@ -154,7 +154,7 @@ const deskUp = async (page, timeout, text) => {
 };
 
 try {
-  checkDeskJs(await visit("/", (page, timeout) => deskUp(page, timeout, "TODAY"), PAGE_MS, true));
+  checkDeskJs(await visit("/", (page, timeout) => deskUp(page, timeout, "SENATE"), PAGE_MS, true));
   await visit("/foundry", (page, timeout) => deskUp(page, timeout, "FOUNDRY"), PAGE_MS);
   // The warm-up (#373, #401): with it on, the models are fetched once the Desk is idle, and the Desk stays up.
   // Before the Lattice's own visits: they leave SwiftShader's GPU process compiling for a while, and the warm-up's
@@ -162,12 +162,12 @@ try {
   await visit(
     "/",
     async (page, timeout) => {
-      await deskUp(page, timeout, "TODAY");
+      await deskUp(page, timeout, "SENATE");
       // The Lattice must not mount behind the Desk before its first visit (#401), and the map needs no models (#332).
       await page.waitForFunction(() => globalThis.__ceoWarmed, undefined, { timeout, polling: 500 });
       await page.waitForTimeout(3000);
       if (await page.$(".lattice-keep")) throw new Error("the Desk's warm-up mounted the Lattice behind it");
-      await deskUp(page, timeout, "TODAY");
+      await deskUp(page, timeout, "SENATE");
       console.log("boot-check: the Desk's warm-up mounted nothing");
     },
     BOOT_MS,
@@ -218,7 +218,7 @@ try {
   await visit(
     "/",
     async (page, timeout) => {
-      await deskUp(page, timeout, "TODAY");
+      await deskUp(page, timeout, "SENATE");
       await go(page, "/lattice");
       await shown(page, timeout);
       await page.waitForTimeout(1500);

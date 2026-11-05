@@ -91,11 +91,28 @@ describe("relay status checks BlueBubbles is closed to the network", () => {
   });
 });
 
+describe("relay status says when macOS kept BlueBubbles from controlling Messages (#767)", () => {
+  const LOG = "Library/Logs/CEO Relay/hub-2026-11-05.log";
+  it("warns, with the setting to change, when the latest send failed for it", () => {
+    const f = fixture("127.0.0.1:1234");
+    writeFileSync(join(f.home, LOG), '{"at":"2026-11-05T03:33:00.000Z","kind":"send failed","reason":14,"status":500}\n{"at":"2026-11-05T03:33:00.000Z","kind":"mac permission"}\n');
+    const out = f.run("status").stdout;
+    expect(out).toContain("the last send failed because macOS didn't let BlueBubbles control Messages");
+    expect(out).toContain("System Settings > Privacy & Security > Automation");
+  });
+
+  it("stays quiet once a send went after it", () => {
+    const f = fixture("127.0.0.1:1234");
+    writeFileSync(join(f.home, LOG), '{"at":"2026-11-05T03:33:00.000Z","kind":"mac permission"}\n{"at":"2026-11-05T03:40:00.000Z","kind":"sent"}\n');
+    expect(f.run("status").stdout).not.toContain("WARNING, the last send failed");
+  });
+});
+
 /**
  * The whole install, run against a made-up HOME with macOS's commands, the downloads and the hub stubbed (#749): on a
  * Mac that is already paired it asks for nothing but "Continue?", and it has no webhook step left to fail.
  */
-const installFixture = (keychain: string[]) => {
+const installFixture = (keychain: string[], launchctl = 'case "$1" in print) exit 1;; *) exit 0;; esac') => {
   const root = mkdtempSync(join(tmpdir(), "relay-install-"));
   const home = join(root, "home");
   const bin = join(root, "bin");
@@ -122,7 +139,7 @@ const installFixture = (keychain: string[]) => {
 case "$url" in *.tar.gz) cp "${files}/node.tar.gz" "$out";; *SHASUMS256.txt) cp "${files}/SHASUMS256.txt" "$out";; *relay-hub.mjs) cp "${files}/relay-hub.mjs" "$out";; *) echo '{}';; esac`);
   stub("shasum", 'sha256sum "$3"');
   stub("security", `case "$1" in find-generic-password) for a in ${keychain.join(" ")}; do [ "$5" = "$a" ] && exit 0; done; exit 44;; *) exit 0;; esac`);
-  stub("launchctl", 'case "$1" in print) exit 1;; *) exit 0;; esac');
+  stub("launchctl", launchctl);
   stub("tmutil", "exit 0");
   stub("nc", "exit 0");
   stub("lsof", "printf 'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\\nBlueBubbles 1 u 1u IPv4 0 0t0 TCP 127.0.0.1:1234 (LISTEN)\\n'");
@@ -148,6 +165,17 @@ describe("the installer run again (#749)", () => {
     expect(f.calls()).toContain("hub unhook");
     expect(f.calls()).toContain("launchctl bootstrap");
     expect(existsSync(join(f.home, "Library/LaunchAgents/page.nikita.ceo.relay.plist"))).toBe(true);
+  });
+
+  it("unloads the old agent first and retries a bootstrap that fails with error 5 (#803)", () => {
+    // The first bootstrap fails as launchd does while the old agent is still unloading; the second goes.
+    const f = installFixture(["bluebubbles-password", "hub-token", "send-key", "local-key"], 'case "$1" in print) exit 1;; bootstrap) if [ ! -e "$HOME/.once" ]; then : > "$HOME/.once"; echo "Bootstrap failed: 5: Input/output error" >&2; exit 5; fi; exit 0;; *) exit 0;; esac');
+    const out = f.run();
+    expect(out.status).toBe(0);
+    expect(out.stdout).toContain("Relay is on.");
+    const calls = f.calls().split("\n");
+    expect(calls.filter((c) => c.startsWith("launchctl bootstrap")).length).toBe(2);
+    expect(calls.findIndex((c) => c.startsWith("launchctl bootout"))).toBeLessThan(calls.findIndex((c) => c.startsWith("launchctl bootstrap")));
   });
 
   it("on a new Mac: asks for the password and a pair code", () => {

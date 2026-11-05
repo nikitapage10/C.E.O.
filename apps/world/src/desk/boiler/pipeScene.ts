@@ -7,6 +7,8 @@ import {
   CanvasTexture,
   CircleGeometry,
   Color,
+  ConeGeometry,
+  CurvePath,
   CylinderGeometry,
   DirectionalLight,
   Group,
@@ -22,6 +24,7 @@ import {
   PointLight,
   Points,
   PointsMaterial,
+  QuadraticBezierCurve3,
   Quaternion,
   Raycaster,
   SRGBColorSpace,
@@ -37,8 +40,12 @@ import {
   type Object3D,
   type Texture,
 } from "three";
+import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
+import { CODE, ARC } from "@ceo/engine/sigils/sigils.ts";
 import type { StationState } from "./pipes.ts";
-import type { MapGeo, PipeKind, V2 } from "./rooms.ts";
+import type { MapGeo, PipeKind, RoomSection, V2 } from "./rooms.ts";
+import type { SchemModel } from "./schematic.ts";
+import { windRoom, type RoomWind } from "./wind.ts";
 
 /**
  * The Boiler Room's pipe map in three.js (#732, room by room since #743), from the approved B4 demo (concepts
@@ -96,28 +103,40 @@ interface Gauge {
   drawn: number;
 }
 
+/**
+ * One thing on the floor with a state: on the overview a branch pipe and its station; in a room's own run (#789) a
+ * part (a station, no pipe) or a connection (a pipe, no station). `id` is what a hover or pick opens, `key` what its
+ * state is read by (a part and the link into it can open the same card yet hold different states).
+ */
 interface Station {
   id: string;
+  key: string;
   room: string;
   kind: PipeKind;
+  /** The stretch of pipe a crack or a valve sits on. */
   root: Vector3;
   tip: Vector3;
-  body: Mesh<CylinderGeometry, MeshStandardMaterial>;
-  pipe: Mesh<TubeGeometry, Material>;
-  flow: Mesh<TubeGeometry, ShaderMaterial>;
-  gauge: Gauge;
+  /** Where the card points. */
+  anchor: Vector3;
+  body: Mesh<BufferGeometry, MeshStandardMaterial> | null;
+  pipe: Mesh<TubeGeometry, Material> | null;
+  flow: Mesh<TubeGeometry, ShaderMaterial> | null;
+  gauge: Gauge | null;
   wheel: Group | null;
   crack: Group | null;
   sleeve: Mesh<CylinderGeometry, MeshStandardMaterial> | null;
   crackAt: Vector3;
-  label: HTMLDivElement;
+  label: HTMLDivElement | null;
   state: StationState;
+  /** Its run, for the sigils that ride the flow. */
+  run: Vector3[];
 }
 
 interface Header {
   room: string;
   flow: ShaderMaterial;
   tube: Mesh;
+  run: Vector3[];
 }
 
 type Box = [number, number, number, number];
@@ -174,10 +193,22 @@ export class PipeScene {
   private dryMat = new MeshStandardMaterial({ color: 0x4b4338, metalness: 0.6, roughness: 0.55 });
   private ghostMat = new MeshBasicMaterial({ color: 0x3a414d, wireframe: true, transparent: true, opacity: 0.4 });
   private bands = new Map<string, MeshStandardMaterial>();
+  /** A room's own connections each carry a flow sized to their length. */
+  private ownFlows: ShaderMaterial[] = [];
   /** The station the page's card follows, and where it is on screen. */
   track: string | null = null;
   onTrack: ((x: number, y: number) => void) | null = null;
   private tracked = "";
+  /** WASD to look around the map (#776). */
+  private pan: ReturnType<typeof wasdPan>;
+  private boiler: Group;
+  private boilerLbl: HTMLDivElement;
+  /** The whole map, or one room's own run (#789), and what that run was laid from. */
+  private mode: "map" | "room" = "map";
+  private roomSrc: { section: RoomSection; model: SchemModel } | null = null;
+  private roomPer = 0;
+  private lastSet: [Record<string, StationState>, string | null, string | null] | null = null;
+  private sigils: Sigils;
 
   constructor(
     private host: HTMLElement,
@@ -222,7 +253,7 @@ export class PipeScene {
     const brass = this.brass;
     const iron = this.iron;
     const boltG = new SphereGeometry(0.022, 6, 4);
-    const boiler = new Group();
+    const boiler = (this.boiler = new Group());
     scene.add(boiler);
     const shell = new Mesh(new CylinderGeometry(1.25, 1.35, 1.7, 48), iron);
     shell.position.y = 0.85;
@@ -263,9 +294,9 @@ export class PipeScene {
     const stack = new Mesh(new CylinderGeometry(0.16, 0.2, 1.1, 16), iron);
     stack.position.set(0.55, 2.1, -0.35);
     boiler.add(stack);
-    this.boilerGauge = this.makeGauge(new Vector3(-0.5, 2.55, 0.35), 0.55, 1.5, scene);
+    this.boilerGauge = this.makeGauge(new Vector3(-0.5, 2.55, 0.35), 0.55, 1.5, boiler);
     this.boilerGauge.g.rotation.x = 0.5;
-    this.label("The boiler", new Vector3(0, 3.2, 0), "is-boiler", false);
+    this.boilerLbl = this.label("The boiler", new Vector3(0, 3.2, 0), "is-boiler", false);
 
     scene.add(this.net);
     this.flowOk = flowMat(1.2, FLOW);
@@ -296,6 +327,9 @@ export class PipeScene {
     this.drips.frustumCulled = false;
     this.drips.visible = false;
     scene.add(this.drips);
+    // The sigils that ride the flow: the Desk's glyphs, not dots.
+    this.sigils = new Sigils(opts.reduce);
+    scene.add(this.sigils.points);
 
     canvas.addEventListener("click", this.onClick);
     canvas.addEventListener("pointermove", this.onMove);
@@ -309,6 +343,8 @@ export class PipeScene {
     });
     this.io.observe(host);
     document.addEventListener("visibilitychange", this.onVis);
+    const b = () => this.geo?.box ?? this.focusBox;
+    this.pan = wasdPan({ el: host, reduce: opts.reduce, bounds: () => ({ kind: "box", x0: b()[0], z0: b()[1], x1: b()[2], z1: b()[3] }), origin: () => [this.look.x, this.look.z], forward: () => [this.look.x - this.cam.position.x, this.look.z - this.cam.position.z] });
     this.size();
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -316,33 +352,16 @@ export class PipeScene {
   /** Lay the rooms' manifolds (again, whenever the set of pipes changes). */
   build(sections: SceneSection[], geo: MapGeo): void {
     this.clearNet();
+    this.mode = "map";
+    this.roomSrc = null;
+    this.boiler.visible = true;
+    this.boilerLbl.style.display = "";
     this.geo = geo;
     this.focusBox = geo.box;
     const net = this.net;
     const brass = this.brass;
-    const flangeG = new CylinderGeometry(R * 1.55, R * 1.55, 0.09, 20);
-    const bandG = new CylinderGeometry(R * 1.08, R * 1.08, 0.16, 20);
+    const { flange, band } = this.kit();
     const bodyG = new CylinderGeometry(0.17, 0.17, 0.3, 16);
-    const up = new Vector3(0, 1, 0);
-    const band = (c: string) => {
-      let m = this.bands.get(c);
-      if (!m) this.bands.set(c, (m = new MeshStandardMaterial({ color: c, metalness: 0.2, roughness: 0.6 })));
-      return m;
-    };
-    const flange = (pos: Vector3, tan: Vector3, colour: string | null, scale = 1) => {
-      const g = new Group();
-      g.position.copy(pos);
-      g.quaternion.setFromUnitVectors(up, tan);
-      g.scale.setScalar(scale);
-      g.add(new Mesh(flangeG, brass));
-      if (colour) {
-        const b = new Mesh(bandG, band(colour));
-        b.position.y = 0.2;
-        g.add(b);
-      }
-      net.add(g);
-    };
-    const tube = <M extends Material>(a: Vector3, b: Vector3, r: number, mat: M) => new Mesh(new TubeGeometry(new LineCurve3(a, b), Math.max(2, Math.ceil(a.distanceTo(b) * 8)), r, 12, false), mat);
 
     for (const t of geo.trunks) {
       const a = W(t[0]!);
@@ -356,20 +375,29 @@ export class PipeScene {
     for (const sec of sections) {
       const g = geo.sections.find((x) => x.id === sec.id);
       if (!g) continue;
-      const a = W(g.header[0]!);
-      const b = W(g.header[g.header.length - 1]!);
-      const len = a.distanceTo(b);
-      const tan = b.clone().sub(a).normalize();
-      const head = tube(a, b, R, brass);
+      const pts = g.header.map((p) => W(p));
+      const a = pts[0]!;
+      const b = pts[pts.length - 1]!;
+      const tan = pts[1]!.clone().sub(a).normalize();
+      const endTan = b.clone().sub(pts[pts.length - 2]!).normalize();
+      const curve = runCurve(pts, 0.45);
+      const len = curve.getLength();
+      const head = tubeAlong(curve, R, brass);
       head.userData.room = sec.id;
       net.add(head);
       this.picks.push(head);
       const fm = flowMat(1.2, FLOW, len);
-      const hf = tube(a, b, R * 1.05, fm);
+      const hf = tubeAlong(curve, R * 1.05, fm);
       net.add(hf);
-      this.headers.push({ room: sec.id, flow: fm, tube: hf });
+      this.headers.push({ room: sec.id, flow: fm, tube: hf, run: pts });
       flange(a.clone().addScaledVector(tan, 0.35), tan, sec.c);
-      flange(b, tan, sec.c);
+      flange(b, endTan, sec.c);
+      // Each turn of a wound header wears a band in the room's colour.
+      for (let k = 1; k < pts.length - 1; k++) {
+        const m = new Mesh(new SphereGeometry(R * 1.35, 16, 12), band(sec.c));
+        m.position.copy(pts[k]!);
+        net.add(m);
+      }
       // The room's own valve, where its header leaves the trunk.
       const w = valveWheel(0.2, brass);
       w.position.copy(a).addScaledVector(tan, 0.7).add(new Vector3(0, 0.3, 0));
@@ -394,7 +422,7 @@ export class PipeScene {
         flow.visible = false;
         net.add(flow);
         if (!planned) flange(root.clone().addScaledVector(dir, 0.2), dir, k % 2 ? sec.c : null, 0.62);
-        const body = new Mesh(bodyG, new MeshStandardMaterial({ color: 0x5f6b78, metalness: 0.8, roughness: 0.35, emissive: new Color(CORAL), emissiveIntensity: 0 }));
+        const body = new Mesh<BufferGeometry, MeshStandardMaterial>(bodyG, stationMat());
         body.position.copy(tip);
         body.userData.pipe = p.id;
         net.add(body);
@@ -409,7 +437,7 @@ export class PipeScene {
         if (below) this.labels[this.labels.length - 1]!.below = true;
         lb.dataset.pipe = p.id;
         lb.title = p.name;
-        const st: Station = { id: p.id, room: sec.id, kind: p.kind, root, tip, body, pipe, flow, gauge, wheel: null, crack: null, sleeve: null, crackAt: root.clone().lerp(tip, 0.5), label: lb, state: "ok" };
+        const st: Station = { id: p.id, key: p.id, room: sec.id, kind: p.kind, root, tip, anchor: tip.clone().setY(tip.y + 0.75), body, pipe, flow, gauge, wheel: null, crack: null, sleeve: null, crackAt: root.clone().lerp(tip, 0.5), label: lb, state: "ok", run: [root, tip] };
         this.stations.push(st);
         this.byId.set(p.id, st);
       });
@@ -417,16 +445,148 @@ export class PipeScene {
     this.dirty = 4;
   }
 
+  /**
+   * One room's own run (#789): its parts as stations and its connections as pipes at right angles between them, wound
+   * in bands to fit the view (boiler/wind.ts). The boiler steps aside; everything else (flow, cracks, valves, steam,
+   * gauges, the sigils, hover and pick, the card that follows) works as it does on the whole map.
+   */
+  showRoom(section: RoomSection, model: SchemModel): void {
+    this.roomSrc = { section, model };
+    this.layRoom();
+  }
+
+  /** The shape the room's run should take: wide on a desk; on a phone the camera turns, so the same. */
+  private want(): number {
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    if (!w || !h) return 1.6;
+    return this.phone() ? h / w : w / h;
+  }
+
+  private layRoom(): void {
+    const src = this.roomSrc;
+    if (!src) return;
+    const wind = windRoom(src.section, src.model, this.want());
+    this.roomPer = wind.per;
+    this.buildRoom(wind, src.section);
+    this.roomSrc = src;
+    if (this.lastSet) this.set(...this.lastSet);
+  }
+
+  private buildRoom(w: RoomWind, sec: RoomSection): void {
+    this.clearNet();
+    this.mode = "room";
+    this.geo = null;
+    this.boiler.visible = false;
+    this.boilerLbl.style.display = "none";
+    this.focusBox = w.box;
+    const net = this.net;
+    const brass = this.brass;
+    const { flange, band } = this.kit();
+
+    for (const n of w.nodes) {
+      const at = W(n.at);
+      const ghost = n.kind === "planned";
+      const geo = n.hub ? new CylinderGeometry(0.34, 0.4, 0.5, 6) : (KIND_BODY[n.kind] ?? KIND_BODY.service!)();
+      const body = new Mesh<BufferGeometry, MeshStandardMaterial>(geo, stationMat(n.hub ? sec.c : undefined));
+      if (ghost) body.material.wireframe = true;
+      body.position.copy(at).setY(n.hub ? 0.3 : at.y);
+      body.userData.pipe = n.target;
+      net.add(body);
+      this.picks.push(body);
+      if (n.hub) {
+        const ring = new Mesh(new TorusGeometry(0.46, 0.05, 8, 36), band(sec.c));
+        ring.rotation.x = Math.PI / 2;
+        ring.position.copy(at).setY(0.08);
+        net.add(ring);
+      }
+      const gauge = this.makeGauge(at.clone().add(new Vector3(0, n.hub ? 0.7 : 0.45, 0)), 0.5, n.hub ? 0.9 : 0.72, net);
+      gauge.g.rotation.x = 0.35;
+      gauge.g.traverse((o) => (o.userData.pipe = n.target));
+      this.picks.push(gauge.g);
+      const lb = this.label(n.name, at.clone().add(new Vector3(0, n.hub ? 1.2 : 0.85, 0)), n.hub ? "is-st is-node is-hub" : "is-st is-node", true);
+      lb.dataset.pipe = n.target;
+      lb.title = n.sub ? `${n.name}: ${n.sub}` : n.name;
+      if (n.hub) lb.style.color = sec.c;
+      const st: Station = { id: n.target, key: n.key, room: sec.id, kind: ghost ? "planned" : "part", root: at, tip: at, anchor: at.clone().setY(at.y + (n.hub ? 1.0 : 0.75)), body, pipe: null, flow: null, gauge, wheel: null, crack: null, sleeve: null, crackAt: at, label: lb, state: "ok", run: [] };
+      this.stations.push(st);
+      if (!this.byId.has(n.target)) this.byId.set(n.target, st);
+    }
+
+    for (const l of w.links) {
+      const pts = l.path.map((p) => W(p));
+      const curve = runCurve(pts, 0.4);
+      const len = curve.getLength();
+      const pipe = tubeAlong<Material>(curve, RB, l.planned ? this.ghostMat : brass);
+      pipe.userData.pipe = l.target;
+      net.add(pipe);
+      this.picks.push(pipe);
+      const fm = flowMat(1.2, FLOW, len);
+      this.ownFlows.push(fm);
+      const flow = tubeAlong(curve, RB * 1.12, fm);
+      flow.visible = false;
+      net.add(flow);
+      // The connection's own flanges, where it leaves a part and where it reaches the next.
+      if (!l.planned && pts.length > 1) {
+        const t0 = pts[1]!.clone().sub(pts[0]!).normalize();
+        const t1 = pts[pts.length - 1]!.clone().sub(pts[pts.length - 2]!).normalize();
+        flange(pts[0]!.clone().addScaledVector(t0, 0.42), t0, null, 0.62);
+        flange(pts[pts.length - 1]!.clone().addScaledVector(t1, -0.42), t1, sec.c, 0.62);
+      }
+      // The stretch the crack or valve sits on: the segment halfway along.
+      const mid = W(l.mid);
+      let seg = 0;
+      for (let k = 0; k < pts.length - 1; k++) if (onSeg(mid, pts[k]!, pts[k + 1]!)) seg = k;
+      const d = pts[seg + 1]!.clone().sub(pts[seg]!).normalize();
+      const root = mid.clone().addScaledVector(d, -0.4);
+      const tip = mid.clone().addScaledVector(d, 0.4);
+      const st: Station = { id: l.target, key: l.key, room: sec.id, kind: l.planned ? "planned" : "link", root, tip, anchor: mid.clone().setY(mid.y + 0.55), body: null, pipe, flow, gauge: null, wheel: null, crack: null, sleeve: null, crackAt: mid, label: null, state: "ok", run: pts };
+      this.stations.push(st);
+      if (!this.byId.has(l.target)) this.byId.set(l.target, st);
+    }
+    this.dirty = 4;
+  }
+
+  /** The fittings both views share: a flange (with a band in a room's colour) and the band's material. */
+  private kit() {
+    const flangeG = new CylinderGeometry(R * 1.55, R * 1.55, 0.09, 20);
+    const bandG = new CylinderGeometry(R * 1.08, R * 1.08, 0.16, 20);
+    const up = new Vector3(0, 1, 0);
+    const band = (c: string) => {
+      let m = this.bands.get(c);
+      if (!m) this.bands.set(c, (m = new MeshStandardMaterial({ color: c, metalness: 0.2, roughness: 0.6 })));
+      return m;
+    };
+    const flange = (pos: Vector3, tan: Vector3, colour: string | null, scale = 1) => {
+      const g = new Group();
+      g.position.copy(pos);
+      g.quaternion.setFromUnitVectors(up, tan);
+      g.scale.setScalar(scale);
+      g.add(new Mesh(flangeG, this.brass));
+      if (colour) {
+        const b = new Mesh(bandG, band(colour));
+        b.position.y = 0.2;
+        g.add(b);
+      }
+      this.net.add(g);
+    };
+    return { flange, band };
+  }
+
   /** Every pipe's state, the room in focus (null for the whole map) and the pipe the panel is on. */
   set(states: Record<string, StationState>, focusRoom: string | null, current: string | null): void {
+    this.lastSet = [states, focusRoom, current];
     const coral = new Color(CORAL);
     const amber = new Color(AMBER);
+    const room = this.mode === "room";
     for (const s of this.stations) {
-      const st = states[s.id] ?? "dry";
+      const st = states[s.key] ?? "dry";
       s.state = st;
-      s.gauge.to = gaugeOf(s.id, st);
-      if (this.opts.reduce) s.gauge.v = s.gauge.to;
-      if (st === "shut" && !s.wheel) {
+      if (s.gauge) {
+        s.gauge.to = gaugeOf(s.key, st);
+        if (this.opts.reduce) s.gauge.v = s.gauge.to;
+      }
+      if (st === "shut" && !s.wheel && s.pipe) {
         const wm = new MeshStandardMaterial({ color: CORAL, metalness: 0.5, roughness: 0.4, emissive: coral, emissiveIntensity: 0.4 });
         s.wheel = valveWheel(0.16, wm);
         s.wheel.position.copy(s.root).lerp(s.tip, 0.4).add(new Vector3(0.2, 0.06, 0));
@@ -436,16 +596,29 @@ export class PipeScene {
         this.picks.push(s.wheel);
       }
       if (s.wheel) s.wheel.visible = st === "shut";
-      if (st === "leak" && !s.crack) this.makeCrack(s);
+      if (st === "leak" && !s.crack && s.pipe) this.makeCrack(s);
       if (s.crack) s.crack.visible = st === "leak";
-      s.body.material.emissive.copy(st === "late" ? amber : coral);
-      s.body.material.emissiveIntensity = st === "leak" || st === "shut" ? 0.45 : st === "late" ? 0.35 : 0;
-      s.body.material.color.setHex(st === "dry" ? 0x3a4049 : 0x5f6b78);
-      if (s.kind !== "planned") s.pipe.material = st === "dry" ? this.dryMat : this.brass;
-      s.flow.visible = st === "ok" || st === "late";
-      s.flow.material = st === "late" ? this.flowLate : this.flowOk;
-      const show = st === "leak" || st === "shut" || st === "late" || focusRoom === s.room || current === s.id;
-      s.label.className = `bp-lb is-st is-${st}${show ? " is-show" : ""}${current === s.id ? " is-sel" : ""}`;
+      if (s.body) {
+        const m = s.body.material;
+        m.emissive.copy(st === "late" ? amber : coral);
+        m.emissiveIntensity = st === "leak" || st === "shut" ? 0.45 : st === "late" ? 0.35 : 0;
+        // A room's own hub keeps its colour; every other station greys while it waits.
+        if (!m.userData.hub) m.color.setHex(st === "dry" ? 0x3a4049 : 0x5f6b78);
+      }
+      if (s.pipe && s.kind !== "planned") s.pipe.material = st === "dry" ? this.dryMat : this.brass;
+      if (s.flow) {
+        s.flow.visible = st === "ok" || st === "late";
+        if (this.ownFlows.includes(s.flow.material)) {
+          s.flow.material.uniforms.speed!.value = st === "late" ? 0.35 : 1.2;
+          (s.flow.material.uniforms.col!.value as Color).set(st === "late" ? AMBER : FLOW);
+        } else s.flow.material = st === "late" ? this.flowLate : this.flowOk;
+      }
+      if (s.label) {
+        // In a room's own run every part is named; on the whole map only the ones that need a look.
+        const show = room || st === "leak" || st === "shut" || st === "late" || focusRoom === s.room || current === s.id;
+        const base = s.label.className.includes("is-node") ? `is-node${s.label.className.includes("is-hub") ? " is-hub" : ""} ` : "";
+        s.label.className = `bp-lb is-st ${base}is-${st}${show ? " is-show" : ""}${current === s.id ? " is-sel" : ""}`;
+      }
     }
     for (const h of this.headers) {
       const mine = this.stations.filter((s) => s.room === h.room);
@@ -473,13 +646,21 @@ export class PipeScene {
     this.steamGeo.attributes.age!.needsUpdate = true;
     this.dripGeo.attributes.position!.needsUpdate = true;
     this.boilerGauge.to = this.stations.some((s) => s.state === "leak" || s.state === "shut" || s.state === "late") ? 0.62 : 0.5;
-    const sec = focusRoom ? this.geo?.sections.find((x) => x.id === focusRoom) : null;
-    this.focusBox = sec ? sec.box : (this.geo?.box ?? this.focusBox);
+    if (!room) {
+      const sec = focusRoom ? this.geo?.sections.find((x) => x.id === focusRoom) : null;
+      this.focusBox = sec ? sec.box : (this.geo?.box ?? this.focusBox);
+    }
+    // The sigils ride whatever flows: the headers with pressure, every flowing or late branch or connection.
+    const runs: { pts: Vector3[]; late: boolean }[] = [];
+    for (const h of this.headers) if (h.tube.visible) runs.push({ pts: h.run, late: h.flow.uniforms.speed!.value < 1 });
+    for (const s of this.stations) if (s.run.length > 1 && (s.state === "ok" || s.state === "late")) runs.push({ pts: s.run, late: s.state === "late" });
+    this.sigils.lay(runs, room ? 70 : 110);
     this.dirty = 4;
   }
 
   dispose(): void {
     cancelAnimationFrame(this.raf);
+    this.pan.dispose();
     this.ro.disconnect();
     this.io.disconnect();
     document.removeEventListener("visibilitychange", this.onVis);
@@ -491,6 +672,7 @@ export class PipeScene {
     this.clearNet();
     freeTree(this.scene);
     for (const m of [this.flowOk, this.flowLate, this.dryMat, this.ghostMat, this.brass, this.iron, ...this.bands.values()]) m.dispose();
+    this.sigils.dispose();
     this.renderer.dispose();
     c.remove();
     this.lbls.remove();
@@ -499,7 +681,10 @@ export class PipeScene {
   private clearNet() {
     freeTree(this.net);
     this.net.clear();
-    const gone = new Set(this.stations.map((s) => s.gauge));
+    for (const s of this.stations) s.body?.material.dispose();
+    for (const m of this.ownFlows) m.dispose();
+    this.ownFlows = [];
+    const gone = new Set(this.stations.map((s) => s.gauge).filter(Boolean));
     this.gauges = this.gauges.filter((g) => !gone.has(g));
     for (const l of this.labels) if (l.net) l.d.remove();
     this.labels = this.labels.filter((l) => !l.net);
@@ -622,6 +807,8 @@ export class PipeScene {
     this.cam.aspect = w / h;
     this.cam.updateProjectionMatrix();
     this.steamU.px.value = this.renderer.getPixelRatio();
+    // A room's own run winds to the map's shape: lay it again when the shape calls for a different band.
+    if (this.mode === "room" && this.roomSrc && windRoom(this.roomSrc.section, this.roomSrc.model, this.want()).per !== this.roomPer) this.layRoom();
     this.dirty = 4;
   }
 
@@ -642,7 +829,7 @@ export class PipeScene {
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
     const reduce = this.opts.reduce;
-    if (!this.visible || document.hidden || (reduce && this.dirty <= 0 && !this.moved)) {
+    if (!this.visible || document.hidden || (reduce && this.dirty <= 0 && !this.moved && !this.pan.busy)) {
       this.last = now;
       return;
     }
@@ -656,10 +843,13 @@ export class PipeScene {
 
     for (const m of [this.flowOk, this.flowLate]) m.uniforms.t!.value = T;
     for (const h of this.headers) h.flow.uniforms.t!.value = T;
+    for (const m of this.ownFlows) m.uniforms.t!.value = T;
+    this.sigils.step(dt, this.renderer.getPixelRatio());
     this.glows.forEach((l, i) => (l.intensity = this.leaks[i] ? (reduce ? 2.4 : 2 + Math.random()) : 0));
     for (const s of this.leaks) if (s.sleeve) s.sleeve.material.emissiveIntensity = reduce ? 0.6 : 0.5 + 0.25 * Math.sin(T * 5);
     if (!reduce) {
       for (const s of this.stations) {
+        if (!s.body) continue;
         if (s.state === "leak" || s.state === "shut") s.body.material.emissiveIntensity = 0.35 + 0.2 * Math.sin(T * 3);
         else if (s.state === "late") s.body.material.emissiveIntensity = 0.3 + 0.15 * Math.sin(T * 2);
       }
@@ -693,7 +883,7 @@ export class PipeScene {
       g.v += (g.to - g.v) * k * 0.6;
       if (Math.abs(g.v - g.drawn) > 0.004) drawGauge(g, 0);
     }
-    if (!reduce) for (const s of this.leaks) drawGauge(s.gauge, Math.sin(T * 23) * 0.025 + Math.sin(T * 7) * 0.02);
+    if (!reduce) for (const s of this.leaks) if (s.gauge) drawGauge(s.gauge, Math.sin(T * 23) * 0.025 + Math.sin(T * 7) * 0.02);
     this.fire.intensity = reduce ? 5.4 : 5 + Math.sin(T * 9) * 0.8 + Math.random() * 0.8;
     this.door.material.color.setHSL(0.06 + (reduce ? 0.005 : Math.random() * 0.01), 1, reduce ? 0.5 : 0.5 + Math.sin(T * 6) * 0.04);
 
@@ -707,7 +897,10 @@ export class PipeScene {
     const sway = reduce ? 0 : Math.sin(T * 0.1) * 0.08;
     if (this.phone()) cam.position.set(this.look.x + this.dist * 0.52, this.dist * 0.85, this.look.z + Math.sin(sway) * this.dist * 0.3);
     else cam.position.set(this.look.x + Math.sin(sway) * this.dist * 0.4, this.dist * 0.84, this.look.z + this.dist * 0.55);
-    cam.lookAt(this.look);
+    this.pan.step(real);
+    cam.position.x += this.pan.x;
+    cam.position.z += this.pan.z;
+    cam.lookAt(this.look.x + this.pan.x, this.look.y, this.look.z + this.pan.z);
     this.renderer.render(this.scene, cam);
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
@@ -730,7 +923,7 @@ export class PipeScene {
     // The card follows its station.
     const s = this.track ? this.byId.get(this.track) : null;
     if (s && this.onTrack) {
-      v.copy(s.tip).setY(s.tip.y + 0.75).project(cam);
+      v.copy(s.anchor).project(cam);
       const x = Math.round(((v.x + 1) / 2) * w);
       const y = Math.round(((1 - v.y) / 2) * h);
       const key = `${s.id}:${x}:${y}`;
@@ -740,6 +933,11 @@ export class PipeScene {
       }
     }
   };
+
+  /** Whether this view has a station or pipe for a card. */
+  has(id: string): boolean {
+    return this.byId.has(id);
+  }
 
   /** Ask for a few frames (after the page moves the card's station). */
   wake(): void {
@@ -854,4 +1052,163 @@ function drawGauge(gg: Gauge, jitter: number) {
   c.stroke();
   gg.tex.needsUpdate = true;
   gg.drawn = gg.v + jitter;
+}
+
+/** A straight tube from a to b. */
+function tube<M extends Material>(a: Vector3, b: Vector3, r: number, mat: M) {
+  return new Mesh(new TubeGeometry(new LineCurve3(a, b), Math.max(2, Math.ceil(a.distanceTo(b) * 8)), r, 12, false), mat);
+}
+
+/** A tube along a run. */
+function tubeAlong<M extends Material>(curve: CurvePath<Vector3>, r: number, mat: M) {
+  return new Mesh(new TubeGeometry(curve, Math.max(4, Math.ceil(curve.getLength() * 8)), r, 12, false), mat);
+}
+
+/** A run through its corners, each corner a bend rather than a kink. */
+function runCurve(pts: Vector3[], bend: number): CurvePath<Vector3> {
+  const path = new CurvePath<Vector3>();
+  let cur = pts[0]!.clone();
+  for (let i = 1; i < pts.length - 1; i++) {
+    const c = pts[i]!;
+    const p = pts[i - 1]!;
+    const q = pts[i + 1]!;
+    const a = c.clone().addScaledVector(p.clone().sub(c).normalize(), Math.min(bend, c.distanceTo(p) / 2));
+    const b = c.clone().addScaledVector(q.clone().sub(c).normalize(), Math.min(bend, c.distanceTo(q) / 2));
+    if (cur.distanceTo(a) > 1e-4) path.add(new LineCurve3(cur, a));
+    path.add(new QuadraticBezierCurve3(a, c.clone(), b));
+    cur = b;
+  }
+  const end = pts[pts.length - 1] ?? cur;
+  if (cur.distanceTo(end) > 1e-4 || !path.curves.length) path.add(new LineCurve3(cur, end.clone()));
+  return path;
+}
+
+/** Whether p lies on the segment a–b (on the floor). */
+function onSeg(p: Vector3, a: Vector3, b: Vector3): boolean {
+  const e = 1e-3;
+  return p.x >= Math.min(a.x, b.x) - e && p.x <= Math.max(a.x, b.x) + e && p.z >= Math.min(a.z, b.z) - e && p.z <= Math.max(a.z, b.z) + e;
+}
+
+/** A station's own material: steel, or a room's colour for its hub. */
+function stationMat(hub?: string) {
+  const m = new MeshStandardMaterial({ color: hub ?? 0x5f6b78, metalness: hub ? 0.4 : 0.8, roughness: 0.35, emissive: new Color(CORAL), emissiveIntensity: 0 });
+  if (hub) m.userData.hub = true;
+  return m;
+}
+
+/** A part's body by what it is: a service a post, storage a squat tank, an agent a sphere, you a cone, a schedule a box. */
+const KIND_BODY: Record<string, () => BufferGeometry> = {
+  service: () => new CylinderGeometry(0.17, 0.17, 0.3, 16),
+  store: () => new CylinderGeometry(0.26, 0.26, 0.24, 20),
+  agent: () => new SphereGeometry(0.2, 18, 12),
+  person: () => new ConeGeometry(0.2, 0.36, 18),
+  room: () => new CylinderGeometry(0.24, 0.28, 0.34, 6),
+  job: () => new BoxGeometry(0.3, 0.26, 0.3),
+  planned: () => new CylinderGeometry(0.17, 0.17, 0.3, 10),
+};
+
+/** The glyphs that ride the flow: the Desk's sigils (code marks and runes), never dots. */
+const GLYPHS = [...CODE.filter((g) => g.length === 1), ...ARC.filter((g) => !/[\u{1F700}-\u{1F77F}]/u.test(g))].slice(0, 16);
+const CELLS = 4;
+const MAX_SIGILS = 120;
+
+/**
+ * Sigils carried along the flowing pipes, spread by length, warm on a flowing pipe and amber on a late one. One draw
+ * call: a point each, its glyph read from a 4 × 4 atlas. With reduced motion they hold still where they were laid.
+ */
+class Sigils {
+  readonly points: Points<BufferGeometry, ShaderMaterial>;
+  private pos = new Float32Array(MAX_SIGILS * 3);
+  private glyph = new Float32Array(MAX_SIGILS);
+  private late = new Float32Array(MAX_SIGILS);
+  private runs: { pts: Vector3[]; cum: number[]; len: number }[] = [];
+  private on: { run: number; d: number; v: number }[] = [];
+  private tex: CanvasTexture;
+  private tmp = new Vector3();
+
+  constructor(private reduce: boolean) {
+    const cv = document.createElement("canvas");
+    const cell = 64;
+    cv.width = cv.height = cell * CELLS;
+    const c = cv.getContext("2d");
+    if (c) {
+      c.fillStyle = "#fff";
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.font = `600 ${cell * 0.62}px "Overpass Mono Variable", ui-monospace, monospace`;
+      GLYPHS.forEach((g, i) => c.fillText(g, (i % CELLS) * cell + cell / 2, Math.floor(i / CELLS) * cell + cell / 2 + 2));
+    }
+    this.tex = new CanvasTexture(cv);
+    const geo = new BufferGeometry();
+    geo.setAttribute("position", new BufferAttribute(this.pos, 3));
+    geo.setAttribute("glyph", new BufferAttribute(this.glyph, 1));
+    geo.setAttribute("late", new BufferAttribute(this.late, 1));
+    geo.setDrawRange(0, 0);
+    this.points = new Points(
+      geo,
+      new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        uniforms: { atlas: { value: this.tex }, px: { value: 1 }, ok: { value: new Color(FLOW) }, slow: { value: new Color(AMBER) } },
+        vertexShader: `attribute float glyph; attribute float late; uniform float px; varying float vG; varying float vL; void main(){ vG = glyph; vL = late; vec4 mv = modelViewMatrix*vec4(position,1.); gl_PointSize = 26. * px * (10./-mv.z); gl_Position = projectionMatrix*mv; }`,
+        fragmentShader: `uniform sampler2D atlas; uniform vec3 ok, slow; varying float vG; varying float vL; void main(){ vec2 cell = vec2(mod(vG, ${CELLS}.), floor(vG / ${CELLS}.)); vec2 uv = vec2((cell.x + gl_PointCoord.x) / ${CELLS}., 1. - (cell.y + gl_PointCoord.y) / ${CELLS}.); float a = texture2D(atlas, uv).a; if (a < .05) discard; gl_FragColor = vec4(mix(ok, slow, vL), a * .85); }`,
+      }),
+    );
+    this.points.frustumCulled = false;
+  }
+
+  /** Spread up to `count` sigils over the flowing runs, by length. */
+  lay(runs: { pts: Vector3[]; late: boolean }[], count: number): void {
+    this.runs = runs.map((r) => {
+      const cum = [0];
+      for (let i = 1; i < r.pts.length; i++) cum.push(cum[i - 1]! + r.pts[i]!.distanceTo(r.pts[i - 1]!));
+      return { pts: r.pts, cum, len: cum[cum.length - 1]! };
+    });
+    const total = this.runs.reduce((a, r) => a + r.len, 0);
+    this.on = [];
+    const n = Math.min(MAX_SIGILS, count);
+    if (total > 0)
+      this.runs.forEach((r, i) => {
+        if (!r.len) return;
+        const share = Math.max(1, Math.round((r.len / total) * n));
+        for (let j = 0; j < share && this.on.length < n; j++) {
+          const k = this.on.length;
+          this.on.push({ run: i, d: ((j + ((i * 7) % 5) / 5) / share) * r.len, v: runs[i]!.late ? 0.35 : 0.9 + ((k * 37) % 10) / 25 });
+          this.glyph[k] = (k * 5 + i * 3) % GLYPHS.length;
+          this.late[k] = runs[i]!.late ? 1 : 0;
+        }
+      });
+    this.points.geometry.setDrawRange(0, this.on.length);
+    this.points.geometry.attributes.glyph!.needsUpdate = true;
+    this.points.geometry.attributes.late!.needsUpdate = true;
+    this.place(0);
+  }
+
+  /** Carry each one along its run; with reduced motion they hold still. */
+  step(dt: number, px: number): void {
+    this.points.material.uniforms.px!.value = px;
+    if (!this.reduce && dt > 0) this.place(dt);
+  }
+
+  private place(dt: number): void {
+    this.on.forEach((m, i) => {
+      const r = this.runs[m.run]!;
+      m.d = (m.d + m.v * dt) % r.len;
+      let k = 1;
+      while (k < r.cum.length - 1 && r.cum[k]! < m.d) k++;
+      const a = r.pts[k - 1]!;
+      const b = r.pts[k]!;
+      const seg = r.cum[k]! - r.cum[k - 1]!;
+      this.tmp.copy(a).lerp(b, seg ? (m.d - r.cum[k - 1]!) / seg : 0);
+      this.pos.set([this.tmp.x, this.tmp.y + R + 0.16, this.tmp.z], i * 3);
+    });
+    this.points.geometry.attributes.position!.needsUpdate = true;
+  }
+
+  dispose(): void {
+    this.points.geometry.dispose();
+    this.points.material.dispose();
+    this.tex.dispose();
+  }
 }

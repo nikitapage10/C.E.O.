@@ -20,7 +20,7 @@ function onScreen(over: Partial<Compose> = {}, unlocked = true) {
     if (init?.method === "POST") posts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
     return new Response(JSON.stringify({ ok: true, rid: "f".repeat(24), until: NOW + 600_000 }), { status: 200, headers: { "content-type": "application/json" } });
   });
-  useTexts.setState({ view: { ready: true, paired: true, pairedAt: NOW, lastSeen: NOW, unlockedUntil: unlocked ? Date.now() + 3_600_000 : null, items: [], cards: [card()], textsAt: NOW, requests: [], spend: { usd: 0, budget: 10 } }, refresh: async () => undefined });
+  useTexts.setState({ view: { ready: true, paired: true, pairedAt: NOW, lastSeen: NOW, unlockedUntil: unlocked ? Date.now() + 3_600_000 : null, items: [], cards: [card()], textsAt: NOW, older: { count: 0, items: [] }, scannedAt: null, voice: null, requests: [], spend: { usd: 0, budget: 10 } }, refresh: async () => undefined });
   useCompose.setState({ items: { k1: base(over) } });
   useCompose.getState().sync();
   return { posts, c: () => useCompose.getState().items.k1! };
@@ -155,6 +155,12 @@ describe("what the card says", () => {
     expect(sendWords(req("expired"))).toEqual({ text: "Not sent, Mac was offline.", resend: true });
     expect(sendWords(req("failed"))!.resend).toBe(true);
     expect(sendWords(req("refused"))!.resend).toBe(false);
+  });
+
+  it("says why the Mac didn't send it, with Resend only where another try helps (#767)", () => {
+    expect(sendWords({ ...req("failed"), reason: "mac-permission" })).toEqual({ text: "Not sent: the Mac needs permission for Messages. Allow BlueBubbles to control Messages: System Settings > Privacy & Security > Automation.", resend: true });
+    expect(sendWords({ ...req("refused"), reason: "answered" })).toEqual({ text: "Not sent: Messages already shows your reply.", resend: false });
+    expect(sendWords({ ...req("failed"), reason: "no-answer" })!.text).toMatch(/^Not sent: the Mac took it but never answered/);
   });
 
   it("says the Mac didn't answer when no card comes back in time", () => {

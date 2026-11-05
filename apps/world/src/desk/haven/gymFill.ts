@@ -121,6 +121,8 @@ export function gymBeyond(plan: HavenPlan): HavenPlan {
     devices: plan.devices.map((d) => (inDet(d.x, d.y) ? { ...d, x: d.x + tx, y: d.y + ty } : d)),
     doors: plan.doors.map((s) => (inDet((s[0] + s[2]) / 2, (s[1] + s[3]) / 2) ? ([s[0] + tx, s[1] + ty, s[2] + tx, s[3] + ty] as typeof s) : s)),
     windows: plan.windows.map((s) => (inDet((s[0] + s[2]) / 2, (s[1] + s[3]) / 2) ? ([s[0] + tx, s[1] + ty, s[2] + tx, s[3] + ty] as typeof s) : s)),
+    balconies: (plan.balconies ?? []).map((s) => (inDet((s[0] + s[2]) / 2, (s[1] + s[3]) / 2) ? ([s[0] + tx, s[1] + ty, s[2] + tx, s[3] + ty] as typeof s) : s)),
+    tv: plan.tv ?? [],
   };
   const [ax0, ay0, ax1, ay1] = box(moved.rooms);
   const sx = Math.min(0, ax0), sy = Math.min(0, ay0);
@@ -134,6 +136,8 @@ export function gymBeyond(plan: HavenPlan): HavenPlan {
     devices: moved.devices.map((d) => ({ ...d, x: d.x - sx, y: d.y - sy })),
     doors: moved.doors.map(S),
     windows: moved.windows.map(S),
+    balconies: moved.balconies.map(S),
+    tv: moved.tv.map(S),
     path: [],
   };
 }

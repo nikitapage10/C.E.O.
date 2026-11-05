@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { RELATIONS, readVoice, type Relation, type Voice } from "../../../api/_relay/voice.ts";
 
 /**
  * Relay's own database on the Mac (docs/RELAY-PRIVACY.md, "Data inventory"): one JSON file,
@@ -50,6 +51,18 @@ export interface Thread {
   draft: Draft | null;
   summary: GroupSummary | null;
   repliedAt: number | null;
+  /** Their latest text has no read time in Messages (#758): a mark on the Desk, never a reason to hide it. */
+  unread?: boolean;
+}
+
+/** An older unanswered chat (#758): last message someone else's, past the 30-day window. A snapshot from the last scan. */
+export interface OlderRow {
+  /** Relay's own random id (16 hex). */
+  id: string;
+  /** The Messages chat id (holds the handle: this file only). */
+  chat: string;
+  at: number;
+  unread: boolean;
 }
 
 export interface Day {
@@ -114,14 +127,26 @@ export interface RelayState {
    * only: never a message, a guid, a handle or a chat id. Null until the hub's first poll, which starts from then.
    */
   inbox: Inbox | null;
+  /** Older unanswered chats from the last backlog scan (#758), newest first. Chat ids and times only. */
+  older: OlderRow[];
+  /** How many there were (the list keeps MAX_OLDER_ROWS). */
+  olderCount: number;
+  /** When the hub last read every chat (#758). */
+  scannedAt: number | null;
+  /** How Nikita texts, from the last "Learn from my texts" (#758): traits, tones, numbers. Never a quote. */
+  voice: Voice | null;
+  /** Which kind of person each contact reads as, from that learn, by handleKey (./learn.ts). */
+  relations: Record<string, Relation>;
 }
+
+export const MAX_OLDER_ROWS = 200;
 
 export interface Inbox {
   at: number;
   recent: { h: string; at: number }[];
 }
 
-export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null, photos: {}, photosAt: null, inbox: null });
+export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null, photos: {}, photosAt: null, inbox: null, older: [], olderCount: 0, scannedAt: null, voice: null, relations: {} });
 
 export const newThreadId = () => randomBytes(8).toString("hex");
 
@@ -156,7 +181,17 @@ function readThread(v: unknown): Thread | null {
     draft: d && s(d.text, 2_000) !== null && n(d.at) !== null ? { text: d.text as string, at: d.at as number, by: d.by === "restyled" ? "restyled" : "blasto" } : null,
     summary: g && s(g.text, 400) !== null && n(g.at) !== null ? { text: g.text as string, asked: g.asked === true, at: g.at as number } : null,
     repliedAt: n(o.repliedAt),
+    ...(o.unread === true && { unread: true }),
   };
+}
+
+function readOlderRow(v: unknown): OlderRow | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  const id = s(o.id, 16);
+  const chat = s(o.chat, 300);
+  const at = n(o.at);
+  return id && /^[0-9a-f]{16}$/.test(id) && chat && at !== null ? { id, chat, at, unread: o.unread === true } : null;
 }
 
 const CARD_STATES: Card["state"][] = ["ready", "choices", "none", "off", "nochat", "moved", "sent"];
@@ -228,6 +263,16 @@ export function readState(raw: string | null): RelayState {
     })(),
     photosAt: n(o.photosAt),
     inbox: readInbox(o.inbox),
+    older: Array.isArray(o.older) ? o.older.map(readOlderRow).filter((x): x is OlderRow => x !== null).slice(0, MAX_OLDER_ROWS) : [],
+    olderCount: Math.min(9_999, Math.max(0, n(o.olderCount) ?? 0)),
+    scannedAt: n(o.scannedAt),
+    voice: o.voice ? readVoice(o.voice) : null,
+    relations: (() => {
+      const out: Record<string, Relation> = {};
+      const r = o.relations && typeof o.relations === "object" && !Array.isArray(o.relations) ? (o.relations as Record<string, unknown>) : {};
+      for (const [k, v] of Object.entries(r).slice(0, 500)) if (/^[0-9a-f]{16}$/.test(k) && (RELATIONS as readonly string[]).includes(v as string)) out[k] = v as Relation;
+      return out;
+    })(),
   };
 }
 

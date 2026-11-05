@@ -2,7 +2,7 @@ import { defineRoom } from "@ceo/engine/manifest";
 import { nav } from "./nav.ts";
 import { TOOLS } from "./tools.ts";
 
-/** Today: the Desk's front page, run by Skippy from the Kernel (docs/SKIPPY.md). Data only (docs/ROOMS.md). */
+/** The Senate (once Today, #775): the Desk's front page, run by Skippy from the Kernel (docs/SKIPPY.md). Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "today",
   ...nav,

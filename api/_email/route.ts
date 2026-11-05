@@ -485,10 +485,13 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
   }
 
   if (body.action === "send") {
-    const b = body as { id?: unknown; draft?: unknown };
-    if (!okId(b.id) || typeof b.draft !== "string" || !b.draft.trim() || b.draft.length > 2_000) return reply({ error: "bad-request" }, 400);
+    // `own` (#803): words Nikita typed himself in the reply box, sent exactly as typed, no draft and no model. The
+    // tap on Send is still the only thing that sends; everything below (the claim, the cap, once) holds the same.
+    const b = body as { id?: unknown; draft?: unknown; own?: unknown };
+    if (!okId(b.id) || typeof b.draft !== "string" || !b.draft.trim() || b.draft.length > 2_000 || (b.own !== undefined && b.own !== true)) return reply({ error: "bad-request" }, 400);
     const id = b.id;
     const text = b.draft;
+    const own = b.own === true;
     const token = await store.token().catch(() => null);
     if (!token || !deps.client) return reply({ error: "not-connected" }, 409);
     if (!token.send) return reply({ error: "no-send" }, 403);
@@ -498,7 +501,7 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
       const item = s.items.find((x) => x.id === id);
       if (!item || item.done || item.kind === "noise") return { state: s, out: { ok: false, error: "no-item", status: 404 } };
       if (item.sentAt || (item.sending && deps.now - item.sending < SEND_CLAIM_MS)) return { state: s, out: { ok: false, error: "already-sent", status: 409 } };
-      if (item.draft !== text) return { state: s, out: { ok: false, error: "changed", status: 409 } };
+      if (!own && item.draft !== text) return { state: s, out: { ok: false, error: "changed", status: 409 } };
       const count = s.sends.day === day ? s.sends.count : 0;
       if (count >= SEND_DAY_MAX || !canSpend(s, SORT_MODEL, deps.budget, deps.now)) return { state: s, out: { ok: false, error: "cap", status: 429 } };
       return { state: { ...s, sends: { day, count: count + 1 }, items: s.items.map((x) => (x.id === id ? { ...x, sending: deps.now } : x)) }, out: { ok: true } };

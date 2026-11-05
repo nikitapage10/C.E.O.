@@ -1,6 +1,7 @@
 import type { RelayStatus } from "@ceo/core";
 import type { ComposeInput, DraftAnswer, DraftInput, SortAnswer, SortInput } from "../../../api/_relay/models.ts";
-import type { RequestResult, TextsView } from "../../../api/_relay/texts.ts";
+import type { Reason, RequestResult, TextsView } from "../../../api/_relay/texts.ts";
+import type { LearnInput } from "../../../api/_relay/voice.ts";
 import { SITE } from "./config.ts";
 
 /**
@@ -11,6 +12,8 @@ import { SITE } from "./config.ts";
  *   texts     the who's-waiting list: names, Dialtone's gist, Blasto's drafts; never a message body
  *   sort      one placeholdered, trimmed snippet for Dialtone; the answer comes back, nothing is kept there
  *   draft     the same for Blasto
+ *   learn     "Learn from my texts" (#758): the placeholdered, labelled sample of Nikita's own texts; style traits back
+ *             and what the call cost, nothing kept there
  *   compose   a new text Skippy asked for (#536): the placeholdered ask and style examples, on the draft view
  *   requests  the Desk's waiting requests (each handed out once)
  *   results   what became of the ones it took
@@ -26,8 +29,11 @@ export interface Site {
   sort(input: SortInput): Promise<{ answer: SortAnswer | null } | { paused: true }>;
   draft(input: DraftInput): Promise<{ answer: DraftAnswer | null } | { paused: true }>;
   compose(input: ComposeInput): Promise<{ answer: DraftAnswer | null } | { paused: true }>;
+  /** The one style call (#758): the model's answer (checked on the Mac again) and its cost in dollars. */
+  learn(input: LearnInput): Promise<{ answer: unknown; usd: number } | { paused: true }>;
   requests(): Promise<unknown[]>;
-  results(results: { rid: string; result: RequestResult }[]): Promise<boolean>;
+  /** What became of each request, with a reason code for a refusal or a failure (#767): never content. */
+  results(results: { rid: string; result: RequestResult; reason?: Reason }[]): Promise<boolean>;
   skipTerms(): Promise<string[] | null>;
   /** The wipe: the site forgets this pairing, its list and its requests. */
   unpair(): Promise<boolean>;
@@ -43,8 +49,8 @@ const httpError = () => Object.assign(new Error("site"), { name: "HttpError" });
 
 export function siteClient(token: string, fetcher: typeof fetch = fetch, base = SITE): Site {
   const headers = { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json" };
-  const post = async (view: string, body: unknown) => {
-    const res = await fetcher(`${base}/api/relay-hub${view ? `?view=${view}` : ""}`, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(45_000) });
+  const post = async (view: string, body: unknown, ms = 45_000) => {
+    const res = await fetcher(`${base}/api/relay-hub${view ? `?view=${view}` : ""}`, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
     if (!res.ok) throw httpError();
     return (await res.json()) as Record<string, unknown>;
   };
@@ -67,6 +73,10 @@ export function siteClient(token: string, fetcher: typeof fetch = fetch, base = 
     compose: async (input) => {
       const got = await post("draft", input);
       return got.paused === true ? { paused: true } : { answer: (got.answer ?? null) as DraftAnswer | null };
+    },
+    learn: async (input) => {
+      const got = await post("learn", input, 120_000);
+      return got.paused === true ? { paused: true } : { answer: got.answer ?? null, usd: typeof got.usd === "number" && Number.isFinite(got.usd) ? got.usd : 0 };
     },
     requests: async () => {
       const got = await get("requests");

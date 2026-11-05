@@ -1,0 +1,42 @@
+/*
+ * Lists in the Haven (#735): a folded panel on the left of the house, glass over the night, one folding section per
+ * list. Scoped to the room; reads the Haven's own tokens.
+ */
+[data-room="haven"] .hv-lists{position:absolute;z-index:3;left:var(--fl-pad,16px);top:150px;width:272px;max-height:calc(100% - 330px);overflow:auto;border:1px solid var(--hv-line);border-radius:14px;background:var(--hv-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+[data-room="haven"][data-open] .hv-lists{display:none}
+[data-room="haven"] .hv-lists-h,[data-room="haven"] .hv-ls-h{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 14px;border:0;background:none;color:var(--hv-ink);font-family:var(--hv-text);font-size:13px;letter-spacing:.06em;text-transform:uppercase;text-align:left;cursor:pointer}
+[data-room="haven"] .hv-ls-h{font-size:14px;letter-spacing:0;text-transform:none;color:var(--hv-soft);border-top:1px solid var(--hv-line)}
+[data-room="haven"] .hv-lists-h span,[data-room="haven"] .hv-ls-h span{flex:1}
+[data-room="haven"] .hv-lists-h b,[data-room="haven"] .hv-ls-h b{font-weight:500;font-variant-numeric:tabular-nums;color:rgb(var(--hv-gold))}
+[data-room="haven"] .hv-lists-h i,[data-room="haven"] .hv-ls-h i{font-style:normal;width:14px;text-align:center;color:var(--hv-mute)}
+[data-room="haven"] .hv-ls h3{margin:0;font:inherit}
+[data-room="haven"] .hv-ls-body{padding:2px 14px 12px}
+[data-room="haven"] .hv-ls-l{list-style:none;margin:0;padding:0}
+[data-room="haven"] .hv-ls-l li{display:flex;align-items:center;gap:6px;min-height:34px;border-bottom:1px solid var(--hv-line)}
+[data-room="haven"] .hv-ls-l label{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:5px 0;font-size:14px;color:var(--hv-ink);cursor:pointer}
+[data-room="haven"] .hv-ls-l input[type=checkbox]{flex:none;appearance:none;width:16px;height:16px;margin:0;border-radius:50%;border:1.4px solid var(--hv-soft);background:none;cursor:pointer;display:grid;place-items:center}
+[data-room="haven"] .hv-ls-l input[type=checkbox]:checked{border-color:rgb(var(--hv-gold));background:rgb(var(--hv-gold))}
+[data-room="haven"] .hv-ls-l input[type=checkbox]:checked::after{content:"";width:6px;height:3px;margin-top:-2px;border:solid #14121f;border-width:0 0 1.6px 1.6px;transform:rotate(-45deg)}
+[data-room="haven"] .hv-ls-l li.is-done label{color:var(--hv-faint);text-decoration:line-through}
+[data-room="haven"] .hv-ls-x{flex:none;width:28px;height:28px;border-radius:50%;border:0;background:none;color:var(--hv-faint);font-size:18px;line-height:1;cursor:pointer}
+[data-room="haven"] .hv-ls-x:hover,[data-room="haven"] .hv-ls-x:focus-visible{color:var(--hv-ink)}
+[data-room="haven"] .hv-ls-empty{margin:6px 0;font-size:13px;color:var(--hv-faint)}
+[data-room="haven"] .hv-ls-add{display:flex;align-items:center;gap:8px;margin-top:8px;border-bottom:1px solid var(--hv-line)}
+[data-room="haven"] .hv-ls-add:focus-within{border-bottom-color:rgba(var(--hv-gold),.6)}
+[data-room="haven"] .hv-ls-add input{flex:1;min-width:0;height:36px;border:0;background:none;color:var(--hv-ink);font-family:var(--hv-text);font-size:13px;outline:none}
+[data-room="haven"] .hv-ls-add input::placeholder{color:var(--hv-faint)}
+[data-room="haven"] .hv-ls-add button,[data-room="haven"] .hv-ls-clear,[data-room="haven"] .hv-ls-foot button{flex:none;height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--hv-line);background:none;color:var(--hv-soft);font-family:var(--hv-text);font-size:12px;cursor:pointer}
+[data-room="haven"] .hv-ls-add button:disabled{opacity:.4;cursor:default}
+[data-room="haven"] .hv-ls-add button:not(:disabled):hover,[data-room="haven"] .hv-ls-clear:hover,[data-room="haven"] .hv-ls-foot button:hover{color:var(--hv-ink);border-color:rgba(var(--hv-gold),.5)}
+[data-room="haven"] .hv-ls-clear{margin-top:8px}
+[data-room="haven"] .hv-ls-foot{display:flex;align-items:center;gap:10px;margin:0;padding:0 14px 10px;font-size:12px;color:var(--hv-mute)}
+[data-room="haven"] .hv-ls-foot:empty{padding:0}
+[data-room="haven"] .hv-ls-counts{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;padding:4px 14px 12px;font-size:13px;color:var(--hv-mute)}
+[data-room="haven"] .hv-ls-counts b{margin-left:4px;font-weight:500;color:var(--hv-soft)}
+
+@media (max-width:860px){
+  [data-room="haven"] .hv-lists{position:relative;left:auto;top:auto;width:auto;max-height:none;margin:12px var(--fl-pad,16px) 0}
+}
+@media (max-width:760px){
+  [data-room="haven"] .hv-ls-l label,[data-room="haven"] .hv-ls-add input{font-size:16px}
+}

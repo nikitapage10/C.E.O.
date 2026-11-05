@@ -9,12 +9,32 @@ import type { Expression } from "./signal.ts";
  * Pure data and free of three.js, so the tests (and the Desk's first load) can read it.
  */
 
-/** The faces face.ts draws: the call's five moods, and the subminds' own. */
-export type Face = Expression | "unimpressed" | "grin" | "sly" | "attentive" | "focused";
-export const FACES: readonly Face[] = ["listening", "thinking", "smug", "laughing", "annoyed", "unimpressed", "grin", "sly", "attentive", "focused"];
+/** The faces face.ts draws: the call's five moods, and the subminds' own (the Senate's since #775, rotunda/senators.ts). */
+export type Face = Expression | "unimpressed" | "grin" | "sly" | "attentive" | "focused" | "poised" | "pedant" | "dreamy" | "wink" | "squint" | "warm" | "deadpan";
+export const FACES: readonly Face[] = ["listening", "thinking", "smug", "laughing", "annoyed", "unimpressed", "grin", "sly", "attentive", "focused", "poised", "pedant", "dreamy", "wink", "squint", "warm", "deadpan"];
 
-/** The arm poses holoScene.ts knows. */
-export type Pose = "rest" | "talk" | "smug" | "laugh" | "think" | "annoyed" | "slump" | "cheer" | "hands" | "ready";
+/** The arm poses rig.ts knows: the call's, and the Senate's gestures (#775). */
+export type Pose =
+  | "rest"
+  | "talk"
+  | "smug"
+  | "laugh"
+  | "think"
+  | "annoyed"
+  | "slump"
+  | "cheer"
+  | "hands"
+  | "ready"
+  | "frame"
+  | "count"
+  | "present"
+  | "cue"
+  | "lecture"
+  | "flourish"
+  | "clasp"
+  | "point"
+  | "wave"
+  | "shrug";
 
 export interface Persona {
   /** Who it is: "skippy" or the submind's room. */

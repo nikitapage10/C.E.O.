@@ -6,7 +6,8 @@ import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Shopping } from "./Groceries.tsx";
 import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
 import { MealPlanner } from "./MealPlanner.tsx";
-import { DryFeederArt, FountainArt, LitterArt, VacuumArt, WetFeederArt } from "./DeviceArt.tsx";
+import { DryStage, FountainStage, LitterStage, Plate, VacuumStage, WetStage } from "./DevicePlates.tsx";
+import { flowing, frontBowl } from "./plates.ts";
 import { chipsBeside, useFlash, VacuumModes, type Suction, type Water } from "./DevicePops.tsx";
 import { RoomMap, vacuumName } from "./RoomMap.tsx";
 
@@ -78,6 +79,12 @@ function Said() {
     </p>
   ) : null;
 }
+
+/** The Litter-Robot's state as its plate's one word. */
+const litterWord = (s: string) => (s === "cat-inside" ? "cat inside" : s);
+
+/** A device with no reading yet: waiting for its vendor, or its vendor isn't answering. */
+const waitFor = (vendor: string, state: string) => (state === "down" ? `${vendor} isn't answering. It tries again on the next read.` : `Waiting for ${vendor}.`);
 
 const find = (devices: DeviceReading[] | null, kind: DeviceReading["kind"]) => devices?.find((d) => d.kind === kind) ?? null;
 
@@ -201,10 +208,22 @@ export function HallTab({ devices, connected, room, plan }: { devices: DeviceRea
           )}
           <Said />
         </Card>
-        <Card title="Vacuum" tag={<Private>{v.model || "Roborock"}</Private>}>
-          <div className="hv-art is-vac">
-            <VacuumArt state={v.online ? v.state : ""} battery={v.battery} />
-          </div>
+        <Plate title="Vacuum" num={v.online ? v.state : "offline"} tone={v.online ? undefined : "wait"} stage={<VacuumStage d={v} />}>
+          <p className="hv-row">
+            <span className="hv-k">Battery</span> <Bar v={v.battery} warn={(v.battery ?? 100) < 15} /> <span>{pct(v.battery)}%</span>
+          </p>
+          <p className="hv-note">
+            <Private>{v.model || "Roborock"}</Private>
+          </p>
+          {v.alerts.length > 0 && (
+            <div className="hv-plChips">
+              {v.alerts.map((a) => (
+                <span key={a} className="is-warn">
+                  {a}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="hv-btns">
             <button type="button" className="hv-btn" disabled={off} onClick={() => void act("vacuum.start", v.id, undefined, mode)}>
               Clean everywhere
@@ -216,7 +235,7 @@ export function HallTab({ devices, connected, room, plan }: { devices: DeviceRea
               Dock
             </button>
           </div>
-        </Card>
+        </Plate>
       </div>
     </>
   );
@@ -248,69 +267,69 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
         <Num v={water ? pct(water.water) : "–"} unit={water ? "%" : undefined} k="fountain water" tone={water ? undefined : "wait"} />
         <Num v={litter ? litter.state : "–"} k="Litter-Robot" tone={litter ? (litter.state === "ready" ? "ok" : undefined) : "wait"} />
       </div>
-      <div className="hv-grid is-three">
-        <Card title="Feeders" tag={petlibro}>
-          {dry || wet ? (
+      {/* Each device on its own plate (#766, A1 Plates): the render large, the reading drawn where it lives on it. */}
+      <div className="hv-plates is-compact">
+        <Plate
+          title="Dry feeder"
+          num={dry ? (!dry.online ? "offline" : dry.foodLow ? "Low" : "OK") : "–"}
+          tone={dry ? (!dry.online ? "wait" : dry.foodLow ? "warn" : "ok") : "wait"}
+          stage={<DryStage d={dry} feeding={fed} />}
+        >
+          {dry ? (
             <>
-              {dry && (
-                <div className="hv-feed">
-                  <div className="hv-art is-feeder">
-                    <DryFeederArt feeding={fed} low={dry.foodLow} />
-                  </div>
-                  <p className="hv-row">
-                    <b>Dry feeder</b> <span>{dry.online ? (dry.foodLow ? "food low" : "food ok") : "offline"}</span>
-                  </p>
-                  <p className="hv-note">
-                    Last fed {ago(dry.lastFed)} · {dry.manualToday ?? 0} of {dry.manualCap ?? 2} extra portions today
-                  </p>
-                  <DryDay d={dry} />
-                  <button type="button" className="hv-btn" disabled={!dry.online || busy !== null || (dry.manualToday ?? 0) >= (dry.manualCap ?? 2)} onClick={() => void act("feeder.feed", dry.id).then((ok) => ok && flashFed())}>
-                    Feed 1 portion
-                  </button>
-                </div>
-              )}
-              {wet && (
-                <div className="hv-feed">
-                  <div className="hv-art is-feeder">
-                    <WetFeederArt plate={wet.plate} open={wet.state === "lid open"} />
-                  </div>
-                  <p className="hv-row">
-                    <b>Wet feeder</b> <span data-testid="wet-state">{!wet.online ? "offline" : wet.closesAt ? `Open, closes at ${closeClock(wet.closesAt)}` : wet.state}</span>
-                  </p>
-                  <p className="hv-note">
-                    Last opened {ago(wet.lastFed)} · {wet.manualToday ?? 0} of {wet.manualCap ?? 2} today
-                  </p>
-                  <WetDay d={wet} />
-                  {/* An opening from here closes itself after two hours (#713): Open again restarts them, Close shuts it now. */}
-                  <div className="hv-btns">
-                    <button
-                      type="button"
-                      className="hv-btn"
-                      disabled={!wet.online || busy !== null || (wet.closesAt ? false : wet.state === "lid open" || (wet.manualToday ?? 0) >= (wet.manualCap ?? 2))}
-                      onClick={() => void act("wet.open", wet.id)}
-                    >
-                      {wet.closesAt ? "Two more hours" : "Open for 2 hours"}
-                    </button>
-                    {wet.state === "lid open" && (
-                      <button type="button" className="hv-btn" disabled={!wet.online || busy !== null} onClick={() => void act("wet.close", wet.id)}>
-                        Close
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
+              <p className="hv-note">
+                Last fed {ago(dry.lastFed)} · {dry.manualToday ?? 0} of {dry.manualCap ?? 2} extra portions today
+              </p>
+              <DryDay d={dry} />
+              <button type="button" className="hv-btn" disabled={!dry.online || busy !== null || (dry.manualToday ?? 0) >= (dry.manualCap ?? 2)} onClick={() => void act("feeder.feed", dry.id).then((ok) => ok && flashFed())}>
+                Feed 1 portion
+              </button>
             </>
           ) : (
-            <Waiting>Waiting for Petlibro.</Waiting>
+            <Waiting>{waitFor("Petlibro", petlibro)}</Waiting>
           )}
-        </Card>
-        <Card title="Water fountain" tag={water ? (water.online ? "flowing" : "offline") : "waiting"}>
+        </Plate>
+        <Plate title="Wet feeder" num={wet && frontBowl(wet) ? `Bowl ${frontBowl(wet)}` : "–"} tone={wet ? (wet.online ? undefined : "wait") : "wait"} stage={<WetStage d={wet} />}>
+          {wet ? (
+            <>
+              <p className="hv-row">
+                <span data-testid="wet-state">{!wet.online ? "offline" : wet.closesAt ? `Open, closes at ${closeClock(wet.closesAt)}` : wet.state}</span>
+              </p>
+              <p className="hv-note">
+                Last opened {ago(wet.lastFed)} · {wet.manualToday ?? 0} of {wet.manualCap ?? 2} today
+              </p>
+              <WetDay d={wet} />
+              {/* An opening from here closes itself after two hours (#713): Open again restarts them, Close shuts it now. */}
+              <div className="hv-btns">
+                <button
+                  type="button"
+                  className="hv-btn"
+                  disabled={!wet.online || busy !== null || (wet.closesAt ? false : wet.state === "lid open" || (wet.manualToday ?? 0) >= (wet.manualCap ?? 2))}
+                  onClick={() => void act("wet.open", wet.id)}
+                >
+                  {wet.closesAt ? "Two more hours" : "Open for 2 hours"}
+                </button>
+                {wet.state === "lid open" && (
+                  <button type="button" className="hv-btn" disabled={!wet.online || busy !== null} onClick={() => void act("wet.close", wet.id)}>
+                    Close
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <Waiting>{waitFor("Petlibro", petlibro)}</Waiting>
+          )}
+        </Plate>
+        <Plate
+          title="Water fountain"
+          num={water ? pct(water.water) : "–"}
+          unit={water && typeof water.water === "number" ? "%" : undefined}
+          tone={water ? (water.online ? (typeof water.water === "number" && water.water < 25 ? "warn" : undefined) : "wait") : "wait"}
+          stage={<FountainStage d={water} />}
+        >
           {water ? (
             <>
-              <div className="hv-art is-fountain">
-                <FountainArt level={water.water} flowing={water.online && !/off|stop|pause|dry|empty/i.test(water.state)} />
-                <b>{pct(water.water)}%</b>
-              </div>
+              <p className="hv-note">{water.online ? (flowing(water) ? "Flowing" : water.state) : "offline"}</p>
               {water.filterDays === undefined && (
                 <p className="hv-row">
                   <span className="hv-k">Filter</span> <Bar v={water.filter} warn={(water.filter ?? 100) < 15} /> <span>{pct(water.filter)}%</span>
@@ -320,15 +339,17 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
               {waterAlerts.length > 0 && <p className="hv-note is-warn">{waterAlerts.join(", ")}</p>}
             </>
           ) : (
-            <Waiting>Waiting for Petlibro.</Waiting>
+            <Waiting>{waitFor("Petlibro", petlibro)}</Waiting>
           )}
-        </Card>
-        <Card title="Litter-Robot" tag={litter ? litter.state : whisker}>
+        </Plate>
+        <Plate
+          title="Litter-Robot"
+          num={litter ? (litter.online ? litterWord(litter.state) : "offline") : "–"}
+          tone={litter ? (!litter.online ? "wait" : (litter.drawer ?? 0) >= 85 ? "warn" : litter.state === "ready" ? "ok" : undefined) : "wait"}
+          stage={<LitterStage d={litter} flash={cycled} />}
+        >
           {litter ? (
             <>
-              <div className="hv-art is-litter">
-                <LitterArt cycling={cycled || /cycl|clean/i.test(litter.state)} drawer={litter.drawer} litter={litter.litter} catInside={litter.catInside} />
-              </div>
               <p className="hv-row">
                 <span className="hv-k">Drawer</span> <Bar v={litter.drawer} warn={(litter.drawer ?? 0) >= 85} /> <span>{pct(litter.drawer)}%</span>
               </p>
@@ -342,9 +363,9 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
               </button>
             </>
           ) : (
-            <Waiting>Waiting for Whisker.</Waiting>
+            <Waiting>{waitFor("Whisker", whisker)}</Waiting>
           )}
-        </Card>
+        </Plate>
       </div>
       <Said />
     </>

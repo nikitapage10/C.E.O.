@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blueBubbles, BlueBubblesError, checkBlueBubbles, describeFailure, failure, redact, removeOldWebhooks } from "./bluebubbles.ts";
+import { blueBubbles, BlueBubblesError, checkBlueBubbles, describeFailure, failure, redact, removeOldWebhooks, sendReason } from "./bluebubbles.ts";
 import { errorClass } from "./log.ts";
 
 /**
@@ -140,10 +140,28 @@ describe("the message query and the old webhook (#749)", () => {
     expect(new URL(deletes[0]!.url).pathname).toBe("/api/v1/webhook/3");
   });
 
-  it("send still answers true or false", async () => {
+  it("send answers true, or throws so the hub can say why (#767)", async () => {
     const ok = fake(() => json(200, { status: 200 }));
     expect(await blueBubbles(PW, ok.f, BASE).send("c", "t", "g")).toBe(true);
+    const body = JSON.parse(String(ok.seen[0]!.init?.body));
+    expect(body).toEqual({ chatGuid: "c", tempGuid: "g", message: "t", method: "apple-script" });
     const bad = fake(() => json(500, { status: 500 }));
-    expect(await blueBubbles(PW, bad.f, BASE).send("c", "t", "g")).toBe(false);
+    expect(sendReason(await caught(blueBubbles(PW, bad.f, BASE).send("c", "t", "g")))).toBe("bb-refused");
+  });
+});
+
+describe("why a send failed, as a reason code (#767)", () => {
+  const reasonOf = async (answer: () => Response | Promise<Response>) => sendReason(await caught(blueBubbles(PW, fake(answer).f, BASE).send("c", "t", "g")));
+
+  it("names macOS blocking BlueBubbles from controlling Messages (Automation, -1743)", async () => {
+    expect(await reasonOf(() => json(500, { status: 500, message: "Message Send Error", error: { message: "execution error: Not authorized to send Apple events to Messages. (-1743)" } }))).toBe("mac-permission");
+  });
+
+  it("tells a timeout (it may have sent) from BlueBubbles not running and a wrong password", async () => {
+    expect(await reasonOf(() => Promise.reject(Object.assign(new Error("t"), { name: "TimeoutError" })))).toBe("bb-timeout");
+    expect(await reasonOf(() => Promise.reject(new TypeError("fetch failed")))).toBe("bb-down");
+    expect(await reasonOf(() => json(401, { status: 401, error: { message: "You are not authorized to access this resource" } }))).toBe("bb-auth");
+    expect(await reasonOf(() => json(400, { status: 400, error: { message: "A 'tempGuid' is required" } }))).toBe("bb-refused");
+    expect(sendReason(new Error("anything"))).toBe("bb-refused");
   });
 });

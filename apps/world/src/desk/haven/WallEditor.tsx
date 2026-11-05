@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { centreOf, PLAN_NOTE, savePlan, type HavenPlan } from "./data.ts";
+import { withOpenings } from "./furnish.ts";
 import { glassOf, setGlass, setTv, sideName, wallSides, type At, type Glass } from "./wallEdit.ts";
 
 /**
@@ -15,8 +16,15 @@ const GLASS: { id: Glass; label: string }[] = [
   { id: "both", label: "Windows + balcony door" },
 ];
 
-export function WallEditor({ plan, onSaved }: { plan: HavenPlan; onSaved: (p: HavenPlan) => void }) {
-  const [draft, setDraft] = useState<HavenPlan>(plan);
+/** The plan with the openings as drawn (the defaults when none are saved), so the editor starts from what is on screen. */
+const shown = (p: HavenPlan): HavenPlan => {
+  const w = withOpenings(p).plan;
+  return { ...p, windows: w.windows, balconies: w.balconies, tv: w.tv };
+};
+
+export function WallEditor({ plan, onSaved, onClose }: { plan: HavenPlan; onSaved: (p: HavenPlan) => void; onClose: () => void }) {
+  const [start, setStart] = useState<HavenPlan>(() => shown(plan));
+  const [draft, setDraft] = useState<HavenPlan>(start);
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -40,22 +48,29 @@ export function WallEditor({ plan, onSaved }: { plan: HavenPlan; onSaved: (p: Ha
     { id: "middle", label: "Middle" },
     { id: "end", label: horiz ? "Right" : "Bottom" },
   ];
-  const dirty = draft !== plan;
+  const dirty = draft !== start;
   const set = (glass: Glass, at: At) => cur && setDraft((p) => setGlass(p, cur.seg, glass, at));
   const save = async () => {
     setBusy(true);
     setNote(null);
-    const got = await savePlan(draft);
+    const got = await savePlan({ ...draft, openings: true });
     setBusy(false);
     if (got.ok) {
-      setDraft(got.plan);
+      const next = shown(got.plan);
+      setStart(next);
+      setDraft(next);
       onSaved(got.plan);
       setNote("Saved. The house is drawn with these walls.");
     } else setNote(PLAN_NOTE[got.error] ?? PLAN_NOTE.failed!);
   };
   return (
-    <details className="hv-import hv-walls">
-      <summary>Windows, balcony doors and the TV wall</summary>
+    <aside className="hv-import hv-walls hv-wallsDrawer" role="dialog" aria-modal="false" aria-label="Edit walls">
+      <div className="hv-wallsBar">
+        <b>Windows, balcony doors and the TV wall</b>
+        <button type="button" className="hv-btn" onClick={onClose}>
+          Close
+        </button>
+      </div>
       <p className="hv-note">Tap a wall to set what it has. Walls with nothing set are drawn solid.</p>
       <svg className="hv-wallMap" viewBox={`${x0 - pad} ${y0 - pad} ${x1 - x0 + pad * 2} ${y1 - y0 + pad * 2}`} role="group" aria-label="Walls on the floor plan">
         {rooms.map((r) => {
@@ -131,7 +146,7 @@ export function WallEditor({ plan, onSaved }: { plan: HavenPlan; onSaved: (p: Ha
         <button type="button" className="hv-btn is-pri" disabled={busy || !dirty} onClick={() => void save()}>
           {busy ? "Saving…" : "Save the walls"}
         </button>
-        <button type="button" className="hv-btn" disabled={busy || !dirty} onClick={() => setDraft(plan)}>
+        <button type="button" className="hv-btn" disabled={busy || !dirty} onClick={() => setDraft(start)}>
           Undo changes
         </button>
       </div>
@@ -140,6 +155,6 @@ export function WallEditor({ plan, onSaved }: { plan: HavenPlan; onSaved: (p: Ha
           {note}
         </p>
       )}
-    </details>
+    </aside>
   );
 }

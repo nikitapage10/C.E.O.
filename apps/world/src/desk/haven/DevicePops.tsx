@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { closeClock, useHome, type ActExtra, type DeviceReading, type VendorState } from "../homeDevices.ts";
 import type { HavenPlan } from "./data.ts";
 import { DryFeederArt, FountainArt, LitterArt, VacuumArt, WetFeederArt } from "./DeviceArt.tsx";
+import { WetTray } from "./PetDay.tsx";
 import { RoomMap, vacuumName } from "./RoomMap.tsx";
 
 /**
  * The gauges' pop-ups (#718): tap Roborock, Petlibro or Whisker on the strip and its controls open over it. Only the
  * device actions that exist (docs/HOME-DEVICES.md): the vacuum's start, pause, dock and rooms with its mode words; the
- * dry feeder's portions, the wet feeder's tray (open, next bowl, close, what's in it); the Litter-Robot's clean cycle.
+ * dry feeder's portions, the wet feeder's tray (open, next bowl, close, and its three bowls); the Litter-Robot's clean cycle.
  * Every one goes through the server's rails and is logged to the Council; Skippy's line comes back under the buttons.
  */
 
@@ -320,10 +321,8 @@ export function WetFeederControls({ d }: { d: DeviceReading }) {
           <button type="button" className="hv-btn" disabled={off || !open} onClick={() => void act("wet.close", d.id)}>
             Close the lid
           </button>
-          <button type="button" className="hv-btn" disabled={off} onClick={() => void act("wet.status", d.id)}>
-            What's in it
-          </button>
         </div>
+        <WetTray d={d} />
       </div>
     </div>
   );

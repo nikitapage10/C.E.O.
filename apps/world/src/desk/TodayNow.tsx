@@ -16,6 +16,8 @@ import { KIND_COLOUR, KIND_LABEL, rites, type RiteInput, type RiteItem, type Rit
 import { KindIcon } from "./rotunda/KindIcon.tsx";
 import { useNow } from "./motion.tsx";
 import { mtTime, roman, until, upcoming } from "./todaySchedule.ts";
+import { HANDED_LINE, handedState, type FloorItem } from "../../../../api/_today/floor.ts";
+import { useHanded } from "./todos/floorTalk.ts";
 import { TalkBack, TodoCapture, TodoCard, useTodosOn } from "./todos/TodoBits.tsx";
 import { awayRefs, openTodos, useTodos, type Target } from "./todos/todos.ts";
 
@@ -100,9 +102,9 @@ export interface NowInput {
   /**
    * The Senate Rotunda (#740): what needs him is the docket, one card per item along the foot of the chamber, each a
    * duty, a decision or a repair that plays on the floor; his own to-dos sit under the chamber under "still left", with
-   * the add line and `aside` (the Lists) beside them.
+   * the add line beside them.
    */
-  rotunda?: { name: string; bench: string[]; chamber: (c: ChamberLink) => ReactNode; aside?: ReactNode };
+  rotunda?: { name: string; bench: string[]; chamber: (c: ChamberLink) => ReactNode };
 }
 
 /** What the chamber (Rotunda.tsx) and the docket share: the items, which one is on the floor, and the stamps. */
@@ -128,6 +130,24 @@ export function TodayNow(p: NowInput) {
   const hold = useRef<{ key: string; timer: number; held: boolean } | null>(null);
   const away = awayRefs(todoState, now);
   const marks = new Map(todoState.marks.map((m) => [m.ref, m]));
+  // Items handed to Skippy from the floor (api/_today/floor.ts), and where each hand-off stands.
+  const answers = useHanded(todoState.marks.flatMap((m) => (m.handed && !m.done ? [m.handed] : [])));
+  const floorItem = (r: Row): FloorItem | undefined =>
+    r.rite && r.talk?.type === "held"
+      ? { kind: r.rite.kind, room: r.rite.room, by: r.rite.by, what: r.rite.what, ...(r.rite.cause && { cause: r.rite.cause }), ...(r.rite.fix && { fix: r.rite.fix }), ...(r.rite.options?.[0] && { option: r.rite.options[0].label }) }
+      : undefined;
+  const handedLine = (r: Row) => {
+    const turn = marks.get(r.key)?.handed;
+    if (!turn) return null;
+    const f = answers.get(turn);
+    const state = handedState(f);
+    return (
+      <p className="td-handed" role="status" data-state={state}>
+        <b>{HANDED_LINE[state]}</b>
+        {f && <Private> · {f.text}</Private>}
+      </p>
+    );
+  };
 
   const held: Row[] = [
     ...fires(p.pulses, clockState(reading, status, now)).map<Row>((f) => ({
@@ -396,7 +416,8 @@ export function TodayNow(p: NowInput) {
             </button>
           )}
         </div>
-        {talk?.key === r.key && r.talk && <TalkBack key={r.key} target={r.talk} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />}
+        {handedLine(r)}
+        {talk?.key === r.key && r.talk && <TalkBack key={r.key} target={r.talk} item={floorItem(r)} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />}
         {r.card && (
           <div id={`td-ni-${r.key}`} className="td-ni-card" hidden={!isOpen}>
             {isOpen && r.card()}
@@ -498,8 +519,8 @@ export function TodayNow(p: NowInput) {
               <button
                 type="button"
                 className={`td-ni-talk${talk?.key === r.key ? " is-on" : ""}`}
-                aria-label="Talk back to this: snooze, remind, note, done or to-do"
-                title="Talk back: snooze, remind, note, done (or hold Space on the card)"
+                aria-label="Talk back to this: go ahead, ask Skippy, snooze, remind, note or done"
+                title="Talk back: “go ahead” hands it to Skippy; or ask, snooze, note, done (or hold Space on the card)"
                 aria-expanded={talk?.key === r.key}
                 onClick={() => setTalk(talk?.key === r.key ? null : { key: r.key, listen: true })}
               >
@@ -508,9 +529,10 @@ export function TodayNow(p: NowInput) {
             )}
           </div>
           <div className="rt-acts">{acts}</div>
+          {handedLine(r)}
           {talk?.key === r.key && r.talk && (
             <div className="rt-talk">
-              <TalkBack key={r.key} target={r.talk} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />
+              <TalkBack key={r.key} target={r.talk} item={floorItem(r)} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />
             </div>
           )}
           {r.card && (
@@ -587,7 +609,6 @@ export function TodayNow(p: NowInput) {
             {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, need.length + i, "○"))}</ol>}
             <TodoCapture />
           </div>
-          {R.aside}
         </div>
       </section>
     );

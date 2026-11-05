@@ -6,6 +6,7 @@ import { openTodos, useTodos } from "../todos/todos.ts";
 import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
+import { HavenLists } from "./HavenLists.tsx";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
 import { Plinth } from "./Plinth.tsx";
@@ -92,6 +93,7 @@ export function Haven() {
   const [counts, setCounts] = useState<{ kitchen: number; todos: number; gym: { perWeek: number; doneThisWeek: number } | null } | null>(null);
   const [plan, setPlan] = useState<PlanLoad>({ state: "idle" });
   const [open, setOpen] = useState<Open>(null);
+  const [wallsOpen, setWallsOpen] = useState(false);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
   // Sent from the Kitchen chip or Controls (?open=kitchen): the Kitchen opens (#664).
   const houseHost = useRef<HTMLDivElement>(null);
@@ -229,6 +231,14 @@ export function Haven() {
   }, [roomId, open, gl]);
   // The sheet opens below the Desk's nav, whatever height the nav wraps to.
   const [top, setTop] = useState(60);
+  // The section switcher sticks under the Desk's nav, whatever height the nav wraps to.
+  const [navH, setNavH] = useState(60);
+  useEffect(() => {
+    const m = () => setNavH(Math.round(document.querySelector(".wv-nav")?.getBoundingClientRect().height ?? 60));
+    m();
+    window.addEventListener("resize", m);
+    return () => window.removeEventListener("resize", m);
+  }, []);
   useEffect(() => {
     if (!open) return;
     // The house behind the sheet is at the top of the page: bring it into view, then measure the nav there.
@@ -297,7 +307,17 @@ export function Haven() {
   const sheetTitle = openTab ? TAB_NAME[openTab] : (openRoom?.name ?? "");
 
   return (
-    <div className="hv fl-page" data-room="haven" data-open={open ? "" : undefined} style={{ ["--fl-accent" as string]: ACCENT }}>
+    <div className="hv fl-page" data-room="haven" data-open={open ? "" : undefined} style={{ ["--fl-accent" as string]: ACCENT, ["--hv-navh" as string]: `${navH}px` }}>
+      {signedIn && (
+        <nav className="hv-tabs" aria-label="Haven rooms">
+          {TABS.map((t) => (
+            <button key={t} type="button" className="hv-tab" aria-pressed={openTab === t} onClick={() => setOpen({ tab: t })}>
+              {TAB_NAME[t]}
+            </button>
+          ))}
+        </nav>
+      )}
+
       <section className="hv-stage fl-stage" aria-label="The house">
         <div className="hv-houseWrap">
           <div className="hv-house" ref={houseHost} data-gl={gl} />
@@ -343,6 +363,11 @@ export function Haven() {
                   Reset view
                 </button>
               )}
+              {signedIn && thePlan && (
+                <button type="button" className="hv-reset hv-editWalls" aria-expanded={wallsOpen} onClick={() => setWallsOpen((v) => !v)}>
+                  Edit walls
+                </button>
+              )}
             </div>
           )}
           <Plinth gauges={gauges} order={order} thermo={thermo} pop={pop} onPop={togglePop} canPop={canPop} onOpen={openGauge} canOpen={canOpen} lamp={lamp} onScroll={touch} stripRef={strip}>
@@ -357,24 +382,13 @@ export function Haven() {
             ) : null}
           </Plinth>
         </div>
-
+        <HavenLists />
       </section>
 
-      {signedIn && thePlan && (
-        <div className="hv-wallsRow">
-          <WallEditor plan={thePlan} onSaved={(p) => setPlan({ state: "ready", plan: p })} />
-        </div>
+      {signedIn && thePlan && wallsOpen && (
+        <WallEditor plan={thePlan} onSaved={(p) => setPlan({ state: "ready", plan: p })} onClose={() => setWallsOpen(false)} />
       )}
 
-      {signedIn && (
-        <nav className="hv-tabs" aria-label="Haven rooms">
-          {TABS.map((t) => (
-            <button key={t} type="button" className="hv-tab" aria-pressed={openTab === t} onClick={() => setOpen({ tab: t })}>
-              {TAB_NAME[t]}
-            </button>
-          ))}
-        </nav>
-      )}
 
       {open && signedIn && (
         <div className="hv-sheet" role="dialog" aria-modal="false" aria-label={sheetTitle} style={{ ["--hv-top" as string]: `${top}px` }}>

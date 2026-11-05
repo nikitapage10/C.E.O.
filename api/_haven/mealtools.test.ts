@@ -136,6 +136,16 @@ describe("Skippy's meal tools reach the planner (#698)", () => {
     expect(await callTool("meals_night", { day: "fri" }, h, desk)).toMatchObject({ ok: false });
   });
 
+  it("skips a dinner, a lunch or a day by voice (#788), and has it back", async () => {
+    const h = mealsHost();
+    expect(await callTool("meals_night", { day: "fri", skip: "dinner", reason: "out" }, h, desk)).toMatchObject({ ok: true });
+    expect(slot(h.file(), 4).skip).toEqual({ dinner: "out" });
+    await callTool("meals_night", { day: "sat", skip: "day" }, h, desk);
+    expect(slot(h.file(), 5).skip).toEqual({ dinner: "skip", lunch: "skip" });
+    await callTool("meals_night", { day: "fri", skip: "dinner", unskip: true }, h, desk);
+    expect(slot(h.file(), 4).skip).toBeUndefined();
+  });
+
   it("turns a dislike into an avoid rule that swaps the nights that break it, and takes it back", async () => {
     const h = mealsHost();
     const got = await callTool("meals_avoid", { ingredient: "Greek Yogurt" }, h, desk);
@@ -263,7 +273,7 @@ describe("the taste edits (#698)", () => {
 
 describe("the Haven's voice sends meal talk to Skippy (#698)", () => {
   it("never makes a to-do or shopping of the meal plan", () => {
-    for (const said of ["swap Tuesday for tacos", "make Friday a HelloFresh night", "quinoa instead of rice on Monday", "Saturday for two", "more spicy", "make dinner milder", "send the week to King Soopers", "plan next week's meals", "a bigger portion on Thursday", "not for me", "what's for dinner tonight"]) {
+    for (const said of ["swap Tuesday for tacos", "make Friday a HelloFresh night", "quinoa instead of rice on Monday", "Saturday for two", "more spicy", "make dinner milder", "send the week to King Soopers", "plan next week's meals", "a bigger portion on Thursday", "not for me", "what's for dinner tonight", "skip dinner Friday", "skip lunch on Tuesday", "skip Saturday's meals", "eating out on Friday"]) {
       expect(classify(said, null), said).toMatchObject({ kind: "skippy" });
     }
     expect(mealTalk("call the vet on Friday")).toBe(false);

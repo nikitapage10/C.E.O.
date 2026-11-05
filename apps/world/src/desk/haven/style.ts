@@ -75,7 +75,7 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   gmat: S(0, 1, 0x24262b, 1),
   mirror: S(0, 90, 0xb8c4dd, 0.05, 0.9),
   sideboard: S(0, 40, 0x0e0e10, 0.45),
-  espresso: S(40, 30, 0xb9bcc0, 0.25, 0.85, [0xff7a3a, 0.25]),
+  espresso: S(37, 24, 0xb9bcc0, 0.25, 0.85, [0xff7a3a, 0.25]),
   tubchair: S(0, 34, 0x111113, 0.85),
   greenhouse: S(0, 120, 0xdff2e4, 0.05, 0, [0x7dff9a, 0.35]),
   coatrack: S(0, 100, 0x111113, 0.5, 0.4),
@@ -83,6 +83,7 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   towelbar: S(70, 40, 0x111113, 0.9),
   bowls: S(0, 14, 0x111113, 0.4, 0.6),
   projector: S(104, 10, 0x1a1a1c, 0.4, 0, [0x9fd0ff, 0.4]),
+  art: S(70, 120, 0xe8e8e6, 0.8),
 };
 
 /** Floor finishes, drawn into the floor's texture. */

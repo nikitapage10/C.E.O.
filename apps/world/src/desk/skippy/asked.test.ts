@@ -33,6 +33,12 @@ describe("Asked Skippy, browser side (#273)", () => {
     expect(unknown).not.toHaveProperty("via");
   });
 
+  it("keeps an answer from Skippy's always-on responder (#501), so a waiting hand-off settles", () => {
+    const body = { room: "kernel", turns: [{ id: "0123456789abcdef", at: "2026-11-05T04:00:00Z", question: "Fix it", answer: "On it.", model: "floor", needs: "skippy", followUp: { from: "kernel-agent", text: "Filed as number 812.", at: "2026-11-05T04:00:09Z" } }] };
+    expect(readAsked(body, "kernel")![0]!.followUp).toEqual({ from: "kernel-agent", text: "Filed as number 812.", at: "2026-11-05T04:00:09Z" });
+    expect(handedName("kernel-agent")).toBe("Skippy");
+  });
+
   it("names the model and the time plainly", () => {
     expect(modelName("claude-opus-5-5")).toBe("Opus");
     expect(modelName("claude-sonnet-5-5")).toBe("Sonnet");

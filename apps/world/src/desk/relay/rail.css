@@ -1,0 +1,187 @@
+/*
+ * Relay's rail (#765): the queue as a timeline down the left edge of the Thread, magnifying like the Dock. Lives inside
+ * .cx-stage and borrows the Codex's tokens (thread.css). Only transform and opacity move; the rows never reflow.
+ */
+.rr {
+  --rr-face: min(16px, calc(var(--rr-h) - 4px));
+  position: absolute;
+  left: 0;
+  top: 76px;
+  bottom: 128px;
+  width: 56px;
+  z-index: 32;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  touch-action: pan-x;
+}
+.rr[data-on] {
+  width: min(340px, calc(var(--spine) - 8px));
+}
+.rr-veil {
+  position: absolute;
+  inset: -40px 0 -40px 0;
+  width: calc(var(--spine) - 2px);
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, rgba(5, 6, 11, 0.97) 0, rgba(5, 6, 11, 0.95) 82%, rgba(5, 6, 11, 0));
+}
+.rr-list {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rr-item {
+  height: var(--rr-h);
+  position: relative;
+}
+.cx .rr-row {
+  --rr-w: 0;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  margin-top: calc(var(--rr-h) / -2);
+  height: var(--rr-h);
+  width: 300px;
+  max-width: min(calc(100vw - 32px), calc((var(--spine) - 40px) / 1.8));
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 14px;
+  transform-origin: 14px 50%;
+  will-change: transform;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--cx-mute);
+}
+.rr:not([data-on]) .rr-row {
+  pointer-events: none;
+}
+.rr-tick {
+  flex: none;
+  width: 8px;
+  height: 1px;
+  background: var(--cx-faint);
+  transition: width 0.3s var(--cx-e), background-color 0.3s var(--cx-e);
+}
+.rr-item[data-line="email"] .rr-tick {
+  background: rgba(134, 182, 255, 0.45);
+}
+.rr-item[data-line="text"] .rr-tick {
+  background: rgba(127, 220, 181, 0.45);
+}
+.rr-face {
+  flex: none;
+  width: var(--rr-face);
+  height: var(--rr-face);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font: 500 calc(var(--rr-face) * 0.55) / 1 var(--cx-sans);
+  color: var(--cx-soft);
+  background: #11141f;
+  box-shadow: inset 0 0 0 1px var(--cx-line);
+}
+.rr-item[data-line="email"] .rr-face {
+  border-radius: 4px;
+}
+.rr-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.rr-words {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+  opacity: var(--rr-w);
+  font-size: 10px;
+  line-height: 1.2;
+}
+.rr-words b {
+  font-weight: 500;
+  color: var(--cx-ink);
+}
+.rr-pre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--cx-soft);
+  max-width: 170px;
+}
+.rr-age {
+  flex: none;
+  font: normal 9px/1 var(--cx-mono);
+  color: var(--cx-mute);
+  opacity: var(--rr-w);
+}
+
+/* the one on screen: a long bright tick and a lit face, always */
+.rr-item[data-cur] .rr-tick {
+  width: 14px;
+  height: 2px;
+  background: var(--cx-hi);
+  box-shadow: 0 0 8px rgba(134, 182, 255, 0.8);
+}
+.rr-item[data-cur] .rr-face {
+  color: var(--cx-ink);
+  box-shadow: 0 0 0 1.5px var(--cx-hi), 0 0 10px rgba(134, 182, 255, 0.45);
+}
+.cx .rr-item[data-hot] .rr-row,
+.cx .rr-row:focus-visible {
+  color: var(--cx-ink);
+  outline-offset: 0;
+}
+
+/* reduced motion: no wave, the row under the pointer just lights */
+.rr[data-still] .rr-row {
+  will-change: auto;
+}
+.rr[data-still] .rr-item[data-hot] .rr-face,
+.rr[data-still] .rr-row:focus-visible .rr-face {
+  box-shadow: 0 0 0 1.5px var(--cx-ink);
+}
+.rr[data-still] .rr-row:focus-visible {
+  --rr-w: 1 !important;
+}
+.rr[data-still] .rr-tick {
+  transition: none;
+}
+
+/* a phone: a thin scrubber at the left edge; drag along it, let go to jump */
+.rr[data-narrow] {
+  top: 64px;
+  bottom: 150px;
+  width: 20px;
+  touch-action: none;
+}
+.rr[data-narrow][data-on] {
+  width: 20px;
+}
+.cx .rr[data-narrow] .rr-row {
+  padding-left: 4px;
+  gap: 6px;
+  transform-origin: 4px 50%;
+  max-width: calc((100vw - 24px) / 1.8);
+}
+.rr[data-narrow] .rr-face {
+  opacity: var(--rr-w);
+}
+.rr[data-narrow] .rr-tick {
+  width: 7px;
+}
+.rr[data-narrow] .rr-item[data-cur] .rr-tick {
+  width: 12px;
+}
+.rr[data-narrow] .rr-veil {
+  width: 100vw;
+  background: rgba(5, 6, 11, 0.95);
+}
+.rr[data-narrow] .rr-words {
+  font-size: 11px;
+}

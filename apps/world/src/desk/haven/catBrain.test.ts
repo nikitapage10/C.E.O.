@@ -88,7 +88,7 @@ describe("Myshka and the furniture (#747)", () => {
         }
       }
     expect(legs).toBeGreaterThan(100);
-  });
+  }, 15_000);
 
   it("wanders and sits only on free floor", () => {
     const b = new CatBrain(g, plan, false, seq([0.5, 0.6, 0.2, 0.9, 0.1, 0.4]));

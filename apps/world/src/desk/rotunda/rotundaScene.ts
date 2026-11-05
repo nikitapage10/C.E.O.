@@ -44,9 +44,11 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { recolor } from "../../agents/bodies/recolor.ts";
 import { modelUrl } from "../../modelUrl.ts";
 import { cachedModel } from "../modelCache.ts";
+import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { ARMS, CHILD, NAVY, POSES } from "../hologram/rig.ts";
 import type { Pose } from "../hologram/persona.ts";
 import { SKIPPY_MODEL } from "../council/live.ts";
+import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import {
   chairLine,
   COUNTER_COLOUR,
@@ -413,6 +415,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     return t;
   })();
   const seats = opts.seats;
+  // Each pod's recoloured skin is a full pixel pass over the model's texture: done here one at a time, yielding between
+  // (#784), so the build is many short tasks instead of one long one. makeCan below finds each in recolor's cache.
+  if (protoMap)
+    for (const s of seats) {
+      recolor(`rotunda-${s.colour}`, protoMap, [{ band: NAVY, color: s.colour }]);
+      await yieldNow();
+    }
   const pods: Pod[] = seats.map((s, i) => {
     const a = Math.PI / 2 + Math.PI * 0.27 + (i / Math.max(1, seats.length - 1)) * Math.PI * 1.46;
     const home = new Vector3(Math.cos(a) * R, i % 2 ? 2.7 : 1.9, Math.sin(a) * R);
@@ -975,12 +984,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   );
   motes.frustumCulled = false;
   scene.add(motes);
+  // The halo round the Chair's head stays up once formed (Nikita, 2026-11-05): it used to scatter 3.2 s after each
+  // line, which read as the nanites exploding every few seconds. A line now only brightens it for a moment.
   let gather = 0;
-  let gatherTo = 0;
-  let gatherUntil = 0;
+  const gatherTo = 1;
+  let glowUntil = 0;
   function onChair() {
-    gatherTo = 1;
-    gatherUntil = clock.t + 3.2;
+    glowUntil = clock.t + 1.6;
   }
   const tmp3 = new Vector3();
   const stepAtmos = (dt: number, T: number) => {
@@ -1000,8 +1010,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       }
       mat.rotation += u.rot * dt * calm;
     }
-    if (clock.t > gatherUntil) gatherTo = 0;
-    gather += (gatherTo - gather) * (1 - Math.pow(0.2, dt));
+    gather += (gatherTo - gather) * (1 - Math.pow(0.6, dt));
+    const glow = clock.t < glowUntil ? 1.6 : 1;
     for (let i = 0; i < NA; i++) {
       const m = amb[i]!;
       m.a += m.w * dt * calm;
@@ -1021,7 +1031,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       np[i * 3] = x;
       np[i * 3 + 1] = y;
       np[i * 3 + 2] = z;
-      na[i] = (0.3 + 0.18 * Math.sin(T * 1.3 + i)) * (1 + g * 1.6) * Math.min(1, m.y / 1.2);
+      na[i] = (0.3 + 0.18 * Math.sin(T * 1.3 + i)) * (1 + g * 0.9 * glow) * Math.min(1, m.y / 1.2);
     }
     // The suspension fields: glyphs and motes sinking out of each pod's keel in a narrowing cone and fading well above
     // the floor; denser, brighter and faster while the pod works, and left trailing behind a pod in flight.
@@ -1078,6 +1088,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const shaftCol = new Color(0xffe6b8);
   const IDLE_SHAFT = new Color(0xffe6b8);
   const minStep = PH0 ? 1000 / 30 - 2 : 0;
+  // WASD to look around the floor (#776); idle or Escape, it eases back to the session's own camera.
+  const pan = wasdPan({ el: host, reduce, bounds: () => ({ kind: "disc", cx: 0, cz: 0, r: R + 1 }), origin: () => [look.x, look.z], forward: () => [look.x - cam.position.x, look.z - cam.position.z] });
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
     if (!visible || document.visibilityState === "hidden") {
@@ -1148,8 +1160,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     // A tall phone stands further back, so the whole bowl fits across it.
     const rad = (ph ? (cam.aspect < 0.95 ? 17.5 : 15.5) : 13.2) * dolly;
     const camY = (ph ? 7.4 : 5.0) * (0.8 + dolly * 0.2);
-    cam.position.set(Math.cos(orbit) * rad, camY, Math.sin(orbit) * rad);
+    pan.step(dt);
+    cam.position.set(Math.cos(orbit) * rad + pan.x, camY, Math.sin(orbit) * rad + pan.z);
     tmp.copy(look);
+    tmp.x += pan.x;
+    tmp.z += pan.z;
     if (ph) tmp.y += 1.1;
     cam.lookAt(tmp);
     stepAtmos(dt, T);
@@ -1164,6 +1179,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       placeMurs();
     }
   };
+  // The programs before the first frame (#759): compiled off the main thread where the browser can
+  // (KHR_parallel_shader_compile), then one draw, still unseen (the canvas shows at data-gl="on"), so the shadow pass
+  // compiles here too and the first frame on screen doesn't stall. A warm build (warm.ts) leaves them in the browser's cache.
+  await yieldNow();
+  await renderer.compileAsync(scene, cam).catch(() => undefined);
+  await yieldNow();
+  renderer.render(scene, cam);
   raf = requestAnimationFrame(frame);
 
   const setSeats = (next: RotundaSeat[]) => {
@@ -1196,6 +1218,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       token++;
       voice?.stop();
       cancelAnimationFrame(raf);
+      pan.dispose();
       window.clearTimeout(chairTimer);
       ro?.disconnect();
       io?.disconnect();

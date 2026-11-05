@@ -1,6 +1,42 @@
 import { describe, expect, it } from "vitest";
 import { readDevice } from "./homeDevices.ts";
-import { amount, clock, due, duration, nextOf, ounces, petFacts, statusWord } from "./petDay.ts";
+import { amount, clock, due, duration, nextOf, noPlanSay, ounces, petFacts, shapeSay, statusWord, trayBowls } from "./petDay.ts";
+
+describe("the wet tray's three bowls", () => {
+  it("draws every bowl: in front, served, now, next or later, with its window and name", () => {
+    const d = readDevice({
+      id: "0123456789ae",
+      vendor: "petlibro",
+      kind: "wet-feeder",
+      state: "closed",
+      online: true,
+      plate: 3,
+      served: [1, 9],
+      meals: [
+        { time: "07:00", end: "09:00", plate: 1, status: "done", label: "Bowl one" },
+        { time: "18:00", end: "20:00", plate: 3, status: "next", label: "Bowl three" },
+      ],
+      wetPlanShape: { read: "ok", template: true, entries: 2, disabled: 0, badTime: 0, keys: ["plate", "bad key!"], top: ["plan"] },
+    })!;
+    expect(d.served).toEqual([1]);
+    expect(d.wetPlanShape?.keys).toEqual(["plate"]);
+    expect(trayBowls(d)).toEqual([
+      { n: 1, front: false, state: "served", time: "07:00", end: "09:00", label: "Bowl one" },
+      { n: 2, front: false, state: "none" },
+      { n: 3, front: true, state: "next", time: "18:00", end: "20:00", label: "Bowl three" },
+    ]);
+    expect(shapeSay(d.wetPlanShape!)).toBe("template yes · 2 entries · 0 off · 0 unreadable time · keys: plate · answer: plan");
+  });
+
+  it("says plainly when the Haven's account sees no schedule", () => {
+    const d = readDevice({ id: "0123456789ae", vendor: "petlibro", kind: "wet-feeder", state: "closed", online: true, plate: 1, nextFeed: { time: "18:00" }, wetPlanShape: { read: "failed" } })!;
+    expect(trayBowls(d).map((b) => b.state)).toEqual(["none", "none", "none"]);
+    expect(noPlanSay({})).toBe("No schedule visible to the Haven's account.");
+    expect(noPlanSay(d)).toBe("No schedule visible to the Haven's account. The feeder says next at 6:00 PM.");
+    expect(noPlanSay({ planOn: false })).toBe("The feeding schedule is switched off in the Petlibro app.");
+    expect(shapeSay(d.wetPlanShape!)).toBe("Plan read failed (the call didn't go through).");
+  });
+});
 
 /** The Petlibro day on the Desk (#685). Made-up readings only. */
 describe("the Petlibro day in words (#685)", () => {

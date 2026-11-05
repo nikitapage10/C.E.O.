@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import type { KitchenItem } from "../haven.ts";
 import { Private } from "../Private.tsx";
 import { useDeskAuth } from "../signin.ts";
-import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, loadGroceries, matchAll, money, shelfOf, type GAction, type GLine, type GProduct, type GReply, type Groceries as View } from "./groceries.ts";
+import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, listCleared, loadGroceries, matchAll, money, QTY_MAX, reviewOf, shelfOf, VERDICT_BADGE, type GAction, type GLine, type GProduct, type GReply, type Groceries as View } from "./groceries.ts";
 
 /**
  * The Kitchen's Shopping card (#737; Send to King Soopers, #664): one card, two tabs. **List** is the Kitchen list by
@@ -11,7 +11,10 @@ import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, loadGrocer
  * tab. **King Soopers** is each item's pick with its price and stock, a swap, a rematch and the product's own sheet, the
  * total, and one tap that adds the shown picks to the King Soopers cart. Kroger's public Cart API can only add (it can't
  * read or empty the cart), so the Desk remembers what it sent and never adds it twice. Checkout, pickup or delivery,
- * happens in the King Soopers app: nothing is bought from the Desk. The setup (the ZIP, the home store, Connect King
+ * happens in the King Soopers app: nothing is bought from the Desk. After matching, each pick's quantity is checked
+ * against its list line (#761: "garlic 30 cloves" is ×3 heads), with −/+ to change it and Re-check to ask again; the
+ * send adds those quantities. Each tab has a two-tap Clear: King Soopers forgets the matches only, List clears the list
+ * and the matches and reopens the week's Finalize. The setup (the ZIP, the home store, Connect King
  * Soopers) lives in Boiler Room → Controls → Connections (boiler/HouseSetup.tsx).
  */
 
@@ -48,6 +51,80 @@ function Img({ p, eager }: { p: GProduct; eager?: boolean }) {
   const [broken, setBroken] = useState(false);
   if (!p.image || broken) return null;
   return <img src={p.image} alt="" loading={eager ? "eager" : "lazy"} decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+}
+
+/**
+ * A Clear that asks first, on the page (#761: confirm() doesn't work there): the first tap turns it into "Clear? Yes
+ * No", which falls back after a few seconds.
+ */
+function ConfirmClear({ label, busy, onYes }: { label: string; busy: boolean; onYes: () => void }) {
+  const [armed, setArmed] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const arm = () => {
+    setArmed(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setArmed(false), 5000);
+  };
+  const off = () => {
+    window.clearTimeout(timer.current);
+    setArmed(false);
+  };
+  return armed ? (
+    <span className="hv-confirm" role="group" aria-label={`${label}?`}>
+      <span>Clear?</span>
+      <button type="button" className="hv-gSwap is-yes" disabled={busy} onClick={() => (off(), onYes())}>
+        Yes
+      </button>
+      <button type="button" className="hv-gSwap" onClick={off}>
+        No
+      </button>
+    </span>
+  ) : (
+    <button type="button" className="hv-gSwap hv-clear" disabled={busy} onClick={arm}>
+      {label}
+    </button>
+  );
+}
+
+/** A pick's count (#761): ×N with −/+, the check's one-line reason, a badge when it's short, way over or wrong, and a better pick. */
+function Qty({ l, busy, run }: { l: GLine; busy: boolean; run: (b: GAction) => void }) {
+  const p = l.pick?.product;
+  if (!p || l.pick?.skip) return null;
+  const r = reviewOf(l);
+  const badge = r ? VERDICT_BADGE[r.verdict] : null;
+  const better = r?.better ? l.pick!.alts.find((a) => a.productId === r.better) : null;
+  return (
+    <>
+      <div className="hv-gQty">
+        <span className="hv-step" role="group" aria-label={`How many of ${l.name}`}>
+          <button type="button" aria-label={`One fewer ${l.name}`} disabled={busy || l.inCart || l.qty <= 1} onClick={() => run({ action: "qty", key: l.key, qty: l.qty - 1 })}>
+            −
+          </button>
+          <b aria-live="polite">×{l.qty}</b>
+          <button type="button" aria-label={`One more ${l.name}`} disabled={busy || l.inCart || l.qty >= QTY_MAX} onClick={() => run({ action: "qty", key: l.key, qty: l.qty + 1 })}>
+            +
+          </button>
+        </span>
+        <small className="hv-gWhy">{r ? <Private>{r.reason}</Private> : "Not checked yet"}</small>
+        {badge ? <span className={`hv-gFlag is-${r!.verdict}`}>{badge}</span> : null}
+      </div>
+      {better ? (
+        <p className="hv-gBetter">
+          <span>
+            Better fit:{" "}
+            <Private>
+              {better.description}
+              {better.size ? ` · ${better.size}` : ""}
+            </Private>
+          </span>
+          <button type="button" className="hv-gSwap" disabled={busy} onClick={() => run({ action: "choose", key: l.key, productId: better.productId })}>
+            Use
+          </button>
+        </p>
+      ) : null}
+    </>
+  );
 }
 
 /** The groceries view, read on open and again when the list's open count moves (no polling), and its actions. */
@@ -176,11 +253,12 @@ function Line({ l, busy, run, onOpen }: { l: GLine; busy: boolean; run: (b: GAct
   const [term, setTerm] = useState(l.pick?.term || l.name);
   const p = l.pick?.product ?? null;
   return (
-    <li className={`${l.pick?.skip ? "is-skip" : ""}${l.inCart ? " is-in" : ""}`}>
+    <li className={`${l.pick?.skip ? "is-skip" : ""}${l.inCart ? " is-in" : ""}${l.stale ? " is-stale" : ""}`}>
       <div className="hv-gRow">
         <label className="hv-gItem">
           <input type="checkbox" checked={Boolean(p && !l.pick?.skip)} disabled={busy || !p} onChange={(e) => run({ action: "skip", key: l.key, skip: !e.target.checked })} aria-label={`Send ${l.name}`} />
           <Private>{l.name}</Private>
+          {l.stale ? <span className="hv-gFlag is-stale">plan changed</span> : null}
         </label>
         <span className="hv-gActs">
           {l.pick ? (
@@ -215,6 +293,7 @@ function Line({ l, busy, run, onOpen }: { l: GLine; busy: boolean; run: (b: GAct
       ) : (
         <p className="hv-gPick is-none">No match at this store. Swap to search another way.</p>
       )}
+      <Qty l={l} busy={busy} run={run} />
       {open && l.pick ? (
         <div className="hv-gAlts">
           {l.pick.alts.length ? (
@@ -261,8 +340,16 @@ function KingSoopers({ g, onMatch }: { g: G; onMatch: () => void }) {
   if (!view.ready) return <p className="hv-note">{WAITING}</p>;
   const unmatched = view.lines.filter((l) => !l.pick).length;
   const shown = detail ? view.lines.find((l) => l.key === detail) : null;
+  const plan = view.plan;
   return (
     <div className="hv-groc">
+      {plan.changed ? (
+        <p className="hv-note hv-stale" role="status">
+          The plan changed since you finalized
+          {plan.stale ? `: ${plural(plan.stale, "match no longer fits", "matches no longer fit")}` : ""}
+          {plan.fresh ? `${plan.stale ? "," : ":"} ${plural(plan.fresh, "new item isn't", "new items aren't")} on the list yet` : ""}. Finalize the week again, then re-match.
+        </p>
+      ) : null}
       {view.store ? (
         <p className="hv-row">
           <Private>
@@ -300,12 +387,9 @@ function KingSoopers({ g, onMatch }: { g: G; onMatch: () => void }) {
 }
 
 /** Under the King Soopers tab's scroll: the total, Send to cart, the cart note and Clear matches. */
-function KingSoopersFoot({ g }: { g: G }) {
+function KingSoopersFoot({ g, onCheck }: { g: G; onCheck: () => void }) {
   const { view, busy, run } = g;
-  const [clearing, setClearing] = useState(false);
   const [cart, setCart] = useState<string | null>(null);
-  const clearTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(clearTimer.current), []);
   if (!view?.ready || !view.store) return null;
   const going = view.lines.filter(goes);
   const fresh = view.lines.filter(adds);
@@ -314,7 +398,7 @@ function KingSoopersFoot({ g }: { g: G }) {
   const send = async () => {
     // A window opened now, in the tap, so the cart isn't blocked as a pop-up once Kroger answers.
     const win = window.open("about:blank", "_blank");
-    const r = await run({ action: "send", picks: going.map((l) => ({ key: l.key, productId: l.pick!.product!.productId })) });
+    const r = await run({ action: "send", picks: going.map((l) => ({ key: l.key, productId: l.pick!.product!.productId, qty: l.qty })) });
     if (r.ok && r.url && isCartLink(r.url) && r.items) {
       if (win) {
         win.opener = null;
@@ -328,25 +412,33 @@ function KingSoopersFoot({ g }: { g: G }) {
     }
   };
   const clear = () => {
-    if (!clearing) {
-      setClearing(true);
-      clearTimer.current = window.setTimeout(() => setClearing(false), 4000);
-      return;
-    }
-    window.clearTimeout(clearTimer.current);
-    setClearing(false);
     setCart(null);
-    void run({ action: "clear" }, "Matches cleared. Match again when the list is ready.");
+    void run({ action: "clear" }, "Matches cleared. The list is as it was; match again when it's ready.");
   };
+  const flagged = going.filter((l) => {
+    const r = reviewOf(l);
+    return r && r.verdict !== "covered";
+  }).length;
+  const unchecked = going.filter((l) => !reviewOf(l)).length;
+  const units = going.reduce((n, l) => n + l.qty, 0);
   return (
     <div className="hv-shopFoot">
       {going.length ? (
         <p className="hv-row hv-gTotal">
           <span>
             {plural(going.length, "item")}
+            {units !== going.length ? <small> · {units} in all</small> : null}
             {inCart ? <small> · {inCart} in your cart</small> : null}
           </span>
-          <Private as="b">{money(going.reduce((n, l) => n + costOf(l.pick!.product!), 0))}</Private>
+          <Private as="b">{money(going.reduce((n, l) => n + costOf(l.pick!.product!) * l.qty, 0))}</Private>
+        </p>
+      ) : null}
+      {going.length ? (
+        <p className="hv-row hv-gCheck">
+          <span>{flagged ? `${plural(flagged, "pick")} to look at` : unchecked ? `${plural(unchecked, "pick")} not checked yet` : "Quantities checked"}</span>
+          <button type="button" className="hv-gSwap" disabled={busy} onClick={onCheck}>
+            Re-check
+          </button>
         </p>
       ) : null}
       {view.connected ? (
@@ -375,9 +467,10 @@ function KingSoopersFoot({ g }: { g: G }) {
         .
       </p>
       {matched ? (
-        <button type="button" className={`hv-gSwap hv-clear${clearing ? " is-armed" : ""}`} disabled={busy} onClick={clear}>
-          {clearing ? "Tap again to clear every match" : "Clear matches"}
-        </button>
+        <div className="hv-clearRow">
+          <ConfirmClear label="Clear matches" busy={busy} onYes={clear} />
+          <p className="hv-note">Clears the matches here only: anything already sent stays in your King Soopers cart, which the Desk can add to but not empty.</p>
+        </div>
       ) : null}
     </div>
   );
@@ -446,7 +539,19 @@ export function Shopping({ items, onTick, onRemove, undo, tag }: { items: Kitche
     body.current?.scrollTo(0, 0);
   };
 
-  /** Finalize & match: every open item matched at the home store, a batch at a time, then on to the picks. */
+  /** The quantity check (#761): every matched pick against its list line, then what it found. */
+  const check = async (after?: string | null) => {
+    g.setBusy(true);
+    setProgress("Checking quantities…");
+    const r = await groceryAction({ action: "review" });
+    setProgress(null);
+    g.setBusy(false);
+    const flagged = (r.view?.lines ?? []).filter((l) => goes(l) && reviewOf(l) && reviewOf(l)!.verdict !== "covered").length;
+    const said = r.ok ? `Quantities checked${r.by === "rules" ? " with plain unit math (the AI check isn't available)" : ""}${flagged ? `: ${plural(flagged, "pick")} to look at` : "."}` : null;
+    g.take(r, [after, said].filter(Boolean).join(" ") || null);
+  };
+
+  /** Finalize & match: every open item matched at the home store, a batch at a time, then on to the picks, then checked. */
   const matchEvery = async () => {
     g.setBusy(true);
     g.setNote(null);
@@ -456,6 +561,13 @@ export function Shopping({ items, onTick, onRemove, undo, tag }: { items: Kitche
     g.setBusy(false);
     g.take(r, r.left ? `Matched what it could; ${plural(r.left, "item")} still wait. Try again in a bit.` : null);
     if (r.view) go("ks");
+    if (r.view?.lines.some(goes)) await check(r.left ? `Matched what it could; ${plural(r.left, "item")} still wait.` : null);
+  };
+
+  /** Clear list (#761): the list and every match gone, and the planner told, so it reopens the week at Plan. */
+  const clearList = async () => {
+    const r = await g.run({ action: "clear-list" }, "List and matches cleared. The week is open again: change it, then Finalize.");
+    if (r.ok) listCleared();
   };
 
   return (
@@ -492,7 +604,7 @@ export function Shopping({ items, onTick, onRemove, undo, tag }: { items: Kitche
       {tab === "list" && ks ? (
         <div className="hv-shopFoot">
           <button type="button" className="hv-btn is-pri" disabled={busy || !canMatch || !open.length} onClick={() => void matchEvery()}>
-            {progress ? "Matching…" : "Finalize & match"}
+            {progress ? "Working…" : "Finalize & match"}
           </button>
           <p className="hv-note">
             {!view ? (
@@ -504,12 +616,13 @@ export function Shopping({ items, onTick, onRemove, undo, tag }: { items: Kitche
                 Pick your home store first, in <a href={SETUP}>Boiler Room → Controls → Connections</a>.
               </>
             ) : (
-              "Matches every open item at your store, then shows the picks to check and send."
+              "Matches every open item at your store, checks how many of each to add, then shows the picks to send."
             )}
           </p>
+          {items?.length ? <ConfirmClear label="Clear list" busy={busy} onYes={() => void clearList()} /> : null}
         </div>
       ) : tab === "ks" ? (
-        <KingSoopersFoot g={g} />
+        <KingSoopersFoot g={g} onCheck={() => void check()} />
       ) : null}
       {g.note ? (
         <p className="hv-note" role="status">

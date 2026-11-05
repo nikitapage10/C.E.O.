@@ -39,6 +39,8 @@ export interface Mark {
   notes?: string[];
   done?: string;
   pinged?: string;
+  /** Handed to Skippy from Today's floor (./floor.ts): the `kernel` log turn's id, for the item's hand-off status. */
+  handed?: string;
 }
 
 export interface TodoState {
@@ -87,7 +89,8 @@ export function cleanMark(v: unknown): Mark | null {
   if (!isRef(m.ref) || !updated) return null;
   const notes = notesOf(m.notes);
   const opt = { until: iso(m.until), remind: iso(m.remind), done: iso(m.done), pinged: iso(m.pinged) };
-  return { ref: m.ref, updated, ...Object.fromEntries(Object.entries(opt).filter(([, x]) => x)), ...(notes.length && { notes }) };
+  const handed = typeof m.handed === "string" && /^[0-9a-f]{16}$/.test(m.handed) ? m.handed : "";
+  return { ref: m.ref, updated, ...Object.fromEntries(Object.entries(opt).filter(([, x]) => x)), ...(notes.length && { notes }), ...(handed && { handed }) };
 }
 
 const ms = (s: string | undefined) => (s ? Date.parse(s) : NaN);

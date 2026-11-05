@@ -32,6 +32,8 @@ export const KINDS = [
   // #747: a sideboard with an espresso machine on it, a tub chair, a small plant greenhouse, a coat rack, a plain litter
   // box, a towel bar, raised double bowls and a ceiling projector.
   "sideboard", "espresso", "tubchair", "greenhouse", "coatrack", "litterbox", "towelbar", "bowls", "projector",
+  // #764: wall art, a run of tall canvases side by side making one picture.
+  "art",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 
@@ -85,6 +87,8 @@ export interface HavenPlan {
   balconies: Seg[];
   /** The wall a room's TV hangs on (#747), as a run along it; the living room is laid out facing it. */
   tv: Seg[];
+  /** True once the openings were set in the wall editor: then windows, balcony doors and TV above are exactly what is drawn. */
+  openings?: true;
   items: PlanItem[];
   devices: PlanDevice[];
   /** The walk from the front door to a detached block, as points. */
@@ -166,6 +170,7 @@ export function readPlan(v: unknown): HavenPlan | null {
     windows: arr(b.windows, LIMITS.windows).map(seg).filter((s): s is Seg => s !== null),
     balconies: arr(b.balconies, LIMITS.balconies).map(seg).filter((s): s is Seg => s !== null),
     tv: arr(b.tv, LIMITS.tv).map(seg).filter((s): s is Seg => s !== null),
+    ...(b.openings === true ? { openings: true as const } : {}),
     items,
     devices,
     path,

@@ -436,4 +436,29 @@ test("signed out: counts only, never a name", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign in" }).first()).toBeVisible();
   await expect(page.getByText("Sam Test")).toHaveCount(0);
   await expect(page.getByText("Priya Madeup")).toHaveCount(0);
+  await expect(page.locator(".rr")).toHaveCount(0);
+});
+
+test("the rail (#765): every exchange in the Thread's order, a click jumps there, and scrolling moves its mark", async ({ page }) => {
+  await stub(page);
+  await page.goto(`${BASE}/relay`);
+  const rail = page.getByRole("navigation", { name: "Everything waiting, in order" });
+  await expect(rail.locator(".rr-row")).toHaveCount(3);
+  await expect(rail.locator(".rr-item[data-cur]")).toContainText("Sam Test");
+  // The pointer magnifies the rows near it on a bell curve; the one under it is the largest.
+  const box = (await rail.locator(".rr-list").boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + box.height * 0.82, { steps: 4 });
+  await expect(rail.locator(".rr-item[data-hot]")).toContainText("Jordan Test");
+  await rail.locator(".rr-item[data-hot] .rr-row").click();
+  await expect(focused(page)).toContainText("Jordan Test");
+  await expect(rail.locator(".rr-item[data-cur]")).toContainText("Jordan Test");
+  // Keys inside the rail move along it (not the codex) until Enter.
+  await rail.locator(".rr-item[data-cur] .rr-row").focus();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("k");
+  await expect(focused(page)).toContainText("Jordan Test");
+  await page.keyboard.press("Enter");
+  await expect(focused(page)).toContainText("Sam Test");
+  await scrollTo(page, "Priya Madeup");
+  await expect(rail.locator(".rr-item[data-cur]")).toContainText("Priya Madeup");
 });

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { atWall, DEFAULT_HOUR, wall, type Choice, type Reading } from "../../../../../api/_today/parse.ts";
+import { HANDED_LINE, readItemReply, type FloorItem } from "../../../../../api/_today/floor.ts";
 import type { Todo } from "../../../../../api/_today/todos.ts";
+import { askSkippyAbout, handToSkippy } from "./floorTalk.ts";
 import { useDictation } from "../dictate.ts";
 import { useDeskAuth } from "../signin.ts";
 import { Icon } from "../todayIcons.tsx";
@@ -166,26 +168,38 @@ export function DidLine() {
  * The talk-back strip under a held row: speak (or type) one line back to it. `holding` is a held Space: listening
  * starts with it and stops when it is let go. A clear line is done at once; an unclear one asks with two chips.
  */
-export function TalkBack({ target, listen, holding, onClose }: { target: Target; listen: boolean; holding?: boolean; onClose: () => void }) {
+export function TalkBack({ target, listen, holding, onClose, item }: { target: Target; listen: boolean; holding?: boolean; onClose: () => void; item?: FloorItem }) {
   const read = useTodos((s) => s.read);
   const apply = useTodos((s) => s.apply);
+  const hand = useTodos((s) => s.hand);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [asked, setAsked] = useState<Extract<Reading, { ok: false }> | null>(null);
+  const [failed, setFailed] = useState("");
   const box = useRef<HTMLInputElement>(null);
 
   const go = useCallback(
     async (words: string) => {
       if (!words.trim()) return;
       setBusy(true);
-      const r = await read(words);
+      setFailed("");
+      // An item on the floor (api/_today/floor.ts): read in its context; what isn't a held row's word is Skippy's.
+      const r = item ? readItemReply(words, item, Date.now()) : await read(words);
+      if (r && r.ok === "skippy" && item) {
+        const sent = r.approve ? await handToSkippy(item, words) : await askSkippyAbout(item, words);
+        setBusy(false);
+        if (!sent.ok) return setFailed(sent.message);
+        await hand(target, r.approve ? HANDED_LINE.sent : "Sent to Skippy", sent.turn);
+        return onClose();
+      }
       setBusy(false);
-      if (r.ok) {
+      if (!r) return;
+      if (r.ok === true) {
         await apply(target, r.intent);
         onClose();
-      } else setAsked(r);
+      } else if (r.ok === false) setAsked(r);
     },
-    [read, apply, target, onClose],
+    [read, apply, hand, item, target, onClose],
   );
   const mic = useSaying(setText, (w) => void go(w));
 
@@ -239,7 +253,7 @@ export function TalkBack({ target, listen, holding, onClose }: { target: Target;
             enterKeyHint="done"
             disabled={busy}
             aria-label="Say something back to it"
-            placeholder={mic.listening ? "Listening…" : "“Snooze till tomorrow”, “remind me Friday”, “note: …”, “done”"}
+            placeholder={mic.listening ? "Listening…" : item && item.kind !== "duty" ? "“Go ahead and fix it”, “why did it break?”, “later”, “note: …”" : "“Snooze till tomorrow”, “remind me Friday”, “note: …”, “done”"}
             onChange={(e) => setText(e.target.value)}
           />
           <button type="button" className="td-tb-x" aria-label="Never mind" onClick={onClose}>
@@ -248,6 +262,11 @@ export function TalkBack({ target, listen, holding, onClose }: { target: Target;
         </form>
       )}
       {mic.error && <p className="td-cap-err">{mic.error}</p>}
+      {failed && (
+        <p className="td-cap-err" role="alert">
+          {failed}
+        </p>
+      )}
     </div>
   );
 }

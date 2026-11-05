@@ -141,7 +141,7 @@
   box-sizing: border-box;
 }
 .cx-folio {
-  transition: opacity 0.55s var(--cx-e);
+  transition: opacity 0.25s var(--cx-e);
 }
 .cx-entry:not([data-focus]) .cx-folio {
   opacity: 0.55;
@@ -208,6 +208,69 @@
   letter-spacing: -0.015em;
   overflow-wrap: anywhere;
 }
+/* Their own texts (#758): one line each, smaller than a gist alone, oldest first. */
+.cx-said {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.cx-said .cx-msg {
+  font-size: 22px;
+  line-height: 1.35;
+}
+.cx-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--cx-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cx-mute);
+  margin-bottom: 2px;
+}
+.cx-mface {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+.cx-minit {
+  display: inline-grid;
+  place-items: center;
+  background: rgba(134, 182, 255, 0.14);
+  color: var(--cx-hi);
+  font-size: 11px;
+}
+.cx-gist {
+  margin: 10px 0 0;
+  color: var(--cx-mute);
+  font-size: 13.5px;
+}
+.cx-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+.cx-groups h4 {
+  margin: 0 0 4px;
+  font-family: var(--cx-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 19px;
+}
+.cx-groups .cx-said .cx-msg {
+  font-size: 15px;
+}
+@media (max-width: 560px) {
+  .cx-said .cx-msg {
+    font-size: 18px;
+  }
+}
 .cx-note {
   margin: 10px 0 0;
   font-family: var(--cx-mono);
@@ -269,7 +332,7 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 10px 22px;
-  animation: cx-up 0.4s var(--cx-e);
+  animation: cx-up 0.2s var(--cx-e);
 }
 @keyframes cx-up {
   from {
@@ -551,6 +614,33 @@
 }
 .cx-rows button:hover .cx-what {
   color: var(--cx-ink);
+}
+/* An older unanswered chat (#758): shown, not opened. */
+.cx-rows .cx-still {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 11em) minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: baseline;
+  padding: 11px 0;
+}
+.cx-older b {
+  color: var(--cx-soft);
+}
+/* Unread in Messages (#758): a mark only. */
+.cx-unread {
+  color: var(--cx-blue);
+  font-family: var(--cx-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 560px) {
+  .cx-rows .cx-still {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .cx-rows .cx-still .cx-what {
+    display: none;
+  }
 }
 .cx-wide {
   max-width: none;
@@ -1013,7 +1103,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cx-heard {
+  .cx-heard,
+  .cx-folio {
     transition: none;
   }
   .cx-ask,

@@ -675,9 +675,15 @@ export function crewOf(crate: Crate, crates: Crate[]): CrewId {
 /** The light a workflow run shows on Systems: green, red, amber while running, off when no run was read. */
 export const CHECKS_LINK: Record<ChecksState, LinkState> = { pass: "ok", fail: "down", running: "slow", unknown: "off" };
 
-/** The newest run of the nightly browser tests on main (scheduled or by hand), ignoring labelled pull request runs. */
+/**
+ * The last real verdict of the nightly browser tests on main (scheduled or by hand). Pull request runs never count,
+ * and neither do runs with no verdict (skipped, cancelled, neutral): the light holds the last green or red until a
+ * newer run is under way or lands, instead of going dark.
+ */
 export function parseE2e(runs: GhRun[] | undefined): FoundryData["checks"] {
-  return parseChecks((runs ?? []).filter((r) => r.event !== "pull_request").slice(0, 1));
+  const real = (runs ?? []).filter((r) => r.event !== "pull_request" && (r.status !== "completed" || r.conclusion === "success" || r.conclusion === "failure" || r.conclusion === "timed_out"));
+  const run = real[0];
+  return parseChecks(run ? [run.conclusion === "timed_out" ? { ...run, conclusion: "failure" } : run] : []);
 }
 
 export function parseChecks(runs: GhRun[]): FoundryData["checks"] {
@@ -960,7 +966,7 @@ async function readGitHub(): Promise<Feed> {
   const [issues, runs, e2e, live, pulls, commits, open] = await Promise.all([
     fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
-    fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/e2e.yml/runs?branch=main&per_page=5`).catch(() => ({ workflow_runs: [] })),
+    fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/e2e.yml/runs?branch=main&exclude_pull_requests=true&per_page=10`).catch(() => ({ workflow_runs: [] })),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/live-watch.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
     fetchJson<GhPull[]>(`${API}/pulls?state=closed&sort=updated&direction=desc&per_page=20`).catch(() => [] as GhPull[]),
     fetchJson<GhCommit[]>(`${API}/commits?sha=main&per_page=40`).catch(() => [] as GhCommit[]),

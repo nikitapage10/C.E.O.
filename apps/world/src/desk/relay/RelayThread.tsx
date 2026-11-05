@@ -10,6 +10,7 @@ import { takeGmailReturn, useEmail } from "../email/email.ts";
 import { useTexts } from "../texts/texts.ts";
 import { TextsSection } from "../texts/TextsSection.tsx";
 import { setRelayHandler } from "./bridge.ts";
+import { RelayRail } from "./RelayRail.tsx";
 import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "./sigils.ts";
 import { agoShort, askLine, codexOf, initialOf, lastRequest, weekSent, type Exchange } from "./thread.ts";
 import { errorText, useThread, type Notice } from "./useThread.ts";
@@ -48,6 +49,36 @@ function Face({ x, hidden }: { x: Exchange; hidden: boolean }) {
     <span className="cx-init" aria-hidden="true">
       {hidden ? "·" : initialOf(x.who)}
     </span>
+  );
+}
+
+/** A group member's face beside their line (#758): their contact photo by its opaque id, else their initial. */
+function MemberFace({ name, photo, hidden }: { name: string; photo?: string; hidden: boolean }) {
+  const [bad, setBad] = useState(false);
+  if (photo && !hidden && !bad) return <img className="cx-mface" src={`/api/relay?photo=${photo}`} alt="" width={22} height={22} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBad(true)} />;
+  return (
+    <span className="cx-mface cx-minit" aria-hidden="true">
+      {hidden ? "·" : initialOf(name)}
+    </span>
+  );
+}
+
+/** Their own texts (#758): real words, oldest first; in a group each line with its sender's face and name. */
+function Said({ messages, hidden }: { messages: NonNullable<Exchange["messages"]>; hidden: boolean }) {
+  return (
+    <ol className="cx-said">
+      {messages.map((m, i) => (
+        <li key={`${m.at}-${i}`} className="cx-msg">
+          {m.from !== undefined && (
+            <span className="cx-who">
+              <MemberFace name={m.from} photo={m.photo} hidden={hidden} />
+              <Private>{m.from}</Private>
+            </span>
+          )}
+          <Private>{m.text}</Private>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -223,12 +254,25 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
             <Private className="cx-rub">{x.who}</Private>
             <span className="cx-meta">
               {x.line === "email" ? "email" : x.channel === "SMS" ? "sms" : "text"} · {agoShort(now - x.at)}
+              {x.unread && <span className="cx-unread"> · unread</span>}
             </span>
           </div>
           <div className="cx-body">
-            <p className="cx-msg">
-              <Private>{x.body || "No gist yet: Dialtone hasn't read this one."}</Private>
-            </p>
+            {x.messages?.length ? (
+              <>
+                {/* Their own words (#758), oldest first; Dialtone's line stays as a small subtitle. */}
+                <Said messages={x.messages} hidden={hidden} />
+                {x.body && (
+                  <p className="cx-gist">
+                    <Private>{x.body}</Private>
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="cx-msg">
+                <Private>{x.body || "No gist yet: Dialtone hasn't read this one."}</Private>
+              </p>
+            )}
             {x.line === "email" && x.advice && (
               <p className="cx-adv">
                 <span className="cx-lab">Blasto</span> <Private>{x.advice}</Private>
@@ -495,7 +539,7 @@ export function RelayThread({ now }: { now: number }) {
     const X = spineX();
     const E = s.rel(earRef.current);
     fx.current.rush = 0.3;
-    await s.form(d, { from: () => [X + (rnd() - 0.5) * 6, E.y + rnd() * E.h], path: quill(X), dur: 1300, stagger: 1300, jitter: 90, pre: 0.2 });
+    await s.form(d, { from: () => [X + (rnd() - 0.5) * 6, E.y + rnd() * E.h], path: quill(X), dur: 250, stagger: 250, jitter: 60, pre: 0.1 });
   }, []);
 
   // Focus moves: the old entry's words dissolve into the spine, the new one's are written in from the top of it.
@@ -515,23 +559,25 @@ export function RelayThread({ now }: { now: number }) {
     fx.current.to = el ? 1 : 0;
     if (hidden) return;
     const X = spineX();
-    if (old && !s.reduced) for (const p of old.querySelectorAll<HTMLElement>(PARTS)) void s.dissolve(p, { dur: 700, stagger: 200, to: (_i, _x, y) => [X + (rnd() - 0.5) * 8, y + (rnd() - 0.5) * 60] });
+    if (old && !s.reduced) for (const p of old.querySelectorAll<HTMLElement>(PARTS)) void s.dissolve(p, { dur: 250, stagger: 100, to: (_i, _x, y) => [X + (rnd() - 0.5) * 8, y + (rnd() - 0.5) * 60] });
     if (!el) return;
     void (async () => {
       fx.current.rush = 1;
       const init = el.querySelector<HTMLElement>(".cx-init");
-      const msg = el.querySelector<HTMLElement>(".cx-msg");
+      const msgs = [...el.querySelectorAll<HTMLElement>(".cx-msg")];
       const adv = el.querySelector<HTMLElement>(".cx-adv");
       for (const p of el.querySelectorAll<HTMLElement>(PARTS)) ghost(p, !s.reduced);
-      // The illuminated initial gathers first, poured down the spine.
-      if (init) void s.form(init, { gap: 3, size: 8, ltr: false, swirl: 120, dur: 1300, stagger: 300, glow: 0.3, from: () => [X + (rnd() - 0.5) * 6, -10 - rnd() * 140] });
-      if (!s.reduced) await sleep(380);
+      // The illuminated initial gathers first, poured down the spine. Quick (Nikita, 2026-11-05: the texts loaded too
+      // slowly): 250 ms an item at most, about 600 ms for the whole entry; reduced motion shows it at once.
+      if (init) void s.form(init, { gap: 3, size: 8, ltr: false, swirl: 120, dur: 250, stagger: 100, glow: 0.3, from: () => [X + (rnd() - 0.5) * 6, -10 - rnd() * 140] });
+      if (!s.reduced) await sleep(120);
       if (run.current !== id) return;
       const vb = s.rel(el.querySelector(".cx-them") ?? el);
       const top = (): [number, number] => [X + (rnd() - 0.5) * 4, Math.max(0, vb.y - 20 - rnd() * 160)];
-      if (msg) await s.form(msg, { from: top, path: quill(X), dur: 1100, stagger: 1100, jitter: 90, max: 620, pre: 0 });
+      // Every text at once (#758: one line each), not one after another.
+      await Promise.all(msgs.map((m) => s.form(m, { from: top, path: quill(X), dur: 250, stagger: 200, jitter: 60, max: 620, pre: 0 })));
       if (run.current !== id) return;
-      if (adv) void s.form(adv, { from: top, path: quill(X), dur: 800, stagger: 600, jitter: 60, max: 300 });
+      if (adv) void s.form(adv, { from: top, path: quill(X), dur: 220, stagger: 150, jitter: 40, max: 300 });
       if (el.querySelector(".cx-draft")) await writeDraft(el, id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -567,7 +613,7 @@ export function RelayThread({ now }: { now: number }) {
     const s = sg.current;
     if (t.notice?.kind !== "warn" || !ex || !s) return;
     const el = entryOf(ex.key);
-    for (const p of el?.querySelectorAll<HTMLElement>(PARTS) ?? []) if (ghosted(p) && !hidden) void s.form(p, { dur: 700, stagger: 300 });
+    for (const p of el?.querySelectorAll<HTMLElement>(PARTS) ?? []) if (ghosted(p) && !hidden) void s.form(p, { dur: 250, stagger: 150 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t.notice]);
 
@@ -666,6 +712,9 @@ export function RelayThread({ now }: { now: number }) {
           {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} />) : <Waiting signedIn={t.signedIn} waiting={waiting} />}
         </div>
 
+        {/* The rail (#765): the whole queue down the left edge, Dock-style; a click jumps the codex there. */}
+        {t.queue && t.queue.length > 1 && <RelayRail queue={t.queue} cur={ex?.key ?? null} now={now} hidden={hidden} goTo={goTo} scroller={pagesRef} />}
+
         <div className="cx-dock">
           <div className="cx-dl">
             {/* The mic is the Desk's room mic (#638): one listener for every room. What's said here reaches the Thread. */}
@@ -735,8 +784,15 @@ function Rows({ rows, cur, goTo, empty }: { rows: ReturnType<typeof codexOf>["em
         <li key={x.key} data-cur={x.key === cur || undefined}>
           <button type="button" onClick={() => goTo(x.key)}>
             <Private as="b">{x.who}</Private>
-            <Private className="cx-what">{x.body || x.subject}</Private>
-            <em>{agoShort(waited)}</em>
+            <Private className="cx-what">{x.messages?.at(-1)?.text || x.body || x.subject}</Private>
+            <em>
+              {x.unread && (
+                <span className="cx-unread" title="Unread in Messages">
+                  unread ·{" "}
+                </span>
+              )}
+              {agoShort(waited)}
+            </em>
           </button>
         </li>
       ))}
@@ -756,7 +812,18 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
   const lock = useTexts((s) => s.lock);
   const unlock = useTexts((s) => s.unlock);
   const [learning, setLearning] = useState<string | null>(null);
+  const [showOlder, setShowOlder] = useState(false);
   const rules = view?.rules ?? [];
+  const older = textsView?.older ?? { count: 0, items: [] };
+  const voice = textsView?.voice ?? null;
+  const groups = (textsView?.items ?? []).filter((i) => i.group && (i.summary || i.messages?.length));
+  // A chore's latest request (#758): "busy" while the Mac has it, else how it ended.
+  const chore = (kind: "rescan" | "learn") => {
+    const r = (textsView?.requests ?? []).filter((x) => x.kind === kind).sort((a, b) => b.created - a.created)[0];
+    return r && (r.state === "waiting" || r.state === "taken") ? "busy" : (r?.state ?? null);
+  };
+  const rescan = chore("rescan");
+  const learnTexts = chore("learn");
   const style = view?.style ?? null;
   const gmailOn = !!status && status.gmail === "connected" && status.agent !== "waiting";
   const textsOn = !!textsStatus && textsStatus.hub !== "off" && textsStatus.hub !== "wiped";
@@ -777,6 +844,9 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
             </span>
             <span>
               oldest <b>{c.oldest === null ? "—" : agoShort(c.oldest)}</b>
+            </span>
+            <span>
+              <b>{num(t.metrics.unread)}</b> unread
             </span>
             <span>
               <b>{num(sent)}</b> sent this week
@@ -804,11 +874,70 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
           <div className="cx-verse cx-sec" data-list="texts">
             <div className="cx-mar">
               <span className="cx-lab">Texts</span>
+              {textsView?.paired && (
+                <button type="button" className="cx-lnk" disabled={rescan === "busy"} onClick={() => void useTexts.getState().ask({ action: "rescan" })} title="Read every chat on the Mac again: who you owe from the last 30 days">
+                  {rescan === "busy" ? "Rescanning…" : "Rescan"}
+                </button>
+              )}
             </div>
             <div className="cx-body">
               <Rows rows={c.texts} cur={ex?.key ?? null} goTo={goTo} empty={textsView?.paired ? "Nobody's waiting on a text." : "The MacBook isn't paired."} />
+              {older.count > 0 && (
+                <p className="cx-ex">
+                  {older.count} older unanswered{" "}
+                  {older.items.length > 0 && (
+                    <button type="button" className="cx-lnk" aria-expanded={showOlder} onClick={() => setShowOlder(!showOlder)}>
+                      {showOlder ? "hide them" : "show them"}
+                    </button>
+                  )}
+                </p>
+              )}
+              {showOlder && older.items.length > 0 && (
+                <ol className="cx-rows cx-older">
+                  {older.items.map((o) => (
+                    <li key={o.id}>
+                      <span className="cx-still">
+                        <Private as="b">{o.name}</Private>
+                        <span className="cx-what">no reply yet · {o.channel === "SMS" ? "sms" : "text"}</span>
+                        <em>
+                          {o.unread && <span className="cx-unread">unread · </span>}
+                          {agoShort(now - o.since)}
+                        </em>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {rescan === "failed" && <p className="cx-warn">The Mac couldn&apos;t read the chats. Is BlueBubbles running?</p>}
+              {rescan === "expired" && <p className="cx-warn">Not rescanned: the Mac was offline.</p>}
             </div>
           </div>
+          {groups.length > 0 && (
+            <div className="cx-verse cx-sec" data-list="groups">
+              <div className="cx-mar">
+                <span className="cx-lab">Groups</span>
+              </div>
+              <div className="cx-body">
+                {/* Summary-only (#758): a group joins the Texts above only when you were asked or named. */}
+                <ol className="cx-groups">
+                  {groups.map((g) => (
+                    <li key={g.id}>
+                      <h4>
+                        <Private>{g.name}</Private>
+                        {g.state !== "settled" && <span className="cx-unread"> · asks you</span>}
+                      </h4>
+                      {g.summary && (
+                        <p className="cx-gist">
+                          <Private>{g.summary.text}</Private>
+                        </p>
+                      )}
+                      {g.messages && <Said messages={g.messages} hidden={t.hidden} />}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -890,6 +1019,37 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
                   )}
                 </p>
                 {learning && learning !== "busy" && <p className="cx-warn">{learning}</p>}
+                <h3>How you text</h3>
+                {voice ? (
+                  <>
+                    <ul className="cx-tones">
+                      {voice.traits.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                    {(["family", "friends", "work"] as const).map((k) =>
+                      voice.tones[k].length ? (
+                        <p className="cx-ex" key={k}>
+                          With {k}: {voice.tones[k].join("; ")}
+                        </p>
+                      ) : null,
+                    )}
+                    <p className="cx-ex">
+                      Learned from {voice.from} of your texts to {voice.contacts} people; numbers from {voice.stats.texts.toLocaleString()} sent, on the Mac. Cost {"$"}
+                      {voice.usd.toFixed(3)}.
+                    </p>
+                  </>
+                ) : (
+                  <p className="cx-quiet">{textsView?.paired ? "Not learned yet from your texts." : "Waiting on the MacBook."}</p>
+                )}
+                {textsView?.paired && (
+                  <p className="cx-ex">
+                    <button type="button" className="cx-lnk" disabled={learnTexts === "busy"} onClick={() => void useTexts.getState().ask({ action: "learn" })} title="The Mac reads your own sent texts from the last year; one Sonnet call learns your style, never a quote">
+                      {learnTexts === "busy" ? "Reading your texts on the Mac…" : voice ? "Learn again" : "Learn from my texts"}
+                    </button>
+                  </p>
+                )}
+                {learnTexts === "failed" && <p className="cx-warn">Couldn&apos;t learn from your texts this time: too few, or the model didn&apos;t answer.</p>}
               </div>
 
               <div>

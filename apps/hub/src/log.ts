@@ -26,6 +26,8 @@ export const LOG_KINDS = [
   "draft refused",
   "sent",
   "send failed",
+  // macOS kept BlueBubbles from controlling Messages (#767): `relay status` looks for this line.
+  "mac permission",
   "later",
   "model call",
   "model refused",
@@ -43,6 +45,10 @@ export const LOG_KINDS = [
   "photos synced",
   "photos failed",
   "thread closed",
+  "backlog scanned",
+  "backlog failed",
+  "voice learned",
+  "voice failed",
   "error",
 ] as const;
 export type LogKind = (typeof LOG_KINDS)[number];

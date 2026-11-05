@@ -13,6 +13,7 @@ import { CatBrain, navGrid, type CatSignals } from "./catBrain.ts";
 import { furnish } from "./furnish.ts";
 import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
+import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
 
 /**
  * The Haven's house in 3D (#616): a generic renderer for whatever floor plan the private store holds. Nikita's round-6
@@ -63,7 +64,9 @@ export interface RoomFacts {
 }
 
 const U = 100; // plan units per world unit
-const WH = 1.15; // wall height (#671: a little taller, so the rooms read as rooms from the default view)
+const WH = 3.66; // wall height: a 12 ft ceiling at ~1 plan unit a cm (#799), so a ~2.4 m door reads as a door
+const SILL = 0.91, WIN_TOP = WH - 0.3; // windows run from a 3 ft sill to a foot below the wall top, never past it
+const DOOR_H = 2.6; // a balcony door: floor to ~8.5 ft
 const T = 0.06; // wall thickness
 const FLY_MS = 300;
 const GLYPHS = SIGILS.slice(0, 64);
@@ -278,6 +281,8 @@ export class House {
   private catBrain: CatBrain | null = null;
   private cat: HouseCat | null = null;
   private gone = false;
+  /** WASD to look around (#776): a pan over the plan, Q/E to turn. */
+  private wasd!: WasdPan;
 
   constructor(
     private host: HTMLElement,
@@ -329,6 +334,8 @@ export class House {
       this.seeds[i] = s / 2147483647;
     }
     this.walls = wallsOf(this.plan);
+    this.wasd = wasdPan({ el: host, reduce: opts.reduce, enabled: () => !this.backdrop, bounds: () => ({ kind: "box", x0: this.wx(0), x1: this.wx(this.plan.w), z0: this.wz(0), z1: this.wz(this.plan.h) }), origin: () => [this.cam.tx, this.cam.tz], forward: () => [-Math.sin(this.cam.th), -Math.cos(this.cam.th)], rotate: (d) => ((this.tween = null), (this.cam.th += d), (this.lastUser = performance.now())) });
+    this.disposers.push(() => this.wasd.dispose());
     this.build();
     this.startCat();
     this.bind();
@@ -589,7 +596,7 @@ export class House {
       const n = Math.max(1, Math.round(L / 0.5)), seg = L / n;
       for (let k = 0; k < n; k++) {
         const f = (k + 0.5) / n;
-        list.push({ x: this.wx(w[0] + (w[2] - w[0]) * f), y: WH * 0.5, z: this.wz(w[1] + (w[3] - w[1]) * f), sx: hz ? seg - 0.02 : T + 0.012, sy: WH * 0.8, sz: hz ? T + 0.012 : seg - 0.02 });
+        list.push({ x: this.wx(w[0] + (w[2] - w[0]) * f), y: (SILL + WIN_TOP) / 2, z: this.wz(w[1] + (w[3] - w[1]) * f), sx: hz ? seg - 0.02 : T + 0.012, sy: WIN_TOP - SILL, sz: hz ? T + 0.012 : seg - 0.02 });
       }
     }
     this.disposers.push(() => (mat.dispose(), tex.dispose()));
@@ -721,19 +728,21 @@ export class House {
         const [x, z] = at(along, off);
         box(mat, hz ? len : dep, sy, hz ? dep : len, x, y, z, order);
       };
-      const H = WH * 0.97, tr = WH * 0.8;
+      const H = DOOR_H, tr = DOOR_H * 0.86;
       // The door: glass, a frame round it, the transom bar, the meeting stile of a pair.
       put(pane, L, H, 0.012, mid, 0, H / 2, 3);
       for (const e of [a + 2, b - 2]) put(frame, 0.035, H, T + 0.02, e, 0, H / 2);
       put(frame, L, 0.035, T + 0.02, mid, 0, H);
       put(frame, L, 0.025, T + 0.02, mid, 0, tr);
       if (L > 1.1) put(frame, 0.025, tr, T + 0.02, mid, 0, tr / 2);
+      // The handle, a tall bar at the meeting stile (or the door's far edge), so a door never reads as a window.
+      put(frame, 0.03, 0.4, 0.06, L > 1.1 ? mid + 0.06 : mid + L * 0.3, 0, 1.0);
       // The balcony beyond.
       const dep = 120, wide = b - a + 80;
       put(slab, wide / U, 0.04, dep / U, mid, out * (dep / 2 + 3), -0.015);
-      put(rail, wide / U, 0.42, 0.01, mid, out * (dep + 3), 0.21, 3);
-      put(frame, wide / U, 0.02, 0.025, mid, out * (dep + 3), 0.43);
-      for (const e of [mid - wide / 2, mid + wide / 2]) put(rail, 0.01, 0.42, dep / U, e, out * (dep / 2 + 3), 0.21, 3);
+      put(rail, wide / U, 1.0, 0.01, mid, out * (dep + 3), 0.5, 3);
+      put(frame, wide / U, 0.03, 0.04, mid, out * (dep + 3), 1.0);
+      for (const e of [mid - wide / 2, mid + wide / 2]) put(rail, 0.01, 1.0, dep / U, e, out * (dep / 2 + 3), 0.5, 3);
     }
   }
 
@@ -1160,9 +1169,9 @@ export class House {
   private apply() {
     const c = this.cam;
     this.camera.aspect = this.W / this.H;
-    const sp = Math.sin(c.ph), cp = Math.cos(c.ph);
-    this.camera.position.set(c.tx + c.r * sp * Math.sin(c.th), c.r * cp, c.tz + c.r * sp * Math.cos(c.th));
-    this.camera.lookAt(c.tx, c.ly ?? 0, c.tz);
+    const sp = Math.sin(c.ph), cp = Math.cos(c.ph), tx = c.tx + (this.wasd?.x ?? 0), tz = c.tz + (this.wasd?.z ?? 0);
+    this.camera.position.set(tx + c.r * sp * Math.sin(c.th), c.r * cp, tz + c.r * sp * Math.cos(c.th));
+    this.camera.lookAt(tx, c.ly ?? 0, tz);
     // The fitted view's offset, so the house sits in its box whatever the perspective does to it.
     this.camera.setViewOffset(this.W, this.H, this.pan[0], this.pan[1], this.W, this.H);
     this.camera.updateProjectionMatrix();
@@ -1355,6 +1364,7 @@ export class House {
     this.focusId = null;
     this.lastUser = performance.now();
     this.setAway(false);
+    this.wasd.home();
     this.go(this.home, 450);
   }
 
@@ -1406,6 +1416,10 @@ export class House {
       if (f >= 1) this.tween = null;
     } else if (!this.opts.reduce && (this.backdrop || (!this.focusId && now - this.lastUser > 4000))) {
       this.cam.th += (this.backdrop ? 0.03 : 0.012 * Math.sin((now - this.t0) / 7000)) * dt;
+      this.apply();
+    }
+    if (this.wasd.step(dt)) {
+      this.lastUser = now;
       this.apply();
     }
     // The lamps ease to their rooms' levels.

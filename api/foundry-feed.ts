@@ -241,7 +241,7 @@ const feed = memo(TTL * 1000, async () => {
   const [issues, runs, e2e, live, pulls, commits, board, prs, pushed, timed] = await Promise.all([
     read("/issues?labels=foundry&state=all&sort=updated&per_page=40"),
     read("/actions/workflows/checks.yml/runs?branch=main&per_page=1").catch(() => ({ workflow_runs: [] })),
-    read("/actions/workflows/e2e.yml/runs?branch=main&per_page=5").catch(() => ({ workflow_runs: [] })),
+    read("/actions/workflows/e2e.yml/runs?branch=main&exclude_pull_requests=true&per_page=10").catch(() => ({ workflow_runs: [] })),
     read("/actions/workflows/live-watch.yml/runs?branch=main&per_page=1").catch(() => ({ workflow_runs: [] })),
     read("/pulls?state=closed&sort=updated&direction=desc&per_page=20").catch(() => []),
     read("/commits?sha=main&per_page=40").catch(() => []),

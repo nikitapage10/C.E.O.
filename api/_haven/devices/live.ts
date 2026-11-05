@@ -48,7 +48,7 @@ export function homeFromEnv(env: Env = process.env): Home | null {
     blob,
     clients: [
       new RoborockClient({ fetch: f, vault, idKey, now }),
-      new PetlibroClient({ fetch: f, vault, idKey, email: (env.PETLIBRO_EMAIL ?? "").trim(), loginDigest: (env.PETLIBRO_LOGIN_DIGEST ?? "").trim().toLowerCase(), now }),
+      new PetlibroClient({ fetch: f, vault, idKey, email: (env.PETLIBRO_EMAIL ?? "").trim(), loginDigest: (env.PETLIBRO_LOGIN_DIGEST ?? "").trim().toLowerCase(), now, log: (line) => console.log(line) }),
       new WhiskerClient({ fetch: f, vault, idKey, email: (env.WHISKER_EMAIL ?? "").trim(), srpDigest: (env.WHISKER_SRP_DIGEST ?? "").trim().toLowerCase(), now }),
       new NestClient({ fetch: f, vault, idKey, client: havenClientFrom(env), project: nestProjectFrom(env), now }),
     ],

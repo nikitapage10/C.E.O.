@@ -1,4 +1,4 @@
-import { CREW, crewOf, MAX_AT_ONCE, runningNow, rustyHands, type ChecksState, type Change, type Crate, type CrewId, type OpenPr } from "../../foundry.ts";
+import { CREW, crewOf, MAX_AT_ONCE, runningNow, rustyHands, type ChecksState, type Change, type Crate, type CrewId, type OpenPr } from "../../../apps/world/src/foundry.ts";
 
 /**
  * The Foundry's pipeline as the page draws it (#432): ideas → the queue → the forge (the jobs in flight, one lane each,

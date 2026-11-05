@@ -218,7 +218,8 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
     const dockBox = await chat.boundingBox();
     return fig && dockBox ? Math.max(Math.abs(fig.y + fig.height - (dockBox.y + dockBox.height)), Math.abs(fig.x + fig.width / 2 - (dockBox.x + dockBox.width / 2))) : 999;
   };
-  await expect.poll(offDock).toBeLessThan(8);
+  // The rise follows the 3D boot, which a software-rendered CI runner can starve for well over 20 s (nightly 63a3857, #798).
+  await expect.poll(offDock, { timeout: 60_000 }).toBeLessThan(8);
   const panel = await call.locator(".holo__panel").boundingBox();
   const dockBox = await chat.boundingBox();
   expect(panel && dockBox && Math.abs(panel.x - dockBox.x) < 2 && Math.abs(panel.width - dockBox.width) < 2).toBe(true);

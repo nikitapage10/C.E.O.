@@ -153,7 +153,7 @@ export function HallTab({ devices, connected, room, plan }: { devices: DeviceRea
   const v = find(devices, "vacuum");
   // Opened from a room of its own, that room starts picked (#718).
   const [pick, setPick] = useState<string[]>(() => {
-    const own = v && room ? vacuumName(v.rooms ?? [], room) : null;
+    const own = v && room ? vacuumName(v.rooms ?? [], room, plan?.rooms.filter((r) => !r.detached)) : null;
     return own ? [own] : [];
   });
   const [suction, setSuction] = useState<Suction>("");
@@ -382,8 +382,7 @@ export function RoomTab({ room, lit, plan, devices }: { room: PlanRoom; lit: Lit
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
   const v = find(devices, "vacuum");
-  const known = v?.rooms?.find((r) => r.toLowerCase() === (room.vacuum ?? room.name).toLowerCase());
-  void plan;
+  const known = v ? vacuumName(v.rooms ?? [], room, plan.rooms.filter((r) => !r.detached)) : null;
   return (
     <>
       <p className="hv-say">{lit ? lit.why.join(", ") : "Quiet. Nothing here needs you."}</p>

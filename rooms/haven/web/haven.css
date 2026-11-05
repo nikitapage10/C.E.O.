@@ -1630,24 +1630,53 @@
   text-transform: uppercase;
   color: rgba(var(--hv-gold), 0.75);
 }
+/* Each device: a head row with its picture in a column of its own and the reading beside it, the controls full width
+   underneath (#894: the pictures used to spill over the text, and the wet tray over the bowls). */
 [data-room="haven"] .hv-dp-dev {
   display: grid;
-  grid-template-columns: 84px 1fr;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 0;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 0;
   border-top: 1px solid rgba(var(--hv-gold), 0.12);
 }
 [data-room="haven"] .hv-dp-dev:first-of-type {
   border-top: 0;
 }
-[data-room="haven"] .hv-dp-dev > div {
+[data-room="haven"] .hv-dp-head {
   display: grid;
-  gap: 6px;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+[data-room="haven"] .hv-dp-head > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+[data-room="haven"] .hv-dp-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 16px;
+}
+[data-room="haven"] .hv-dp-wheel {
+  flex: none;
+  width: 96px;
+  margin: 4px auto 18px;
+}
+[data-room="haven"] .hv-dp-bowls {
+  flex: 1 1 250px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+[data-room="haven"] .hv-dp-bowls .pd-k {
+  margin-top: 0;
 }
 [data-room="haven"] .hv-dp-name {
   margin: 0;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
   font-weight: 600;
@@ -1701,6 +1730,7 @@
 [data-room="haven"] .hv-dp-step .hv-btn.is-pri {
   width: auto;
   flex: 1;
+  min-width: 0;
 }
 [data-room="haven"] .hv-dp-modes {
   display: grid;

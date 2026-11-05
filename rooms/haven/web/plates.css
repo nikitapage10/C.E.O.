@@ -460,11 +460,14 @@
 }
 /* Device art inside the home-screen pop-ups (#806): the same plate renders, at pop-up size. */
 [data-room="haven"] .hv-dp-stage {
-  flex: none;
-  width: 110px;
+  display: block;
+  position: relative;
+  width: 76px;
+  border-radius: 12px;
+  overflow: hidden;
 }
 [data-room="haven"] .hv-dp-stage .hv-plRd {
-  max-height: 110px;
+  max-height: 76px;
 }
 
 @media (max-width: 860px) {

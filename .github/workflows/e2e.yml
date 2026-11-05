@@ -4,7 +4,7 @@
 # checks (docs/DELIVERY.md, "CI gates"). They live apart from checks.yml so the Desk's checks light, which reads
 # checks.yml, only turns red for the checks that gate main today; the nightly run has its own light on Systems, and a
 # red run on main opens a "Nightly browser tests failing on main" Foundry fix issue.
-# The suites run side by side (Desk and Lattice); a pull request that only touches the Desk, the APIs or the docs
+# The suites run side by side (the Desk's specs in two halves, and the Lattice); a pull request that only touches the Desk, the APIs or the docs
 # skips the slow Lattice suite. The `e2e` job is the one result for both.
 name: E2E
 
@@ -25,14 +25,15 @@ concurrency:
 
 jobs:
   browser:
-    # Two suites side by side: the Desk's pages, and the Lattice (the slow one, a 3D world on a software renderer).
+    # Side by side: every Desk spec, split in two shards (about half an hour of tests in all, so one job would sit
+    # close to the timeout), and the Lattice (the slow one, a 3D world on a software renderer).
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'e2e')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        suite: [desk, lattice]
+        suite: [desk-1, desk-2, lattice]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,7 +50,7 @@ jobs:
         run: |
           run=true
           if [ "$SUITE" = lattice ] && [ "$EVENT" = pull_request ]; then
-            if ! git diff --name-only "$BASE"...HEAD | grep -vqE '^(apps/world/src/desk/|api/|docs/|lore/|tests/e2e/(headers|skippy|undo|flow|todos)\.spec\.ts$|.*\.md$)'; then
+            if ! git diff --name-only "$BASE"...HEAD | sed 's#^tests/e2e/lattice\.spec\.ts$#lattice-spec#' | grep -vqE '^(apps/world/src/desk/|api/|docs/|lore/|tests/e2e/[a-z-]+\.spec\.ts$|.*\.md$)'; then
               run=false
               echo "Nothing the Lattice uses changed; skipping its suite."
             fi
@@ -71,7 +72,13 @@ jobs:
           SUITE: ${{ matrix.suite }}
         run: |
           if [ "$SUITE" = lattice ]; then npm run test:e2e -- tests/e2e/lattice.spec.ts
-          else npm run test:e2e -- tests/e2e/headers.spec.ts tests/e2e/skippy.spec.ts tests/e2e/undo.spec.ts tests/e2e/flow.spec.ts tests/e2e/todos.spec.ts; fi
+          else
+            # Every Desk spec: all of tests/e2e except the Lattice's, half of them in each of desk-1 and desk-2.
+            specs=$(ls tests/e2e/*.spec.ts | grep -v '/lattice\.spec\.ts$')
+            echo "Desk specs: $specs"
+            # shellcheck disable=SC2086
+            npm run test:e2e -- --shard="${SUITE#desk-}/2" $specs
+          fi
       - name: Keep what the failing tests saw
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

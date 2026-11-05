@@ -99,7 +99,8 @@ for (const width of [1440, 400]) {
     if (SHOTS) await shot(page, `${SHOTS}/622-todo-${width}.png`);
 
     // Undo takes it back, on the store too.
-    await did.getByRole("button", { name: "Undo" }).click();
+    // Forced: the card keeps repainting on the slow renderer, so it is never "stable" for Playwright.
+    await did.getByRole("button", { name: "Undo" }).click({ force: true });
     await expect(mine).toHaveCount(0);
     await expect.poll(() => api.state().todos).toEqual([]);
 

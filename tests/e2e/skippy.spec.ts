@@ -265,7 +265,8 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   expect(await sub.evaluate((el) => getComputedStyle(el).getPropertyValue("--holo").trim().toLowerCase())).toBe("#a3e04f");
   // ...and its own persona: the Commentator grins all the time.
   await page.evaluate(() => (window as unknown as { __holoCall: { onMessage: (w: string, t: string) => void } }).__holoCall.onMessage("skippy", "[fast] THE COMMENTATOR, live from the floating booth, folks!"));
-  await expect(sub).toHaveAttribute("data-face", "grin");
+  // A laugh tag (the [fast] line reads as excited) shows the laugh first, and it holds longer on a slow frame rate.
+  await expect(sub).toHaveAttribute("data-face", "grin", { timeout: 90_000 });
   await expect(sub).not.toHaveClass(/holo--switch/);
   await page.waitForTimeout(600);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/hologram-commentator.png` });

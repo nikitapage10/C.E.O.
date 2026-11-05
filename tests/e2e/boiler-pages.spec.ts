@@ -89,6 +89,8 @@ async function stub(page: Page, broken: boolean) {
 }
 
 async function noSideScroll(page: Page) {
+  // The room loader fades out over the page (and its sparks run wide) for a moment after the page is up: wait it out.
+  await expect(page.locator(".room-loader")).toHaveCount(0);
   const wide = await page.evaluate(() => {
     const els = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".desk, .desk *")];
     return els.filter((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== "auto" && getComputedStyle(e).overflowX !== "scroll" && getComputedStyle(e).overflowX !== "hidden").map((e) => e.className).slice(0, 3);

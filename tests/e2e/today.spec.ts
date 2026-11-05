@@ -116,7 +116,9 @@ for (const [label, width, height] of [
   });
 }
 
-test("signed in: the docket in the chamber, the Council's pods, the to-dos and the Lists", async ({ page }) => {
+test("signed in: the docket in the chamber, the Council's pods and the to-dos", async ({ page }) => {
+  // The session plays in real time on the software renderer, whose frames are slow: give the whole story room.
+  test.setTimeout(600_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await stub(page, true);
@@ -146,28 +148,33 @@ test("signed in: the docket in the chamber, the Council's pods, the to-dos and t
   await expect(setup.locator(".rt-floor")).toBeVisible();
   await setup.getByRole("button", { name: "Fold" }).first().click();
 
-  // Still left, under the chamber: his own to-dos and the add line; the Lists beside them.
+  // Still left, under the chamber: his own to-dos and the add line.
   await expect(now.getByText("still left")).toBeVisible();
   await expect(now.locator(".td-ni.is-mine")).toHaveCount(2);
   await expect(now.getByRole("textbox", { name: "Add a to-do" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Lists" })).toBeVisible();
+  // The Lists moved to the Haven's folded panel (#790); they are no longer on Today.
+  await expect(page.getByRole("region", { name: "Lists" })).toHaveCount(0);
 
   // The Council: Skippy presiding and twelve pods (the ten rooms' subminds and the Desk's two), a button each.
-  const council = page.getByRole("group", { name: /The Council of Skippies/ });
+  const council = page.getByRole("group", { name: /the Council of Skippies/ });
   await expect(council.locator(".rt-pod")).toHaveCount(12);
   await expect(council.getByRole("button", { name: /^Skippy, the Magnificent/ })).toBeVisible();
   const builder = council.getByRole("button", { name: /^The Builder, Foundry/ });
-  await builder.hover();
-  await expect(builder).toHaveClass(/is-lit/);
-  await expect(builder.locator(".rt-tip")).toContainText("Foundry");
-  await builder.click();
+  // In 3D the pods are never still (a working one drifts and bobs), so Playwright never calls one "stable": hover and
+  // click are forced, at the pod's centre as it is now, and hovered again until the pod is lit and its tip is there.
+  await expect(async () => {
+    await builder.hover({ force: true, timeout: 5_000 });
+    await expect(builder).toHaveClass(/is-lit/, { timeout: 2_000 });
+    await expect(builder.locator(".rt-tip")).toContainText("Foundry", { timeout: 2_000 });
+  }).toPass({ timeout: 60_000 });
+  await builder.click({ force: true });
   const card = page.getByRole("complementary", { name: "The Builder, Foundry" });
   await expect(card).toBeVisible();
   await expect(card.getByText("Now", { exact: true })).toBeVisible();
   await expect(card.getByText(/held for you here/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(card).toHaveCount(0);
-  await council.getByRole("button", { name: /^Skippy, the Magnificent/ }).click();
+  await council.getByRole("button", { name: /^Skippy, the Magnificent/ }).click({ force: true });
   await expect(page.getByRole("complementary", { name: "Skippy, the Magnificent" }).getByRole("button", { name: "Talk to Skippy" })).toBeVisible();
   await page.keyboard.press("Escape");
 
@@ -176,7 +183,7 @@ test("signed in: the docket in the chamber, the Council's pods, the to-dos and t
   await expect(page.locator(".rt-chair")).toContainText(/Item i, a decision|The chair recognizes|Counterpoint|put to you/, { timeout: 60_000 });
   await expect(ideas).toHaveClass(/is-on/);
   await expect(page.locator(".rt-order")).toContainText("Item I · Decision");
-  await expect(ideas).toHaveClass(/is-stamped/, { timeout: 150_000 });
+  await expect(ideas).toHaveClass(/is-stamped/, { timeout: 400_000 });
   // The gallery never murmurs more than three lines at once.
   expect(await page.locator(".rt-mur.on").count()).toBeLessThanOrEqual(3);
   // A card brings its item to the floor.
@@ -196,7 +203,7 @@ test("signed out: the chamber and the counts, no private words", async ({ page }
   await page.goto(BASE + "/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await expect(page.getByText("Book the vet")).toHaveCount(0);
-  const council = page.getByRole("group", { name: /The Council of Skippies/ });
+  const council = page.getByRole("group", { name: /the Council of Skippies/ });
   await expect(council.locator(".rt-pod")).toHaveCount(12);
   await council.getByRole("button", { name: /^The Messenger, Relay/ }).click();
   const card = page.getByRole("complementary", { name: "The Messenger, Relay" });

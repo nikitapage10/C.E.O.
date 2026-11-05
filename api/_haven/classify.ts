@@ -265,7 +265,7 @@ export function removeAsk(text: string): Extract<Capture, { kind: "remove" }> | 
  * Said with them, a day name is the night to change, not when to do something, so the words go to Skippy's tools.
  */
 const MEAL_TALK =
-  /\b(?:dinners?|meals?|meal plan|recipes?|hello ?fresh|for two|for one|(?:bigger|smaller|larger|half|double|extra) portions?|portions? (?:size|bigger|smaller)|spic(?:y|ier|iest|iness|e level)|milder|less hot|hotter|heat level|swap|instead of|not for me|backups?|the week'?s (?:groceries|shopping|meals|dinners|plan)|(?:this|next) week'?s (?:meals|dinners|plan|menu)|plan (?:the|next|a) week|king soopers|(?:my|the) cart|meal catalog|protein goal|taste profile|undo (?:that|the) (?:swap|change)|put (?:it|that) back)\b/i;
+  /\b(?:dinners?|meals?|meal plan|recipes?|hello ?fresh|for two|for one|(?:bigger|smaller|larger|half|double|extra) portions?|portions? (?:size|bigger|smaller)|spic(?:y|ier|iest|iness|e level)|milder|less hot|hotter|heat level|swap|instead of|not for me|backups?|the week'?s (?:groceries|shopping|meals|dinners|plan)|(?:this|next) week'?s (?:meals|dinners|plan|menu)|plan (?:the|next|a) week|king soopers|(?:my|the) cart|meal catalog|protein goal|taste profile|undo (?:that|the) (?:swap|change)|put (?:it|that) back|skip(?:ping)? (?:my |the )?(?:lunch|the day|(?:mon|tues|wednes|thurs|fri|satur|sun)day'?s? (?:lunch|meals?))|unskip|eating out (?:on |for )?(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b/i;
 
 /** Whether the words are about the meal plan (`MEAL_TALK`), so Skippy's tools take them. */
 export const mealTalk = (text: string): boolean => MEAL_TALK.test(text);

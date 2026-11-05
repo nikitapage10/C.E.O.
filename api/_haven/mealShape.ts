@@ -116,6 +116,13 @@ export interface Lunch {
   backups: string[];
 }
 
+/** Why a meal is skipped (#788): no reason given, eating out, or leftovers from somewhere else. */
+export const SKIP_REASONS = ["skip", "out", "leftovers"] as const;
+export type SkipReason = (typeof SKIP_REASONS)[number];
+export const SKIP_NAME: Record<SkipReason, string> = { skip: "Skipped", out: "Eating out", leftovers: "Leftovers" };
+/** A day's skipped meals (#788): a course is skipped when it has a reason. Like a HelloFresh night, nothing to cook or buy. */
+export type Skip = Partial<Record<Course, SkipReason>>;
+
 export interface Slot {
   day: Day;
   meal: string;
@@ -127,7 +134,16 @@ export interface Slot {
   custom: Custom;
   /** This night's own photo from the photo library (#687) for a customized meal, else null. */
   photo: string | null;
+  /** The day's skipped meals (#788); absent when nothing is skipped (and in every file from before skips). */
+  skip?: Skip;
 }
+
+/** Whether a day's dinner is skipped (#788). */
+export const dinnerSkipped = (s: Slot): boolean => !!s.skip?.dinner;
+/** Whether a day's lunch is skipped (#788). */
+export const lunchSkipped = (s: Slot): boolean => !!s.skip?.lunch;
+/** Whether a night's dinner is cooked from the plan: not HelloFresh's and not skipped (#788). The cart is separate. */
+export const cooksDinner = (s: Slot): boolean => !s.helloFresh && !dinnerSkipped(s);
 
 export interface Avoid {
   term: string;
@@ -323,9 +339,17 @@ function customOf(v: unknown): Custom {
   return { ...(Object.keys(parts).length && { parts }), ...(portion !== undefined && portion !== 1 && { portion }), ...(spice && { spice }) };
 }
 
+function skipOf(v: unknown): Skip | undefined {
+  const x = o(v);
+  const out: Skip = {};
+  for (const c of COURSES) if ((SKIP_REASONS as readonly unknown[]).includes(x[c])) out[c] = x[c] as SkipReason;
+  return Object.keys(out).length ? out : undefined;
+}
+
 function slotOf(v: unknown, i: number): Slot | null {
   const x = o(v);
   if (!isId(x.meal)) return null;
+  const skip = skipOf(x.skip);
   return {
     day: DAYS[i]!,
     meal: x.meal,
@@ -336,6 +360,7 @@ function slotOf(v: unknown, i: number): Slot | null {
     inCart: x.inCart !== false,
     custom: customOf(x.custom),
     photo: isId(x.photo) ? x.photo : null,
+    ...(skip && { skip }),
   };
 }
 
@@ -545,16 +570,16 @@ export function lunchView(f: MealsState, s: Slot): LunchView {
   if (dish) return { kind: "quick", name: dish.meal.name, from: null, protein: dish.macros.protein, dish };
   const from = leftoverSlot(f, s);
   if (from) {
-    const d = from.helloFresh ? null : slotDish(f, from);
+    const d = cooksDinner(from) ? slotDish(f, from) : null;
     return { kind: "leftovers", name: d ? `Leftover ${d.meal.name}` : `Leftover ${DAY_NAME[from.day]} dinner`, from: from.day, protein: d ? d.macros.protein : s.lunch.protein, dish: null };
   }
   return { kind: "text", name: s.lunch.text, from: null, protein: s.lunch.protein, dish: null };
 }
 
-/** The day's protein: dinner (or HelloFresh's), lunch and the top-up. */
+/** The day's protein: dinner (or HelloFresh's), lunch and the top-up. A skipped meal (#788) isn't counted. */
 export function dayProtein(f: MealsState, s: Slot): { dinner: number; lunch: number; topUp: number; total: number } {
-  const dinner = s.helloFresh ? f.profile.helloFreshProtein : (slotDish(f, s)?.macros.protein ?? 0);
-  const lunch = lunchView(f, s).protein;
+  const dinner = dinnerSkipped(s) ? 0 : s.helloFresh ? f.profile.helloFreshProtein : (slotDish(f, s)?.macros.protein ?? 0);
+  const lunch = lunchSkipped(s) ? 0 : lunchView(f, s).protein;
   const topUp = f.profile.topUp.protein;
   return { dinner, lunch, topUp, total: dinner + lunch + topUp };
 }
@@ -691,7 +716,8 @@ export type MealEdit = BaseEdit & { week?: string };
 type BaseEdit =
   | { op: "swap"; day: Day; meal: string }
   | { op: "nope"; day: Day }
-  | { op: "night"; day: Day; helloFresh?: boolean; forTwo?: boolean; inCart?: boolean }
+  /** A night's switches; `skipDinner` / `skipLunch` skip that meal with a reason, or null to have it again (#788). */
+  | { op: "night"; day: Day; helloFresh?: boolean; forTwo?: boolean; inCart?: boolean; skipDinner?: SkipReason | null; skipLunch?: SkipReason | null }
   | { op: "customize"; day: Day; part?: { index: number; option: string }; portion?: number; spice?: Spice; reset?: boolean }
   | { op: "avoid"; term: string; unless?: string }
   | { op: "unavoid"; term: string }
@@ -713,6 +739,8 @@ type BaseEdit =
 
 const isDay = (v: unknown): v is Day => (DAYS as readonly unknown[]).includes(v);
 const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
+/** A skip's reason, null to take the skip back off, else undefined (not a skip edit). */
+const skipWhy = (v: unknown): SkipReason | null | undefined => (v === null ? null : (SKIP_REASONS as readonly unknown[]).includes(v) ? (v as SkipReason) : undefined);
 
 /** An edit from a request or a tool call, checked; null when it isn't one. */
 export function readEdit(v: unknown): MealEdit | null {
@@ -731,8 +759,8 @@ function readBase(x: Record<string, unknown>): BaseEdit | null {
       return isDay(x.day) ? { op: "nope", day: x.day } : null;
     case "night": {
       if (!isDay(x.day)) return null;
-      const e = { op: "night" as const, day: x.day, helloFresh: bool(x.helloFresh), forTwo: bool(x.forTwo), inCart: bool(x.inCart) };
-      return e.helloFresh === undefined && e.forTwo === undefined && e.inCart === undefined ? null : JSON.parse(JSON.stringify(e));
+      const e = { op: "night" as const, day: x.day, helloFresh: bool(x.helloFresh), forTwo: bool(x.forTwo), inCart: bool(x.inCart), skipDinner: skipWhy(x.skipDinner), skipLunch: skipWhy(x.skipLunch) };
+      return e.helloFresh === undefined && e.forTwo === undefined && e.inCart === undefined && e.skipDinner === undefined && e.skipLunch === undefined ? null : JSON.parse(JSON.stringify(e));
     }
     case "customize": {
       if (!isDay(x.day)) return null;
@@ -951,6 +979,15 @@ function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
         s.inCart = edit.inCart;
         changes.push(`${DAY_NAME[edit.day]}: ${edit.inCart ? "in the cart" : "left out of the cart"}.`);
       }
+      for (const [course, why] of [["dinner", edit.skipDinner], ["lunch", edit.skipLunch]] as const) {
+        if (why === undefined || (s.skip?.[course] ?? null) === why) continue;
+        const skip: Skip = { ...s.skip };
+        if (why) skip[course] = why;
+        else delete skip[course];
+        if (Object.keys(skip).length) s.skip = skip;
+        else delete s.skip;
+        changes.push(`${DAY_NAME[edit.day]}'s ${course}: ${why ? `skipped${why === "skip" ? "" : ` (${SKIP_NAME[why].toLowerCase()})`}, so nothing to cook or buy for it` : "back on"}.`);
+      }
       label = `${DAY_NAME[edit.day]} changed`;
       break;
     }
@@ -1050,12 +1087,12 @@ function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
     case "next-week": {
       const prev = f.week;
       for (const s of prev?.slots ?? []) {
-        const lunch = s.lunch.meal ? mealNamed(f, s.lunch.meal) : undefined;
+        const lunch = s.lunch.meal && !lunchSkipped(s) ? mealNamed(f, s.lunch.meal) : undefined;
         if (lunch) {
           lunch.timesHad += 1;
           lunch.lastHad = stamp;
         }
-        if (s.helloFresh || !s.inCart) continue;
+        if (!cooksDinner(s) || !s.inCart) continue;
         const meal = mealNamed(f, s.meal)!;
         meal.timesHad += 1;
         meal.lastHad = stamp;
@@ -1094,7 +1131,7 @@ function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
       const w = f.week!;
       w.confirmedAt = stamp;
       // The photo library's queue (#687): every cooked night customized and still without its own photo.
-      w.photoQueue = w.slots.filter((s) => !s.helloFresh && !s.photo && slotDish(f, s)?.customized).map((s) => s.day);
+      w.photoQueue = w.slots.filter((s) => cooksDinner(s) && !s.photo && slotDish(f, s)?.customized).map((s) => s.day);
       changes.push(`Confirmed the week.${w.photoQueue.length ? ` ${w.photoQueue.length} customized meal${w.photoQueue.length === 1 ? "" : "s"} will get ${w.photoQueue.length === 1 ? "its" : "their"} own photo.` : ""}`);
       // Confirming keeps the Undo that was there: it changes nothing about what's cooked.
       return { ok: true, file: { v: 1, ...f, undo: file.undo }, changes };
@@ -1181,12 +1218,12 @@ export const shopLine = (i: Ingredient): string => {
   return `${i.item} (${fmtQty(n)}${unit})`.slice(0, 60);
 };
 
-/** How many portions each night's dinner is cooked in: one, two for two, one more for each lunch left over from it. */
+/** How many portions each night's dinner is cooked in: one, two for two, one more for each lunch left over from it (a skipped lunch, #788, takes none). */
 export function portionsOf(w: Week): number[] {
-  return w.slots.map((s, i) => (s.forTwo ? 2 : 1) + w.slots.filter((o2) => o2.lunch.leftoverOf === i && !w.slots[i]!.helloFresh).length);
+  return w.slots.map((s, i) => (s.forTwo ? 2 : 1) + w.slots.filter((o2) => o2.lunch.leftoverOf === i && !lunchSkipped(o2) && cooksDinner(w.slots[i]!)).length);
 }
 
-/** What the week needs from the store, summed by item and unit, staples left out. HelloFresh and left-out nights add nothing. */
+/** What the week needs from the store, summed by item and unit, staples left out. HelloFresh, skipped (#788) and left-out nights add nothing. */
 export function shoppingList(f: MealsState): Ingredient[] {
   const w = f.week;
   if (!w) return [];
@@ -1199,16 +1236,17 @@ export function shoppingList(f: MealsState): Ingredient[] {
   };
   const portions = portionsOf(w);
   w.slots.forEach((s, i) => {
-    const cooked = !s.helloFresh && s.inCart;
+    const cooked = cooksDinner(s) && s.inCart;
     if (cooked) {
       const d = slotDish(f, s);
       for (const x of d?.ingredients ?? []) put(x, portions[i]! * (d?.portion ?? 1));
     }
+    if (lunchSkipped(s)) return;
     // A quick lunch is bought for one (#719); a lunch's own extras come along unless it's left over from a night that isn't cooked.
     const quick = lunchDish(f, s);
     if (quick) for (const x of quick.ingredients) put(x, 1);
     const from = s.lunch.leftoverOf === null ? null : w.slots[s.lunch.leftoverOf]!;
-    if (!quick && (!from || (!from.helloFresh && from.inCart))) for (const x of s.lunch.shop) put(x, 1);
+    if (!quick && (!from || (cooksDinner(from) && from.inCart))) for (const x of s.lunch.shop) put(x, 1);
   });
   for (const x of f.profile.topUp.shop) put(x, 1);
   return [...sum.values()];
@@ -1251,7 +1289,7 @@ export interface MealCounts {
 export function mealCounts(f: MealsState | null): MealCounts | null {
   if (!f?.week) return null;
   const s = f.week.slots;
-  return { planned: s.length, cooking: s.filter((x) => !x.helloFresh && x.inCart).length, helloFresh: s.filter((x) => x.helloFresh).length, confirmed: f.week.confirmedAt !== null };
+  return { planned: s.length, cooking: s.filter((x) => cooksDinner(x) && x.inCart).length, helloFresh: s.filter((x) => x.helloFresh).length, confirmed: f.week.confirmedAt !== null };
 }
 
 /** The week in a few plain lines, for Skippy's tool (the whole thing, no photos). */
@@ -1261,10 +1299,11 @@ export function weekWords(f: MealsState): string {
   const lines = w.slots.map((s) => {
     const d = slotDish(f, s);
     const p = dayProtein(f, s);
-    const what = s.helloFresh ? "HelloFresh" : `${d?.meal.name ?? s.meal}${d?.customized ? ` (${d.changes.join(", ").toLowerCase()})` : ""}`;
-    const extra = [s.forTwo && "for two", !s.inCart && !s.helloFresh && "left out of the cart"].filter(Boolean).join(", ");
+    const dish = `${d?.meal.name ?? s.meal}${d?.customized ? ` (${d.changes.join(", ").toLowerCase()})` : ""}`;
+    const what = s.skip?.dinner ? `dinner skipped (${SKIP_NAME[s.skip.dinner].toLowerCase()}; ${dish} stays planned)` : s.helloFresh ? "HelloFresh" : dish;
+    const extra = [s.forTwo && "for two", !s.inCart && cooksDinner(s) && "left out of the cart"].filter(Boolean).join(", ");
     const l = lunchView(f, s);
-    const lunch = `lunch ${l.name}${l.kind === "quick" && s.lunch.backups.length ? ` (or ${s.lunch.backups.map((b) => nameOf(f, b)).join(" or ")})` : ""}`;
+    const lunch = s.skip?.lunch ? `lunch skipped (${SKIP_NAME[s.skip.lunch].toLowerCase()})` : `lunch ${l.name}${l.kind === "quick" && s.lunch.backups.length ? ` (or ${s.lunch.backups.map((b) => nameOf(f, b)).join(" or ")})` : ""}`;
     return `${DAY_NAME[s.day]}: ${what}${extra ? `, ${extra}` : ""}; ${lunch}; ${p.total} g protein for the day; backups ${s.backups.map((b) => nameOf(f, b)).join(" or ") || "none"}.`;
   });
   const avoid = f.profile.avoid.map((a) => (a.unless ? `${a.term} (unless ${a.unless})` : a.term)).join(", ");

@@ -1,5 +1,5 @@
 import type { RoomIntent } from "@ceo/engine/voice";
-import { relayHandle } from "../../apps/world/src/desk/relay/bridge.ts";
+import { relayHandle } from "./data/bridge.ts";
 
 /**
  * Relay's voice intent handler (#642), the room's `voice` hook (#638, @ceo/engine/voice, docs/ROOMS.md): what Nikita

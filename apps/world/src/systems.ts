@@ -5,8 +5,8 @@ import { create } from "zustand";
  * agent line, the Systems tab) and the Lattice (the Boiler Room's pipes). Imports nothing from the 3D world,
  * so the Desk can load it alone.
  *
- * Relay's texts links come from the hub on the MacBook, through its public counts (desk/texts/texts.ts, #535).
- * Gmail's comes from the email agent on the Azure copy (desk/email/email.ts, #263).
+ * Relay's texts links come from the hub on the MacBook, through its public counts (rooms/relay/data/texts.ts, #535).
+ * Gmail's comes from the email agent on the Azure copy (rooms/relay/data/email.ts, #263).
  * The Foundry's come from GitHub (see foundry.ts). The world clock comes from the living Lattice's hourly step
  * (worldClock.ts). Polymarket's odds come from the Exchange's board (rooms/exchange/data/polymarket.ts, #240), read
  * while a Desk page that shows them is open; Sleeper and FantasyPros from the Green's league board (desk/green/league.ts, #252);
@@ -40,7 +40,7 @@ const LINKS: Link[] = [
   { id: "messages", label: "Messages", what: "Signed in on the Mac", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "openai", label: "Claude", what: "Sorting and drafting texts, through the site", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", room: "relay", state: "off", load: 0, lastSeen: null },
-  // The email agent (#263): Gmail read-only from the Azure copy, its state from desk/email/email.ts.
+  // The email agent (#263): Gmail read-only from the Azure copy, its state from rooms/relay/data/email.ts.
   { id: "gmail", label: "Gmail", what: "Your inbox, read-only, checked every minute", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "checks", label: "Checks", what: "Types, lint, tests and build on main, on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "e2e", label: "Nightly browser tests", what: "The Lattice and Desk in a real browser, nightly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },

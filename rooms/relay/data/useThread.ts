@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useHide } from "../hide.ts";
-import { useDeskAuth } from "../signin.ts";
-import { startEmail, useEmail } from "../email/email.ts";
-import { startTexts, useTexts } from "../texts/texts.ts";
+import { useHide } from "@ceo/engine/web/hide.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { startEmail, useEmail } from "./email.ts";
+import { startTexts, useTexts } from "./texts.ts";
 import { allowed, commandOf, isOrder, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Order, type Phase } from "./thread.ts";
 
 /** The order toggle on the line (#803), remembered on this device only. */

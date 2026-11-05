@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Private } from "../Private.tsx";
-import { useDeskAuth } from "../signin.ts";
-import { emailLine, LATE_MS, startEmail, takeGmailReturn, useEmail, type EmailItem, type EmailStatus } from "./email.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { emailLine, LATE_MS, startEmail, takeGmailReturn, useEmail, type EmailItem, type EmailStatus } from "../data/email.ts";
 import "./email.css";
 
 /**

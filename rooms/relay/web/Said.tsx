@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Private } from "../Private.tsx";
-import { initialOf, type Exchange } from "./thread.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { initialOf, type Exchange } from "../data/thread.ts";
 
 /** A group member's face beside their line (#758): their contact photo by its opaque id, else their initial. */
 function MemberFace({ name, photo, hidden }: { name: string; photo?: string; hidden: boolean }) {

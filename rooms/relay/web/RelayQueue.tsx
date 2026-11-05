@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Private } from "../Private.tsx";
-import type { Exchange } from "./thread.ts";
-import { ease, waveLook, waveRows, waveSpan, wavePoint, waveU, type Box, type WaveRow } from "./wave.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import type { Exchange } from "../data/thread.ts";
+import { ease, waveLook, waveRows, waveSpan, wavePoint, waveU, type Box, type WaveRow } from "../data/wave.ts";
 import "./queue.css";
 
 /**

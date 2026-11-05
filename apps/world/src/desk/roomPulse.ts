@@ -121,7 +121,7 @@ function worldToday(world: WorldFeed | null, dayStart: number): HistoryEntry[] {
 
 /**
  * The down links by their public labels, in the Desk's own order. The MacBook's state is mirrored from the hub's
- * (desk/texts/texts.ts), so when both are down they are one thing: the Mac hub.
+ * (rooms/relay/data/texts.ts), so when both are down they are one thing: the Mac hub.
  */
 export function downNames(links: readonly Pick<Link, "id" | "label" | "state">[]): { id: string; name: string }[] {
   const down = links.filter((l) => l.state === "down");

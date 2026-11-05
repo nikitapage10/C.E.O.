@@ -4,5 +4,5 @@
  */
 export const nav = {
   name: "Relay",
-  page: () => import("../../apps/world/src/desk/Relay.tsx").then((m) => ({ default: m.Relay })),
+  page: () => import("./web/Relay.tsx").then((m) => ({ default: m.Relay })),
 };

@@ -123,7 +123,7 @@ function Tubes({ position }: { position: [number, number] }) {
 
 /**
  * The switchboard: walnut cabinet, jack panel, patch cords looping between sockets. Since the texts line went live
- * (#535) its thirty lamps are the replies owed, driven by the hub's public counts (desk/texts/texts.ts): one lamp per
+ * (#535) its thirty lamps are the replies owed, driven by the hub's public counts (rooms/relay/data/texts.ts): one lamp per
  * owed thread, the ones Dialtone sorted "sooner" in coral, the rest dark. A slow breath while the hub listens; all dark
  * while it is off, paused or quiet. Counts only: no name or message ever reaches the Lattice.
  */
@@ -245,7 +245,7 @@ function Counter({ label, value, x, hot }: { label: string; value: number | null
 
 /**
  * The inbox board (#263, live since #322): a brass telegraph board by the post-office boxes, driven by the email
- * agent's public counts (desk/email/email.ts, ?view=status). Three counters (needs the C.E.O., can wait, noise today), the
+ * agent's public counts (rooms/relay/data/email.ts, ?view=status). Three counters (needs the C.E.O., can wait, noise today), the
  * line's state, and when Dialtone last checked: a sweep dial runs round once a minute from the last check, and the
  * sounder taps out a short click each time a new check lands. Counts only: no subject or sender ever reaches the
  * Lattice. The lamp burns while something needs the C.E.O.

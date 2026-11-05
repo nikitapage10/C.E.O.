@@ -1,4 +1,4 @@
-import type { TextItem } from "../texts/texts.ts";
+import type { TextItem } from "./texts.ts";
 import type { Order } from "./thread.ts";
 
 /**

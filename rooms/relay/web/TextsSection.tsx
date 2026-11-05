@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatWait } from "../deskData.ts";
-import { useDictation, dictationSupported } from "../dictate.ts";
-import { Private } from "../Private.tsx";
-import { useDeskAuth } from "../signin.ts";
-import { REASON_WORDS, RESENDABLE } from "../../../../../api/_relay/texts.ts";
-import { startTexts, STALE_MS, textsLine, useTexts, type TextItem, type TextRequestView } from "./texts.ts";
+import { formatWait } from "../../../apps/world/src/desk/deskData.ts";
+import { useDictation, dictationSupported } from "../../../apps/world/src/desk/dictate.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { REASON_WORDS, RESENDABLE } from "../../../api/_relay/texts.ts";
+import { startTexts, STALE_MS, textsLine, useTexts, type TextItem, type TextRequestView } from "../data/texts.ts";
 import "./texts.css";
 
 /**

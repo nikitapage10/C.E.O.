@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { EmailItem } from "../email/email.ts";
-import type { TextItem } from "../texts/texts.ts";
+import type { EmailItem } from "./email.ts";
+import type { TextItem } from "./texts.ts";
 import { allowed, codexOf, commandOf, isOrder, olderInOrder, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
-import { GHOST, MAX_LIVE, room, SigilStage, SIGILS } from "./sigils.ts";
+import { GHOST, MAX_LIVE, room, SigilStage, SIGILS } from "@ceo/engine/sigils/sigils.ts";
 
 /* Relay's Thread (#615). Every person and message here is made up. */
 

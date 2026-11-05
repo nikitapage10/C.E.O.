@@ -108,7 +108,7 @@ export const LOOKUP_TOOLS = ["player_news", "live_scores", "web_search"] as cons
 const toolByName = new Map(TOOL_DEFS.map((t) => [t.name, t]));
 
 /**
- * Texting on the call (#536): client tools, run in Nikita's own browser (apps/world/src/desk/texts/talkTools.ts), so a
+ * Texting on the call (#536): client tools, run in Nikita's own browser (rooms/relay/data/talkTools.ts), so a
  * send uses that device's passkey unlock and the texts line's ordinary send request (#535). Only Skippy carries them.
  * The browser, not the agent, decides whether a send may go: only after Nikita's own transcript says "send" for the
  * text Skippy was just handed to read aloud, or after his tap on the card.

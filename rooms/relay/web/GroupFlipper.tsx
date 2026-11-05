@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { Private } from "../Private.tsx";
-import { useTexts, type TextItem } from "../texts/texts.ts";
-import { flip, GROUP_REPLY_MAX, replyOf, swipeOf } from "./groups.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useTexts, type TextItem } from "../data/texts.ts";
+import { flip, GROUP_REPLY_MAX, replyOf, swipeOf } from "../data/groups.ts";
 import { Said } from "./Said.tsx";
-import { undoable, UNDO_MS } from "./thread.ts";
+import { undoable, UNDO_MS } from "../data/thread.ts";
 import "./groups.css";
 
 /**

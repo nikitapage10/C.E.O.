@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TextItem } from "../texts/texts.ts";
+import type { TextItem } from "./texts.ts";
 import { queueOf } from "./thread.ts";
 import { ease, WAVE_PAST, waveLook, wavePoint, waveRows, waveSpan, waveU } from "./wave.ts";
 

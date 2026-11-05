@@ -1,7 +1,7 @@
-import type { EmailItem, EmailStatus } from "../email/email.ts";
-import type { TextItem, TextRequestView } from "../texts/texts.ts";
+import type { EmailItem, EmailStatus } from "./email.ts";
+import type { TextItem, TextRequestView } from "./texts.ts";
 import type { RelayStatus } from "@ceo/core";
-import { closingOf, draftAsk, skipOf } from "../../../../../api/_email/intentWords.ts";
+import { closingOf, draftAsk, skipOf } from "../../../api/_email/intentWords.ts";
 
 /**
  * Relay's Thread (#615), the logic with no DOM: one exchange at a time, from the two live lines.

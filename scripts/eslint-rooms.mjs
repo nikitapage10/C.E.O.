@@ -66,7 +66,7 @@ const DESK_ROOMS = {
   archive: [/^Archive\.tsx$/],
   spire: [/^spire\//],
   exchange: [/^exchange\//, /^rooms\/Exchange\.tsx$/],
-  green: [/^green\//, /^rooms\/Green\.tsx$/],
+  green: [/^green\//],
 };
 const DESK_KITS = [/^flow\//, /^skippy\//, /^confluence\//, /^hologram\//, /^hero\//];
 

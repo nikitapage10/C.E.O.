@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AnalysisFacts, AnalysisKey, GreenAnalysis } from "../../../../../api/_green/types.ts";
+import type { AnalysisFacts, AnalysisKey, GreenAnalysis } from "../../../api/_green/types.ts";
 import { readFeeds } from "./league.ts";
 
 /**

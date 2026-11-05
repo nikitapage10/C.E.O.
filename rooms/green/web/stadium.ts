@@ -1,4 +1,4 @@
-import { clamp, WHITE } from "../wvCanvas.ts";
+import { clamp, WHITE } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**
  * The Green's stadium (#389): the geometry of the broadcast's field-view, the page's one signature idea. The field is

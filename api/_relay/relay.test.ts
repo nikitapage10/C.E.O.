@@ -465,10 +465,15 @@ describe("send requests (single-use, 10 minutes, Resend)", () => {
     expect((await d.send()).status).toBe(409);
   });
 
-  it("never go to a group", async () => {
+  it("go to a group only as typed words, never a draft or a restyle, and never once its summary is gone (#805)", async () => {
     const d = await unlocked();
-    await d.hub("POST", "?view=texts", view([item({ group: true, draft: null, summary: { text: "Planning a trip", asked: false } })]));
-    expect((await d.send({ draftAt: 0 })).status).toBe(409);
+    await d.hub("POST", "?view=texts", view([item({ group: true, state: "settled", draft: null, summary: { text: "Planning a trip", asked: false } })]));
+    expect((await d.send({ draftAt: DRAFT_AT })).status).toBe(409);
+    expect((await d.post({ action: "restyle", thread: THREAD, text: "say yes" })).status).toBe(409);
+    expect((await d.send({ draftAt: 0, text: "Count me in" })).status).toBe(200);
+    const e = await unlocked();
+    await e.hub("POST", "?view=texts", view([item({ group: true, state: "settled", draft: null, summary: null })]));
+    expect((await e.send({ draftAt: 0 })).status).toBe(409);
   });
 
   it("take a result only for a request the hub took", async () => {

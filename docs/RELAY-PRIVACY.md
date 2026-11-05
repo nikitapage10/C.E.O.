@@ -16,7 +16,8 @@ Relay is C.E.O.'s first real agent. Its texts line runs on Nikita's always-on Ma
 only. It is not an urgency filter. It keeps track of who Nikita owes a reply, sorts them so the ones to answer sooner
 come first, lets them push a reply to later, nudges them gently once or twice a day, and drafts replies in their own
 voice, learned from their own past replies to that contact. A dictated reply is lightly restyled. **Nothing is sent
-without Nikita's tap on the Desk.** Group chats are only summarised, never drafted for.
+without Nikita's tap on the Desk.** Group chats are only summarised, never drafted for; since #805 Nikita can answer
+one with his own typed words, sent exactly as typed.
 
 The parts:
 
@@ -260,13 +261,18 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
 2. **Send: one tap, one request.** A request has a random id, the thread, the draft it was made from (its time), the
    text, and 10 minutes to live. It is signed with the pairing's send key over all of those. The site makes it only for
    a thread on the hub's latest list that is one-to-one and still owed, with that very draft, and only one send at a
-   time per thread.
+   time per thread. A group on the list (#805: owed, or settled with its summary) takes a send too, only with no
+   draft behind it (`draftAt` 0): it is never drafted for, so the text is always Nikita's own typed words, and a group
+   is never restyled.
 3. **The hub polls** every 15 seconds. Each waiting, unexpired request is handed out once and marked taken in the same
    conditional write, so a second poll never gets it. The hub checks the signature, the 10 minutes, that it has never
-   seen the id (it records the id before acting), and the thread again on its own list: still owed, one-to-one. The
+   seen the id (it records the id before acting), and the thread again on its own list: still owed, one-to-one (or a
+   group still listed with its summary, with no draft; a rule match clears the summary, so a ruled group never takes a
+   send, #805). The
    request carries the text Nikita tapped Send on, signed; if Blasto's draft changed since (a restyle, or a draft that
    landed while he typed his own), that text still goes, unless a message from them came in after the draft he saw
-   (or, with no draft, after the tap), which refuses it (#767). Only then does it
+   (or, with no draft, after the tap), which refuses it (#767); a group's newer texts don't, since typed words answer
+   the room, not one text (#805). Only then does it
    asks BlueBubbles for the thread's latest messages: a reply of Nikita's newer than the last message in means it was
    already answered (a send that timed out but went, or a reply from the phone), and it refuses. Only then does it
    send through BlueBubbles, and it reports `sent` or `failed`. Anything else is `refused`. Every refusal and failure
@@ -381,6 +387,11 @@ sealed list holds. The public site still gets counts only.
   Nikita was asked something, or when one of Nikita's names (`me` in the hub's `config.json`, "Nikita" by default)
   stands as a word in a member's text. It is still never drafted for. BlueBubbles 1.9.12 doesn't expose a chat's mute
   state (its `isFiltered` is the unknown-senders filter), so muted groups aren't treated apart.
+- **The group flipper (#805).** The Groups section shows one group at a time (‹ ›, the arrow keys or a swipe), its
+  summary and shown texts in one scrolling column, and a reply box. The reply is Nikita's own words, sent exactly as
+  typed (no model, no restyle) after the Undo window, with the send unlock, through the send path below, once per
+  tap; nothing is drafted and nothing sends on its own. A group last heard from over 60 days ago doesn't show. After
+  a reply the group's summary and shown texts go, as when he answers from the phone.
 - **Photos on group lines.** Each member's line shows that member's photo by its opaque id (#642), or initials.
   Photos are display only, never part of a model call.
 - **The learned voice.** "Learn from my texts" (on the Desk's Relay voice section; a single-use request) has the hub
@@ -519,7 +530,8 @@ Run by `npm test`:
   - the send unlock: needed, fresh, single-use, 2 minutes, HttpOnly and Strict, 72 hours and not a minute more,
     bound to its passkey and the Desk key, ended by Lock;
   - requests: single-use, signed over every field, 10 minutes then expired, Resend only for expired or failed and
-    only with the unlock, bound to the thread and the draft, never a group, results only for taken requests;
+    only with the unlock, bound to the thread and the draft, a group only as typed words (never a draft, a restyle
+    or a group whose summary a rule cleared, #805), results only for taken requests;
   - model calls: no tools, metadata or caching, hostile answers refused, off-shape snippets refused before any call,
     the caps, the hard stop at $10 on its own ledger, four calls racing at the cap's edge (one gets in), a failed
     call's reservation released and a timed-out call's kept, and an unreadable ledger stopping the calls.
@@ -531,6 +543,7 @@ Run by `npm test`:
     that trips a rule never becomes a style example;
   - a 40-message thread and a 60-message group are trimmed on the Mac to what the site accepts;
   - after a send that timed out but went, a resend is refused;
+  - a listed group takes typed words exactly as typed, once, never a draft-bound send, and not after its reply (#805);
   - snippets to the site hold no names or numbers;
   - the skip list stops a call, and a hostile answer is refused;
   - nothing sends without a request, and a good request sends once;

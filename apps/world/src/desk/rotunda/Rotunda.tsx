@@ -266,19 +266,21 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
 function SoundButton() {
   const on = useRotundaSound((s) => s.on);
   const speaking = useRotundaSound((s) => s.speaking);
+  // On, but the phone held the voices back until a tap: the button asks for that tap instead of turning the sound off.
+  const blocked = useRotundaSound((s) => s.on && s.blocked);
   return (
     <button
       type="button"
-      className={`rt-sound${on ? " is-on" : ""}${on && speaking ? " is-speaking" : ""}`}
+      className={`rt-sound${on ? " is-on" : ""}${on && speaking ? " is-speaking" : ""}${blocked ? " is-blocked" : ""}`}
       aria-pressed={on}
-      title={on ? "Turn the chamber's voices off" : "Hear the chamber: Skippy and the subminds speak their lines"}
-      onClick={() => setSound(!on)}
+      title={blocked ? "Tap to hear the chamber" : on ? "Turn the chamber's voices off" : "Hear the chamber: Skippy and the subminds speak their lines"}
+      onClick={() => setSound(blocked ? true : !on)}
     >
       <svg viewBox="0 0 20 20" aria-hidden="true">
         <path className="rt-sound-c" d="M3 7.5h3l4-3.5v12l-4-3.5H3z" />
         {on ? <path className="rt-sound-w" d="M13 7a4 4 0 0 1 0 6M15.2 5a7 7 0 0 1 0 10" /> : <path className="rt-sound-w" d="M13.5 8l4 4M17.5 8l-4 4" />}
       </svg>
-      <span className="rt-sound-t">{on ? "Sound on" : "Sound off"}</span>
+      <span className="rt-sound-t">{blocked ? "Tap to hear" : on ? "Sound on" : "Sound off"}</span>
       {on && (
         <span className="rt-sound-lv" aria-hidden="true">
           <i />

@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import { silentWav } from "../roomvoice/roomVoice.ts";
+import { rateOf } from "./senators.ts";
 
 /**
  * The Rotunda's sound (#755), browser side. Nikita, 2026-11-05: "Let's have a sound on button for the today page and have
  * some of these conversations actually voice acted." Off by default (browsers block sound until a tap), remembered per
  * device. While it is on, the chair and the subminds speak their captions: each line is asked of POST /api/skippy-room
- * (`{ room: "today", speak, as }`), which answers from its blob cache or makes the line once in that member's voice
+ * (`{ room: "today", speak, as }`), which answers from its blob cache or makes the line once in Skippy's voice, bent that member's way
  * (api/_skippy/rotundavoice.ts). The scene (rotundaScene.ts) waits on `say` to pace the choreography by the audio; when
  * a line can't be spoken (signed out, capped, down, blocked) `say` answers false at once and the caption is held for its
  * reading time instead, so a failure is never heard, only read.
@@ -99,6 +100,18 @@ const unlockers = new Set<() => void>();
 const GESTURES = ["pointerup", "touchend", "keydown"] as const;
 
 const keyOf = (by: string, text: string) => `${by}\u0000${text}`;
+
+/**
+ * Plays a line in its member's register (#856): Skippy's one voice, lifted or lowered by the member's semitones
+ * (senators.ts, `VOICE_PITCH`), with the pitch let go of so the rate moves it. Set after `src`, which resets the rate.
+ */
+function register(a: HTMLAudioElement, by: string): void {
+  const r = rateOf(by);
+  a.preservesPitch = false;
+  (a as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = false;
+  a.defaultPlaybackRate = r;
+  a.playbackRate = r;
+}
 
 export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   const lines = new Map<string, Promise<string | null>>();
@@ -205,6 +218,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
         };
         end = done;
         main.src = url;
+        register(main, by);
         main.volume = 1;
         speaking(true);
         if (held || document.visibilityState === "hidden") return;
@@ -227,6 +241,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       const url = await get(by, text);
       if (!url || !on() || end || !mur.paused || held) return null;
       mur.src = url;
+      register(mur, by);
       mur.volume = MURMUR_VOLUME;
       try {
         await mur.play();
@@ -234,7 +249,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
         return null;
       }
       return new Promise<number | null>((res) => {
-        const d = Number.isFinite(mur.duration) ? mur.duration : 1.5;
+        const d = Number.isFinite(mur.duration) ? mur.duration / rateOf(by) : 1.5;
         murEnd = () => res(d);
         mur.onended = () => {
           murEnd?.();

@@ -14,14 +14,21 @@ describe("the Desk's pages from the manifests", () => {
     for (const load of Object.values(PAGE_LOADERS)) expect(typeof load).toBe("function");
   });
 
-  it("keeps the Boiler Room's sub-menu as it was, from its room, and only the Boiler Room has one so far", () => {
+  it("keeps the Boiler Room's sub-menu as it was, from its room, and the Haven's tabs have theirs (#871)", () => {
     expect(pageSections("boiler").map((s) => [s.label, s.path])).toEqual([
       ["Map", "/boiler"],
       ["Controls", "/boiler/controls"],
       ["Security", "/boiler/security"],
       ["Compliance", "/boiler/compliance"],
     ]);
-    expect(NAV_ORDER.filter((id) => pageSections(id).length)).toEqual(["boiler"]);
+    expect(pageSections("haven").map((s) => [s.label, s.path])).toEqual([
+      ["House", "/haven"],
+      ["Kitchen", "/haven/kitchen"],
+      ["Hall", "/haven/hall"],
+      ["Pets", "/haven/pets"],
+      ["Gym", "/haven/gym"],
+    ]);
+    expect(NAV_ORDER.filter((id) => pageSections(id).length)).toEqual(["haven", "boiler"]);
     expect(["/boiler", "/boiler/", "/boiler/controls", "/systems/security", "/boiler/compliance/", "/boiler/nope"].map(systemsPageOf)).toEqual(["systems", "systems", "controls", "security", "compliance", "systems"]);
   });
 });

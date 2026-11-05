@@ -16,13 +16,17 @@ import type { House, ThreadState } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { sectionOf } from "@ceo/engine/web/sections.ts";
+import { navigateTo, routeOf, usePathname } from "../../../apps/world/src/route.ts";
+import { SECTIONS } from "../sections.ts";
 import "./haven.css";
 
 /**
  * The Haven (#616): home and health on the Desk. Nikita's round-6 pick: the house in 3D, night-lit behind frosted
  * glass, where only the rooms with something going on light up, with the house-wide readings on the instrument plinth
  * in the dark to its lower right (#680), a thread of nanites from each gauge's lamp to its device. Tap a room and the camera flies in (300 ms), the house blurs behind,
- * and the room's content opens over it (Kitchen, Hall, Pets, Gym, or the room's own sheet).
+ * and the room's content opens over it (Kitchen, Hall, Pets, Gym, or the room's own sheet). Each tab has its own address
+ * (/haven/kitchen and on, `../sections.ts`, #871), which the Desk's bar lists under the Haven.
  *
  * Privacy: the floor plan lives in the private store and is read only by a passkey session (/api/haven-plan); signed
  * out the Haven shows counts and states only, with no map. Health, pantry and device details stay behind the passkey.
@@ -30,7 +34,8 @@ import "./haven.css";
  */
 
 const ACCENT = "240,201,135";
-const TABS: Tab[] = ["kitchen", "hall", "pets", "gym"];
+/** The tabs, from the sub-menu past the house (`../sections.ts`), so the bar and the page list the same ones. */
+const TABS = SECTIONS.slice(1).map((s) => s.id as Tab);
 
 const reduce = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const dayWord = (d = new Date()) => `${d.toLocaleDateString("en-US", { weekday: "long" })} ${d.getHours() < 12 ? "morning" : d.getHours() < 17 ? "afternoon" : "evening"}`;
@@ -91,7 +96,17 @@ export function Haven() {
   const [items, setItems] = useState<KitchenItem[] | null>(null);
   const [counts, setCounts] = useState<{ kitchen: number; todos: number; gym: { perWeek: number; doneThisWeek: number } | null } | null>(null);
   const [plan, setPlan] = useState<PlanLoad>({ state: "idle" });
-  const [open, setOpen] = useState<Open>(null);
+  // The open tab is the address's (#871): /haven/kitchen opens the Kitchen, on a reload and back and forward too. A
+  // room picked on the house has no address of its own and opens over /haven.
+  const pathname = usePathname();
+  const section = routeOf(pathname) === "haven" ? sectionOf(SECTIONS, pathname).id : "house";
+  const pathTab = section === "house" ? null : (section as Tab);
+  const [room, setRoom] = useState<string | null>(null);
+  const open: Open = useMemo(() => (pathTab ? { tab: pathTab } : room ? { room } : null), [pathTab, room]);
+  const setOpen = useCallback((o: Open) => {
+    setRoom(o && "room" in o ? o.room : null);
+    if (routeOf(window.location.pathname) === "haven") navigateTo((o && "tab" in o ? `/haven/${o.tab}` : "/haven") + window.location.search);
+  }, []);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
   // Sent from the Kitchen chip or Controls (?open=kitchen): the Kitchen opens (#664).
   const houseHost = useRef<HTMLDivElement>(null);
@@ -102,14 +117,13 @@ export function Haven() {
   const strip = useRef<HTMLElement>(null);
 
   useEffect(() => startHome(), []);
+  // The old ?open=kitchen spelling becomes the Kitchen's own address, in place.
   useEffect(() => {
-    if (!signedIn) return;
     const q = new URLSearchParams(window.location.search);
-    if (q.get("open") !== "kitchen") return;
-    setOpen({ tab: "kitchen" });
+    if (q.get("open") !== "kitchen" || routeOf(window.location.pathname) !== "haven") return;
     q.delete("open");
-    window.history.replaceState(window.history.state, "", `${window.location.pathname}${q.size ? `?${q}` : ""}${window.location.hash}`);
-  }, [signedIn]);
+    navigateTo(`/haven/kitchen${q.size ? `?${q}` : ""}`, true);
+  }, []);
   useEffect(() => {
     if (auth === "checking") return;
     void useTodos.getState().refresh();
@@ -154,7 +168,7 @@ export function Haven() {
   /* ── the 3D house, only with a plan ── */
   const onPick = useCallback((id: string | null) => {
     if (id) setOpen({ room: id });
-  }, []);
+  }, [setOpen]);
   useEffect(() => {
     if (!thePlan || !houseHost.current || !labelHost.current) return;
     let gone = false;
@@ -245,7 +259,7 @@ export function Haven() {
     const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [open]);
+  }, [open, setOpen]);
 
   /* ── the instrument plinth (#680): the gauges, and their threads into the house ── */
   const gauges = useMemo(
@@ -286,7 +300,7 @@ export function Haven() {
   const canPop = useCallback((id: GaugeId) => (id === "climate" ? !!thermo : signedIn && (id === "roborock" || id === "petlibro" || id === "whisker")), [thermo, signedIn]);
   // The pop-up sits above its gauge: when the order changes, the threads move with it.
   useEffect(() => house.current?.touch(), [order]);
-  const openGauge = useCallback((id: GaugeId) => (id === "kitchen" || id === "gym") && setOpen({ tab: id }), []);
+  const openGauge = useCallback((id: GaugeId) => (id === "kitchen" || id === "gym") && setOpen({ tab: id }), [setOpen]);
   const canOpen = useCallback((id: GaugeId) => signedIn && (id === "kitchen" || id === "gym"), [signedIn]);
   const touch = useCallback(() => house.current?.touch(), []);
 

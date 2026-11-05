@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { loadLattice, NAV_ORDER, type Route, type RoomRoute } from "../../world/src/route.ts";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { loadLattice, navigateTo, NAV_ORDER, usePathname, type Route, type RoomRoute } from "../../world/src/route.ts";
+import { sectionOf, type RoomSection } from "@ceo/engine/web/sections.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { link } from "./nav.ts";
-import { pageName } from "./roomPages.ts";
+import { pageName, pageSections, type DeskPage } from "./roomPages.ts";
 import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { useHide } from "@ceo/engine/web/hide.ts";
@@ -17,7 +18,9 @@ import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
  * 2026-11-04 07:06Z), the Boiler Room last, far right. Ask Skippy moved to the bottom right of every page (#638,
  * roomvoice/RoomMic.tsx). Since the Iris (#666) the bar keeps only the pages, the account button and the way into the
  * Lattice: Ilyr's clock, Hide and Hands-free moved to the Boiler Room's Settings (/boiler/controls), and while
- * Hands-free is on the bar shows who it is listening for, with a tap to stop it.
+ * Hands-free is on the bar shows who it is listening for, with a tap to stop it. A room with tabs (its manifest's
+ * `sections`, from its nav.ts) gets a drop-down of them (#871): pointed at with a mouse, or the small caret beside its
+ * name tapped or opened from the keyboard; each tab is its own link (/haven/kitchen, /boiler/controls).
  */
 
 /** Each room tab's line, shown when pointed at. The pages' names come from their manifests (roomPages.ts, `pageName`). */
@@ -154,9 +157,122 @@ function AccountMenu() {
   );
 }
 
+/** Where an open drop-down sits, under its room's name in the bar, and how it was opened (a pointer's hover closes on leaving). */
+interface Drop {
+  id: DeskPage;
+  left: number;
+  top: number;
+  pinned: boolean;
+  focus: boolean;
+}
+
+/** A room's drop-down (#871): one link per tab, the one you're on marked in gold. Arrow keys move, Escape closes. */
+function RoomDrop({ drop, sections, current, label, onClose, onHover }: { drop: Drop; sections: readonly RoomSection[]; current: string | null; label: string; onClose: (back: boolean) => void; onHover: (on: boolean) => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  // Kept inside the window on a phone: shifted left when it would run off the right edge.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.left = `${drop.left}px`;
+    const over = el.getBoundingClientRect().right - (window.innerWidth - 8);
+    if (over > 0) el.style.left = `${Math.max(8, drop.left - over)}px`;
+    if (drop.focus) el.querySelector<HTMLElement>("a")?.focus();
+  }, [drop]);
+  const keys = (e: ReactKeyboardEvent) => {
+    const items = [...(box.current?.querySelectorAll<HTMLElement>("a") ?? [])];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const to = e.key === "ArrowDown" ? (at + 1) % items.length : e.key === "ArrowUp" ? (at - 1 + items.length) % items.length : e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : -1;
+    if (to >= 0) {
+      e.preventDefault();
+      items[to]?.focus();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose(true);
+    }
+  };
+  const go = (path: string) => (e: ReactMouseEvent) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    onClose(false);
+    navigateTo(path + window.location.search);
+  };
+  return (
+    <div
+      className="wv-drop"
+      id={`wv-drop-${drop.id}`}
+      ref={box}
+      style={{ top: drop.top }}
+      onKeyDown={keys}
+      onPointerEnter={(e) => e.pointerType === "mouse" && onHover(true)}
+      onPointerLeave={(e) => e.pointerType === "mouse" && onHover(false)}
+      onBlur={(e) => {
+        const to = e.relatedTarget as Node | null;
+        if (to && !box.current?.contains(to) && !(to as HTMLElement).closest?.(`[data-drop="${drop.id}"]`)) onClose(false);
+      }}
+    >
+      <nav aria-label={`${label} tabs`}>
+        {sections.map((s) => (
+          <a key={s.id} href={s.path} aria-current={current === s.id ? "page" : undefined} onClick={go(s.path)}>
+            <span>{s.label}</span>
+            <small>{s.hint}</small>
+          </a>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
 export function DeskNav({ route, owed }: { route: Exclude<Route, "lattice">; owed: number; now?: number }) {
   const tabs = useRef<HTMLElement>(null);
-  const pages: { id: Exclude<Route, "lattice">; label: string }[] = KEY_ORDER.map((id) => ({ id, label: labelOf(id) }));
+  const head = useRef<HTMLElement>(null);
+  const pathname = usePathname();
+  const pages: { id: Exclude<Route, "lattice">; label: string; sections: readonly RoomSection[] }[] = KEY_ORDER.map((id) => ({ id, label: labelOf(id), sections: pageSections(id) }));
+
+  // The open drop-down (#871), placed under its room's name; a hover's waits a moment before closing, so the pointer
+  // can cross to it.
+  const [drop, setDrop] = useState<Drop | null>(null);
+  const shut = useRef(0);
+  const hold = () => window.clearTimeout(shut.current);
+  const later = () => {
+    hold();
+    shut.current = window.setTimeout(() => setDrop((d) => (d && !d.pinned ? null : d)), 180);
+  };
+  const openAt = (id: DeskPage, at: HTMLElement, how: { pinned: boolean; focus: boolean }) => {
+    hold();
+    const h = head.current?.getBoundingClientRect();
+    const r = at.getBoundingClientRect();
+    if (!h) return;
+    setDrop({ id, left: Math.round(r.left - h.left), top: Math.round(r.bottom - h.top), ...how });
+  };
+  const close = (back: boolean) => {
+    hold();
+    if (back && drop) head.current?.querySelector<HTMLElement>(`[data-drop="${drop.id}"] .wv-tabcaret`)?.focus();
+    setDrop(null);
+  };
+  // Shut on a move, a tap elsewhere, Escape, the bar scrolling sideways or the window resizing.
+  useEffect(() => setDrop(null), [pathname]);
+  useEffect(() => {
+    if (!drop) return;
+    const away = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest?.(".wv-drop") && !t?.closest?.(`[data-drop="${drop.id}"]`)) setDrop(null);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setDrop(null);
+    const off = () => setDrop(null);
+    const row = tabs.current;
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    window.addEventListener("resize", off);
+    row?.addEventListener("scroll", off, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+      window.removeEventListener("resize", off);
+      row?.removeEventListener("scroll", off);
+    };
+  }, [drop]);
+  useEffect(() => () => window.clearTimeout(shut.current), []);
 
   // On a phone the row scrolls: keep the page you're on in view. Asked in the next frame, once the new page has mounted,
   // and only when the row overflows (#417): scrollIntoView lays the whole page out on the spot, and in the commit it
@@ -172,23 +288,64 @@ export function DeskNav({ route, owed }: { route: Exclude<Route, "lattice">; owe
   }, [route]);
 
   return (
-    <header className="wv-nav">
+    <header className="wv-nav" ref={head}>
       <a className="wv-logo" href="/" onClick={link("today")} aria-label="C.E.O., the Desk: Today">
         <LatticeMark />
         <span>C.E.O.</span>
       </a>
       <nav className="wv-tabs desk__tabs" aria-label="Desk" ref={tabs}>
-        {pages.map((t, i) => (
-          <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={`${t.id in ROOM_TABS ? ROOM_TABS[t.id as RoomRoute].line : t.label}${i < 10 ? ` (${(i + 1) % 10})` : ""}`} data-room={t.id === "today" ? undefined : t.id}>
-            {t.label}
-            {t.id === "today" && owed > 0 && (
-              <b className="wv-tab-n" title="Things that need you">
-                {owed}
-              </b>
-            )}
-          </a>
-        ))}
+        {pages.map((t, i) => {
+          const tab = (
+            <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={`${t.id in ROOM_TABS ? ROOM_TABS[t.id as RoomRoute].line : t.label}${i < 10 ? ` (${(i + 1) % 10})` : ""}`} data-room={t.id === "today" ? undefined : t.id}>
+              {t.label}
+              {t.id === "today" && owed > 0 && (
+                <b className="wv-tab-n" title="Things that need you">
+                  {owed}
+                </b>
+              )}
+            </a>
+          );
+          if (!t.sections.length) return tab;
+          const isOpen = drop?.id === t.id;
+          return (
+            <div key={t.id} className="wv-tabw" data-drop={t.id} data-open={isOpen || undefined} onPointerEnter={(e) => e.pointerType === "mouse" && openAt(t.id, e.currentTarget, { pinned: false, focus: false })} onPointerLeave={(e) => e.pointerType === "mouse" && later()}>
+              {tab}
+              <button
+                type="button"
+                className="wv-tabcaret"
+                aria-expanded={isOpen}
+                aria-controls={isOpen ? `wv-drop-${t.id}` : undefined}
+                aria-label={`${t.label} tabs`}
+                onClick={(e) => (isOpen && drop.pinned ? close(false) : openAt(t.id, e.currentTarget.parentElement!, { pinned: true, focus: e.detail === 0 }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && isOpen) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    close(false);
+                  } else if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    openAt(t.id, e.currentTarget.parentElement!, { pinned: true, focus: true });
+                  }
+                }}
+              >
+                <svg viewBox="0 0 10 10" aria-hidden="true">
+                  <path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          );
+        })}
       </nav>
+      {drop && (
+        <RoomDrop
+          drop={drop}
+          sections={pageSections(drop.id)}
+          current={route === drop.id ? sectionOf(pageSections(drop.id), pathname).id : null}
+          label={labelOf(drop.id)}
+          onClose={close}
+          onHover={(on) => (on ? hold() : later())}
+        />
+      )}
       <div className="wv-navr">
         <HandsFreeLive />
         <AccountMenu />

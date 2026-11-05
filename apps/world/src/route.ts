@@ -92,10 +92,11 @@ export function navigate(route: Route, search = "") {
   navigateTo(PATHS[route] + search);
 }
 
-/** Go to any path inside the app (a subpage) without reloading the page. */
-export function navigateTo(path: string) {
+/** Go to any path inside the app (a subpage) without reloading the page; `replace` swaps the current entry instead of adding one. */
+export function navigateTo(path: string, replace = false) {
   if (window.location.pathname + window.location.search === path) return;
-  window.history.pushState(null, "", path);
+  if (replace) window.history.replaceState(window.history.state, "", path);
+  else window.history.pushState(null, "", path);
   moved();
   for (const fn of listeners) fn();
 }

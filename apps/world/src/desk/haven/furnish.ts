@@ -569,6 +569,7 @@ const MASTER = /\b(master|primary)\b/i;
 const BED = /\bbed/i;
 const LANDING = /\b(hall|landing|passage|corridor|entry|foyer)\b/i;
 const OUTDOOR = /\b(balcony|terrace|patio|loggia)\b/i;
+const GYM = /\bgym\b/i;
 
 /** The main bedroom: by name, else the largest bedroom. */
 function masterBed(home: PlanRoom[]): PlanRoom | null {
@@ -652,7 +653,7 @@ function nearEnd(R: Rect, s: Side, a: number, b: number, to: [number, number] | 
  */
 function glaze(a: number, b: number, end: "lo" | "hi", skip: number, doorW: number, winMax = Infinity): { door: [number, number]; win: [number, number] | null } {
   const END = 12, GAP = 14;
-  const dw = Math.min(doorW, Math.max(60, (b - a) * 0.45));
+  const dw = Math.min(doorW, Math.max(60, (b - a) * 0.5));
   const d0 = end === "lo" ? a + skip : b - skip - dw;
   const door: [number, number] = [d0, d0 + dw];
   let win: [number, number] = end === "lo" ? [door[1] + GAP, b - END] : [a + END, door[0] - GAP];
@@ -714,7 +715,6 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
   // an import carried is not trusted, so a wall nobody set is solid.
   const set = plan.openings === true;
   const windows = set ? [...plan.windows] : [], balconies = set ? [...(plan.balconies ?? [])] : [], tv = set ? [...(plan.tv ?? [])] : [], doors = [...plan.doors];
-  const studio = home.find((r) => STUDIO.test(r.name));
   const bed = masterBed(home);
   const landing = landingOf(home, bed, plan.doors);
   let derivedLiving = false;
@@ -722,42 +722,42 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
     balconies.push(segOn(R, s, ...g.door));
     if (g.win) windows.push(segOn(R, s, ...g.win));
   };
+  // Nikita, 2026-11-05 (#806): the living room's balcony runs the whole length of its outside wall; the main bedroom has
+  // windows only; the hall's balcony runs about half its outside wall, with a big window along the rest; the gym has
+  // windows all along one side.
   for (const r of home) {
     if (!LIVING.test(r.name) || set) continue;
     const R = mainRect(r);
     const o = longestOutside(R, home, plan.doors, 120);
     if (!o) continue;
     derivedLiving = true;
-    put(R, o.s, glaze(o.a, o.b, nearEnd(R, o.s, o.a, o.b, studio ? centreOfRoom(studio) : null), 12, 90));
+    balconies.push(segOn(R, o.s, o.a + 12, o.b - 12));
     if (!SIDES.some((s) => runs(R, s, tv).length)) tv.push(segOn(R, OPP[o.s], 0, wallLen(R, OPP[o.s])));
   }
   if (bed && !set) {
     const R = mainRect(bed);
     const o = longestOutside(R, home, plan.doors, 120);
-    if (o) put(R, o.s, glaze(o.a, o.b, nearEnd(R, o.s, o.a, o.b, landing ? centreOfRoom(landing.room) : null), 12, 90));
+    if (o) windows.push(segOn(R, o.s, o.a + 12, o.b - 12));
   }
   if (landing && !set) {
     const R = mainRect(landing.room);
     const o = longestOutside(R, home, plan.doors, 110);
     if (o) {
-      // From the corner by the bedroom door: room for the greenhouse, the balcony door, then the big window.
+      // From the corner by the bedroom door: room for the greenhouse, the balcony over about half the wall, then the window.
       const end = nearEnd(R, o.s, o.a, o.b, landing.door);
       const skip = o.b - o.a >= 96 + 90 + 80 ? 96 : 12;
-      put(R, o.s, glaze(o.a, o.b, end, skip, 90, 240));
+      put(R, o.s, glaze(o.a, o.b, end, skip, (o.b - o.a) / 2));
     }
+  }
+  for (const r of plan.rooms) {
+    if (!GYM.test(r.name) || set) continue;
+    const R = mainRect(r);
+    const others = r.detached ? [] : home;
+    const o = longestOutside(R, others, plan.doors, 120);
+    if (o) windows.push(segOn(R, o.s, o.a + 12, o.b - 12));
   }
   // The kitchen and the hall are one open space.
   for (const k of home.filter((r) => KITCHEN.test(r.name)))
     for (const h of home.filter((r) => HALL.test(r.name) && !KITCHEN.test(r.name))) doors.push(...sharedEdges(k, h));
   return { plan: { ...plan, windows, balconies, tv, doors }, derivedLiving };
-}
-
-function centreOfRoom(r: PlanRoom): [number, number] {
-  let ax = 0, ay = 0, a = 0;
-  for (const [x, y, w, h] of r.parts) {
-    ax += (x + w / 2) * w * h;
-    ay += (y + h / 2) * w * h;
-    a += w * h;
-  }
-  return a ? [ax / a, ay / a] : [0, 0];
 }

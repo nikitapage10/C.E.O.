@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MOOD, MURMURS, MURMUR_MAX, murmurFor, PESSIMIST, rite, rites, roman, type RiteInput } from "./rite.ts";
+import { MOOD, MURMURS, MURMUR_MAX, murmurFor, murmurVoice, PESSIMIST, readMs, READ_MIN_MS, rite, rites, roman, spoken, SUBMIND_TITLE, type RiteInput } from "./rite.ts";
 
 const BENCH = ["foundry", "relay", "exchange", "boiler", "workshop", "studio", "haven"];
 
@@ -61,5 +61,28 @@ describe("the Senate's order of business (#740)", () => {
     }
     expect(MURMUR_MAX.wide).toBe(3);
     expect(MURMUR_MAX.phone).toBeLessThan(MURMUR_MAX.wide);
+  });
+});
+
+describe("the Rotunda's pace (#755)", () => {
+  it("holds a caption about 250 ms a word, never under 2.5 s", () => {
+    expect(readMs("Aye")).toBe(READ_MIN_MS);
+    expect(readMs("")).toBe(READ_MIN_MS);
+    expect(readMs(Array(20).fill("word").join(" "))).toBe(5_000);
+  });
+
+  it("speaks a caption as it reads: the lead first, or after for a repair's report", () => {
+    expect(spoken({ lead: "Ship it.", text: "It's the room's own suggestion." })).toBe("Ship it. It's the room's own suggestion.");
+    expect(spoken({ lead: "Fix: restart.", text: "Cause: a stuck job." }, true)).toBe("Cause: a stuck job. Fix: restart.");
+    expect(spoken(undefined)).toBe("");
+  });
+
+  it("gives each murmur one member's voice, always the same one", () => {
+    for (const line of Object.values(MURMURS).flat()) {
+      const by = murmurVoice(line);
+      expect(Object.keys(SUBMIND_TITLE)).toContain(by);
+      expect(by).not.toBe("kernel");
+      expect(murmurVoice(line)).toBe(by);
+    }
   });
 });

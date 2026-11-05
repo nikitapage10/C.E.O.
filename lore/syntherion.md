@@ -228,10 +228,12 @@ option, the Pessimist always rising for the counterpoint before the question is 
 reported, cause then fix, with one note of risk from the Boiler Room. A pod flies down to the floor to speak and glides
 home after. Nobody knows who sits in the gallery. It murmurs anyway ("Hear, hear", "Is the Pessimist ever cheerful?"),
 never more than three voices at once, and the Historian keeps the minutes. A submind with no real work yet waits dim
-in its seat; whoever the C.E.O. points at is lit. A spotlight finds a pod only when it takes the floor, follows it down, and
-fades as it glides home; no light is left burning over an empty seat. Since #775 the gallery isn't empty either: a share
-of its pods hold shadow Skippies, dark silhouettes of the can with a faint rim of light, swaying slowly. Nobody knows if
-they are echoes, rehearsals or an audience Skippy invented for himself; he calls them "aspirational".
+in its seat; whoever the C.E.O. points at is lit. Since #755 the chamber can be heard: with the sound on, Skippy chairs
+in his own voice and each submind speaks in one of its own (the Builder gravelly, the Pessimist low and slow, the
+Messenger quick as gossip, the Historian a British storyteller who sighs at dates), and nobody takes the floor until
+the last speaker has finished. Each line is spoken once and kept in the Archive's vaults for ever after, which the
+Bookie calls "the only sound investment in the building". The gallery mutters under its breath, and goes quiet the
+moment anyone on the floor opens their mouth. A spotlight finds a pod only when it takes the floor, follows it down, and fades as it glides home; no light is left burning over an empty seat. Since #775 the gallery isn't empty either: a share of its pods hold shadow Skippies, dark silhouettes of the can with a faint rim of light, swaying slowly. Nobody knows if they are echoes, rehearsals or an audience Skippy invented for himself; he calls them "aspirational".
 
 **The Senate's manners.** Since #775 no two Skippies in the Senate move alike, and each one's face moves too. Skippy in
 the chair is grand and unhurried, conducting with a baton only he sees. The Builder's hands never stop tinkering and it

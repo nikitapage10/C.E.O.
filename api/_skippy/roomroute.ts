@@ -20,6 +20,9 @@
  *       answer still shows.
  *   POST /api/skippy-room  { room, speak }   a room's own intent handler answered in the browser (@ceo/engine/voice):
  *                          only that line (at most 300 characters) read aloud, no model call → 200 { say, kind: "spoken", audio? }.
+ *   POST /api/skippy-room  { room: "today", speak, as }   Today's Senate Rotunda (#755): a caption read aloud in its
+ *                          member's own voice (`as` is its seat, "kernel" the chair; api/_skippy/rotundavoice.ts), kept in
+ *                          the blob store by hash so each line is made once ever → 200 { say, kind: "spoken", audio?, cached? }.
  *     → 401 signed-out, 403 cross-site, 400 { say } nothing heard or too long, 413 too big, 415 not JSON or audio,
  *       422 { say } held by the privacy check, 429 { say } the chat's pace, 502 { say }, 503 not-set-up.
  *
@@ -38,6 +41,7 @@ import { PhoneTodos, type TodoSink } from "../_haven/todos.js";
 import { elevenFromEnv, pickStoryStore, type ElevenConfig, type StoryStore } from "../_world/story.js";
 import { roomAnswer, type PhoneTurn, type RoomTurn } from "../skippy.js";
 import { ROOM_SUBMINDS, isNeeds } from "./log.js";
+import { castVoiceOf, ROTUNDA_SAY_MAX, speakCast } from "./rotundavoice.js";
 import {
   CLIP_MAX_BYTES,
   CLIP_TYPES,
@@ -187,6 +191,8 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     voice = roomVoiceOf(body.room);
     if (!voice) return json({ error: "bad-request" }, 400);
     // A room's own intent handler answered in the browser (@ceo/engine/voice): only its line read aloud, no model call.
+    // Today's Rotunda (#755): a caption read aloud in its member's own voice, cached once ever (rotundavoice.ts).
+    if (body.speak !== undefined && body.text === undefined && body.as !== undefined && voice.room === "today") return speakAs(body.as, tidyText(body.speak), deps);
     if (body.speak !== undefined && body.text === undefined) return speakOnly(voice, tidyText(body.speak), deps);
     text = tidyText(body.text);
     history = readHistory(body.history);
@@ -262,6 +268,20 @@ async function speakOnly(voice: RoomVoice, say: string, deps: RoomRouteDeps): Pr
     kind: "spoken",
     ...(spoken && { audio: Buffer.from(spoken).toString("base64") }),
   });
+}
+
+/**
+ * A Rotunda caption read aloud (#755): `{ room: "today", speak, as }`, `as` the member's seat ("kernel" is the chair).
+ * From the cache when it has been said before; else made once under the cap and the Rotunda's share. A line that looks
+ * private is never sent.
+ */
+async function speakAs(as: unknown, say: string, deps: RoomRouteDeps): Promise<Response> {
+  if (!castVoiceOf(as)) return json({ error: "bad-request" }, 400);
+  if (!say) return json({ error: "bad-request" }, 400);
+  if (say.length > ROTUNDA_SAY_MAX) return json({ error: "too-long" }, 400);
+  if (privateParts(say).length) return json({ say, kind: "spoken" });
+  const got = await speakCast(as as string, say, { blob: deps.blob, eleven: deps.eleven, ledger: deps.ledger, now: deps.desk.now, fetcher: deps.fetcher });
+  return json({ say, kind: "spoken", ...(got && { audio: Buffer.from(got.audio).toString("base64"), cached: got.cached }) });
 }
 
 /** The rooms with a voice, for the contract test and the docs. */

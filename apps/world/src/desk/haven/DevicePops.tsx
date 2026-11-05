@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { closeClock, useHome, type ActExtra, type DeviceReading, type VendorState } from "../homeDevices.ts";
 import type { HavenPlan } from "./data.ts";
-import { DryFeederArt, FountainArt, LitterArt, VacuumArt, WetFeederArt } from "./DeviceArt.tsx";
+import { VacuumArt } from "./DeviceArt.tsx";
+import { DryStage, FountainStage, LitterStage, WetStage } from "./DevicePlates.tsx";
 import { WetTray } from "./PetDay.tsx";
 import { RoomMap, vacuumName } from "./RoomMap.tsx";
 
@@ -268,7 +269,9 @@ export function DryFeederControls({ d }: { d: DeviceReading }) {
   const off = !d.online || busy !== null || left === 0;
   return (
     <div className="hv-dp-dev">
-      <DryFeederArt feeding={feeding} low={d.foodLow} />
+      <span className="hv-dp-stage">
+        <DryStage d={d} feeding={feeding} />
+      </span>
       <div>
         <p className="hv-dp-name">
           Dry food <span className={d.foodLow ? "is-warn" : undefined}>{!d.online ? "offline" : d.foodLow ? "food low" : "food ok"}</span>
@@ -296,13 +299,15 @@ export function DryFeederControls({ d }: { d: DeviceReading }) {
 export function WetFeederControls({ d }: { d: DeviceReading }) {
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
-  const [turning, flash] = useFlash(2400);
+  const [, flash] = useFlash(2400);
   const off = !d.online || busy !== null;
   const open = /open|feeding|serving/i.test(d.state) && !/closed/i.test(d.state);
   const left = Math.max(0, (d.manualCap ?? 2) - (d.manualToday ?? 0));
   return (
     <div className="hv-dp-dev">
-      <WetFeederArt plate={d.plate} open={open} turning={turning} />
+      <span className="hv-dp-stage">
+        <WetStage d={d} />
+      </span>
       <div>
         <p className="hv-dp-name">
           Wet food <span>{!d.online ? "offline" : d.closesAt ? `Open, closes at ${closeClock(d.closesAt)}` : d.state}</span>
@@ -329,10 +334,11 @@ export function WetFeederControls({ d }: { d: DeviceReading }) {
 }
 
 export function FountainPanel({ d }: { d: DeviceReading }) {
-  const flowing = d.online && !/off|stop|pause|dry|empty/i.test(d.state);
   return (
     <div className="hv-dp-dev">
-      <FountainArt level={d.water} flowing={flowing} />
+      <span className="hv-dp-stage">
+        <FountainStage d={d} />
+      </span>
       <div>
         <p className="hv-dp-name">
           Water <span className={typeof d.water === "number" && d.water < 25 ? "is-warn" : undefined}>{d.online ? (typeof d.water === "number" ? `${d.water}%` : d.state) : "offline"}</span>
@@ -369,7 +375,9 @@ export function LitterControls({ d }: { d: DeviceReading }) {
   const off = !d.online || busy !== null || d.state !== "ready";
   return (
     <div className="hv-dp-dev">
-      <LitterArt cycling={cycling} drawer={d.drawer} litter={d.litter} catInside={d.catInside} />
+      <span className="hv-dp-stage">
+        <LitterStage d={d} flash={cycling} />
+      </span>
       <div>
         <p className="hv-dp-name">
           Litter-Robot <span>{d.online ? d.state : "offline"}</span>

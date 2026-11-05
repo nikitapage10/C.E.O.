@@ -427,7 +427,53 @@
   color: var(--hv-warn);
 }
 
+/* The Pets plates, compact (#806, Nikita: "smaller, concise, to the point"): the render a small square at the left, the
+   reading and the buttons beside it, so all four fit on a screen. */
+[data-room="haven"] .hv-plates.is-compact {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 10px;
+}
+[data-room="haven"] .is-compact .hv-plate {
+  flex-direction: row;
+  align-items: stretch;
+}
+[data-room="haven"] .is-compact .hv-plStage {
+  flex: none;
+  width: 150px;
+  border-right: 1px solid var(--hv-line);
+}
+[data-room="haven"] .is-compact .hv-plRd {
+  max-height: 150px;
+}
+[data-room="haven"] .is-compact .hv-plRead {
+  flex: 1;
+  min-width: 0;
+  align-content: start;
+  padding: 10px 14px 12px;
+  border-top: 0;
+}
+[data-room="haven"] .is-compact .hv-plRead h3 {
+  font-size: 18px;
+}
+[data-room="haven"] .is-compact .hv-plNum {
+  font-size: 22px;
+}
+/* Device art inside the home-screen pop-ups (#806): the same plate renders, at pop-up size. */
+[data-room="haven"] .hv-dp-stage {
+  flex: none;
+  width: 110px;
+}
+[data-room="haven"] .hv-dp-stage .hv-plRd {
+  max-height: 110px;
+}
+
 @media (max-width: 860px) {
+  [data-room="haven"] .is-compact .hv-plStage {
+    width: 112px;
+  }
+  [data-room="haven"] .is-compact .hv-plRd {
+    max-height: 112px;
+  }
   [data-room="haven"] .hv-plates {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -25,13 +25,20 @@
 [data-room="haven"] .hv-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  min-height: calc(100svh - var(--hv-navh, 62px));
+  grid-template-rows: minmax(0, 1fr);
+  /* The whole house, Reset view included, fits on one screen under the nav and the room tabs (#806). */
+  height: calc(100svh - var(--hv-navh, 62px) - var(--hv-tabsh, 0px));
+  min-height: 460px;
   padding-top: 18px;
   padding-bottom: 18px;
 }
+/* The room tabs' row (8px gap + the pill), taken off the stage so Reset view stays on screen. */
+[data-room="haven"]:has(> .hv-tabs) {
+  --hv-tabsh: 58px;
+}
 [data-room="haven"] .hv-houseWrap {
   position: relative;
-  min-height: max(560px, calc(100svh - var(--hv-navh, 62px) - 36px));
+  min-height: 0;
 }
 [data-room="haven"] .hv-house {
   position: absolute;
@@ -209,11 +216,10 @@
   background: rgba(14, 13, 18, 0.7);
   overflow-x: auto;
 }
-/* At the top of the page above the house, and stuck under the Desk's nav while scrolling (desktop and phone). */
+/* At the top of the page above the house, in the page's flow: never floating over the house (#806). */
 [data-room="haven"] .hv-tabs {
-  position: sticky;
-  top: calc(var(--hv-navh, 60px) + 8px);
-  z-index: 30;
+  position: relative;
+  z-index: 3;
   margin: 8px auto 0;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);

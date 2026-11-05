@@ -1,6 +1,6 @@
 import type { RelayStatus } from "@ceo/core";
 import type { ComposeInput, DraftAnswer, DraftInput, SortAnswer, SortInput } from "../../../api/_relay/models.ts";
-import type { RequestResult, TextsView } from "../../../api/_relay/texts.ts";
+import type { Reason, RequestResult, TextsView } from "../../../api/_relay/texts.ts";
 import { SITE } from "./config.ts";
 
 /**
@@ -27,7 +27,8 @@ export interface Site {
   draft(input: DraftInput): Promise<{ answer: DraftAnswer | null } | { paused: true }>;
   compose(input: ComposeInput): Promise<{ answer: DraftAnswer | null } | { paused: true }>;
   requests(): Promise<unknown[]>;
-  results(results: { rid: string; result: RequestResult }[]): Promise<boolean>;
+  /** What became of each request, with a reason code for a refusal or a failure (#767): never content. */
+  results(results: { rid: string; result: RequestResult; reason?: Reason }[]): Promise<boolean>;
   skipTerms(): Promise<string[] | null>;
   /** The wipe: the site forgets this pairing, its list and its requests. */
   unpair(): Promise<boolean>;

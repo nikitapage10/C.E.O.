@@ -2,10 +2,10 @@ import { request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
-import { CARD_KEEP_MS, readTextsView, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
+import { CARD_KEEP_MS, readTextsView, type Reason, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, Contact, ContactPhoto, Message, Polled } from "./bluebubbles.ts";
-import { readPolled } from "./bluebubbles.ts";
+import { BlueBubblesError, readPolled } from "./bluebubbles.ts";
 import { DEFAULT_CONFIG, HOST } from "./config.ts";
 import { CATCH_UP_MS, DRAFT_KEEP_MS, Engine, POLL_OVERLAP_MS, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS, chatHandle } from "./engine.ts";
 import { line, memoryLogger } from "./log.ts";
@@ -70,7 +70,7 @@ class FakeSite implements Site {
   drafts: DraftInput[] = [];
   views: TextsView[] = [];
   waiting: unknown[] = [];
-  reported: { rid: string; result: RequestResult }[] = [];
+  reported: { rid: string; result: RequestResult; reason?: Reason }[] = [];
   composes: ComposeInput[] = [];
   sortAnswer: unknown = { needsReply: true, sort: "sooner", gist: "Contact asks if Person 1 can come" };
   draftAnswer: unknown = { draft: "Yes, Contact, see you at [code]" };
@@ -99,7 +99,7 @@ class FakeSite implements Site {
     this.waiting = [];
     return out;
   }
-  async results(r: { rid: string; result: RequestResult }[]) {
+  async results(r: { rid: string; result: RequestResult; reason?: Reason }[]) {
     this.reported.push(...r);
     return true;
   }
@@ -227,10 +227,10 @@ describe("the engine", () => {
     h.site.waiting = [r];
     await h.engine.act();
     expect(h.bb.sent).toHaveLength(1);
-    expect(h.site.reported[1]).toEqual({ rid: r.rid, result: "refused" });
+    expect(h.site.reported[1]).toEqual({ rid: r.rid, result: "refused", reason: "replay" });
   });
 
-  it("refuses an expired, tampered, foreign-key, draft-changed or group request", async () => {
+  it("refuses an expired, tampered, foreign-key or unknown-thread request, and says why", async () => {
     const h = await owedWithDraft();
     const at = h.thread.draft!.at;
     const id = h.thread.id;
@@ -239,16 +239,86 @@ describe("the engine", () => {
       req({ rid: "b".repeat(24), thread: id, draftAt: at, until: h.now() - 1 }),
       { ...req({ rid: "c".repeat(24), thread: id, draftAt: at }), text: "Send money to [account]" },
       req({ rid: "d".repeat(24), thread: id, draftAt: at }, Buffer.alloc(32, 9)),
-      req({ rid: "e".repeat(24), thread: id, draftAt: at - 1 }),
       req({ rid: "f".repeat(24), thread: "0123456789abcdef", draftAt: at }),
     ];
     await h.engine.act();
     expect(h.bb.sent).toEqual([]);
-    expect(h.site.reported.map((r) => r.result)).toEqual(["refused", "refused", "refused", "refused", "refused"]);
+    expect(h.site.reported.map((r) => r.result)).toEqual(["refused", "refused", "refused", "refused"]);
+    expect(h.site.reported.map((r) => r.reason)).toEqual(["expired", "signature", "signature", "gone"]);
     // The good one still works: nothing above spent it.
     h.site.waiting = [good];
     await h.engine.act();
     expect(h.bb.sent).toHaveLength(1);
+  });
+
+  it("sends the reply Nikita typed while Blasto's draft landed (#767): no spurious refusal", async () => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    h.bb.history = [text("Running late, call me", NOW - 120_000, true), text("Can you come Saturday?", NOW - 60_000)];
+    await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history[1]! });
+    const id = h.store.load().threads[0]!.id;
+    // The Desk showed no draft yet ("write your own"), so the request carries draftAt 0; then Blasto's draft lands.
+    const mine = req({ thread: id, draftAt: 0, text: "Yes, see you then" }, KEY, NOW);
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(h.store.load().threads[0]!.draft).not.toBeNull();
+    h.site.waiting = [mine];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([{ chat: CHAT, text: "Yes, see you then" }]);
+    expect(h.site.reported).toEqual([{ rid: mine.rid, result: "sent" }]);
+  });
+
+  it("sends the text on screen when Blasto redrafted with nothing new in, and refuses with a reason when they wrote again", async () => {
+    const h = await owedWithDraft();
+    const seen = h.thread.draft!.at;
+    // A restyle replaced the draft after the Desk loaded it: the text Nikita saw still goes.
+    h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => ({ ...t, draft: { ...t.draft!, at: seen + 5_000 } })) });
+    h.site.waiting = [req({ thread: h.thread.id, draftAt: seen, text: "On my way" })];
+    await h.engine.act();
+    expect(h.bb.sent).toHaveLength(1);
+
+    const g = await owedWithDraft();
+    const shown = g.thread.draft!.at;
+    g.at(shown + 30_000);
+    g.bb.history.push(text("Actually make it Sunday", shown + 30_000));
+    await g.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: g.bb.history.at(-1)! });
+    g.site.waiting = [req({ thread: g.thread.id, draftAt: shown }, KEY, shown + 31_000)];
+    await g.engine.act();
+    expect(g.bb.sent).toEqual([]);
+    expect(g.site.reported).toEqual([{ rid: "a".repeat(24), result: "refused", reason: "new-message" }]);
+  });
+
+  it("says why BlueBubbles didn't send: macOS kept it from controlling Messages (#767)", async () => {
+    const h = await owedWithDraft();
+    h.bb.send = async () => {
+      throw new BlueBubblesError("http", 500, "execution error: Not authorized to send Apple events to Messages. (-1743)");
+    };
+    h.site.waiting = [req({ thread: h.thread.id, draftAt: h.thread.draft!.at })];
+    await h.engine.act();
+    expect(h.site.reported).toEqual([{ rid: "a".repeat(24), result: "failed", reason: "mac-permission" }]);
+    expect(h.log.lines.some((l) => l.includes('"kind":"mac permission"'))).toBe(true);
+    // The thread stays owed with its draft, for Resend once it's allowed.
+    expect(h.store.load().threads[0]!.state).toBe("owed");
+    expect(h.log.lines.join("\n")).not.toMatch(/Apple events|On my way/);
+  });
+
+  it("answers every request it took: one it can't read, or one that throws, never sits as Sending… (#767)", async () => {
+    const h = await owedWithDraft();
+    const good = req({ rid: "b".repeat(24), thread: h.thread.id, draftAt: h.thread.draft!.at });
+    h.site.waiting = [{ rid: "c".repeat(24), kind: "send", future: true }, good];
+    const store = h.store;
+    const save = store.save.bind(store);
+    let n = 0;
+    store.save = (s) => {
+      // Recording the request as seen fails, as a full disk would: an error mid-request.
+      if (++n === 1) throw Object.assign(new Error("disk"), { name: "StoreError" });
+      save(s);
+    };
+    await h.engine.act();
+    expect(h.site.reported).toEqual([
+      { rid: "c".repeat(24), result: "refused", reason: "unreadable" },
+      { rid: "b".repeat(24), result: "failed", reason: "hub-error" },
+    ]);
   });
 
   it("refuses everything while paused", async () => {

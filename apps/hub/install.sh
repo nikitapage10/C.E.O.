@@ -70,6 +70,27 @@ bb_safe() {
   if ! printf '%s\n' "$a" | grep -qvE '^(127\.0\.0\.1|\[::1\]|localhost):1234$'; then return 0; fi
   [ -x "$fw" ] && "$fw" --getglobalstate 2>/dev/null | grep -qi "enabled" && "$fw" --getappblocked /Applications/BlueBubbles.app 2>/dev/null | grep -qi "is blocked"
 }
+# BlueBubbles sends with AppleScript (its Private API stays off), so macOS must let it control Messages (#767):
+# Privacy & Security > Automation. 0: allowed, 1: denied or not asked yet, 2: can't tell (the Terminal can't read
+# macOS's permission list without Full Disk Access, which is fine).
+bb_automation() {
+  local db="$HOME/Library/Application Support/com.apple.TCC/TCC.db" v
+  command -v sqlite3 >/dev/null 2>&1 && [ -r "$db" ] || return 2
+  v="$(sqlite3 "$db" "SELECT auth_value FROM access WHERE service='kTCCServiceAppleEvents' AND client LIKE '%bluebubbles%' AND indirect_object_identifier='com.apple.MobileSMS' LIMIT 1;" 2>/dev/null)" || return 2
+  [ "$v" = 2 ] && return 0
+  return 1
+}
+# Whether the hub's latest send outcome in its log is macOS refusing BlueBubbles control of Messages.
+bb_permission_failed() {
+  local last
+  last="$(cat "$LOG_DIR"/hub-*.log 2>/dev/null | grep -E '"kind":"(sent|mac permission)"' | tail -n 1 || true)"
+  case "$last" in *'"mac permission"'*) return 0 ;; esac
+  return 1
+}
+bb_automation_how() {
+  say "  Allow BlueBubbles to control Messages: System Settings > Privacy & Security > Automation > BlueBubbles >"
+  say "  Messages on. If BlueBubbles isn't listed yet, macOS asks the first time it sends a text: click Allow on this Mac."
+}
 bb_how() {
   say "  BlueBubbles is listening on your network, not only on this Mac (port 1234). Anyone on the same Wi-Fi who learns"
   say "  its password could reach it. To close it: System Settings › Network › Firewall: turn it on, then Options ›"
@@ -79,7 +100,7 @@ bb_how() {
 # The `relay` command, written from this script's own functions, so it is exactly the script that was checked.
 write_command() {
   printf '#!/bin/bash\n# The relay command, written by the CEO Relay installer (#535).\nset -euo pipefail\numask 077\n'
-  declare -f relay_settings say step fail ask ask_secret hub has_item running listening site_status bb_addresses bb_safe bb_how install_relay pause_relay resume_relay status_relay verify_relay wipe_relay write_command main
+  declare -f relay_settings say step fail ask ask_secret hub has_item running listening site_status bb_addresses bb_safe bb_automation bb_permission_failed bb_automation_how bb_how install_relay pause_relay resume_relay status_relay verify_relay wipe_relay write_command main
   printf 'main "$@"\n'
 }
 
@@ -140,6 +161,8 @@ install_relay() {
     bb_how
     [ "$(ask "  Done that, or carry on anyway? [y/N]")" = "y" ] || fail "stopped so you can close BlueBubbles to the network. Paste the install line again after."
   fi
+  # Sending needs BlueBubbles allowed to control Messages (#767); without it a Send on the Desk says why it didn't go.
+  if bb_automation; then say "  BlueBubbles may control Messages (needed to send)"; else bb_automation_how; fi
 
   step "4/6  Pair with the Desk"
   # Already paired (the install run again, #749): the hub token and send key stay, and nothing is asked.
@@ -209,6 +232,14 @@ status_relay() {
   if bb_safe; then say "BlueBubbles: closed to the network"; else
     local rc=$?
     if [ "$rc" = 2 ]; then say "BlueBubbles: not running"; else say "BlueBubbles: WARNING, open to the network"; bb_how; fi
+  fi
+  if bb_permission_failed; then
+    say "Sending: WARNING, the last send failed because macOS didn't let BlueBubbles control Messages"
+    bb_automation_how
+  else
+    local ac=0
+    bb_automation || ac=$?
+    if [ "$ac" = 0 ]; then say "Sending: BlueBubbles may control Messages"; elif [ "$ac" = 1 ]; then say "Sending: BlueBubbles isn't allowed to control Messages yet"; bb_automation_how; fi
   fi
   S="$(site_status)"
   if [ -n "$S" ]; then

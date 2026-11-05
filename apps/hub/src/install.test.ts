@@ -91,6 +91,23 @@ describe("relay status checks BlueBubbles is closed to the network", () => {
   });
 });
 
+describe("relay status says when macOS kept BlueBubbles from controlling Messages (#767)", () => {
+  const LOG = "Library/Logs/CEO Relay/hub-2026-11-05.log";
+  it("warns, with the setting to change, when the latest send failed for it", () => {
+    const f = fixture("127.0.0.1:1234");
+    writeFileSync(join(f.home, LOG), '{"at":"2026-11-05T03:33:00.000Z","kind":"send failed","reason":14,"status":500}\n{"at":"2026-11-05T03:33:00.000Z","kind":"mac permission"}\n');
+    const out = f.run("status").stdout;
+    expect(out).toContain("the last send failed because macOS didn't let BlueBubbles control Messages");
+    expect(out).toContain("System Settings > Privacy & Security > Automation");
+  });
+
+  it("stays quiet once a send went after it", () => {
+    const f = fixture("127.0.0.1:1234");
+    writeFileSync(join(f.home, LOG), '{"at":"2026-11-05T03:33:00.000Z","kind":"mac permission"}\n{"at":"2026-11-05T03:40:00.000Z","kind":"sent"}\n');
+    expect(f.run("status").stdout).not.toContain("WARNING, the last send failed");
+  });
+});
+
 /**
  * The whole install, run against a made-up HOME with macOS's commands, the downloads and the hub stubbed (#749): on a
  * Mac that is already paired it asks for nothing but "Continue?", and it has no webhook step left to fail.

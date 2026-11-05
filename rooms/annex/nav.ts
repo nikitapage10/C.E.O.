@@ -4,5 +4,5 @@
  */
 export const nav = {
   name: "Annex",
-  page: () => import("../../apps/world/src/desk/rooms/Annex.tsx").then((m) => ({ default: m.Annex })),
+  page: () => import("./web/Annex.tsx").then((m) => ({ default: m.Annex })),
 };

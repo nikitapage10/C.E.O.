@@ -181,8 +181,10 @@ bits and the council). The Boiler Room followed (step 13): `web/` holds the Map,
 (`Systems*`, `ControlsPage`, `SecurityPage`, `CompliancePage`) with their panels, parts and stylesheets; `data/` holds the pipes, rack, pressure,
 wind, schematic, connections, controls and pages logic, the security model, keys, checks and feed, and `evals.json`, with
 their tests (moved unchanged apart from import paths and the two path constants that read `docs/` and write `evals.json`;
-security, compliance and connections behave exactly as before; `desk/SystemsNav.tsx` re-exports for two Desk tests). Every other
-room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
+security, compliance and connections behave exactly as before; `desk/SystemsNav.tsx` re-exports for two Desk tests). The
+Annex followed: `web/` holds the page, Election night (`ElectionNight.tsx`) and their sheets; `data/` holds the pop-up store
+(`annex.ts`) and the election feed and model, with its test (moved unchanged apart from import paths; the Desk's council
+pulses read the pop-up store from `rooms/annex/data/annex.ts` directly, so no re-export). Every room now lives in its folder.
 
 ### The manifest
 

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { useNow } from "../../motion.tsx";
-import { useAnnex } from "../annex.ts";
-import { useElections } from "./feed.ts";
-import { ago, GRID_H, GRID_W, leaderOf, matches, ordered, PARTY_NAME, placeOf, STATE_NAMES, TABS, TILES, tileFill, votes, type Filters, type PartyKey, type Race, type Tab, type TileFill } from "./model.ts";
+import { useNow } from "../../../apps/world/src/desk/motion.tsx";
+import { useAnnex } from "../data/annex.ts";
+import { useElections } from "../data/feed.ts";
+import { ago, GRID_H, GRID_W, leaderOf, matches, ordered, PARTY_NAME, placeOf, STATE_NAMES, TABS, TILES, tileFill, votes, type Filters, type PartyKey, type Race, type Tab, type TileFill } from "../data/model.ts";
 import "./elections.css";
 
 /**

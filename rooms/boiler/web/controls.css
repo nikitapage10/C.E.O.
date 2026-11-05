@@ -252,3 +252,19 @@
   .desk .ct-page .ct-set{grid-template-columns:1fr}
   .desk .ct-page .ct-set-l>li{flex-wrap:wrap}
 }
+
+/* ── Skippy's tools (#847): a square per tool in its kind's tone, then the list by room ── */
+.desk .ct-page .ct-tsq{display:flex;flex-wrap:wrap;gap:3px;align-items:center;min-width:0}
+.desk .ct-page .ct-tsq>i{width:10px;height:10px;border-radius:2px;background:var(--c,var(--bx-dim))}
+.desk .ct-page .ct-tkey{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px}
+.desk .ct-page .ct-tkey>span{display:inline-flex;align-items:center;gap:6px}
+.desk .ct-page .ct-tkey>span>i{width:8px;height:8px;border-radius:2px;background:var(--c,var(--bx-dim))}
+.desk .ct-page .ct-tdetail{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px 24px}
+.desk .ct-page .ct-tdetail h3{margin:0 0 6px;font:600 15px var(--ct-disp);letter-spacing:.06em;text-transform:uppercase}
+.desk .ct-page .ct-tdetail ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.desk .ct-page .ct-tdetail li{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:2px 8px;align-items:center;font-size:12.5px;min-width:0}
+.desk .ct-page .ct-tdetail li>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.desk .ct-page .ct-tdetail li>em{font-style:normal;color:var(--c,var(--bx-mut));white-space:nowrap}
+.desk .ct-page .ct-tdetail li>small{grid-column:2 / -1;color:var(--wv-faint,var(--bx-dim));font-size:11px}
+.desk .ct-page .ct-tdetail>.ct-note{grid-column:1 / -1}
+.desk .ct-page .ct-tools .bx-word{color:var(--bx-mut)}

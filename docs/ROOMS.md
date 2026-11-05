@@ -76,6 +76,7 @@ plugging in adds nothing to the first load.
 | Flow (`desk/flow`) | Its pulse, for the tempo of its page's lines (`useRoomPulse`, from the stores the Desk keeps) | `setPulseReader` (`desk/flow/pulse.ts`) |
 | Skippy's page block (`desk/skippy/page.ts`) | Its lines for his quick take: the Green's start/sit calls (`rooms/green/skippy.ts`, leading every block) and the Exchange's odds (`rooms/exchange/skippy.ts`) | `addPageSource` (`desk/skippy/rooms.ts`) |
 | Skippy's texting (#536) | The Relay's compose card and call tools (`rooms/relay/data/`) | `setTexting` (`desk/skippy/rooms.ts`) |
+| Skippy's tools (#847) | Its `tools.ts`, loaded lazily, for the Boiler Room's "Skippy's tools" circuit on Controls (in the server registry's order; a test keeps them the same) | `setToolbelt` (`@ceo/engine/tools`) |
 
 As a room moves into `rooms/<id>/`, its part moves with it (its `skippy.ts`) and is offered through its manifest.
 

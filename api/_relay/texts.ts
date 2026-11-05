@@ -180,11 +180,15 @@ export interface ShownText {
   from?: string;
   /** That member's photo id (#642), when the site has it. */
   photo?: string;
-  /** A photo or another attachment with no words (#870): `text` is "", and the Desk shows "Photo". Nothing of it is sent. */
+  /** A photo or another attachment with no words (#870): `text` is exactly MEDIA_TEXT ("Photo"). Nothing of it is sent. */
   media?: true;
+  /** Nikita's own line (#870), in a one-to-one thread's recent turns: no `from`. */
+  me?: true;
 }
 
 export const MAX_SHOWN = 5;
+/** What a photo or file with no words reads as on the Desk (#870). */
+export const MEDIA_TEXT = "Photo";
 export const SHOWN_CHARS = 1_000;
 
 /** The texts on an item (#758), checked: closed shape, MAX_SHOWN at most, SHOWN_CHARS in all. Null for anything off. */
@@ -193,13 +197,14 @@ export function readShown(v: unknown): ShownText[] | null {
   const out: ShownText[] = [];
   let used = 0;
   for (const m of v as Record<string, unknown>[]) {
-    if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo", "media"])) return null;
+    if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo", "media", "me"])) return null;
     const text = str(m.text, SHOWN_CHARS);
     if (text === null || !isTime(m.at)) return null;
-    if (m.media !== undefined && (m.media !== true || text !== "")) return null;
+    if (m.media !== undefined && (m.media !== true || text !== MEDIA_TEXT)) return null;
+    if (m.me !== undefined && (m.me !== true || m.from !== undefined || m.photo !== undefined)) return null;
     // A text that is only invisible characters (a zero-width space, a lone joiner) is left out, not the whole list
     // (#803: one such text refused the hub's every push, and the Desk kept an old list without the texts).
-    if (!text.trim() && m.media !== true) continue;
+    if (!text.trim()) continue;
     used += text.length;
     if (used > SHOWN_CHARS) return null;
     let from: string | null = null;
@@ -208,7 +213,7 @@ export function readShown(v: unknown): ShownText[] | null {
       if (!from?.trim() || from.includes("\n")) return null;
     }
     if (m.photo !== undefined && (typeof m.photo !== "string" || !/^[0-9a-f]{32}$/.test(m.photo))) return null;
-    out.push({ text, at: m.at, ...(from !== null && { from }), ...(typeof m.photo === "string" && { photo: m.photo }), ...(m.media === true && { media: true as const }) });
+    out.push({ text, at: m.at, ...(from !== null && { from }), ...(typeof m.photo === "string" && { photo: m.photo }), ...(m.media === true && { media: true as const }), ...(m.me === true && { me: true as const }) });
   }
   return out;
 }
@@ -356,7 +361,8 @@ export function readTextItem(v: unknown): TextItem | null {
   const messages = o.messages === undefined ? null : readShown(o.messages);
   if (o.messages !== undefined && !messages) return null;
   // A one-to-one item's texts are only someone else's, with no sender line; a group's each name their sender.
-  if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined))) return null;
+  // Since #870 a one-to-one item's recent turns include Nikita's own lines (`me`); a group's never do.
+  if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined) || (o.group === true && m.me))) return null;
   if (o.wait !== undefined && !(GIST_WAITS as readonly unknown[]).includes(o.wait)) return null;
   const wait = o.wait as GistWait | undefined;
   if (o.media !== undefined && (!Number.isInteger(o.media) || (o.media as number) < 1 || (o.media as number) > 999)) return null;

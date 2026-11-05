@@ -16,7 +16,7 @@ export const ASIDE_WORDS: Record<AsideWhy, string> = {
 };
 
 /**
- * "Relay set these aside" (#870): the one-to-one threads from the last 30 days that aren't in the line, newest first,
+ * "Relay set these aside" (#870). The hub's action is the `back` request (POST /api/relay { action: "back", thread }).: the one-to-one threads from the last 30 days that aren't in the line, newest first,
  * each with why, and "Bring back" for the ones a model, closing intent or Nikita's own Done set aside (a rule's never
  * reach a model, so they stay). Folded by default; names only, behind the passkey like the rest of the list.
  */

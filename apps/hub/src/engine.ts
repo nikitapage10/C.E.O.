@@ -14,7 +14,7 @@ import { syncPhotos, type Resize } from "./photos.ts";
 import { settleByRule } from "./rules.ts";
 import type { Site } from "./site.ts";
 import { MAX_OLDER_ROWS, newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
-import { MAX_ASIDE, MAX_ITEMS, MAX_OLDER, OWED_WINDOW_MS, SHOWN_KEEP_MS, type AsideItem, type AsideWhy, type GistWait, type OlderItem } from "../../../api/_relay/texts.ts";
+import { MAX_ASIDE, MAX_ITEMS, MEDIA_TEXT, MAX_OLDER, OWED_WINDOW_MS, SHOWN_KEEP_MS, type AsideItem, type AsideWhy, type GistWait, type OlderItem } from "../../../api/_relay/texts.ts";
 import { readLearn, type DraftVoice, type Relation, type Voice } from "../../../api/_relay/voice.ts";
 import { allChats, sortBacklog, verdictOf } from "./backlog.ts";
 import { chatPerson, handleKey, LEARN_MIN, LEARN_WINDOW_MS, sampleSent, voiceStats, type Said } from "./learn.ts";
@@ -348,6 +348,11 @@ export class Engine {
         s.olderCount = Math.max(0, s.olderCount - 1);
       }
       if (m.message.fromMe) {
+        // A thread Nikita sent in from the Desk stays in the queue (#870): only Done (or a rule) settles it.
+        if (t.sentHere !== undefined) {
+          t.unread = false;
+          return;
+        }
         if (t.state === "owed" || t.state === "later") this.replied(s, t, at);
         if (t.group) t.summary = null;
         t.unread = false;
@@ -389,6 +394,19 @@ export class Engine {
       this.queue.add(t.id);
       this.d.log.log("thread owed");
     });
+  }
+
+  /** A send from the Desk counted for the day (#870): the reply time only for the first since their last text. */
+  private countSend(s: RelayState, t: Thread, at: number) {
+    const day = midnightOf(at, this.offsetAt);
+    let d = s.days.find((x) => x.day === day);
+    if (!d) {
+      d = { day, sent: 0, minutes: [] };
+      s.days.push(d);
+    }
+    d.sent += 1;
+    if ((t.repliedAt ?? 0) < t.lastIn && d.minutes.length < 200) d.minutes.push(Math.max(0, Math.round((at - t.since) / 60_000)));
+    t.repliedAt = at;
   }
 
   private replied(s: RelayState, t: Thread, at: number) {
@@ -564,7 +582,8 @@ export class Engine {
     const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
     // Nikita's own message is the newest (#642): he answered, on his phone or here, so the thread closes. No draft.
     if (!unanswered.length) {
-      if (lastMine >= 0) this.closeReplied(t.id, msgs[lastMine]!.at);
+      // Sent from the Desk (#870): it stays in the queue until Done.
+      if (lastMine >= 0 && t.sentHere === undefined) this.closeReplied(t.id, msgs[lastMine]!.at);
       return;
     }
     // Their photos and files with no words (#870): counted for the Desk's "Photo" mark, never read.
@@ -606,8 +625,9 @@ export class Engine {
       this.d.log.log("thread settled", { rule: 1 });
       return;
     }
-    // Clean of every rule: the unanswered texts themselves go to Nikita's sealed list for the Desk (#758). Display only.
-    this.shown.set(t.id, this.shownOf(unanswered, false));
+    // Clean of every rule: the recent turns, both sides (#870: Nikita's own lines marked `me`), go to Nikita's sealed
+    // list for the Desk (#758). Display only; the same window the rules just passed.
+    this.shown.set(t.id, this.shownOf(seen, false));
     // Only photos and files, no words (#870): owed, with no model call (there is nothing for one to read). The gist is
     // the hub's own words, so the thread isn't queued again every round.
     if (unanswered.every(mediaOnly)) {
@@ -691,7 +711,8 @@ export class Engine {
    * Nikita's own (a reply the webhook missed, or sent from his phone) closes. It resurfaces only when they write again.
    */
   async recheck(): Promise<void> {
-    const owed = this.d.store.load().threads.filter((t) => !t.group && (t.state === "owed" || t.state === "later"));
+    // A thread sent in from the Desk stays in the queue until Done (#870), so it isn't closed here.
+    const owed = this.d.store.load().threads.filter((t) => !t.group && (t.state === "owed" || t.state === "later") && t.sentHere === undefined);
     for (const t of owed.slice(0, 30)) {
       const latest = await this.d.bb.messages(t.chat, 3).catch(() => null);
       if (!latest) return;
@@ -723,14 +744,14 @@ export class Engine {
     const clean = (t: string) => t.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")).trim();
     for (const m of [...msgs].filter((x) => clean(x.text) || x.media).reverse()) {
       if (out.length >= SHOWN_MESSAGES || used >= SHOWN_CHARS) break;
-      // A photo or file with no words (#870) shows as "Photo" on the Desk: no text, nothing of the attachment.
+      // A photo or file with no words (#870) shows as "Photo" on the Desk: nothing of the attachment.
       const media = !clean(m.text);
-      const text = media ? "" : clean(m.text).slice(0, SHOWN_CHARS - used).trim();
-      if (!text && !media) break;
+      const text = media ? MEDIA_TEXT : clean(m.text).slice(0, SHOWN_CHARS - used).trim();
+      if (!text) break;
       used += text.length;
       const contact = group ? this.contactOf(m.handle) : undefined;
       const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
-      out.unshift({ text, at: Math.max(Date.UTC(2026, 0, 1), Math.floor(m.at)), ...(group && { from: (contact?.names[0] || "Unknown sender").slice(0, 80) }), ...(photo && photos[photo] && { photo }), ...(media && { media: true as const }) });
+      out.unshift({ text, at: Math.max(Date.UTC(2026, 0, 1), Math.floor(m.at)), ...(group && { from: (contact?.names[0] || "Unknown sender").slice(0, 80) }), ...(photo && photos[photo] && { photo }), ...(media && { media: true as const }), ...(!group && m.fromMe && { me: true as const }) });
     }
     return out;
   }
@@ -748,7 +769,8 @@ export class Engine {
       const msgs = await this.recent(t.chat, 25);
       if (!msgs) return;
       const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
-      const run = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
+      // A group's texts since Nikita's last reply; a one-to-one thread's recent turns, both sides, as `sortAndDraft` shows them (#870).
+      const run = t.group ? msgs.slice(lastMine + 1).filter((m) => !m.fromMe) : msgs.slice(Math.max(0, lastMine - (CAPS.draftEarlier - 1)));
       const handle = t.chat.split(";").pop() ?? "";
       const ruled = run.some((m) => settleByRule({ handle: t.group ? m.handle : m.handle || handle, names: this.contactOf(t.group ? m.handle : m.handle || handle)?.names ?? [], text: m.text }, this.skipTerms) !== null);
       this.shown.set(t.id, ruled ? [] : this.shownOf(run, t.group));
@@ -1009,26 +1031,21 @@ export class Engine {
       // newer than what he saw does. Nothing came in after the draft on screen (or, with no draft, after the tap).
       // A group's own words answer the room, not one text, so a busy group's newer texts don't stop them (#805).
       if (!t.group && req.draftAt !== (t.draft?.at ?? 0) && t.lastIn > (req.draftAt || req.created)) return refuse("new-message");
-      // Already answered (an earlier send that timed out but went, or a reply from the phone the webhook missed):
-      // BlueBubbles shows a message of Nikita's newer than the last one in. Never send twice.
-      const latest = await this.d.bb.messages(t.chat, 5).catch(() => null);
+      // Never the same text twice (#870, multi-send): a request id acts once (`seen`, above), and a Resend of one that
+      // timed out but went is refused when Messages already shows that very text of Nikita's after their last one.
+      // Another text to the same thread goes: Nikita may send more than one.
+      const latest = await this.d.bb.messages(t.chat, 10).catch(() => null);
       if (!latest) return refuse("messages-down");
-      const answered = latest.filter((m) => m.fromMe).reduce((a, m) => Math.max(a, m.at), 0);
-      if (answered > t.lastIn) {
-        this.change((s) => {
-          const x = s.threads.find((y) => y.id === t.id);
-          if (x) this.replied(s, x, answered);
-        });
-        return refuse("answered");
-      }
+      const same = (a: string) => a.trim().replace(/\s+/g, " ") === req.text.trim().replace(/\s+/g, " ");
+      if (latest.some((m) => m.fromMe && m.at > t.lastIn && same(m.text))) return refuse("answered");
       const failed = await this.sendVia(t.chat, req.text);
       if (failed) return failed;
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
         if (!x) return;
-        // As a reply from the phone does (`onMessage`): a group's summary was of what came before it.
-        if (!x.group || x.state === "owed" || x.state === "later") this.replied(s, x, this.d.now());
-        if (x.group) x.summary = null;
+        // The thread stays in the queue (#870): only Done (or a rule) settles it. The send is counted, the draft goes.
+        this.countSend(s, x, this.d.now());
+        Object.assign(x, { sentHere: this.d.now(), draft: null, unread: false });
       });
       this.d.log.log("sent");
       return "sent";
@@ -1045,7 +1062,7 @@ export class Engine {
     if (req.kind === "done") {
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
-        if (x) Object.assign(x, { state: "settled", why: "done", draft: null, laterUntil: null, kept: undefined });
+        if (x) Object.assign(x, { state: "settled", why: "done", draft: null, laterUntil: null, kept: undefined, sentHere: undefined });
       });
       return "done";
     }

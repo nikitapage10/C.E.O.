@@ -39,8 +39,8 @@ The parts:
 
 1. **Message text stays on the Mac** except inside one model call at a time (trimmed to what that call needs, names
    and numbers swapped for placeholders, passed through the site to Claude and never stored or logged on the way), and,
-   since #758 at Nikita's request (2026-11-05), the last 5 unanswered texts of an owed thread (1,000 characters in
-   all), sealed on the site for their own Desk only, a week at most. Never from a thread any rule matches.
+   since #758 at Nikita's request (2026-11-05), the last 5 texts of an owed thread (1,000 characters in all; since
+   #870 its recent turns from both sides), sealed on the site for their own Desk only, a week at most. Never from a thread any rule matches.
 2. **The public site sees counts and states only**, in one allowlisted shape (`RelayStatus`).
 3. **The signed-in Desk sees who is waiting**: their name, when, Dialtone's one-line gist, Blasto's draft and (#758)
    what they said. That list is sealed on the site, readable only with a passkey session. Since #642 it may show a
@@ -60,7 +60,7 @@ The parts:
 | Messages | Every message and attachment | Apple's `chat.db`. Relay never opens it; it asks BlueBubbles for a chat's latest messages when it needs them | Apple's choice, not Relay's |
 | BlueBubbles | Its own cache, settings and server password | `~/Library/Application Support/bluebubbles-server/` | Until BlueBubbles is removed (see the wipe) |
 | Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen; the new-message poll's cursor (the newest message time read, and 16 hex of the SHA-256 of each message guid read in the last 2 minutes, never the guid). Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. Since #758: per thread whether its last text is unread; the backlog's older unanswered chats (a random id, the chat id, the time, unread or not; 200 at most) and when it last ran; the learned voice (style traits, tones by relationship, the numbers, when, the cost) and, per learned contact, 16 hex of a SHA-256 of their handle with its relationship (family, friends, work, other). **Never a copy of a message body** |
-| Shown texts (#758) | An owed thread's last 5 unanswered texts (1,000 characters in all), a group's since Nikita's last reply, with each sender's name | The hub's memory only, never the state file | Until the thread closes or the hub restarts |
+| Shown texts (#758) | An owed thread's last 5 texts (1,000 characters in all; since #870 its recent turns from both sides), a group's since Nikita's last reply, with each sender's name | The hub's memory only, never the state file | Until the thread closes or the hub restarts |
 | The learn pass (#758) | A year of Nikita's messages, read once from BlueBubbles to make the numbers and the sample | Memory, for one run | The run | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
 | Style profile | Four numbers made at draft time from Nikita's own past replies to that contact (usual length, and how often they start with a capital, use emoji, end with a full stop). No text. Since #758 each draft also carries the learned voice: the traits, the tone for that contact's relationship, and the numbers | Memory, for one call | The call |
 | Style examples | Up to 8 of Nikita's own past replies to that contact | Memory only, for one Blasto call | The call |
@@ -270,8 +270,11 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
    request with 10 minutes to live, and nothing ever sends on its own.
 2. **Send: one tap, one request.** A request has a random id, the thread, the draft it was made from (its time), the
    text, and 10 minutes to live. It is signed with the pairing's send key over all of those. The site makes it only for
-   a thread on the hub's latest list that is one-to-one and still owed, with that very draft, and only one send at a
-   time per thread. A group on the list (#805: owed, or settled with its summary) takes a send too, only with no
+   a thread on the hub's latest list that is one-to-one and still owed, with that very draft. Since #870 (multi-send,
+   Nikita 2026-11-05, his own tap on the decision card) a thread may take more than one send, each its own single-use
+   request on its own tap; a settled thread takes none unless "Bring back" reopened it. A send leaves the thread in
+   the queue (its draft goes), and only Done or a rule settles it; Nikita's own reply read back from Messages doesn't
+   close it. A group on the list (#805: owed, or settled with its summary) takes a send too, only with no
    draft behind it (`draftAt` 0): it is never drafted for, so the text is always Nikita's own typed words, and a group
    is never restyled.
 3. **The hub polls** every 15 seconds. Each waiting, unexpired request is handed out once and marked taken in the same
@@ -283,8 +286,10 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
    landed while he typed his own), that text still goes, unless a message from them came in after the draft he saw
    (or, with no draft, after the tap), which refuses it (#767); a group's newer texts don't, since typed words answer
    the room, not one text (#805). Only then does it
-   asks BlueBubbles for the thread's latest messages: a reply of Nikita's newer than the last message in means it was
-   already answered (a send that timed out but went, or a reply from the phone), and it refuses. Only then does it
+   asks BlueBubbles for the thread's latest messages: since #870 "never send twice" is per request, not per thread.
+   A request id acts once (above), and a request whose very text Messages already shows from Nikita after their last
+   message (a send that timed out but went, then Resent) is refused as already answered; another text to the same
+   thread goes. Only then does it
    send through BlueBubbles, and it reports `sent` or `failed`. Anything else is `refused`. Every refusal and failure
    carries a reason code from a closed list (#767: the key, too late, a new message, already answered, BlueBubbles
    down or timed out, macOS not letting BlueBubbles control Messages…), and every request the hub took gets a result,
@@ -391,7 +396,7 @@ sealed list holds. The public site still gets counts only.
   them after Nikita's reply even closed the thread as answered). The hub reads only that there was an attachment
   (Messages' U+FFFC mark in the text, or BlueBubbles' `hasAttachments` and balloon flags), never the attachment, its
   name or its kind; attachments are still never asked for. The sealed list carries a count (`media` on an owed
-  one-to-one item) and a shown line with no text (`{ text: "", media: true }`, the Desk writes "Photo"). A model sees
+  one-to-one item) and a shown line `{ text: "Photo", media: true }` (the hub's word, nothing of the file). A model sees
   the marker line `[a photo or attachment]` in its place, and a thread that is only attachments gets no model call
   (its gist is the hub's own "Sent a photo or attachment.").
 - **Set aside, and back (#870).** The sealed list also names every other one-to-one thread with a text from them in
@@ -413,8 +418,9 @@ sealed list holds. The public site still gets counts only.
 - **Unread.** BlueBubbles serialises each message's `dateRead` (from `chat.db`, no Private API needed). The hub keeps
   only "unread or not" for an owed thread, the Desk marks the row, and the public status counts it. Read state never
   hides or settles anything.
-- **The full text on the Desk.** For an owed one-to-one thread the hub sends the **last 5 texts the contact sent since
-  Nikita last replied, 1,000 characters in all, as written** (no placeholders: those are only for model calls), with
+- **The full text on the Desk.** For an owed one-to-one thread the hub sends the **last 5 texts of its recent turns
+  (since #870 from both sides: the unanswered run and up to 4 turns before it, Nikita's own marked `me: true`, the
+  same window every rule has just passed over), 1,000 characters in all, as written** (no placeholders: those are only for model calls), with
   the times. For a group, the same from its members since Nikita last replied, each with the member's name and photo
   id. They ride on the sealed list (`messages` on the item), shown only to a passkey session; the site drops each one a
   week after it came, and the next push drops them all when the thread closes. **Never for a thread any rule matches**

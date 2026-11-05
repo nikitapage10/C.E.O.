@@ -478,6 +478,10 @@ describe("send requests (single-use, 10 minutes, Resend)", () => {
     expect((await d.send({ thread: "fedcba9876543210" })).status).toBe(409);
     expect((await d.send({ text: " " })).status).toBe(400);
     expect((await d.send()).status).toBe(200);
+    // Multi-send (#870): a second send to the same open thread is its own request.
+    expect((await d.send()).status).toBe(200);
+    // A settled one-to-one thread takes none.
+    await d.hub("POST", "?view=texts", view([item({ state: "settled" })]));
     expect((await d.send()).status).toBe(409);
   });
 
@@ -953,10 +957,10 @@ describe("the set-aside list and Bring back (#870)", () => {
       { id: ASIDE, name: "Test Person", channel: "iMessage", since: NOW - HOUR, why: "no-reply" },
       { id: RULED, name: "Other Person", channel: "SMS", since: NOW - HOUR, why: "money" },
     ];
-    expect((await d.hub("POST", "?view=texts", { ...view([item({ media: 2, messages: [{ text: "", at: NOW - HOUR, media: true }] })]), aside })).status).toBe(200);
+    expect((await d.hub("POST", "?view=texts", { ...view([item({ media: 2, messages: [{ text: "Photo", at: NOW - HOUR, media: true }] })]), aside })).status).toBe(200);
     const got = (await (await d.get()).json()) as { aside: unknown[]; texts: TextItem[] };
     expect(got.aside).toEqual(aside);
-    expect(got.texts[0]).toMatchObject({ media: 2, messages: [{ text: "", media: true }] });
+    expect(got.texts[0]).toMatchObject({ media: 2, messages: [{ text: "Photo", media: true }] });
     // Off the closed list, or with text, the list is refused whole.
     expect((await d.hub("POST", "?view=texts", { ...view(), aside: [{ ...aside[0], why: "because" }] })).status).toBe(422);
     expect((await d.hub("POST", "?view=texts", { ...view(), aside: [{ ...aside[0], text: "hi" }] })).status).toBe(422);

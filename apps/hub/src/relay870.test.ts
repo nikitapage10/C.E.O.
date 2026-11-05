@@ -45,7 +45,7 @@ class FakeBB implements BlueBubbles {
   async messages(c: string, limit: number) {
     return [...(this.byChat.get(c) ?? [])].sort((a, b) => b.at - a.at).slice(0, limit);
   }
-  async send() {
+  async send(_chat: string, _text: string): Promise<boolean> {
     return true;
   }
   async chats() {
@@ -162,7 +162,7 @@ describe("a photo or file with no words (#870)", () => {
     expect(h.site.sorts).toHaveLength(1);
     await h.engine.report(true);
     const view = readTextsView(h.engine.texts(), NOW + SETTLE_MS)!;
-    expect(view.items[0]).toMatchObject({ name: "Avery Sample", state: "owed", media: 1, messages: [{ text: "", media: true }] });
+    expect(view.items[0]).toMatchObject({ name: "Avery Sample", state: "owed", media: 1, messages: [{ text: "ok", me: true }, { text: "Photo", media: true }] });
     expect(view.items[1]?.name).toBe("Blake Example");
   });
 
@@ -259,6 +259,70 @@ describe("a thread an earlier verdict set aside (#870)", () => {
     await h.engine.onMessage({ chat: chatOf(A), group: false, groupName: "", message: msg("hey", NOW + DAY, true) });
     expect(h.store.load().threads[0]?.state).toBe("replied");
     expect(h.store.load().threads[0]?.kept).toBeUndefined();
+  });
+});
+
+describe("multi-send (#870, Nikita 2026-11-05)", () => {
+  const send = (rid: string, thread: string, text: string, now: number) => {
+    const f = { rid, kind: "send" as const, thread, draftAt: 0, text, until: now + REQUEST_MS };
+    return { ...f, created: now, sig: signRequest(KEY, f) };
+  };
+  const done = (rid: string, thread: string, now: number) => {
+    const f = { rid, kind: "done" as const, thread, draftAt: 0, text: "", until: now + REQUEST_MS };
+    return { ...f, created: now, sig: signRequest(KEY, f) };
+  };
+  const owedOne = async () => {
+    const h = setup();
+    const sent: string[] = [];
+    h.bb.byChat.set(chatOf(A), [msg("Are we still on for Friday?", NOW - DAY)]);
+    await h.engine.onMessage({ chat: chatOf(A), group: false, groupName: "", message: msg("Are we still on for Friday?", NOW - DAY) });
+    h.at(NOW + SETTLE_MS);
+    await drain(h);
+    // The draft goes with the first send; these are typed words, bound to no draft.
+    h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => ({ ...t, draft: null })) });
+    h.bb.send = async (_c: string, text: string) => {
+      sent.push(text);
+      return true;
+    };
+    return { h, sent, id: h.store.load().threads[0]!.id, now: NOW + SETTLE_MS };
+  };
+
+  it("sends twice to one thread, keeps it in the queue after each, and only Done settles it", async () => {
+    const { h, sent, id, now } = await owedOne();
+    h.site.waiting = [send("1".repeat(24), id, "Yes!", now)];
+    await h.engine.act();
+    // Messages shows the reply; the poll reads it back, and the closing check runs: still in the queue.
+    h.bb.byChat.get(chatOf(A))!.push(msg("Yes!", now + 1, true));
+    await h.engine.onMessage({ chat: chatOf(A), group: false, groupName: "", message: msg("Yes!", now + 1, true) });
+    await h.engine.recheck();
+    expect(h.store.load().threads[0]).toMatchObject({ state: "owed", draft: null });
+    h.site.waiting = [send("2".repeat(24), id, "See you at 7", now)];
+    await h.engine.act();
+    expect(sent).toEqual(["Yes!", "See you at 7"]);
+    expect(h.site.reported.map((r) => r.result)).toEqual(["sent", "sent"]);
+    expect(h.store.load().threads[0]?.state).toBe("owed");
+    expect(readTextsView(h.engine.texts(), now)!.items.map((i) => i.name)).toEqual(["Avery Sample"]);
+    h.site.waiting = [done("3".repeat(24), id, now)];
+    await h.engine.act();
+    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "done" });
+    expect(h.store.load().threads[0]?.sentHere).toBeUndefined();
+  });
+
+  it("never acts on one request id twice, and a Resend of a text Messages already shows is refused", async () => {
+    const { h, sent, id, now } = await owedOne();
+    const once = send("4".repeat(24), id, "Yes!", now);
+    h.site.waiting = [once];
+    await h.engine.act();
+    h.site.waiting = [once];
+    await h.engine.act();
+    expect(sent).toEqual(["Yes!"]);
+    expect(h.site.reported.at(-1)).toMatchObject({ result: "refused", reason: "replay" });
+    // A Resend (a new id) of the same text, once Messages shows it went: refused, not sent twice.
+    h.bb.byChat.get(chatOf(A))!.push(msg("Yes!", now + 1, true));
+    h.site.waiting = [send("5".repeat(24), id, "Yes!", now)];
+    await h.engine.act();
+    expect(sent).toEqual(["Yes!"]);
+    expect(h.site.reported.at(-1)).toMatchObject({ result: "refused", reason: "answered" });
   });
 });
 

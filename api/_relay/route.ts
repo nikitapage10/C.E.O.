@@ -422,7 +422,9 @@ export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind,
     // A card that already went (or one being sent) takes no second send, whatever its state shows.
     if (card && s.requests.some((e) => e.req.thread === card.id && e.req.kind === "send" && shownState(e, now) === "sent")) return no("no-thread");
   }
-  if (s.requests.some((e) => e.req.thread === item.id && e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
+  // One of each kind at a time per thread, except a thread's sends (#870, multi-send, Nikita 2026-11-05): each is its
+  // own single-use request, so a second may follow the first. A card still takes one.
+  if (!(kind === "send" && !card) && s.requests.some((e) => e.req.thread === item.id && e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
   const fields = { rid: randomBytes(12).toString("hex"), kind, thread: item.id, draftAt: kind === "send" ? draftAt : 0, text: kind === "send" || kind === "restyle" ? text : "", until: now + REQUEST_MS };
   const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
   return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };

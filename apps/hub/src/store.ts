@@ -59,6 +59,11 @@ export interface Thread {
   kept?: true;
   /** The time of their text a scan last reopened this thread for (#870): a model's or closing verdict is revisited once per text. */
   rechecked?: number;
+  /**
+   * When Nikita last sent from the Desk in this thread (#870, multi-send, Nikita 2026-11-05): the thread stays in the
+   * queue after a send, and only Done (or a rule) settles it; his own message read back from Messages doesn't close it.
+   */
+  sentHere?: number;
 }
 
 /** An older unanswered chat (#758): last message someone else's, past the 30-day window. A snapshot from the last scan. */
@@ -191,6 +196,7 @@ function readThread(v: unknown): Thread | null {
     ...(typeof o.media === "number" && Number.isInteger(o.media) && o.media > 0 && { media: Math.min(999, o.media) }),
     ...(o.kept === true && { kept: true as const }),
     ...(n(o.rechecked) !== null && { rechecked: o.rechecked as number }),
+    ...(n(o.sentHere) !== null && { sentHere: o.sentHere as number }),
   };
 }
 

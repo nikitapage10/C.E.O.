@@ -102,6 +102,31 @@ test("signed out: counts and states, no map", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+test("the bar's Haven drop-down lists its tabs, and each opens at its own address, on a reload and back too (#871)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  await page.goto(`${BASE}/haven/gym`);
+  await expect(page.getByRole("dialog", { name: "Gym" })).toBeVisible();
+  await page.locator('[data-drop="haven"] .wv-tab').hover();
+  const drop = page.getByRole("navigation", { name: "Haven tabs" });
+  await expect(drop.getByRole("link")).toHaveText([/^House/, /^Kitchen/, /^Hall/, /^Pets/, /^Gym/]);
+  await expect(drop.getByRole("link", { name: /^Gym/ })).toHaveAttribute("aria-current", "page");
+  await drop.getByRole("link", { name: /^Kitchen/ }).click();
+  await expect(page).toHaveURL(`${BASE}/haven/kitchen`);
+  await expect(page.getByRole("dialog", { name: "Kitchen" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("dialog", { name: "Kitchen" })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(`${BASE}/haven/gym`);
+  await expect(page.getByRole("dialog", { name: "Gym" })).toBeVisible();
+  // From the keyboard: the caret opens it, the arrows move, Escape closes it.
+  await page.getByRole("button", { name: "Boiler Room tabs" }).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("link", { name: /^Map/ })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(`${BASE}/boiler/controls`);
+});
+
 test("signed in with no plan: it waits for one and offers the import", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   await page.goto(`${BASE}/haven`);
@@ -634,7 +659,7 @@ test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all 
   await page.goto(`${BASE}/haven?open=kitchen`);
   const sheet = page.getByRole("dialog", { name: "Kitchen" });
   await expect(sheet).toBeVisible();
-  await expect(page).toHaveURL(`${BASE}/haven`);
+  await expect(page).toHaveURL(`${BASE}/haven/kitchen`);
 
   // One card, two tabs with their counts; the List by shelf.
   const tabs = sheet.getByRole("tablist", { name: "Shopping" });

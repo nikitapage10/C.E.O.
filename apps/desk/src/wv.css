@@ -1490,6 +1490,25 @@
 .desk .wv-tab[aria-current="page"]::after{opacity:1;transform:none}
 .desk .wv-tab-n{font-weight:500;font-size:11px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:inline-grid;place-items:center;color:var(--wv-hot);border:1px solid var(--wv-hot-line)}
 @keyframes wv-menu{from{opacity:0;transform:translateY(-4px)}}
+/* A room's drop-down of its tabs (#871): a small caret beside the name, the list under it on a gold hairline. */
+.desk .wv-tabw{position:relative;display:flex;flex:none;align-items:stretch}
+.desk .wv-tabw>.wv-tab{padding-right:3px}
+.desk .wv-tabw>.wv-tab::after{right:3px}
+.desk .wv-tabcaret{display:grid;place-items:center;flex:none;width:22px;padding:0 6px 0 0;border:0;background:none;color:var(--wv-faint,var(--wv-mute));cursor:pointer;transition:color .3s}
+.desk .wv-tabcaret svg{width:10px;height:10px;transition:transform .3s var(--wv-ease)}
+.desk .wv-tabw:hover .wv-tabcaret,.desk .wv-tabw[data-open] .wv-tabcaret{color:var(--wv-hot)}
+.desk .wv-tabw[data-open] .wv-tabcaret svg{transform:rotate(180deg)}
+.desk .wv-tabcaret:focus-visible{outline:1px solid var(--wv-hot);outline-offset:-6px;border-radius:6px}
+.desk .wv-drop{position:absolute;z-index:40;min-width:200px;max-width:calc(100vw - 16px);padding:6px;border:1px solid var(--wv-line2);border-radius:12px;background:#101217;box-shadow:0 18px 40px -20px rgba(0,0,0,.9);animation:wv-menu .2s var(--wv-ease)}
+.desk .wv-drop::before{content:"";position:absolute;left:14px;right:14px;top:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--wv-hot),transparent);opacity:.8}
+.desk .wv-drop nav{display:flex;flex-direction:column}
+.desk .wv-drop a{position:relative;display:flex;flex-direction:column;gap:2px;padding:8px 12px 8px 16px;border-radius:8px;color:var(--wv-soft,var(--wv-ink));font-size:14px;line-height:1.25;white-space:nowrap;transition:color .2s,background .2s}
+.desk .wv-drop a small{font-size:12px;color:var(--wv-mute)}
+.desk .wv-drop a:hover,.desk .wv-drop a:focus-visible{background:var(--wv-hot-bg);color:var(--wv-ink);outline:none}
+.desk .wv-drop a[aria-current="page"]{color:var(--wv-hot)}
+.desk .wv-drop a[aria-current="page"]::before{content:"";position:absolute;left:6px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--wv-hot);box-shadow:0 0 6px var(--wv-hot)}
+@media (hover:none){.desk .wv-tabcaret{width:28px}}
+@media (prefers-reduced-motion:reduce){.desk .wv-drop{animation:none}.desk .wv-tabcaret svg{transition:none}}
 .desk .wv-navr{margin-left:auto;display:flex;align-items:center;gap:18px}
 .desk .wv-acct{position:relative;display:flex}
 .desk .wv-acct__btn[data-in]{color:var(--wv-soft)}

@@ -20,7 +20,7 @@ export type Tab = (typeof TABS)[number];
 export const SPOTS = ["vacuum", "dry-feeder", "wet-feeder", "fountain", "litter", "thermostat"] as const;
 export type Spot = (typeof SPOTS)[number];
 /**
- * The furniture the renderer knows how to draw (apps/world/src/desk/haven/style.ts). Generic pieces only; anything
+ * The furniture the renderer knows how to draw (rooms/haven/web/style.ts). Generic pieces only; anything
  * else becomes a plain `box`.
  */
 export const KINDS = [

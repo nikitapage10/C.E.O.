@@ -14,7 +14,7 @@
  * Lists (#735): the Kitchen list is one of the private lists (`LISTS`): "Groceries" (the Kitchen list, this file's
  * original) and "Things to buy" (`haven/lists/buy.json`: the Amazon-style list of things that aren't groceries, a phone
  * charger, batteries). Each is its own JSON file with the same rules; a new list is one more entry in `LISTS`. Nothing
- * here buys anything. The Desk shows every list in the Haven (apps/world/src/desk/haven/HavenLists.tsx); the Kitchen page keeps its
+ * here buys anything. The Desk shows every list in the Haven (rooms/haven/web/HavenLists.tsx); the Kitchen page keeps its
  * own view of the groceries.
  *
  * Underscore folder: Vercel never serves it as a function.

@@ -121,6 +121,16 @@ describe("the room manifests", () => {
     for (const m of manifests) expect(typeof m.page, m.id).toBe(m.id === "today" ? "undefined" : "function");
   });
 
+  it("a room's sub-menu sits under its own address: the first section at the room's path, the rest one level under it", () => {
+    for (const m of manifests) {
+      if (!m.sections) continue;
+      const [front, ...rest] = m.sections;
+      expect(front!.path, m.id).toBe(m.path);
+      for (const s of rest) expect(s.path, `${m.id}/${s.id}`).toBe(`${m.path}/${s.id}`);
+      for (const xs of [m.sections.map((s) => s.id), m.sections.map((s) => s.label)]) expect(new Set(xs).size, xs.join(", ")).toBe(xs.length);
+    }
+  });
+
   it("each room past Today, the Foundry and Relay is one of the Desk's room tabs (ROOM_TABS)", () => {
     const tabs = manifests.filter((m) => !["today", "foundry", "relay"].includes(m.id)).map((m) => m.id);
     expect(tabs.sort()).toEqual([...ROOM_ROUTES].sort());

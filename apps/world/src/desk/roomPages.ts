@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { RoomSection } from "@ceo/engine/web/sections.ts";
 import { NAV_ORDER, type Route } from "../route.ts";
 import type { DeskData } from "./deskData.ts";
 
@@ -23,6 +24,7 @@ type PageLoader = () => Promise<{ default: ComponentType<PageProps> }>;
 interface RoomNav {
   name: string;
   page?: () => Promise<{ default: unknown }>;
+  sections?: readonly RoomSection[];
 }
 
 const NAVS = import.meta.glob<RoomNav>("../../../../rooms/*/nav.ts", { eager: true, import: "nav" });
@@ -30,6 +32,9 @@ const BY_ID = new Map(Object.entries(NAVS).map(([path, nav]) => [path.split("/")
 
 /** A page's name in the bar (its room's `name`). */
 export const pageName = (id: DeskPage): string => BY_ID.get(id)?.name ?? id;
+
+/** A page's sub-menu (its room's `sections`, `@ceo/engine/web/sections.ts`): none for a one-page room. */
+export const pageSections = (id: DeskPage): readonly RoomSection[] => BY_ID.get(id)?.sections ?? [];
 
 /** Each page's lazy loader, in the bar's order. Today has none: it is in the first load. */
 export const PAGE_LOADERS: Partial<Record<DeskPage, PageLoader>> = Object.fromEntries(

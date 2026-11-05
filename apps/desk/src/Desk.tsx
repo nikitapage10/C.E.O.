@@ -20,6 +20,7 @@ import { useSkippy } from "./skippy/index.ts";
 import { loadTodayMore, Today } from "../../../rooms/today/web/Today.tsx";
 import { HologramCall } from "./hologram/HologramCall.tsx";
 import { VoiceDock } from "./roomvoice/RoomMic.tsx";
+import { installHoldToTalk } from "./holdToTalk.ts";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
 import { keptAfter, SCENE_ROOMS } from "./keptRooms.ts";
@@ -103,6 +104,9 @@ export function Desk({ route }: { route: DeskPage }) {
     // The Lattice's models, into this browser's cache once the Desk is idle (#327).
     warmLattice();
   }, []);
+
+  // Hold Space to talk on every page, and Space never scrolls the Desk (#905, holdToTalk.ts).
+  useEffect(() => installHoldToTalk(), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

@@ -288,3 +288,56 @@
     transition: none;
   }
 }
+
+/* The held Space (#905, holdToTalk.ts): a small calm pill while it listens, or a short hint instead. */
+.vdock__hold {
+  position: fixed;
+  left: 50%;
+  bottom: max(22px, calc(env(safe-area-inset-bottom) + 14px));
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 8px 15px;
+  border: 1px solid color-mix(in srgb, var(--mic, #8fd8ff) 40%, transparent);
+  border-radius: 999px;
+  background: rgba(9, 12, 20, 0.92);
+  backdrop-filter: blur(10px);
+  color: var(--text, #eef1f7);
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  z-index: 40;
+  pointer-events: none;
+  animation: vdock-rise 0.2s ease-out;
+}
+.vdock__hold i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mic, #8fd8ff);
+  animation: vdock-hold 1.6s ease-in-out infinite;
+}
+.vdock__hold.is-hint {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--muted, #b8c0cf);
+}
+@keyframes vdock-hold {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vdock__hold,
+  .vdock__hold i {
+    animation: none;
+  }
+}

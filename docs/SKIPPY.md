@@ -92,6 +92,18 @@ and no greeting. Three pieces, one listener (shared chrome, `apps/desk/src/roomv
   his chat, and Talk from there.
 - **The room mic**, beside it on every room's page but Today, in the submind's colour: press it (or hold Space) and it
   listens at once; release, or tap and pause, and the words go.
+- **Hold Space, on any page (#905, `apps/desk/src/holdToTalk.ts`).** Held for a quarter of a second, Space listens for
+  the page's lead (Skippy himself where a page has none); let go and the words go, the same path as the mic. A quick tap
+  does nothing, and Space never scrolls a Desk page. Native Space is left alone in a field, a select, on a focused
+  button or link, with a modifier, or where a page's own handler took it first (Today's rows). Signed out, or in a
+  browser that can't hear, a short hint says so. One window listener; handlers stack by priority (page, room, Senate),
+  so a room with its own hold-to-talk (Relay) registers it and only that one fires.
+- **The Senate's floor (#905, `apps/desk/src/rotunda/senateFloor.ts`).** In the Senate a held Space interrupts: the
+  speaker stops mid-line and the session holds; Nikita's words show as the floor's caption, the only line written large.
+  On the release the chair hands them to the members whose rooms they are about (by words, at most two, no model call),
+  or takes them himself, and each answers in turn through its room's voice (`POST /api/skippy-room` as that room: the
+  same chat, caps, pace and privacy check as the mic). Then the session picks up the line it was on. Escape gives the
+  floor back at once.
 - **Hands-free**, switched in the Boiler Room's Settings (/boiler/controls, since #666; it was in the bar) (02:05Z: "when I go from room to room, it actually will be always
   listening for that room by the submind"): one tap and it keeps listening, page to page; each thing said (a pause
   ends it) goes to the lead of the page Nikita is on, Skippy himself on Today. While it is on, the bar and the dock say

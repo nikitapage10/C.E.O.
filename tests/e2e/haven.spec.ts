@@ -127,6 +127,38 @@ test("the bar's Haven drop-down lists its tabs, and each opens at its own addres
   await expect(page).toHaveURL(`${BASE}/boiler/controls`);
 });
 
+test("a room's drop-down closes on leaving, a click elsewhere, Escape and a move, and never stays over another page (#901)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  await page.goto(`${BASE}/boiler`);
+  const drop = page.getByRole("navigation", { name: "Haven tabs" });
+  // A hover opens it; the mouse leaving for the page shuts it.
+  await page.locator('[data-drop="haven"] .wv-tab').hover();
+  await expect(drop).toBeVisible();
+  await page.mouse.move(700, 600);
+  await expect(drop).toHaveCount(0);
+  // The caret pins it; a click on the page shuts it.
+  await page.getByRole("button", { name: "Haven tabs" }).click();
+  await expect(drop).toBeVisible();
+  await page.mouse.click(700, 600);
+  await expect(drop).toHaveCount(0);
+  // From the keyboard, Escape shuts it.
+  await page.getByRole("button", { name: "Haven tabs" }).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(drop).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(drop).toHaveCount(0);
+  // Opened, then another room's page: it doesn't follow there.
+  await page.getByRole("button", { name: "Haven tabs" }).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(drop).toBeVisible();
+  await page.evaluate(() => {
+    history.pushState(null, "", "/boiler/security");
+    dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page).toHaveURL(`${BASE}/boiler/security`);
+  await expect(drop).toHaveCount(0);
+});
+
 test("signed in with no plan: it waits for one and offers the import", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   await page.goto(`${BASE}/haven`);

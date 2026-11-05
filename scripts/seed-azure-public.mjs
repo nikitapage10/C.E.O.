@@ -12,7 +12,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { mondayOf, publicSeedFiles, seedTarget } from "./seed-azure-lib.mjs";
+import { isWav, MAX_WAV_BYTES, mondayOf, publicSeedFiles, seedTarget } from "./seed-azure-lib.mjs";
 
 if (!process.argv[2]) {
   console.error("usage: node scripts/seed-azure-public.mjs <folder> [site]");
@@ -31,7 +31,10 @@ async function getJson(path, params) {
   for (const [k, v] of Object.entries({ ...params, fresh })) url.searchParams.set(k, v);
   const res = await fetch(url, { headers: siteHeaders, signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`${url.pathname}?${[...url.searchParams.keys()].join("&")} answered ${res.status}`);
-  return res.json();
+  if (!(res.headers.get("content-type") ?? "").includes("application/json")) throw new Error(`${url.pathname} answered something other than JSON`);
+  const body = await res.json();
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error(`${url.pathname} answered something other than an object`);
+  return body;
 }
 
 /** A story's WAV: one answer when small, else in ranges (the route caps each answer at 4 MB). */
@@ -45,9 +48,10 @@ async function getWav(params) {
     if (res.status === 404) return null;
     if (res.status !== 200 && res.status !== 206) throw new Error(`audio answered ${res.status}`);
     const chunk = new Uint8Array(await res.arrayBuffer());
-    if (res.status === 200) return chunk;
+    if (res.status === 200) return checked(chunk);
     const total = Number(/\/(\d+)$/.exec(res.headers.get("content-range") ?? "")?.[1]);
     if (!Number.isFinite(total) || chunk.byteLength === 0) throw new Error("audio range without a size");
+    if (total > MAX_WAV_BYTES || at + chunk.byteLength > total) throw new Error("audio larger than a story's");
     parts.push(chunk);
     at += chunk.byteLength;
     if (at >= total) break;
@@ -58,7 +62,13 @@ async function getWav(params) {
     wav.set(p, off);
     off += p.byteLength;
   }
-  return wav;
+  return checked(wav);
+}
+
+/** Only a whole WAV goes on to disk (seed-azure-lib.mjs, isWav): anything else stops the seed. */
+function checked(bytes) {
+  if (!isWav(bytes)) throw new Error("audio that isn't a whole WAV file");
+  return bytes;
 }
 
 const feed = await getJson("/api/world", {});

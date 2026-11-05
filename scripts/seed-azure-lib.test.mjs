@@ -5,7 +5,7 @@ import { BlobStore } from "../api/_world/store.ts";
 import { BlobStoryStore, STORY_STYLE as API_STORY_STYLE } from "../api/_world/story.ts";
 import { RECENT_KEEP as API_RECENT_KEEP } from "../api/_world/prompt.ts";
 import { runStep } from "../api/_world/step.ts";
-import { mondayOf, publicSeedFiles, RECENT_KEEP, seedTarget, STORY_STYLE, TTS_MODEL, TTS_VOICE } from "./seed-azure-lib.mjs";
+import { isWav, mondayOf, publicSeedFiles, RECENT_KEEP, seedTarget, STORY_STYLE, TTS_MODEL, TTS_VOICE } from "./seed-azure-lib.mjs";
 
 const root = "/tmp/seed";
 
@@ -73,7 +73,27 @@ const pages = [
   { day: dayA, entries: hoursA, recap: "Day A, told." },
   { day: dayB, entries: [...hoursB, hour(31, dayB)], recap: null },
 ];
-const wav = new Uint8Array([82, 73, 70, 70, 1, 2, 3, 4]);
+/** A whole, tiny WAV: a 44-byte header (RIFF, WAVE, fmt , data) and four bytes of silence. */
+const wavOf = (data = 4) => {
+  const b = new Uint8Array(44 + data);
+  const v = new DataView(b.buffer);
+  const put = (at, s) => [...s].forEach((c, i) => (b[at + i] = c.charCodeAt(0)));
+  put(0, "RIFF");
+  v.setUint32(4, 36 + data, true);
+  put(8, "WAVE");
+  put(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, 24000, true);
+  v.setUint32(28, 48000, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  put(36, "data");
+  v.setUint32(40, data, true);
+  return b;
+};
+const wav = wavOf();
 const stories = [{ view: { day: dayA, ready: true, script: "Fixture story.", durationSec: 12.5, partial: false, writer: "claude", stale: false, at: "2026-10-21T06:00:00.000Z", audio: "/api/day-story?day=2026-10-20&audio=1" }, wav }];
 const weeks = [{ view: { week: "2026-10-19", ready: true, script: "Fixture week.", durationSec: 0, writer: "chronicle", at: "2026-10-21T07:00:00.000Z", audio: null }, wav: null }];
 
@@ -115,6 +135,24 @@ describe("the public seed", () => {
     // Production's old stories were Gemini's readings (before #472): the seed labels them so.
     expect(TTS_MODEL).toBe("gemini-3.8-flash-tts");
     expect(TTS_VOICE).toBe("Achird");
+  });
+
+  it("writes only whole WAV files from the network, never an error page or a cut-off download (#901)", () => {
+    expect(isWav(wav)).toBe(true);
+    expect(isWav(wav.subarray(0, 40))).toBe(false);
+    expect(isWav(wav.subarray(0, wav.byteLength - 1))).toBe(false);
+    expect(isWav(new TextEncoder().encode("<html>".padEnd(64, " ")))).toBe(false);
+    const notWave = wav.slice();
+    notWave[8] = 65;
+    expect(isWav(notWave)).toBe(false);
+    expect(isWav("RIFF")).toBe(false);
+    expect(isWav(null)).toBe(false);
+    const html = new TextEncoder().encode("<!doctype html><title>404</title>".padEnd(80, " "));
+    const files = asFiles(publicSeedFiles({ feed, pages, stories: [{ ...stories[0], wav: html }], weeks: [{ ...weeks[0], wav: html }] }));
+    expect(files.has(`world/stories/${dayA}.wav`)).toBe(false);
+    expect(files.has(`world/stories/${dayA}.json`)).toBe(false);
+    expect(files.has("world/stories/week-2026-10-19.wav")).toBe(false);
+    expect(files.get("world/stories/week-2026-10-19.json").audio).toBe(false);
   });
 
   it("names a week by its Monday", () => {

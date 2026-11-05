@@ -25,6 +25,7 @@ import { Private } from "@ceo/engine/web/Private.tsx";
 import { Home } from "@ceo/desk/rooms/Home.tsx";
 import { SetupAsks } from "@ceo/desk/skippy/SetupAsks.tsx";
 import { useSecurityFeed } from "../data/feed.ts";
+import { actionableAlerts } from "../data/pages.ts";
 import { OWASP_LLM, owaspTally } from "../data/model.ts";
 import { ACCENT, Arrow, RoomDetail } from "./Rack.tsx";
 import { PipeBoard } from "./PipeBoard.tsx";
@@ -184,8 +185,8 @@ export function Systems({ now }: { now: number }) {
   const problems = useHome((s) => s.view?.problems);
   const reported = sec?.workflows.filter((w) => w.state === "pass" || w.state === "fail") ?? [];
   const failing = reported.filter((w) => w.state === "fail");
-  const alertsKnown = !!sec && (sec.alerts.codeScanning !== null || sec.alerts.dependabot !== null);
-  const alerts = alertsKnown ? (sec.alerts.codeScanning?.open ?? 0) + (sec.alerts.dependabot?.open ?? 0) : null;
+  // Code findings and package alerts only: Scorecard's posture checks never turn the scans' pipe amber (#901).
+  const alerts = actionableAlerts(sec?.alerts)?.open ?? null;
   const pipes = readPipes({
     now,
     nodes: model.nodes,

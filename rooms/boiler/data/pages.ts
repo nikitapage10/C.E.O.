@@ -184,6 +184,38 @@ export function securityNeeds(feed: SecurityFeed | null, evals = EVALS): Need[] 
   return out.sort(byTone);
 }
 
+/**
+ * The open alerts someone can act on: code findings (CodeQL) and vulnerable packages (Dependabot). Scorecard's posture
+ * checks (`alerts.posture`: branch protection, reviews, fuzzing…) are not counted, since they grade how the repo is run
+ * and most close only from GitHub's settings (#901). Null when neither kind was reported.
+ */
+export function actionableAlerts(alerts: Alerts | undefined | null): { open: number; code: number; deps: number; more: boolean } | null {
+  const cs = alerts?.codeScanning ?? null;
+  const dep = alerts?.dependabot ?? null;
+  if (!cs && !dep) return null;
+  return { open: (cs?.open ?? 0) + (dep?.open ?? 0), code: cs?.open ?? 0, deps: dep?.open ?? 0, more: !!cs?.more || !!dep?.more };
+}
+
+const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Security's headline, honest about what's open (#901): the scans' last runs first, then any actionable findings.
+ * `lead` is the plain part and `em` the coloured part; `tone` picks the colour.
+ */
+export function securityHeadline(feed: SecurityFeed | null): { tone: "wait" | "fail" | "warn" | "pass"; lead: string; em: string } {
+  const reported = feed?.workflows.filter((w) => w.state === "pass" || w.state === "fail") ?? [];
+  if (!feed || !reported.length) return { tone: "wait", lead: "Waiting on", em: "GitHub's scans." };
+  const failing = reported.filter((w) => w.state === "fail").length;
+  if (failing) return { tone: "fail", lead: `${COUNT_WORDS[failing] ?? failing} ${failing === 1 ? "scan is" : "scans are"}`, em: "failing." };
+  const a = actionableAlerts(feed.alerts);
+  if (a && a.open) {
+    const parts = [a.code ? plural(a.code, "code finding", "code findings") : "", a.deps ? plural(a.deps, "package alert", "package alerts") : ""].filter(Boolean);
+    return { tone: "warn", lead: "Scans pass ·", em: `${parts.join(", ")} open.` };
+  }
+  return { tone: "pass", lead: "Every scan is", em: "passing." };
+}
+
 /** Each scan's trend: its marks oldest first, or null when the feed sent none (an older answer). */
 export function scanTrend(w: SecurityFeed["workflows"][number] | undefined): { state: "pass" | "fail" | "other"; at: string }[] | null {
   return w?.recent && w.recent.length ? w.recent : null;

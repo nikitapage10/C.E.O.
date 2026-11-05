@@ -5,7 +5,7 @@ const URL_ = "https://example.test/api/security-feed";
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 /** Secrets an open alert carries that must never reach the public Desk. */
-const LEAKS = ["api/foundry.ts", "js/sql-injection", "Untrusted data flows into a query", "lodash", "4.17.20", "CVE-2099-0001", "GHSA-xxxx-yyyy-zzzz", "docs/SECURITY.md:1", "Warn: no linked content"];
+const LEAKS = ["api/foundry.ts", "js/sql-injection", "Untrusted data flows into a query", "lodash", "4.17.20", "CVE-2099-0001", "GHSA-xxxx-yyyy-zzzz", "docs/SECURITY.md:1", "Warn: no linked content", "BranchProtectionID", "branch protection is not maximal"];
 
 const codeAlert = {
   number: 7,
@@ -13,6 +13,15 @@ const codeAlert = {
   rule: { id: "js/sql-injection", description: "Untrusted data flows into a query", severity: "error" },
   most_recent_instance: { location: { path: "api/foundry.ts", start_line: 42 }, message: { text: "Untrusted data flows into a query" } },
   html_url: "https://github.com/nikitapage10/C.E.O./security/code-scanning/7",
+};
+/** Scorecard's own upload: a repo-posture check, counted apart from code findings (#901). */
+const postureAlert = {
+  number: 9,
+  state: "open",
+  tool: { name: "Scorecard", version: "v5" },
+  rule: { id: "BranchProtectionID", description: "branch protection is not maximal", severity: "error", security_severity_level: "high" },
+  most_recent_instance: { location: { path: "no file associated with this alert", start_line: 1 }, message: { text: "branch protection is not maximal" } },
+  html_url: "https://github.com/nikitapage10/C.E.O./security/code-scanning/9",
 };
 const depAlert = {
   number: 3,
@@ -45,7 +54,7 @@ function github(over: Partial<Record<string, () => Response>> = {}) {
     "/actions/workflows/e2e.yml/runs": () => json({ workflow_runs: [] }),
     "": () => json({ full_name: "nikitapage10/C.E.O.", security_and_analysis: { secret_scanning: { status: "enabled" }, secret_scanning_push_protection: { status: "disabled" } } }),
     "/private-vulnerability-reporting": () => json({ enabled: true }),
-    "/code-scanning/alerts?state=open": () => json([codeAlert, codeAlert]),
+    "/code-scanning/alerts?state=open": () => json([codeAlert, postureAlert, codeAlert]),
     "/code-scanning/alerts?state=fixed": () => json([{ ...codeAlert, state: "fixed" }]),
     "/dependabot/alerts?state=open": () => json([depAlert]),
     "/dependabot/alerts?state=fixed": () => json([]),
@@ -98,6 +107,7 @@ describe("the security feed", () => {
     expect(body.alerts).toEqual({
       codeScanning: { open: 2, fixed: 1, more: false, severity: { critical: 0, high: 2, medium: 0, low: 0 } },
       dependabot: { open: 1, fixed: 0, more: false, severity: { critical: 0, high: 0, medium: 0, low: 0 } },
+      posture: { open: 1, fixed: 0, more: false, severity: { critical: 0, high: 1, medium: 0, low: 0 } },
     });
     expect(by.checks!.recent).toEqual([{ state: "pass", at: "2026-10-13T08:05:00Z" }]);
     expect(body.scorecard).toEqual({
@@ -172,7 +182,7 @@ describe("the security feed", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as SecurityFeed;
     expect(body.features.every((f) => f.state === "unreported")).toBe(true);
-    expect(body.alerts).toEqual({ codeScanning: null, dependabot: null });
+    expect(body.alerts).toEqual({ codeScanning: null, dependabot: null, posture: null });
     expect(body.scorecard).toBeNull();
     expect(body.workflows.find((w) => w.id === "e2e")!.state).toBe("unreported");
     expect(body.workflows.find((w) => w.id === "checks")!.state).toBe("pass");
@@ -207,11 +217,22 @@ describe("the security feed", () => {
     expect(body.workflows[0]).toMatchObject({ id: "checks", state: "pass", at: null, url: null });
   });
 
+  it("tells Scorecard's posture checks apart from code findings by the tool's name alone (#901)", async () => {
+    const { isPostureAlert } = await load();
+    expect(isPostureAlert(postureAlert)).toBe(true);
+    expect(isPostureAlert({ tool: { name: "OpenSSF Scorecard" } })).toBe(true);
+    expect(isPostureAlert(codeAlert)).toBe(false);
+    expect(isPostureAlert({ tool: { name: "CodeQL" } })).toBe(false);
+    expect(isPostureAlert({ tool: { name: "Scorecard-ish" } })).toBe(false);
+    expect(isPostureAlert(null)).toBe(false);
+  });
+
   it("counts 100 and more as 100+", async () => {
     const many = () => json(Array.from({ length: 100 }, () => codeAlert));
     const { GET } = await load({ "/code-scanning/alerts?state=fixed": many });
     const body = (await (await GET(new Request(URL_))).json()) as SecurityFeed;
     expect(body.alerts.codeScanning).toEqual({ open: 2, fixed: 100, more: true, severity: { critical: 0, high: 2, medium: 0, low: 0 } });
+    expect(body.alerts.posture).toMatchObject({ open: 1, fixed: 0, more: true });
   });
 
   it("redirects an unknown query to the bare URL with no read, and shares one set of reads within the TTL", async () => {

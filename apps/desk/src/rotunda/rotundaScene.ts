@@ -15,11 +15,13 @@ import {
   Group,
   HemisphereLight,
   InstancedMesh,
+  LineSegments,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PCFShadowMap,
+  PlaneGeometry,
   PerspectiveCamera,
   PointLight,
   Points,
@@ -33,6 +35,7 @@ import {
   Sprite,
   SpriteMaterial,
   TorusGeometry,
+  Vector2,
   Vector3,
   WebGLRenderer,
   type Bone,
@@ -83,6 +86,9 @@ import { senatePoses, senatorOf } from "./senators.ts";
  * with it off each caption holds for its reading time (rite.ts, `readMs`). Haze drifts through the bowl and up the podium's shaft; sigil nanites drift in the air and gather at the
  * podium when the chair speaks. Phones get fewer particles and 30 frames a second; reduced motion slows everything to a
  * near stop. Lazy loaded with three.js, never in the Desk's first load.
+ *
+ * Since #856 the gallery's shadow Skippies are flat silhouettes in the back tiers' haze, only the line being heard is
+ * written large (the rest whisper), and the frame's edges come undone into gold wire and code nanites.
  *
  * Every Skippy in it is its own self (#775): its own idle, gestures, faces and reactions, played from senators.ts by
  * senateActor.ts, with a moving face cast over the front of each can's head.
@@ -171,6 +177,89 @@ interface Spot {
 type Slot = "a" | "b" | "c" | "d";
 
 const baseOf = (s: RotundaSeat) => (s.working ? 0.85 : s.alive ? 0.5 : 0.14);
+
+/**
+ * The can's outline, seen from the front at its bind pose, drawn once into a small texture whose alpha is the shape with
+ * softened edges (#856): what every shadow senator in the gallery is cut from, with the texture's width over its
+ * height. Null where a 2D canvas isn't available.
+ */
+function silhouette(body: SkinnedMesh): { tex: CanvasTexture; aspect: number } | null {
+  const pos = body.geometry.getAttribute("position");
+  const idx = body.geometry.index;
+  if (!pos || !pos.count) return null;
+  // Framed on its own vertices as they stand (not the scene's box, whose units can differ from the mesh's own).
+  const xy = new Float32Array(pos.count * 2);
+  const v = new Vector3();
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(body.matrixWorld);
+    xy[i * 2] = v.x;
+    xy[i * 2 + 1] = v.y;
+    x0 = Math.min(x0, v.x);
+    x1 = Math.max(x1, v.x);
+    y0 = Math.min(y0, v.y);
+    y1 = Math.max(y1, v.y);
+  }
+  const h = y1 - y0;
+  const w = x1 - x0;
+  if (!(h > 0) || !(w > 0)) return null;
+  const H = 96;
+  const PAD = 14;
+  const W = Math.max(16, Math.ceil((H * w) / h));
+  const hard = document.createElement("canvas");
+  hard.width = W + PAD * 2;
+  hard.height = H + PAD * 2;
+  const hx = hard.getContext("2d");
+  if (!hx) return null;
+  const px = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    px[i * 2] = PAD + ((xy[i * 2]! - x0) / w) * W;
+    px[i * 2 + 1] = PAD + H - ((xy[i * 2 + 1]! - y0) / h) * H;
+  }
+  hx.fillStyle = "#fff";
+  hx.beginPath();
+  const tris = idx ? idx.count : pos.count;
+  for (let t = 0; t + 2 < tris; t += 3) {
+    const a = idx ? idx.getX(t) : t;
+    const b = idx ? idx.getX(t + 1) : t + 1;
+    const c = idx ? idx.getX(t + 2) : t + 2;
+    hx.moveTo(px[a * 2]!, px[a * 2 + 1]!);
+    hx.lineTo(px[b * 2]!, px[b * 2 + 1]!);
+    hx.lineTo(px[c * 2]!, px[c * 2 + 1]!);
+    hx.closePath();
+  }
+  hx.fill("nonzero");
+  // Two masks in one opaque texture (no premultiplied edges): red is the figure, its edge softened so the haze eats it
+  // instead of the edge giving the card away; green is a wide glow round it, the backlight that lifts a dark figure off
+  // the dark wall behind it.
+  const blurred = (px: number) => {
+    const c = document.createElement("canvas");
+    c.width = hard.width;
+    c.height = hard.height;
+    const x = c.getContext("2d");
+    if (!x) return null;
+    x.filter = `blur(${px}px)`;
+    x.drawImage(hard, 0, 0);
+    return x.getImageData(0, 0, c.width, c.height).data;
+  };
+  const fig = blurred(1.2);
+  const glow = blurred(7);
+  if (!fig || !glow) return null;
+  const out = new ImageData(hard.width, hard.height);
+  for (let i = 0; i < out.data.length; i += 4) {
+    out.data[i] = fig[i + 3]!;
+    out.data[i + 1] = glow[i + 3]!;
+    out.data[i + 3] = 255;
+  }
+  const done = document.createElement("canvas");
+  done.width = hard.width;
+  done.height = hard.height;
+  done.getContext("2d")?.putImageData(out, 0, 0);
+  return { tex: new CanvasTexture(done), aspect: done.width / done.height };
+}
 
 export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement, opts: RotundaOpts): Promise<Rotunda> {
   const { reduce } = opts;
@@ -411,57 +500,78 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   scene.add(skG);
 
   // The shadow senators (Nikita, 2026-11-05): the gallery's pods aren't empty. A share of them hold a dark silhouette of
-  // the can, one baked bind-pose geometry drawn instanced, with a faint rim of light and a slow sway in the shader: an
-  // audience of shadowy Skippies, never members. No rigs, no per-figure work on the CPU.
-  if (body) {
-    const src = (body as SkinnedMesh).geometry;
-    const g = keep(new BufferGeometry());
-    g.setAttribute("position", src.getAttribute("position").clone());
-    const nrm = src.getAttribute("normal");
-    if (nrm) g.setAttribute("normal", nrm.clone());
-    if (src.index) g.setIndex(src.index.clone());
-    g.applyMatrix4((body as SkinnedMesh).matrixWorld);
-    g.translate(-centre.x, -box.min.y, -centre.z);
-    if (!nrm) g.computeVertexNormals();
+  // the can: an audience of shadowy Skippies, never members. Since #856 they are flat (Nikita: "just 2D shadow model,
+  // like silhouettes on the podiums in the background ... far enough that you can't tell that they're 2D"): the can's
+  // outline is drawn once into a small soft-edged texture from the model already loaded for the senators, and every
+  // figure is one instanced quad that turns to face the camera, set on the back tiers and sunk into the chamber's haze,
+  // with a faint rim where the outline softens and a slow sway in the shader. No extra model, no mesh per figure, no
+  // per-figure work on the CPU.
+  const shade = body ? silhouette(body as SkinnedMesh) : null;
+  if (shade) {
+    const tex = keep(shade.tex);
+    const g = keep(new PlaneGeometry(shade.aspect, 1));
+    g.translate(0, 0.5, 0);
     const NS = PH0 ? 70 : 190;
-    const shadowU = { t: { value: 0 } };
+    const fog = scene.fog as FogExp2;
+    const shadowU = { t: { value: 0 }, map: { value: tex }, fogC: { value: fog.color }, dens: { value: fog.density } };
     const shadowMat = keep(
       new ShaderMaterial({
         uniforms: shadowU,
-        vertexShader: `uniform float t; varying float vRim; varying float vH;
-          void main(){ float id = float(gl_InstanceID); vec3 p = position; float sw = sin(t*.45 + id*1.73)*.05 + sin(t*.21 + id*.61)*.03;
-            p.x += sw * p.y; vH = p.y;
-            vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.); vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * normal);
-            vRim = pow(1. - abs(dot(n, normalize(-mv.xyz))), 2.6); gl_Position = projectionMatrix * mv; }`,
-        fragmentShader: `varying float vRim; varying float vH;
-          void main(){ vec3 c = vec3(.028, .03, .045) + vec3(.55, .62, .95) * vRim * .55 * smoothstep(.0, .5, vH); gl_FragColor = vec4(c, 1.); }`,
+        transparent: true,
+        depthWrite: false,
+        vertexShader: `uniform float t; varying vec2 vU; varying float vD;
+          void main(){ float id = float(gl_InstanceID); vU = uv;
+            vec3 o = (modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.)).xyz; float s = length(instanceMatrix[1].xyz);
+            vec3 to = cameraPosition - o; to.y = 0.; vec3 right = normalize(vec3(to.z, 0., -to.x) + vec3(1e-5, 0., 0.));
+            float sw = sin(t*.45 + id*1.73)*.05 + sin(t*.21 + id*.61)*.03;
+            vec3 w = o + right * (position.x + sw * position.y) * s + vec3(0., position.y * s, 0.);
+            vec4 mv = viewMatrix * vec4(w, 1.); vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `uniform sampler2D map; uniform vec3 fogC; uniform float dens; varying vec2 vU; varying float vD;
+          void main(){ vec2 m = texture2D(map, vU).rg; float body = m.r, halo = max(m.g - m.r, 0.); if (body < .03 && halo < .03) discard;
+            float rim = clamp(body * (1. - body) * 4., 0., 1.) * smoothstep(.3, .9, vU.y);
+            vec3 c = mix(vec3(.5, .58, .95) * .6, vec3(.006, .007, .012) + vec3(.55, .62, .95) * rim * .9, body);
+            float haze = 1. - exp(-pow(dens * 1.7 * vD, 2.));
+            c = mix(c, fogC * 1.6, haze * .4);
+            gl_FragColor = vec4(c, max(body, halo * .6) * smoothstep(.06, .16, vU.y) * (1. - haze * .15)); }`,
       }),
     );
     const shadows = new InstancedMesh(g, shadowMat, NS);
+    // Each stands on a podium of its own (Nikita: "they should be on a podium and a Skippy silhouette"): a small copy of
+    // the members' bronze pod and its gold rim, two instanced draws for the whole gallery, in place of the plain seat.
+    const PS = 0.5;
+    const stands = new InstancedMesh(keep(new CylinderGeometry(0.78, 0.42, 0.42, 16)), keep(new MeshStandardMaterial({ color: 0x3a3027, metalness: 0.8, roughness: 0.38 })), NS);
+    const rims = new InstancedMesh(keep(new TorusGeometry(0.78, 0.03, 4, 32)), keep(new MeshBasicMaterial({ color: 0xc9a85c, transparent: true, opacity: 0.45 })), NS);
     const M = new Matrix4();
     const q = new Quaternion();
+    const flat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
     const V = new Vector3();
     const S = new Vector3();
-    const UP = new Vector3(0, 1, 0);
-    const sc = 0.62 / height;
+    const ZERO = new Vector3(0, 0, 0);
     let n = 0;
-    // Spread across the gallery: every few pods, more on the lower tiers, which the camera sees best.
+    // Spread across the back tiers: far enough up and out that the haze takes their edges and nobody sees they're flat.
     for (let i = 0; i < N && n < NS; i++) {
       const tier = i % 10;
-      if (tier > 6 || (i * 7919) % (tier < 3 ? 3 : 5) !== 0) continue;
+      if (tier < 2 || tier > 8 || (i * 7919) % (tier < 5 ? 3 : 4) !== 0) continue;
       crowd.getMatrixAt(i, M);
       V.setFromMatrixPosition(M);
       // None on the camera's side of the bowl, where one would loom over the floor.
       const off = Math.atan2(Math.sin(Math.atan2(V.z, V.x) - Math.PI / 2), Math.cos(Math.atan2(V.z, V.x) - Math.PI / 2));
       if (Math.abs(off) < 1.25) continue;
-      q.setFromAxisAngle(UP, Math.atan2(-V.x, -V.z));
-      S.setScalar(sc * (0.9 + ((i * 31) % 7) * 0.03));
-      V.y += 0.09;
+      // The plain seat gives way to the podium.
+      crowd.setMatrixAt(i, M.compose(V, q, ZERO));
+      stands.setMatrixAt(n, M.compose(V, q, S.setScalar(PS)));
+      V.y += 0.21 * PS;
+      rims.setMatrixAt(n, M.compose(V, flat, S.setScalar(PS)));
+      S.setScalar(0.8 * (0.9 + ((i * 31) % 7) * 0.03));
+      V.y += 0.01;
       shadows.setMatrixAt(n++, M.compose(V, q, S));
     }
-    shadows.count = n;
-    shadows.frustumCulled = false;
-    scene.add(shadows);
+    crowd.instanceMatrix.needsUpdate = true;
+    for (const m of [shadows, stands, rims]) {
+      m.count = n;
+      m.frustumCulled = false;
+      scene.add(m);
+    }
     shadowTick = (T: number) => (shadowU.t.value = T);
   }
 
@@ -586,6 +696,15 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const capOf: Record<Slot, Pod | null> = { a: null, b: null, c: null, d: null };
   const capT: Record<Slot, number> = { a: 0, b: 0, c: 0, d: 0 };
   const clock = { t: 0 };
+  // Whose line is being heard (or read) now (#856). Nikita: "the primary text ... should only be the one talking. Any other
+  // text, like anyone concurring or dissent or anything like that, should be very minimal, subliminal, kind of in the
+  // background." Only that line is written large; every other caption still up, and the chair's line while a member
+  // speaks, drops to a faint whisper (`.bg`). The same with the sound off: one primary line at a time.
+  let primary: Slot | "chair" | null = null;
+  const mark = () => {
+    chairEl.classList.toggle("bg", primary !== null && primary !== "chair");
+    for (const k of SLOTS) caps[k].c.classList.toggle("bg", primary !== null && k !== primary);
+  };
   let chairTimer = 0;
   const chair = (txt: string) => {
     if (txt) {
@@ -622,8 +741,22 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       talker = p.a;
     }
     c.classList.toggle("on", !!line);
+    mark();
   };
-  const clearCaps = () => SLOTS.forEach((k) => say(k, null));
+  const clearCaps = () => {
+    primary = null;
+    SLOTS.forEach((k) => say(k, null));
+  };
+  /** Gives the floor's primary line to whoever is about to be heard: the chair, or the newest caption of that member. */
+  const lead = (by: string) => {
+    if (by === "kernel") primary = "chair";
+    else {
+      const p = byId(by);
+      const mine = p ? SLOTS.filter((k) => capOf[k] === p).sort((x, y) => capT[y] - capT[x])[0] : undefined;
+      primary = mine ?? null;
+    }
+    mark();
+  };
   const proj = new Vector3();
   const placed: { x: number; y: number; w: number; h: number }[] = [];
   const placeCaps = () => {
@@ -633,16 +766,19 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const bottom = opts.safeBottom();
     placed.length = 0;
     const live = SLOTS.filter((k) => capOf[k]).sort((x, y) => capT[x] - capT[y]);
-    const newest = live[live.length - 1];
-    for (const k of SLOTS) {
+    // On a phone only the primary line shows (none while the chair has it); elsewhere it is placed first, so the faint
+    // ones find room around it.
+    const shown = primary ?? live[live.length - 1];
+    const order = primary && primary !== "chair" ? [primary, ...SLOTS.filter((k) => k !== primary)] : SLOTS;
+    for (const k of order) {
       const p = capOf[k];
       const c = caps[k].c;
       if (!p) continue;
       if (ph) {
-        c.style.opacity = k === newest ? "" : "0";
+        c.style.opacity = k === shown ? "" : "0";
         const y = Math.max(96, h - bottom - c.offsetHeight - 12);
         c.style.transform = `translate(10px,${y}px)`;
-        if (k === newest) placed.push({ x: 10, y, w: c.offsetWidth, h: c.offsetHeight });
+        if (k === shown) placed.push({ x: 10, y, w: c.offsetWidth, h: c.offsetHeight });
         continue;
       }
       c.style.opacity = "";
@@ -789,6 +925,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // One line on the floor (#755): with the sound on, held while it is spoken and a beat after; otherwise (or when it
   // can't be spoken) held for its reading time. Then the gap before the next move.
   const line = async (by: string, text: string, tk: number, gap = TURN_GAP_MS) => {
+    lead(by);
     if (!text) return;
     // Its mouth moves for as long as the line is heard (#775); unspoken, for its reading time.
     const a = by === "kernel" ? sk.a : (byId(by)?.a ?? null);
@@ -1086,6 +1223,130 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   );
   motes.frustumCulled = false;
   scene.add(motes);
+
+  // The chamber's edges come undone into code (#856). Nikita, 2026-11-05: "the middle and the center edge and most of the
+  // screen should be pretty solid, once you start getting to the edges, that's where it starts to get in this wireframe
+  // ... like a mixture of nanites and wires ... kind of being turned into code", and "the primary color for nanites and
+  // wireframe should be gold", the Desk's accent (the Rotunda's --rt-brass and --rt-gold, rotunda.css). Three cheap
+  // layers, all weighted by how far a pixel sits from the middle of the frame: a veil that lets the solid chamber fall
+  // away toward the corners, a gold wire grid laid over the bowl's wall and floor that breaks into dashes and flickers,
+  // and sigil glyphs from the nanites' atlas scattered along the same surfaces, drifting up as if the walls were
+  // dissolving. No extra pass and no extra model; fewer of each on a phone; held still under reduced motion.
+  const edgeU = { t: { value: 0 }, res: { value: new Vector2(1, 1) }, atlas: { value: atlas }, px: nU.px };
+  // 0 in the middle of the frame, 1 at the corners (a touch wider than tall, so the sides go before the top).
+  const EDGE = `uniform vec2 res; float edgeOf(){ vec2 q = gl_FragCoord.xy / res * 2. - 1.; return length(q * vec2(.84, 1.)) / 1.31; }
+    float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }`;
+  const veil = new Mesh(
+    keep(new PlaneGeometry(2, 2)),
+    keep(
+      new ShaderMaterial({
+        uniforms: edgeU,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        vertexShader: `void main(){ gl_Position = vec4(position.xy, 0., 1.); }`,
+        fragmentShader: `uniform float t; ${EDGE}
+          void main(){ float e = smoothstep(.5, .98, edgeOf()); if (e < .01) discard;
+            float g = hash(vec3(floor(gl_FragCoord.xy / 3.), floor(t * 6.)));
+            float scan = .5 + .5 * sin(gl_FragCoord.y * .9 + t * 2.);
+            vec3 c = vec3(.03, .026, .02) + vec3(.79, .66, .36) * e * .05 * scan;
+            gl_FragColor = vec4(c, e * (.62 + .14 * g)); }`,
+      }),
+    ),
+  );
+  veil.frustumCulled = false;
+  veil.renderOrder = 20;
+  scene.add(veil);
+  // The wires: the wall's verticals and tier rings, the floor's rings and spokes, a little inside the surfaces they trace.
+  const wire: number[] = [];
+  const wallR = (y: number) => 13 + ((y + 0.5) / 22) * 11;
+  const VERT = PH0 ? 40 : 72;
+  const RING = PH0 ? 64 : 128;
+  for (let k = 0; k < VERT; k++) {
+    const a = (k / VERT) * Math.PI * 2;
+    const [c, s] = [Math.cos(a), Math.sin(a)];
+    wire.push(c * wallR(0.2) * 0.99, 0.2, s * wallR(0.2) * 0.99, c * wallR(16) * 0.99, 16, s * wallR(16) * 0.99);
+  }
+  const ring = (r: number, y: number) => {
+    for (let k = 0; k < RING; k++) {
+      const a0 = (k / RING) * Math.PI * 2;
+      const a1 = ((k + 1) / RING) * Math.PI * 2;
+      wire.push(Math.cos(a0) * r, y, Math.sin(a0) * r, Math.cos(a1) * r, y, Math.sin(a1) * r);
+    }
+  };
+  for (let k = 0; k < 12; k++) {
+    const y = 0.6 + k * 1.35;
+    ring(wallR(y) * 0.99, y);
+  }
+  for (let r = 6; r < 13; r += 1.4) ring(r, 0.02);
+  for (let k = 0; k < 48; k++) {
+    const a = (k / 48) * Math.PI * 2;
+    wire.push(Math.cos(a) * 5.6, 0.02, Math.sin(a) * 5.6, Math.cos(a) * 13, 0.02, Math.sin(a) * 13);
+  }
+  const wireGeo = keep(new BufferGeometry());
+  wireGeo.setAttribute("position", new BufferAttribute(new Float32Array(wire), 3));
+  const wires = new LineSegments(
+    wireGeo,
+    keep(
+      new ShaderMaterial({
+        uniforms: edgeU,
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        vertexShader: `varying vec3 vW; void main(){ vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+        fragmentShader: `uniform float t; varying vec3 vW; ${EDGE}
+          void main(){ float e = smoothstep(.42, .95, edgeOf()); if (e < .01) discard;
+            vec3 cell = floor(vW * 2.2); float h = hash(cell + floor(t * .7 + hash(cell) * 4.));
+            if (h < .35 - e * .2) discard;
+            float fl = .75 + .25 * sin(t * 3. + h * 40.);
+            gl_FragColor = vec4(vec3(.79, .66, .36) * fl, e * .7); }`,
+      }),
+    ),
+  );
+  wires.frustumCulled = false;
+  wires.renderOrder = 21;
+  scene.add(wires);
+  // The code nanites: glyphs strewn along the same wall and floor, rising slowly and winking in and out.
+  const NE = PH0 ? 420 : 1200;
+  const ep = new Float32Array(NE * 3);
+  const eg = new Float32Array(NE);
+  const er = new Float32Array(NE);
+  for (let i = 0; i < NE; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const onWall = Math.random() < 0.7;
+    const y = onWall ? 0.3 + Math.random() * 15 : 0.05;
+    const r = onWall ? wallR(y) * 0.985 : 6 + Math.random() * 7;
+    ep.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3);
+    eg[i] = Math.floor(Math.random() * NG);
+    er[i] = Math.random();
+  }
+  const eGeo = keep(new BufferGeometry());
+  eGeo.setAttribute("position", new BufferAttribute(ep, 3));
+  eGeo.setAttribute("glyph", new BufferAttribute(eg, 1));
+  eGeo.setAttribute("rnd", new BufferAttribute(er, 1));
+  const codeDust = new Points(
+    eGeo,
+    keep(
+      new ShaderMaterial({
+        uniforms: edgeU,
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        vertexShader: `attribute float glyph, rnd; uniform float t, px; varying vec2 vCell; varying float vR;
+          void main(){ vR = rnd; float g = mod(glyph + floor(t * .8 + rnd * 9.), ${NG.toFixed(1)}); vCell = vec2(mod(g, 8.), floor(g / 8.));
+            vec3 p = position; p.y += fract(t * .03 + rnd) * 1.2;
+            vec4 mv = modelViewMatrix * vec4(p, 1.); gl_PointSize = (.6 + rnd * .6) * 24. * px * (6. / -mv.z); gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `uniform sampler2D atlas; uniform float t; varying vec2 vCell; varying float vR; ${EDGE}
+          void main(){ float e = smoothstep(.45, .95, edgeOf()); if (e < .01) discard;
+            vec2 uv = (vCell + gl_PointCoord) / 8.; uv.y = 1. - uv.y; float m = texture2D(atlas, uv).a; if (m < .05) discard;
+            float wink = .45 + .55 * sin(t * 1.7 + vR * 50.);
+            gl_FragColor = vec4(mix(vec3(.79, .66, .36), vec3(.89, .79, .55), vR), m * e * wink * .8); }`,
+      }),
+    ),
+  );
+  codeDust.frustumCulled = false;
+  codeDust.renderOrder = 22;
+  scene.add(codeDust);
   // The halo round the Chair's head stays up once formed (Nikita, 2026-11-05): it used to scatter 3.2 s after each
   // line, which read as the nanites exploding every few seconds. A line now only brightens it for a moment.
   let gather = 0;
@@ -1301,6 +1562,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     beamMat.opacity = 0.04 + Math.sin(T * 0.7) * 0.008;
     wallMat.uniforms.t!.value = T;
     shadowTick(reduce ? 0 : T);
+    edgeU.t.value = reduce ? 0 : T;
+    renderer.getDrawingBufferSize(edgeU.res.value);
     look.lerp(lookTo, k * 0.35);
     dolly += (dollyTo - dolly) * k * 0.35;
     const ph = phone();

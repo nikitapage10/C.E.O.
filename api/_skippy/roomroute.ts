@@ -20,8 +20,8 @@
  *       answer still shows.
  *   POST /api/skippy-room  { room, speak }   a room's own intent handler answered in the browser (@ceo/engine/voice):
  *                          only that line (at most 300 characters) read aloud, no model call → 200 { say, kind: "spoken", audio? }.
- *   POST /api/skippy-room  { room: "today", speak, as }   Today's Senate Rotunda (#755): a caption read aloud in its
- *                          member's own voice (`as` is its seat, "kernel" the chair; api/_skippy/rotundavoice.ts), kept in
+ *   POST /api/skippy-room  { room: "today", speak, as }   Today's Senate Rotunda (#755): a caption read aloud in Skippy's
+ *                          voice bent its member's way (`as` is its seat, "kernel" the chair; api/_skippy/rotundavoice.ts), kept in
  *                          the blob store by hash so each line is made once ever → 200 { say, kind: "spoken", audio?, cached? }.
  *     → 401 signed-out, 403 cross-site, 400 { say } nothing heard or too long, 413 too big, 415 not JSON or audio,
  *       422 { say } held by the privacy check, 429 { say } the chat's pace, 502 { say }, 503 not-set-up.
@@ -191,7 +191,7 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     voice = roomVoiceOf(body.room);
     if (!voice) return json({ error: "bad-request" }, 400);
     // A room's own intent handler answered in the browser (@ceo/engine/voice): only its line read aloud, no model call.
-    // Today's Rotunda (#755): a caption read aloud in its member's own voice, cached once ever (rotundavoice.ts).
+    // Today's Rotunda (#755): a caption read aloud in Skippy's voice, bent its member's way, cached once ever (rotundavoice.ts).
     if (body.speak !== undefined && body.text === undefined && body.as !== undefined && voice.room === "today") return speakAs(body.as, tidyText(body.speak), deps);
     if (body.speak !== undefined && body.text === undefined) return speakOnly(voice, tidyText(body.speak), deps);
     text = tidyText(body.text);

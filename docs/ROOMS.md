@@ -42,6 +42,16 @@ all; a room opened before shows its sigil only on a longer wait; nothing is cove
 reduced motion the sigil is a still and the cover just fades. The cover sits under the bar and Ask Skippy and takes no
 clicks.
 
+A room with a 3D scene holds the cover until that scene's first real frame (Today's gate is in `rotunda/Rotunda.tsx`,
+not its flat stand-in), up to 7 s. Switching is kept warm (#759):
+
+- **Prefetched:** in idle time after first paint, every page's chunk, then the scenes and the shared three.js chunk.
+- **Kept:** Today and the Haven stay mounted after a visit, hidden, inert and paused (`desk/keptRooms.ts`, at most
+  three rooms), so a return is instant and shows no cover. Pages without a scene still unmount.
+- **Warmed:** on a desktop the Desk builds Today's chamber once off screen during idle (`rotunda/warm.ts`), so its
+  model, textures and compiled programs are cached before the first visit.
+- **First frame:** the chamber compiles its programs before its first frame (`compileAsync`).
+
 Import a file by its subpath and name, e.g. `@ceo/engine/sigils/wvCanvas.ts`: the files carry their own CSS and fonts,
 so there is no barrel that would pull them all in. The old Desk paths re-export the engine's files unchanged (same
 names, same behaviour) until step 14, so existing imports keep working. `desk/flow/index.ts` (with `useFlow`) and

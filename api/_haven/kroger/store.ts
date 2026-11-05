@@ -8,6 +8,8 @@
  *            matches to swap to, whether Nikita chose it himself, whether to leave it out of the send
  *   last     the last Kroger call's time and whether it worked (Systems' live or down; never what it was)
  *   sent     the last send's time, item count and whether it worked
+ *            and its quantity check (#761, ./review.ts): how many of the product cover the list line, and whether
+ *            it's short, way over or the wrong thing; and Nikita's own count when he changed it with −/+
  *   inCart   by list item: the product already added to the King Soopers cart from here, and when (#737), so a resend
  *            doesn't add it twice. Kroger's public Cart API only adds (no reading or removing the cart), so this is the
  *            Desk's own record; Clear matches forgets it along with the picks.
@@ -20,6 +22,7 @@
 import type { BlobBackend } from "../../_blob.js";
 import { readJson, updateJson } from "../json.js";
 import { line, readStore, readStoredProduct, type Product, type StoreRow } from "./api.js";
+import { QTY_MAX, readStoredReview, type Review } from "./review.js";
 
 export const KROGER_PATH = "haven/kroger.json";
 /** The most picks kept (the Kitchen list keeps 100 items). */
@@ -34,6 +37,10 @@ export interface ItemPick {
   alts: Product[];
   chosen: boolean;
   skip: boolean;
+  /** The quantity check (#761); it holds only while `product` is still the product it checked. */
+  review?: Review | null;
+  /** Nikita's own count for a product (the −/+), over the check's. */
+  qty?: { productId: string; n: number } | null;
 }
 
 export interface KrogerState {
@@ -53,6 +60,11 @@ export const ZIP = /^\d{5}$/;
 const o = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const iso = (v: unknown): string | null => (typeof v === "string" && v.length <= 32 && Number.isFinite(Date.parse(v)) ? v : null);
 
+function readQty(v: unknown): ItemPick["qty"] {
+  const q = o(v);
+  return typeof q.productId === "string" && /^[A-Za-z0-9-]{1,32}$/.test(q.productId) && typeof q.n === "number" && Number.isInteger(q.n) && q.n >= 1 && q.n <= QTY_MAX ? { productId: q.productId, n: q.n } : null;
+}
+
 function readPick(v: unknown): ItemPick | null {
   const p = o(v);
   const at = iso(p.at);
@@ -64,6 +76,8 @@ function readPick(v: unknown): ItemPick | null {
     alts: (Array.isArray(p.alts) ? p.alts : []).map(readStoredProduct).filter((x): x is Product => x !== null).slice(0, ALTS_MAX),
     chosen: p.chosen === true,
     skip: p.skip === true,
+    review: p.review ? readStoredReview(p.review) : null,
+    qty: readQty(p.qty),
   };
 }
 

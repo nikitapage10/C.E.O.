@@ -152,7 +152,8 @@ for (const [label, size] of [
     // The Petlibro day (#685): the fountain's overdue filter in ember, the wet bowls, the dry schedule's next meal.
     await expect(sheet.getByText("3 days overdue")).toBeVisible();
     await expect(sheet.getByText("Today's bowls")).toBeVisible();
-    await expect(sheet.getByText("Feeding now")).toBeVisible();
+    await expect(sheet.getByText("Feeding now").first()).toBeVisible();
+    await expect(sheet.getByText("bowl 2 in front")).toBeVisible();
     await expect(sheet.getByText("next 7:30 PM")).toBeVisible();
     await page.waitForTimeout(600);
     await shoot(page, `room-${label}`);
@@ -494,7 +495,7 @@ test("signed in: each device gauge opens its controls, and they send the existin
   expect(sent[5]).toMatchObject({ action: "vacuum.rooms", rooms: ["Living room"], suction: "max" });
 });
 
-test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all in batches and turns to King Soopers, which sends exactly the shown picks (#664, #737)", async ({ page }) => {
+test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all in batches, checks the quantities and turns to King Soopers, which sends exactly the shown picks in those quantities (#664, #737, #761)", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   const posts: Record<string, unknown>[] = [];
   const product = (productId: string, description: string, price: number, promo: number | null = null, more: Record<string, unknown> = {}) => ({
@@ -519,7 +520,7 @@ test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all 
     inCart: false,
     pick: { term: "lemons", product: product("0001111000004", "Organic Lemons", 119, null, { aisle: "Produce", categories: ["Produce"] }), alts: [product("0001111000005", "Meyer Lemons", 199)], chosen: false, skip: false, at },
   };
-  const garlic = { id: "k1", name: "Garlic", key: "garlic", inCart: false, pick: { term: "garlic", product: product("0001111000006", "Garlic Bulb", 59, 49, { aisle: "Aisle 3" }), alts: [], chosen: false, skip: false, at } };
+  const garlic = { id: "k1", name: "Garlic (30 cloves)", key: "garlic", inCart: false, pick: { term: "garlic", product: product("0001111000006", "Garlic Bulb", 59, 49, { aisle: "Aisle 3" }), alts: [], chosen: false, skip: false, at } };
   const oat = { id: "k2", name: "Oat milk", key: "oat milk", inCart: true, pick: { term: "oat milk", product: product("0001111000001", "Test Oat Milk", 429, null, { categories: ["Dairy"] }), alts: [], chosen: false, skip: false, at } };
   const base = {
     ready: true,
@@ -542,6 +543,13 @@ test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all 
     total: 0,
   };
   const matched = { ...base, lines: [lemons, garlic, oat], total: 119 + 49 + 429 };
+  // The quantity check (#761): made-up answers, as the server returns them after its one Haiku call.
+  const checked = (l: typeof lemons, qty: number, verdict: string, reason: string, better: string | null = null) => ({ ...l, qty, pick: { ...l.pick, review: { productId: l.pick.product.productId, qty, verdict, reason, better, by: "ai" } } });
+  const reviewed = {
+    ...base,
+    lines: [checked(lemons, 2, "covered", "2 needed, 1 each", "0001111000005"), checked(garlic, 3, "covered", "1 head ≈ 10 cloves"), checked(oat, 1, "over", "1 cup needed, this is 64 fl oz")],
+    total: 119 * 2 + 49 * 3 + 429,
+  };
   let matches = 0;
   await page.route(/\/api\/haven\/kroger(\?.*)?$/, async (r) => {
     if (r.request().method() !== "POST") return r.fulfill({ json: view });
@@ -554,7 +562,11 @@ test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all 
       view = matched;
       return r.fulfill({ json: { ok: true, matched: matches === 1 ? 25 : 13, failed: 0, left: matches === 1 ? 13 : 0, ...view } });
     }
-    if (body.action === "clear")
+    if (body.action === "review") {
+      view = reviewed;
+      return r.fulfill({ json: { ok: true, by: "ai", usd: 0.0004, reviewed: 3, ...view } });
+    }
+    if (body.action === "clear" || body.action === "clear-list")
       return r.fulfill({
         json: {
           ok: true,
@@ -592,26 +604,34 @@ test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all 
   await expect(list.getByRole("heading", { name: /^Dairy & eggs/ })).toBeVisible();
 
   if (SHOTS) await sheet.locator(".hv-shop").screenshot({ path: `${SHOTS}/haven-737-list.png` });
-  // Finalize & match: every item in one press, with progress, then the King Soopers tab.
+  // Finalize & match: every item in one press, with progress, then the King Soopers tab, then the quantity check.
   await sheet.getByRole("button", { name: "Finalize & match" }).click();
   await expect(sheet.getByText("Matching 25 of 38…")).toBeVisible();
   await expect(tabs.getByRole("tab", { name: "King Soopers 3" })).toHaveAttribute("aria-selected", "true");
-  expect(posts).toEqual([{ action: "match" }, { action: "match" }]);
+  await expect(sheet.getByText("1 head ≈ 10 cloves")).toBeVisible();
+  expect(posts).toEqual([{ action: "match" }, { action: "match" }, { action: "review" }]);
   posts.length = 0;
+  // Each pick's count with its reason, a badge for what's off, and a better pick to use.
+  const garlicQty = sheet.getByRole("group", { name: "How many of Garlic (30 cloves)" });
+  await expect(garlicQty).toContainText("×3");
+  await expect(sheet.locator(".hv-gFlag.is-over")).toHaveText("way over");
+  await expect(sheet.getByText("Better fit:")).toBeVisible();
+  await expect(sheet.getByText("Quantities checked: 1 pick to look at")).toBeVisible();
   // Matched, the List groups by Kroger's own department.
   await expect(sheet.getByText("King Soopers - Test Town · 1 Test Ave, Testville")).toBeVisible();
   await expect(sheet.getByText("Organic Lemons · 1 ct")).toBeVisible();
   await expect(sheet.getByText("Already in your cart")).toHaveCount(1);
-  await expect(sheet.locator(".hv-gTotal")).toContainText("$5.97");
+  await expect(sheet.locator(".hv-gTotal")).toContainText("$8.14");
   await expect(sheet.getByRole("link", { name: "King Soopers app" })).toHaveAttribute("href", "https://www.kingsoopers.com/cart");
   if (SHOTS) {
     await page.waitForTimeout(300);
-    await sheet.locator(".hv-shop").screenshot({ path: `${SHOTS}/haven-737-shopping-desktop.png` });
+    await sheet.locator(".hv-shop").screenshot({ path: `${SHOTS}/haven-761-checked-desktop.png` });
     const was = page.viewportSize()!;
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(400);
     await sheet.locator(".hv-shop").scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${SHOTS}/haven-737-shopping-phone.png` });
+    await page.screenshot({ path: `${SHOTS}/haven-761-checked-phone.png` });
+    await sheet.locator(".hv-shop").screenshot({ path: `${SHOTS}/haven-761-checked-phone-card.png` });
     await page.setViewportSize(was);
   }
 
@@ -622,30 +642,39 @@ test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all 
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-737-product.png` });
   await detail.getByRole("button", { name: "Choose this" }).click();
   await expect(detail).toHaveCount(0);
-  await sheet.getByRole("button", { name: "Rematch Garlic" }).click();
+  await sheet.getByRole("button", { name: "Rematch Garlic (30 cloves)" }).click();
+  await sheet.getByRole("button", { name: "One fewer Garlic (30 cloves)" }).click();
 
   // Send adds only what isn't in the cart already.
   await sheet.getByRole("button", { name: "Send 2 to King Soopers" }).click();
   await expect(sheet.getByText("Added 2 to your King Soopers cart (1 already there, not added again).", { exact: false })).toBeVisible();
   await expect(sheet.getByRole("link", { name: "Open the cart" })).toHaveAttribute("href", "https://www.kingsoopers.com/cart");
 
-  // Clear matches takes two taps.
+  // Clear matches asks first, on the page, and says the cart itself can't be emptied from here.
+  await expect(sheet.getByText("anything already sent stays in your King Soopers cart", { exact: false })).toBeVisible();
   await sheet.getByRole("button", { name: "Clear matches" }).click();
   expect(posts.some((p) => p.action === "clear")).toBe(false);
-  await sheet.getByRole("button", { name: "Tap again to clear every match" }).click();
+  await sheet.getByRole("group", { name: "Clear matches?" }).getByRole("button", { name: "Yes" }).click();
   await expect(tabs.getByRole("tab", { name: "King Soopers 0" })).toBeVisible();
+  // Clear list too, from the List tab: two taps.
+  await tabs.getByRole("tab", { name: "List 3" }).click();
+  await sheet.getByRole("button", { name: "Clear list" }).click();
+  await sheet.getByRole("group", { name: "Clear list?" }).getByRole("button", { name: "Yes" }).click();
+  await expect.poll(() => posts.some((p) => p.action === "clear-list")).toBe(true);
   expect(posts).toEqual([
     { action: "choose", key: "lemon", productId: "0001111000005" },
     { action: "rematch", key: "garlic" },
+    { action: "qty", key: "garlic", qty: 2 },
     {
       action: "send",
       picks: [
-        { key: "lemon", productId: "0001111000004" },
-        { key: "garlic", productId: "0001111000006" },
-        { key: "oat milk", productId: "0001111000001" },
+        { key: "lemon", productId: "0001111000004", qty: 2 },
+        { key: "garlic", productId: "0001111000006", qty: 3 },
+        { key: "oat milk", productId: "0001111000001", qty: 1 },
       ],
     },
     { action: "clear" },
+    { action: "clear-list" },
   ]);
 });
 

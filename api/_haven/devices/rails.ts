@@ -197,17 +197,28 @@ export function trayWarning(front: number | null, tray: TrayState, meals: WetMea
   return "";
 }
 
-/** "What's in the wet feeder": the tray and the plan in plain words. */
-export function traySummary(r: Pick<DeviceReading, "plate" | "meals" | "state" | "online">, tray: TrayState, now: number): string {
+/**
+ * What to say when the plan doesn't come back: the Haven signs in with a second account the feeder is shared to, so
+ * an empty plan may only mean that account can't see it. The device list's own next meal, or its plan switch, still
+ * says something when Petlibro sends them.
+ */
+export function noPlanWords(r: Pick<DeviceReading, "nextFeed" | "planOn">): string {
+  if (r.planOn === false) return "The feeding schedule is switched off in the Petlibro app.";
+  if (r.nextFeed) return `No schedule visible to the Haven's account; the feeder says the next meal is at ${clockWords(r.nextFeed.time)}.`;
+  return "No schedule visible to the Haven's account.";
+}
+
+/** "What's in the wet feeder": the tray and the plan in plain words, naming each bowl's meal when the app does. */
+export function traySummary(r: Pick<DeviceReading, "plate" | "meals" | "state" | "online" | "nextFeed" | "planOn">, tray: TrayState, now: number): string {
   if (!r.online) return "The wet food feeder is offline.";
   const front = r.plate ?? tray.front;
   const lines = [front ? `Bowl ${front} is in front${r.state === "lid open" ? " and the lid is open" : ", lid closed"}.` : `I can't tell which bowl is in front${r.state === "lid open" ? "; the lid is open" : ""}.`];
   lines.push(tray.served.length ? `Served from here today: bowl ${tray.served.join(" and ")}.` : "Nothing served from here today.");
   const meals = (r.meals ?? []).filter((m) => minutesOf(m.time) !== null);
   if (meals.length) {
-    lines.push(`Scheduled: ${meals.map((m) => `${clockWords(m.time)}${m.plate ? ` (bowl ${m.plate})` : ""}`).join(", ")}.`);
+    lines.push(`Scheduled: ${meals.map((m) => `${clockWords(m.time)}${m.plate ? ` (bowl ${m.plate}${m.label ? `, ${m.label}` : ""})` : m.label ? ` (${m.label})` : ""}`).join(", ")}.`);
     lines.push(trayWarning(front ?? null, tray, meals, now).trim());
-  } else lines.push("No meals scheduled in the Petlibro app.");
+  } else lines.push(noPlanWords(r));
   return lines.filter(Boolean).join(" ");
 }
 

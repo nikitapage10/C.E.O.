@@ -9,6 +9,7 @@ import { modelReady } from "../modelCache.ts";
 import { reducedMotion } from "../wvCanvas.ts";
 import type { ChamberLink } from "../TodayNow.tsx";
 import type { Rotunda as Scene, RotundaSeat } from "./rotundaScene.ts";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./rotunda.css";
 
 /**
@@ -57,6 +58,8 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   const scene = useRef<Scene | null>(null);
   const seatEls = useRef(new Map<string, HTMLElement>());
   const [gl, setGl] = useState<GL>("idle");
+  // Today's room loader (#752, #759) holds until the chamber's first real frame (or its flat fallback, without WebGL).
+  useRoomReady(gl === "on" || gl === "off");
   const [hot, setHot] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [phone, setPhone] = useState(isPhone);

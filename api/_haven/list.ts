@@ -183,6 +183,30 @@ export class PrivateList {
     });
   }
 
+  /** Clears the whole list (#761, the Shopping card's Clear): every item hidden now, restorable for a while like a removal. How many went. */
+  async clearAll(now: number): Promise<number> {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
+      const cur = cleanItems(raw, now);
+      const at = new Date(now).toISOString();
+      const gone = cur.filter((i) => !i.removedAt).length;
+      return { next: gone ? cur.map((i) => (i.removedAt ? i : { ...i, removedAt: at })) : null, result: gone };
+    });
+  }
+
+  /**
+   * Takes off the open items one source put on the list that it no longer wants (#761: the meal planner's lines after the
+   * plan changed and was finalized again), compared by `sameKey`. Ticked items and other sources' stay. How many went.
+   */
+  async dropMissing(source: ListSource, keep: ReadonlySet<string>, now: number): Promise<number> {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
+      const cur = cleanItems(raw, now);
+      const at = new Date(now).toISOString();
+      const drop = (i: ListItem) => !i.removedAt && !i.done && i.source === source && !keep.has(sameKey(i.name));
+      const gone = cur.filter(drop).length;
+      return { next: gone ? cur.map((i) => (drop(i) ? { ...i, removedAt: at } : i)) : null, result: gone };
+    });
+  }
+
   /** Clears every ticked item now (the Desk's "Clear ticked"). How many went. */
   async clearDone(now: number): Promise<number> {
     return updateJson(this.blob, this.path, [] as unknown, (raw) => {

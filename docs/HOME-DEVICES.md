@@ -49,6 +49,11 @@ or tap and sends it once, with Cancel and Send now while it waits.
   `{ ok, say, code? }`: 200 done, 409 a rail said no, 502 the vendor failed, 503 not connected.
 - `POST /api/haven/devices/connect`: passkey session only (a bearer is refused). Connect Roborock: `send` (email),
   `code`, `disconnect`.
+- `GET /api/haven/devices/map?device=<id>`: passkey session only (a bearer or phone key is refused). The vacuum's live
+  run (#814): `{ state: "idle" }` when it isn't out, else `{ map }` (rooms, walls, path, robot, dock), decoded from
+  `get_map_v1` ([`roborockMap.ts`](../api/_haven/devices/roborockMap.ts)). It is the home's floor plan: read on request
+  while the Hall is open and the vacuum is out (every 4 s), never stored or logged. The Hall draws it
+  ([`LiveRun.tsx`](../apps/world/src/desk/haven/LiveRun.tsx)) and shows nothing when there is no run.
 - Hey Skippy on the phone ([`api/_haven/classify.ts`](../api/_haven/classify.ts)) turns "vacuum the kitchen",
   "vacuum, go home", "pause the vacuum", "feed the cat", "feed the cat 2 portions", "give the cat wet food", "next
   bowl", "switch the wet feeder to tray 2", "what's in the wet feeder", "open the wet food tray", "close the wet feeder", "clean the kitchen on

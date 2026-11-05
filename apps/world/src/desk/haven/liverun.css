@@ -1,0 +1,122 @@
+/* The vacuum's live run on the Hall (#814). Drawn from the private map; see LiveRun.tsx. */
+[data-room="haven"] .hv-liveCard {
+  margin: 0 0 14px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--hv-line);
+  border-radius: 16px;
+  background: var(--hv-glass);
+  backdrop-filter: blur(14px);
+}
+[data-room="haven"] .hv-liveTitle {
+  margin: 0 0 10px;
+  font-family: var(--hv-disp);
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 14px;
+  align-items: start;
+}
+[data-room="haven"] .hv-live svg {
+  width: 100%;
+  height: auto;
+  max-height: 56svh;
+  display: block;
+}
+[data-room="haven"] .hv-liveRoom path {
+  fill: rgba(255, 255, 255, 0.07);
+}
+[data-room="haven"] .hv-liveRoom.is-now path:first-child {
+  fill: rgba(var(--hv-gold), 0.14);
+}
+[data-room="haven"] .hv-liveRoom.is-done path:first-child {
+  fill: rgba(134, 212, 180, 0.12);
+}
+[data-room="haven"] .hv-liveRoom.is-off path:first-child {
+  fill: rgba(255, 255, 255, 0.03);
+}
+[data-room="haven"] .hv-liveDot {
+  fill: rgba(var(--hv-gold), 0.5);
+}
+[data-room="haven"] .hv-liveWall {
+  fill: rgba(255, 248, 236, 0.55);
+}
+[data-room="haven"] .hv-liveLane {
+  fill: none;
+  stroke: rgba(var(--hv-gold), 0.22);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+[data-room="haven"] .hv-liveLine {
+  fill: none;
+  stroke: rgb(var(--hv-gold));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+[data-room="haven"] .hv-liveLabel text,
+[data-room="haven"] .hv-liveName,
+[data-room="haven"] .hv-liveDock text,
+[data-room="haven"] .hv-liveOrderN {
+  text-anchor: middle;
+  font-family: var(--hv-text);
+  pointer-events: none;
+}
+[data-room="haven"] .hv-liveName {
+  fill: var(--hv-ink);
+  font-weight: 600;
+}
+[data-room="haven"] .hv-liveName.is-off {
+  fill: var(--hv-faint);
+  font-weight: 400;
+}
+[data-room="haven"] .hv-livePct {
+  fill: var(--hv-mute);
+  letter-spacing: 0.08em;
+}
+[data-room="haven"] .hv-liveLabel.is-now .hv-livePct {
+  fill: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-liveOrder {
+  fill: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-liveOrderN {
+  fill: #1a1612;
+  font-weight: 700;
+}
+[data-room="haven"] .hv-liveDock path {
+  fill: var(--hv-soft);
+}
+[data-room="haven"] .hv-liveDock text {
+  fill: var(--hv-mute);
+  letter-spacing: 0.1em;
+}
+[data-room="haven"] .hv-liveBotRing {
+  fill: none;
+  stroke: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-liveSide {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+[data-room="haven"] .hv-liveSide dt {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-liveSide dd {
+  margin: 2px 0 0;
+  color: var(--hv-ink);
+}
+@media (max-width: 700px) {
+  [data-room="haven"] .hv-live {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .hv-liveSide {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+}

@@ -7,6 +7,8 @@
 //   - a room's web code reaches lore only through @ceo/engine/lore (not @ceo/simulator, the lore modules or lore/).
 // ceo/desk-boundary (error, in apps/world/src/desk/**): a shared kit of the Desk (flow, skippy, confluence, hologram,
 //   hero) never imports a room; the rooms plug into the kits instead (desk/roomHooks.ts).
+// ceo/desk-package (error, in apps/desk/**): the Desk's package reaches into another app only for the files in
+//   WORLD_SHARED below, which only shrinks.
 //
 // Imports are resolved against the importing file, so `../green/x` and `../../rooms/green/x` are judged by where they
 // land, not how they are spelled.
@@ -101,4 +103,28 @@ const deskBoundary = {
   },
 };
 
-export default { rules: { "room-boundary": roomBoundary, "desk-boundary": deskBoundary } };
+// The Desk's package, @ceo/desk (apps/desk, #617). It may import @ceo/engine, the rooms, the other packages and api/,
+// but it reaches into another app only for the files listed in WORLD_SHARED: the ones the Desk shares with the Lattice
+// (the route, the systems and Foundry stores, the chronicle and the rest), which stay in apps/world/src until each moves
+// into a package of its own. Like KNOWN_CROSSINGS the list only shrinks (scripts/eslint-rooms.test.mjs fails on an
+// entry no Desk file imports). @ceo/world's package name is no way round it: it is an error too.
+export const WORLD_SHARED = [];
+
+const DESK_PACKAGE = "apps/desk/";
+
+const deskPackage = {
+  meta: { type: "problem", schema: [], messages: {
+    app: "The Desk imports {{to}} from another app. It reaches apps/world only for the files in WORLD_SHARED (scripts/eslint-rooms.mjs, docs/ROOMS.md).",
+    world: "The Desk imports apps/world only by the relative path of a file in WORLD_SHARED, never through @ceo/world (docs/ROOMS.md).",
+  } },
+  create(context) {
+    if (!rel(context.filename).startsWith(DESK_PACKAGE)) return {};
+    return sources(context, (node, _file, spec, to) => {
+      if (spec === "@ceo/world" || spec.startsWith("@ceo/world/")) context.report({ node, messageId: "world" });
+      if (!to || !to.startsWith("apps/") || to.startsWith(DESK_PACKAGE)) return;
+      if (!WORLD_SHARED.includes(to)) context.report({ node, messageId: "app", data: { to } });
+    });
+  },
+};
+
+export default { rules: { "room-boundary": roomBoundary, "desk-boundary": deskBoundary, "desk-package": deskPackage } };

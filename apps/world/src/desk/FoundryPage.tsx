@@ -22,6 +22,7 @@ import { ForgeStage } from "./foundry/ForgeStage.tsx";
 import { BenchCard, CrewStations, RunsLine, VqaLine } from "./foundry/ForgeParts.tsx";
 import { forgeLanes, queueOf } from "./foundry/forge.ts";
 import { progressMap, progressWords, stepWords, type Progress } from "./foundry/progress.ts";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./foundry/foundry.css";
 
 /**
@@ -62,6 +63,7 @@ const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matc
 
 export function FoundryPage({ now }: { now: number }) {
   const connected = useFoundry((s) => s.connected);
+  useRoomReady(connected);
   const data = useFoundry((s) => s.data);
   const pending = useFoundry((s) => s.pending);
   const keptAt = useFoundry((s) => s.keptAt);

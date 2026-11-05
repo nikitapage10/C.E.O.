@@ -14,6 +14,7 @@ import { moodOf, useClimateQueue } from "./climateQueue.ts";
 import type { House, ThreadState } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./haven.css";
 
 /**
@@ -136,6 +137,7 @@ export function Haven() {
   const openList = useMemo(() => (signedIn ? openTodos(todos, Date.now()) : []), [todos, signedIn]);
   const todoCount = signedIn ? openList.length : (counts?.todos ?? null);
   const thePlan = plan.state === "ready" ? plan.plan : null;
+  useRoomReady(homeLoad !== "idle" && (thePlan ? gl !== "idle" : auth !== "checking" && (!signedIn || plan.state !== "idle")));
   const hasGym = !!counts?.gym;
   const lit = useMemo(() => (thePlan ? litRooms(thePlan, { devices, kitchenOpen, climate, gym: hasGym, now: Date.now() }) : {}), [thePlan, devices, kitchenOpen, climate, hasGym]);
   // The thermostat control (#671): from the plinth's Climate dial or the Nest's marker, passkey only.

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { POPUPS, useAnnex, type Popup, type PopupStatus } from "../annex/annex.ts";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "../annex/annex.css";
 
 /**
@@ -45,6 +46,7 @@ function Row({ popup, status, onSet }: { popup: Popup; status: PopupStatus; onSe
 export function Annex() {
   const status = useAnnex((s) => s.status);
   const load = useAnnex((s) => s.load);
+  useRoomReady(load !== "idle");
   const signedIn = useAnnex((s) => s.signedIn);
   const setStatus = useAnnex((s) => s.setStatus);
   useEffect(() => {

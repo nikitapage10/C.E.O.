@@ -3,6 +3,7 @@ import { Keeper, Waits, type Wait } from "./parts.tsx";
 import { InvoicesSection } from "../spire/InvoicesSection.tsx";
 import { startInvoices, useInvoices } from "../spire/invoices.ts";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./rooms.css";
 
 /**
@@ -54,6 +55,7 @@ export function Spire() {
   useEffect(() => startInvoices(), []);
   const load = useInvoices((s) => s.load);
   const status = useInvoices((s) => s.status);
+  useRoomReady(load !== "idle");
   const live = status?.paypal === "live" ? status : null;
   const cols: [string, number | null][] = [
     ["Open", live?.open ?? null],

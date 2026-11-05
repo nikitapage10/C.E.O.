@@ -23,6 +23,24 @@ the rooms plug into them instead (below, "Rooms plug in"). Until a room's own st
 | `@ceo/engine/tools` | The rooms' tools (#646): `RoomTool` (a name, a title, a description, a strict input schema and an effect: `read`, `write`, `send`, `spend` or `delete`), `needsConfirm`, `checkInput` and `ToolOutcome`. One registry for Desk Skippy's agent and the room voice | |
 | `@ceo/engine/sigils/*` | The particle layer: `wvCanvas.ts` (the Desk's one shared loop and canvas helpers), `motion.tsx`, the flow kit's core (`field.ts`, `draw.ts`, `path.ts`, `rise.ts`, `motes.ts`, `tempo.ts`, `flow.css`) and the glyph engine (`sigils.ts`, `sigils.css`, #615) | `desk/wvCanvas.ts`, `desk/motion.tsx`, `desk/flow/`, `desk/relay/sigils.ts` |
 | `@ceo/engine/web/*` | The sign-in shell: `signin.ts`, `SignIn.tsx`, `SitePassword.tsx`, the Hide veil (`hide.ts`, `Private.tsx`) and the device pings (`pings.ts`, `PingSwitch.tsx`) | the same names in `desk/` |
+| `@ceo/engine/web/RoomLoader.tsx`, `web/roomReady.ts`, `sigils/roomSigils.ts` | The room loader (#752): see "The room loader" below | |
+
+### The room loader
+
+Every Desk page is covered from the moment it is opened until it is ready, so nothing pops in piece by piece: motes
+gather into the room's own sigil (`roomSigils.ts`, drawn on the C.E.O. mark's 48 grid) in its accent colour, the
+room's name sits between two gold hairlines, and then it fades. The Desk wraps each page in `<RoomLoader>` with
+`<RoomMounted />` after it inside its Suspense, so the chunk is counted for free. A room holds the cover with one line:
+
+```ts
+useRoomReady(status !== "idle"); // ready once its first data is in
+const ready = useRoomReady(false); // or by hand, e.g. a scene's first frame: ready()
+```
+
+A page that opens no gate is ready once its code has mounted, and one ready in the same commit is never covered at
+all; a room opened before shows its sigil only on a longer wait; nothing is covered for more than 4 s (`CAP_MS`); with
+reduced motion the sigil is a still and the cover just fades. The cover sits under the bar and Ask Skippy and takes no
+clicks.
 
 Import a file by its subpath and name, e.g. `@ceo/engine/sigils/wvCanvas.ts`: the files carry their own CSS and fonts,
 so there is no barrel that would pull them all in. The old Desk paths re-export the engine's files unchanged (same

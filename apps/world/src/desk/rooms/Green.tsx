@@ -32,6 +32,7 @@ import { useGreenAnalysis, waitWords, type GreenAnalysis } from "../green/analys
 import { formation, modeFor, paintField, place, yardAt, type Mode, type Tok, type TokState } from "../green/stadium.ts";
 import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
 import "./rooms.css";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "../green/green.css";
 
 /**
@@ -1479,6 +1480,7 @@ export function Green() {
   useEffect(() => startGreen(), []);
   const status = useGreen((s) => s.status);
   const board = useGreen((s) => s.board);
+  useRoomReady(status !== "idle");
   const [now, setNow] = useState(() => Date.now());
   const [open, setOpen] = useState<DeepId | null>(null);
   useEffect(() => {

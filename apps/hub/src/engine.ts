@@ -602,6 +602,7 @@ export class Engine {
       const x = s.threads.find((y) => y.id === t.id);
       if (!x) return;
       x.since = Math.min(x.since, unanswered[0]!.at);
+      x.lastIn = Math.max(x.lastIn, unanswered[unanswered.length - 1]!.at);
       x.unread = unanswered[unanswered.length - 1]!.read !== true;
       if (media) x.media = media;
       else delete x.media;
@@ -874,6 +875,8 @@ export class Engine {
         const t = s.threads.find((x) => x.chat === e.chat);
         if (t && (t.state === "owed" || t.state === "later")) {
           t.unread = e.unread;
+          // Their latest text (#895): a text the hub missed while it was off still keeps the thread inside the window.
+          t.lastIn = Math.max(t.lastIn, e.at);
           // No gist (#803: a model error or the budget stop dropped it from the queue, and nothing queued it
           // again): it showed "No gist yet" for good. Each scan, and so each hub start, queues it once more.
           if (!t.gist) this.queue.add(t.id);
@@ -1485,6 +1488,8 @@ export class Engine {
           state: t.state === "replied" ? "settled" : t.state,
           sort: t.sort,
           since: Math.max(Date.UTC(2026, 0, 1), Math.floor(t.since)),
+          // Their latest text (#895): the site keeps an owed item by it, as this list and `relay check` do.
+          ...(owedState(t) && { last: Math.max(Date.UTC(2026, 0, 1), Math.floor(t.since), Math.floor(t.lastIn)) }),
           laterUntil: t.laterUntil === null ? null : Math.floor(t.laterUntil),
           gist: t.gist.slice(0, 160),
           draft: t.draft ? { text: t.draft.text.slice(0, 600), at: Math.floor(t.draft.at) } : null,

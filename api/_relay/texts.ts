@@ -84,6 +84,12 @@ export interface TextItem {
   sort: "sooner" | "normal" | null;
   /** The first message Nikita hasn't answered (ms). */
   since: number;
+  /**
+   * When their latest text came (ms; #895). An owed item stays on the list while this is inside OWED_WINDOW_MS, as the
+   * hub counts it: by `since` alone, a thread whose first unanswered text was over 30 days old but whose latest was
+   * recent was counted owed on the Mac and dropped here. Left out by an older hub (then `since` decides).
+   */
+  last?: number;
   laterUntil: number | null;
   /** Dialtone's one line on what they want. */
   gist: string;
@@ -375,7 +381,7 @@ const isTime = (v: unknown): v is number => typeof v === "number" && Number.isIn
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")) : null);
 const keysOnly = (o: Record<string, unknown>, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k));
 
-const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages", "wait", "media"] as const;
+const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "last", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages", "wait", "media"] as const;
 
 /** One item, rebuilt from the allowlist; null for anything else (an unknown key, a long string, a bad time). */
 export function readTextItem(v: unknown): TextItem | null {
@@ -388,6 +394,7 @@ export function readTextItem(v: unknown): TextItem | null {
   if (!(TEXT_STATES as readonly string[]).includes(o.state as string)) return null;
   if (o.sort !== null && o.sort !== "sooner" && o.sort !== "normal") return null;
   if (o.laterUntil !== null && !isTime(o.laterUntil)) return null;
+  if (o.last !== undefined && !isTime(o.last)) return null;
   let draft: TextItem["draft"] = null;
   if (o.draft !== null) {
     const d = o.draft as Record<string, unknown>;
@@ -412,7 +419,7 @@ export function readTextItem(v: unknown): TextItem | null {
   if (o.wait !== undefined && !(GIST_WAITS as readonly unknown[]).includes(o.wait)) return null;
   const wait = o.wait as GistWait | undefined;
   if (o.media !== undefined && (!Number.isInteger(o.media) || (o.media as number) < 1 || (o.media as number) > 999)) return null;
-  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }), ...(wait && !gist && { wait }), ...(typeof o.media === "number" && { media: o.media }) };
+  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, ...(typeof o.last === "number" && { last: o.last }), gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }), ...(wait && !gist && { wait }), ...(typeof o.media === "number" && { media: o.media }) };
 }
 
 /** One set-aside thread (#870), rebuilt from the allowlist; null for anything else. */
@@ -484,6 +491,14 @@ export function readTextCard(v: unknown): TextCard | null {
   return { id: o.id, state, name, mask: o.mask as string | null, channel: o.channel, draft, choices: choices as CardChoice[], at: o.at };
 }
 
+/**
+ * Whether an item is still on the list (#758): an owed one while their latest text is inside OWED_WINDOW_MS (#895: by
+ * `last`, as the hub lists and counts it; an older hub's item by `since`), a settled one (a group's summary) a week.
+ */
+export function itemLive(i: Pick<TextItem, "state" | "since" | "last">, now: number): boolean {
+  return i.state === "settled" ? now - i.since < TEXT_KEEP_MS : now - Math.max(i.since, i.last ?? 0) < OWED_WINDOW_MS;
+}
+
 /** The list, checked whole: one bad item refuses it (a hub that sends something extra has a bug). */
 export function readTextsView(v: unknown, now: number): TextsView | null {
   const o = v as Record<string, unknown> | null;
@@ -511,8 +526,7 @@ export function readTextsView(v: unknown, now: number): TextsView | null {
     aside = (got as AsideItem[]).filter((a) => now - a.since < OWED_WINDOW_MS);
   }
   if (o.tapbacks !== undefined && o.tapbacks !== "on" && o.tapbacks !== "off") return null;
-  // An owed item stays OWED_WINDOW_MS (#758); a settled one (a group's summary) a week.
-  const kept = freshItems((items as TextItem[]).filter((i) => now - i.since < (i.state === "settled" ? TEXT_KEEP_MS : OWED_WINDOW_MS)), now);
+  const kept = freshItems((items as TextItem[]).filter((i) => itemLive(i, now)), now);
   return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice, aside, ...((o.tapbacks === "on" || o.tapbacks === "off") && { tapbacks: o.tapbacks }) };
 }
 

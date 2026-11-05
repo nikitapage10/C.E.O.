@@ -39,7 +39,7 @@ export const ROOM_TABS: Record<RoomRoute, { label: string; line: string }> = {
 
 /** Every page in the bar's order (route.ts NAV_ORDER): keys 1 to 9, then 0, open the first ten. */
 export const KEY_ORDER: Exclude<Route, "lattice">[] = [...NAV_ORDER];
-const labelOf = (id: Exclude<Route, "lattice">) => MAIN_TABS.find((t) => t.id === id)?.label ?? ROOM_TABS[id as RoomRoute].label;
+export const labelOf = (id: Exclude<Route, "lattice">) => MAIN_TABS.find((t) => t.id === id)?.label ?? ROOM_TABS[id as RoomRoute].label;
 
 export const pathOf = (id: Exclude<Route, "lattice">) => (id === "today" ? "/" : `/${id}`);
 

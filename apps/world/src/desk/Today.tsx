@@ -16,6 +16,7 @@ import { clockState, useWorldClock } from "../worldClock.ts";
 import { useTodoSync } from "./todos/TodoBits.tsx";
 import { awayRefs, useTodos } from "./todos/todos.ts";
 import { Lists } from "./Lists.tsx";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
 import "@fontsource-variable/jost/wght.css";
@@ -51,6 +52,7 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
   const decisions = data.actions.filter((a) => a.when === "now");
   const foundry = useFoundry((s) => s.data);
   const pendingIdeas = useFoundry((s) => s.pending);
+  useRoomReady(useFoundry((s) => s.connected));
   const setup = useSetup();
   const setupList = useSetupStatus();
   const ideas = openIdeas(foundry.crates, pendingIdeas);

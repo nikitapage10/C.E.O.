@@ -1,4 +1,5 @@
 import { Waits, type Wait } from "./parts.tsx";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
 import { RC } from "../flow/index.ts";
 import { Floor } from "../exchange/Floor.tsx";
@@ -63,6 +64,7 @@ const LATER = [
 
 export function Exchange() {
   const pmStatus = usePolymarket((s) => s.status);
+  useRoomReady(pmStatus !== "idle");
   const pmBoard = usePolymarket((s) => s.board);
   const pinned = pmBoard?.watchlist.length ?? 0;
   const posStatus = usePositions((s) => s.status);

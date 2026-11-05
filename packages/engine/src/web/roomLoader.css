@@ -1,0 +1,137 @@
+/*
+ * The room loader (#752, RoomLoader.tsx): the page's cover while it loads. Under the bar (z-index 20) and Ask Skippy,
+ * over the page and its footer; it never takes a click. The Desk's own tokens are used where they exist, with the
+ * same values as fallbacks so the engine stands alone.
+ */
+.room-loader {
+  --rl-gold: 232, 207, 156;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: var(--room-loader-top, 60px);
+  background:
+    radial-gradient(38vmax 30vmax at 50% 50%, color-mix(in srgb, var(--rl-accent, #9fd2ff) 7%, transparent), transparent 72%),
+    rgba(5, 7, 12, 0.985);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--rl-fade, 460ms) cubic-bezier(0.4, 0, 0.2, 1);
+}
+.room-loader[data-phase="leave"] {
+  opacity: 0;
+}
+
+.room-loader__mark {
+  width: 320px;
+  height: 320px;
+  margin: -44px 0 -52px;
+  color: var(--rl-accent, #9fd2ff);
+  animation: room-loader-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1) var(--rl-delay, 70ms) both;
+  transition: transform var(--rl-fade, 460ms) cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.room-loader[data-phase="leave"] .room-loader__mark {
+  transform: scale(1.04);
+}
+.room-loader__mark canvas,
+.room-loader__mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.room-loader__still {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
+}
+.room-loader__node {
+  fill: rgb(var(--rl-gold));
+}
+
+/* The name, in the Desk's serif, between two gold hairlines that draw out from it. */
+.room-loader__name {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  font-family: var(--serif, "Cormorant Garamond", "Iowan Old Style", Georgia, serif);
+  font-weight: 500;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--text, #eef1f7);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.room-loader__name span {
+  /* The trailing letter-space, given back so the name sits centred between its rules. */
+  margin-right: -0.26em;
+  letter-spacing: 0.26em;
+  animation: room-loader-name 900ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--rl-delay, 70ms) + 160ms) both;
+}
+.room-loader__name i {
+  width: 48px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(var(--rl-gold), 0), rgba(var(--rl-gold), 0.8));
+  transform-origin: right center;
+  animation: room-loader-rule 800ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--rl-delay, 70ms) + 320ms) both;
+}
+.room-loader__name i:last-child {
+  background: linear-gradient(270deg, rgba(var(--rl-gold), 0), rgba(var(--rl-gold), 0.8));
+  transform-origin: left center;
+}
+
+@keyframes room-loader-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes room-loader-name {
+  from {
+    opacity: 0;
+    letter-spacing: 0.4em;
+  }
+}
+@keyframes room-loader-rule {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .room-loader {
+    --room-loader-top: 88px;
+  }
+  .room-loader__mark {
+    width: 260px;
+    height: 260px;
+    margin: -36px 0 -42px;
+  }
+  .room-loader__name {
+    gap: 12px;
+    font-size: 17px;
+  }
+  .room-loader__name i {
+    width: 32px;
+  }
+}
+
+/* Reduced motion: a still sigil, and the cover simply fades in and out. */
+@media (prefers-reduced-motion: reduce) {
+  .room-loader__name span,
+  .room-loader__name i {
+    animation: room-loader-in 300ms linear var(--rl-delay, 70ms) both;
+  }
+  .room-loader__mark {
+    animation-duration: 300ms;
+    transition: none;
+  }
+  .room-loader[data-phase="leave"] .room-loader__mark {
+    transform: none;
+  }
+}

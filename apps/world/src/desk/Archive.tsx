@@ -1,4 +1,6 @@
 import { Chronicle } from "./Chronicle.tsx";
+import { useChronicle } from "../chronicle.ts";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./archive.css";
 
 /**
@@ -9,5 +11,6 @@ import "./archive.css";
  * week, the shown day hour by hour beside the bonds it moved and the case of past days, and the Tide as a folio.
  */
 export function Archive({ now, awaySince }: { now: number; awaySince: number }) {
+  useRoomReady(useChronicle((s) => s.status !== "idle" && s.status !== "loading"));
   return <Chronicle now={now} awaySince={awaySince} />;
 }

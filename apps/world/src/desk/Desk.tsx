@@ -6,7 +6,7 @@ import { useSystems } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
 import { useAwaySince } from "./awaySince.ts";
 import { useHide } from "./hide.ts";
-import { DeskNav, KEY_ORDER, ROOM_TABS } from "./DeskNav.tsx";
+import { DeskNav, KEY_ORDER, labelOf, ROOM_TABS } from "./DeskNav.tsx";
 import { DeskSky } from "./DeskSky.tsx";
 import { startDeskTiming } from "./deskBeacon.ts";
 import { useDeskData } from "./deskData.ts";
@@ -18,6 +18,8 @@ import { useSkippy } from "./skippy/index.ts";
 import { loadTodayMore, Today } from "./Today.tsx";
 import { HologramCall } from "./hologram/HologramCall.tsx";
 import { VoiceDock } from "./roomvoice/RoomMic.tsx";
+import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
+import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
 import "./desk.css";
 import "./chronicle.css";
 import "./weave.css";
@@ -62,10 +64,8 @@ function prefetchTabs() {
   else setTimeout(run, 2000);
 }
 
-/** What shows for the moment a page's code is on its way: one thread drawing itself, no spinner. */
-function TabLoading() {
-  return <div className="desk__loading" role="status" aria-label="Loading" />;
-}
+/** Each page's colour, as its manifest names it (rooms/<id>/room.ts `accent`): the room loader's motes wear it. */
+const accentOf = (route: Exclude<Route, "lattice">) => (route === "today" ? "--ice" : `--room-${route}`);
 
 /**
  * The Desk: the Lattice's control room as a flat, fast page, where the C.E.O. acts on what the agents bring in.
@@ -143,35 +143,40 @@ export function Desk({ route }: { route: DeskTab }) {
       <DeskSky />
       <DeskNav route={route} owed={owed} now={now} />
 
-      <main className="desk__main" key={route} data-room={route in ROOM_TABS || route === "foundry" || route === "relay" ? route : undefined}>
-        <Suspense fallback={<TabLoading />}>
-          {route === "relay" ? (
-            <Relay data={data} now={now} connected={connected} />
-          ) : route === "foundry" ? (
-            <FoundryPage now={now} />
-          ) : route === "archive" ? (
-            <Archive now={now} awaySince={awaySince} />
-          ) : route === "boiler" ? (
-            <BoilerRoom now={now} />
-          ) : route === "spire" ? (
-            <Spire />
-          ) : route === "exchange" ? (
-            <Exchange />
-          ) : route === "green" ? (
-            <Green />
-          ) : route === "workshop" ? (
-            <Workshop />
-          ) : route === "studio" ? (
-            <Studio />
-          ) : route === "annex" ? (
-            <Annex />
-          ) : route === "haven" ? (
-            <Haven />
-          ) : (
-            <Today data={data} now={now} connected={connected} awaySince={awaySince} />
-          )}
-        </Suspense>
-      </main>
+      {/* The room loader (#752, @ceo/engine): covers the page while its code, scene and first data come in, then fades.
+          Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. */}
+      <RoomLoader key={route} room={route} name={labelOf(route)} accent={accentOf(route)}>
+        <main className="desk__main" data-room={route in ROOM_TABS || route === "foundry" || route === "relay" ? route : undefined}>
+          <Suspense fallback={null}>
+            {route === "relay" ? (
+              <Relay data={data} now={now} connected={connected} />
+            ) : route === "foundry" ? (
+              <FoundryPage now={now} />
+            ) : route === "archive" ? (
+              <Archive now={now} awaySince={awaySince} />
+            ) : route === "boiler" ? (
+              <BoilerRoom now={now} />
+            ) : route === "spire" ? (
+              <Spire />
+            ) : route === "exchange" ? (
+              <Exchange />
+            ) : route === "green" ? (
+              <Green />
+            ) : route === "workshop" ? (
+              <Workshop />
+            ) : route === "studio" ? (
+              <Studio />
+            ) : route === "annex" ? (
+              <Annex />
+            ) : route === "haven" ? (
+              <Haven />
+            ) : (
+              <Today data={data} now={now} connected={connected} awaySince={awaySince} />
+            )}
+            <RoomMounted />
+          </Suspense>
+        </main>
+      </RoomLoader>
 
       {/* Skippy's dialogue (#224), on every page: the bar's button, Today's avatar and the Ask line all open it. Focus goes
           back to whichever of them opened it. */}

@@ -207,7 +207,9 @@ jobs:
           echo "Applied, and $APP re-reads the vault." >> "$GITHUB_STEP_SUMMARY"
 
   site:
-    needs: [build, infra]
+    # Only the build: the upload needs no Azure change from infra, and waiting on its what-if and apply added
+    # about 2.5 minutes to every ship. The functions still wait on infra, since its app settings feed them.
+    needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: azure

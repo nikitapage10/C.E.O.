@@ -261,7 +261,7 @@ async function photoAnswer(url: URL, deps: RelayRouteDeps): Promise<Response> {
     const index = readPhotoIndex(await deps.store.photoIndex());
     const png = index.ids[id] !== undefined ? await deps.store.photo(id) : null;
     if (!png) return json({ error: "not-found" }, 404);
-    return new Response(Buffer.from(png), { headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox" } });
+    return new Response(Buffer.from(png), { headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox" } });
   } catch {
     return json({ error: "store" }, 502);
   }

@@ -9,7 +9,7 @@ import type { Site } from "./site.ts";
 import type { RelayState } from "./store.ts";
 
 /**
- * Contact photos from the Mac (#642, docs/RELAY-PRIVACY.md, "Contact photos: the one exception"). Once a day, and at
+ * Contact photos from the Mac (#642, docs/RELAY-PRIVACY.md, "Contact photos: the one exception"). Every hour (#907), and at
  * start: BlueBubbles' contact data gives each contact's picture; macOS's own `sips` shrinks it to PHOTO_PX and re-encodes
  * it as PNG in a private temp folder (deleted straight after); `cleanPng` keeps only the image chunks, so no EXIF,
  * location, text or colour profile goes; and it is sent under an opaque id (an HMAC of the contact's handle under a key

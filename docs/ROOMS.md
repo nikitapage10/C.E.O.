@@ -194,6 +194,15 @@ The stubs had hidden the reads one room makes of another (the Boiler Room's Map 
 stores, Today reading the Relay's email and the Archive's `DayStory`, the Exchange's asides reading the Green's league);
 they are listed in `KNOWN_CROSSINGS` (below, "Lint") until each room plugs in through the Desk instead.
 
+### The Desk's package
+
+The Desk becomes a workspace package, `@ceo/desk` in `apps/desk` (decided on #617, 2026-11-05), in three steps: the
+empty package and its lint boundary, then the move of `apps/world/src/desk` into `apps/desk/src`, then the swap of
+`apps/world/src/main.tsx` to mount it from there. It keeps the site's one build and one deploy: `@ceo/world`'s Vite
+build bundles it like `@ceo/engine`, `boot-check` opens that one `dist`, and Deploy to Azure ships the same artifact,
+with no new Azure resources. The Desk may import `@ceo/engine`, the rooms, the other packages and `api/`; it reaches
+into another app only for the files it shares with the Lattice, listed in `WORLD_SHARED` (below, "Lint").
+
 ### The manifest
 
 `defineRoom()` from `@ceo/engine/manifest` parses it on load:
@@ -242,3 +251,7 @@ room data in it.
 - **Errors** in `apps/world/src/desk/**`: a shared kit (flow, skippy, confluence, hologram, hero) importing a room.
   This was a warning while the rooms moved out (15 at step 1, 18 by step 3, 0 by step 13) and became an error at
   step 14, once every room had left the Desk.
+- **Errors** in `apps/desk/**` (the Desk's package): an import that lands in another app (`apps/world`, `apps/hub`),
+  or goes through `@ceo/world`, unless it is a file in `WORLD_SHARED`: the files the Desk shares with the Lattice,
+  which stay in `apps/world/src` until each moves into a package. Like `KNOWN_CROSSINGS` the list only shrinks:
+  `scripts/eslint-rooms.test.mjs` fails on an entry no Desk file imports, and checks the rule on a few imports.

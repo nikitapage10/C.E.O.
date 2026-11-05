@@ -1,0 +1,23 @@
+{
+  "name": "@ceo/desk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Desk (#617, docs/ROOMS.md): its shell, bar, council, Skippy, room voice, the Rotunda and the kits the rooms plug into. Bundled by @ceo/world's one build and shipped in its one deploy; it has no build or deploy of its own.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@ceo/core": "0.1.0",
+    "@ceo/engine": "0.1.0",
+    "@ceo/simulator": "0.1.0",
+    "@elevenlabs/client": "1.32.1",
+    "@fontsource-variable/bodoni-moda": "5.3.0",
+    "@fontsource-variable/jost": "5.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "three": "^0.187.0",
+    "zustand": "^5.0.16"
+  }
+}

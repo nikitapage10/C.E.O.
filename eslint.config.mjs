@@ -46,4 +46,6 @@ export default tseslint.config(
   },
   // The Desk's shared kits (flow, skippy, confluence, hologram, hero) import no rooms; the rooms plug in (desk/roomHooks.ts).
   { files: ["apps/world/src/desk/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-boundary": "error" } },
+  // The Desk's package (@ceo/desk, apps/desk): another app only for the files in WORLD_SHARED (scripts/eslint-rooms.mjs).
+  { files: ["apps/desk/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-package": "error" } },
 );

@@ -44,6 +44,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { recolor } from "../../agents/bodies/recolor.ts";
 import { modelUrl } from "../../modelUrl.ts";
 import { cachedModel } from "../modelCache.ts";
+import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { ARMS, CHILD, NAVY, POSES } from "../hologram/rig.ts";
 import type { Pose } from "../hologram/persona.ts";
 import { SKIPPY_MODEL } from "../council/live.ts";
@@ -1016,6 +1017,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const shaftCol = new Color(0xffe6b8);
   const IDLE_SHAFT = new Color(0xffe6b8);
   const minStep = PH0 ? 1000 / 30 - 2 : 0;
+  // WASD to look around the floor (#776); idle or Escape, it eases back to the session's own camera.
+  const pan = wasdPan({ el: host, reduce, bounds: () => ({ kind: "disc", cx: 0, cz: 0, r: R + 1 }), origin: () => [look.x, look.z], forward: () => [look.x - cam.position.x, look.z - cam.position.z] });
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
     if (!visible || document.visibilityState === "hidden") {
@@ -1086,8 +1089,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     // A tall phone stands further back, so the whole bowl fits across it.
     const rad = (ph ? (cam.aspect < 0.95 ? 17.5 : 15.5) : 13.2) * dolly;
     const camY = (ph ? 7.4 : 5.0) * (0.8 + dolly * 0.2);
-    cam.position.set(Math.cos(orbit) * rad, camY, Math.sin(orbit) * rad);
+    pan.step(dt);
+    cam.position.set(Math.cos(orbit) * rad + pan.x, camY, Math.sin(orbit) * rad + pan.z);
     tmp.copy(look);
+    tmp.x += pan.x;
+    tmp.z += pan.z;
     if (ph) tmp.y += 1.1;
     cam.lookAt(tmp);
     stepAtmos(dt, T);
@@ -1133,6 +1139,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       dead = true;
       token++;
       cancelAnimationFrame(raf);
+      pan.dispose();
       window.clearTimeout(chairTimer);
       ro?.disconnect();
       io?.disconnect();

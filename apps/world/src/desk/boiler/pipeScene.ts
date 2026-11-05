@@ -37,6 +37,7 @@ import {
   type Object3D,
   type Texture,
 } from "three";
+import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import type { StationState } from "./pipes.ts";
 import type { MapGeo, PipeKind, V2 } from "./rooms.ts";
 
@@ -178,6 +179,8 @@ export class PipeScene {
   track: string | null = null;
   onTrack: ((x: number, y: number) => void) | null = null;
   private tracked = "";
+  /** WASD to look around the map (#776). */
+  private pan: ReturnType<typeof wasdPan>;
 
   constructor(
     private host: HTMLElement,
@@ -309,6 +312,8 @@ export class PipeScene {
     });
     this.io.observe(host);
     document.addEventListener("visibilitychange", this.onVis);
+    const b = () => this.geo?.box ?? this.focusBox;
+    this.pan = wasdPan({ el: host, reduce: opts.reduce, bounds: () => ({ kind: "box", x0: b()[0], z0: b()[1], x1: b()[2], z1: b()[3] }), origin: () => [this.look.x, this.look.z], forward: () => [this.look.x - this.cam.position.x, this.look.z - this.cam.position.z] });
     this.size();
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -480,6 +485,7 @@ export class PipeScene {
 
   dispose(): void {
     cancelAnimationFrame(this.raf);
+    this.pan.dispose();
     this.ro.disconnect();
     this.io.disconnect();
     document.removeEventListener("visibilitychange", this.onVis);
@@ -642,7 +648,7 @@ export class PipeScene {
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
     const reduce = this.opts.reduce;
-    if (!this.visible || document.hidden || (reduce && this.dirty <= 0 && !this.moved)) {
+    if (!this.visible || document.hidden || (reduce && this.dirty <= 0 && !this.moved && !this.pan.busy)) {
       this.last = now;
       return;
     }
@@ -707,7 +713,10 @@ export class PipeScene {
     const sway = reduce ? 0 : Math.sin(T * 0.1) * 0.08;
     if (this.phone()) cam.position.set(this.look.x + this.dist * 0.52, this.dist * 0.85, this.look.z + Math.sin(sway) * this.dist * 0.3);
     else cam.position.set(this.look.x + Math.sin(sway) * this.dist * 0.4, this.dist * 0.84, this.look.z + this.dist * 0.55);
-    cam.lookAt(this.look);
+    this.pan.step(real);
+    cam.position.x += this.pan.x;
+    cam.position.z += this.pan.z;
+    cam.lookAt(this.look.x + this.pan.x, this.look.y, this.look.z + this.pan.z);
     this.renderer.render(this.scene, cam);
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;

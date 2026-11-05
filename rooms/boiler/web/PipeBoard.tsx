@@ -458,19 +458,27 @@ export function PipeBoard({ sections, model, now, signedIn, tabs, onOpenRoom }: 
         <ul className="bp-key" aria-hidden="true">
           <li>
             <i className="is-ok" />
-            flowing
+            working
           </li>
           <li>
             <i className="is-late" />
-            late
+            late or didn't run
           </li>
           <li>
             <i className="is-leak" />
-            broken or shut
+            broken
           </li>
           <li>
-            <i className="is-planned" />
-            not connected · planned
+            <i className="is-dry" />
+            not connected · waiting
+          </li>
+          <li>
+            <i className="is-flow" />
+            flowing
+          </li>
+          <li>
+            <i className="is-stall" />
+            stalled
           </li>
         </ul>
       </div>

@@ -11,6 +11,8 @@ export interface JobDef {
   name: string;
   when: string;
   cron: string | null;
+  /** Its work is done on events and the cron is only a catch-up, so its newest run of any event stands for it (#866). */
+  events?: boolean;
 }
 
 /** Kept in step with .github/workflows by jobs.test.ts. */
@@ -19,7 +21,7 @@ export const JOBS: JobDef[] = [
   { file: "checks.yml", name: "Nightly checks", when: "daily, 09:17 UTC", cron: "17 9 * * *" },
   { file: "e2e.yml", name: "Browser tests", when: "daily, 09:47 UTC", cron: "47 9 * * *" },
   { file: "world-step.yml", name: "World step", when: "hourly at :05", cron: "5 * * * *" },
-  { file: "desk-pings.yml", name: "Desk pings", when: "hourly at :02", cron: "2 * * * *" },
+  { file: "desk-pings.yml", name: "Desk pings", when: "on each Foundry label change, and hourly", cron: "2 * * * *", events: true },
   { file: "live-watch.yml", name: "Live watch", when: "hourly at :23", cron: "23 * * * *" },
   { file: "codeql.yml", name: "CodeQL scan", when: "Mondays, 04:29 UTC", cron: "29 4 * * 1" },
   { file: "scorecard.yml", name: "Scorecard", when: "Mondays, 05:41 UTC", cron: "41 5 * * 1" },
@@ -62,6 +64,8 @@ export interface JobRow {
 export const LATE_MIN = 30;
 /** How long past its next cron minute a job may go quiet before it counts as missed. */
 const MISSED_AFTER_MS = 90 * 60_000;
+/** An event-driven job (events) counts as missed only after this long with no run at all: GitHub drops hourly crons. */
+const EVENTS_QUIET_MS = 12 * 3_600_000;
 /** How far the cron search looks, either way: past the longest gap on the board (a week). */
 const SEARCH_MS = 8 * 86_400_000;
 const MINUTE = 60_000;
@@ -133,7 +137,7 @@ export function jobRows(jobs: GhJob[] | undefined, now: number): JobRow[] {
     const run = byFile.get(def.file) ?? null;
     const at = run ? Date.parse(run.created_at) : NaN;
     if (!run || Number.isNaN(at)) return { file: def.file, name: def.name, when: def.when, state: "none", at: null, lateMin: null, missed: false, url: null };
-    const slot = def.cron ? lastSlot(def.cron, at) : null;
+    const slot = def.cron && !def.events ? lastSlot(def.cron, at) : null;
     const next = def.cron && slot !== null ? nextSlot(def.cron, slot) : null;
     return {
       file: def.file,
@@ -142,7 +146,7 @@ export function jobRows(jobs: GhJob[] | undefined, now: number): JobRow[] {
       state: stateOf(run),
       at,
       lateMin: slot === null ? null : Math.floor((at - slot) / MINUTE),
-      missed: next !== null && now - next > MISSED_AFTER_MS,
+      missed: def.events ? now - at > EVENTS_QUIET_MS : next !== null && now - next > MISSED_AFTER_MS,
       url: RUN_URL.test(run.html_url) ? run.html_url : null,
     };
   });

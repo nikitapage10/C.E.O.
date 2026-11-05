@@ -48,6 +48,8 @@ export const JOB_FILES = ["backup-azure.yml", "checks.yml", "e2e.yml", "world-st
 
 /** The jobs that run after each push to main, read by that event instead of `schedule`. */
 const PUSH_FILES: ReadonlySet<string> = new Set(["visual-qa.yml", "deploy-azure.yml"]);
+/** The jobs whose work is done on events, the cron only a catch-up: read by any event on main (Desk pings, #866). */
+const EVENT_FILES: ReadonlySet<string> = new Set(["desk-pings.yml"]);
 
 /** How long the jobs' reads are kept, in seconds: the board's runs change at most hourly. */
 const JOBS_TTL = 120;
@@ -64,9 +66,15 @@ export interface JobRun {
 
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
-/** The newest run from GitHub's list, cut down to what the board shows, or null when there is none. */
+/**
+ * The newest run from GitHub's list that says something, cut down to what the board shows, or null when there is none.
+ * A run cancelled because a newer one replaced it (the workflows' concurrency queues) or skipped because it had nothing
+ * to do isn't a reading of the job, so the newest run past those stands for it (#866).
+ */
 export function trimRun(list: unknown): JobRun | null {
-  const run = (list as { workflow_runs?: unknown[] } | null)?.workflow_runs?.[0] as Record<string, unknown> | undefined;
+  const runs = ((list as { workflow_runs?: unknown[] } | null)?.workflow_runs ?? []) as Record<string, unknown>[];
+  const said = (r: Record<string, unknown> | undefined) => !!r && typeof r === "object" && r.conclusion !== "cancelled" && r.conclusion !== "skipped";
+  const run = Array.isArray(runs) ? (runs.find(said) ?? runs[0]) : undefined;
   if (!run || typeof run !== "object") return null;
   const name = str(run.name);
   const status = str(run.status);
@@ -79,7 +87,7 @@ export function trimRun(list: unknown): JobRun | null {
 const jobs = memo(JOBS_TTL * 1000, () =>
   Promise.all(
     JOB_FILES.map((file) =>
-      read(`/actions/workflows/${file}/runs?${PUSH_FILES.has(file) ? "branch=main&event=push" : "event=schedule"}&per_page=1`)
+      read(`/actions/workflows/${file}/runs?${PUSH_FILES.has(file) ? "branch=main&event=push" : EVENT_FILES.has(file) ? "branch=main" : "event=schedule"}&per_page=10`)
         .then((list) => ({ file, run: trimRun(list) }))
         .catch(() => ({ file, run: null })),
     ),

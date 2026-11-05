@@ -13,7 +13,7 @@ import type { GNode, GState } from "./systemsGraph.ts";
  * scheduled jobs, Visual QA, the security feed, the world clock and the home devices):
  *   ok    flowing: subtle pulses run through its stretch of pipe
  *   late  slow amber flow: a job started late, Gemini didn't answer, alerts are open, a link is slow
- *   shut  a coral valve shut on a dry pipe: a job skipped or missed its slot, a review that didn't run
+ *   shut  a yellow valve shut on a dry pipe: a job skipped or missed its slot, a review that didn't run (nothing broke)
  *   leak  cracked, steaming and dripping coral, its gauge in the red: a link is down, a job failed
  *   dry   not connected yet: no flow, a dim gauge, and no fault (nothing broke; it was never laid on)
  * Everything shown here is a state or a count, never a key, an address or a message, so it reads the same signed out.
@@ -173,12 +173,20 @@ const G_TO: Record<GState, StationState> = { ok: "ok", run: "ok", wait: "dry", b
 const L_TO: Record<LinkState, StationState> = { ok: "ok", slow: "late", off: "dry", down: "leak" };
 const RANK: Record<StationState, number> = { leak: 4, shut: 3, late: 2, ok: 1, dry: 0 };
 
-/** One job's state as a station's: failed leaks, skipped or missed shuts, late runs slow, no run yet is dry. */
-export function jobState(r: JobRow | undefined): StationState {
+/** How long a late start keeps a passed job amber: after that the pass is what counts (#866). */
+const LATE_FOR_MS = 24 * 3_600_000;
+
+/**
+ * One job's state as a station's: failed leaks, skipped or missed shuts, a recent late start runs slow, no run yet is
+ * dry. A late start older than a day reads as the pass it was (a weekly scan GitHub started hours late on Monday is
+ * not still late on Thursday).
+ */
+export function jobState(r: JobRow | undefined, now?: number): StationState {
   if (!r || r.state === "none") return "dry";
   if (r.state === "fail") return "leak";
   if (r.state === "other" || r.missed) return "shut";
-  if (r.lateMin !== null && r.lateMin >= LATE_MIN && r.state !== "running") return "late";
+  const fresh = now === undefined || r.at === null || now - r.at < LATE_FOR_MS;
+  if (r.lateMin !== null && r.lateMin >= LATE_MIN && r.state !== "running" && fresh) return "late";
   return "ok";
 }
 
@@ -204,7 +212,7 @@ export const VENDOR_FIX: Partial<Record<string, Fix>> = {
 export const KEY_FIX = (what: string): Fix => ({ kind: "nav", label: `Replace the ${what} key`, path: "/boiler/controls#ct-keys", signedIn: true });
 
 export function jobCause(name: string, r: JobRow | undefined, now: number): Cause {
-  const s = jobState(r);
+  const s = jobState(r, now);
   const url = r?.url ?? GITHUB_RUNS;
   const lower = name.replace(/^The /, "the ");
   const open: Fix = { kind: "url", label: s === "leak" ? `Re-run ${lower}` : `Open ${lower}'s run`, url };

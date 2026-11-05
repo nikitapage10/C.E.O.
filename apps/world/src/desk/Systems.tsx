@@ -228,7 +228,7 @@ export function Systems({ now }: { now: number }) {
 
   return (
     <div className={`systems-page wv-page fl-page bx-page${row ? " is-open" : ""}`} data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
-      <PipeBoard sections={sections} now={now} signedIn={signedIn} tabs={<SystemsNav scores={scores} className="bp-tabs" />} onOpenRoom={openLine} />
+      <PipeBoard sections={sections} model={model} now={now} signedIn={signedIn} tabs={<SystemsNav scores={scores} className="bp-tabs" />} onOpenRoom={openLine} />
 
       {row && (
         <div className="bx-detail fl-below" key={row.id} ref={detail}>

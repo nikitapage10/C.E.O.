@@ -52,7 +52,7 @@ const PLANNED: { room: string; name: string; what: string; href?: string }[] = [
   { room: "green", name: "Green", what: "The weekly take from OpenAI (Sleeper's league and FantasyPros are live)", href: "/green" },
   { room: "workshop", name: "Workshop", what: "Meshy and the Bambu Lab printer", href: "/workshop" },
   { room: "studio", name: "Studio", what: "OpenAI images, ElevenLabs voices, the render job, TikTok and Instagram", href: "/studio" },
-  { room: "boiler", name: "The house", what: "Google Nest, below" },
+  { room: "haven", name: "The house", what: "Google Nest, below" },
   { room: "breakroom", name: "Break Room", what: "Off the clock; shows the Veil countdown" },
 ];
 

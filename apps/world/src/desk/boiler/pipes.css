@@ -188,6 +188,12 @@
 [data-room="boiler"] .bp .bp-lb.is-room { pointer-events: auto; cursor: pointer; font-size: 14px; background: #0b0d11d0; border: 1px solid #ffffff14; }
 [data-room="boiler"] .bp .bp-lb.is-room.is-sel { border-color: currentColor; }
 [data-room="boiler"] .bp .bp-lb.is-st.is-show { pointer-events: auto; cursor: pointer; }
+/* A room's own run (#789): every part named, the room's hub in its colour. */
+[data-room="boiler"] .bp .bp-lb.is-node { max-width: 128px; font-size: 11px; }
+[data-room="boiler"] .bp .bp-lb.is-node.is-hub { max-width: 160px; font-size: 13.5px; letter-spacing: 0.1em; background: #0b0d11d0; border: 1px solid #ffffff1c; }
+@media (max-width: 760px) {
+  [data-room="boiler"] .bp .bp-lb.is-node { max-width: 96px; font-size: 10px; }
+}
 [data-room="boiler"] .bp .bp-nogl { position: absolute; inset: auto 16px 16px; margin: 0; color: var(--bp-mut); }
 [data-room="boiler"] .bp .bp-key {
   position: absolute;

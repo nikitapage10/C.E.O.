@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Keeper, Waits, type Wait } from "./parts.tsx";
-import { InvoicesSection } from "../spire/InvoicesSection.tsx";
-import { startInvoices, useInvoices } from "../spire/invoices.ts";
-import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
+import { Keeper, Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import { InvoicesSection } from "./InvoicesSection.tsx";
+import { startInvoices, useInvoices } from "../data/invoices.ts";
+import { Parts, Poly, useViz, weave, type VizSpec } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import "./rooms.css";
+import "../../../apps/world/src/desk/rooms/rooms.css";
+import "./spire.css";
 
 /**
  * The Spire (#225): the business side, as a gilded ledger. Invoices open, paid and overdue in tall numerals, read live

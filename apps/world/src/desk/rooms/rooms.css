@@ -5,54 +5,7 @@
  * threads and the room's own accents. Nothing here shows a number the page doesn't have.
  */
 
-/* ---------- shared ---------- */
-.desk .rm-head{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 40px;align-items:end;margin:0 0 30px}
-.desk .rm-head>div{position:relative;z-index:1;min-width:0}
-.desk .rm-head .wv-h1 em{font-style:normal;color:var(--rc)}
-.desk .rm-keeper{position:relative;z-index:1;display:grid;grid-template-columns:44px minmax(0,1fr);gap:2px 12px;align-items:center;margin:0;max-width:300px}
-.desk .rm-keeper img{grid-row:1/3;width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid color-mix(in srgb,var(--rc) 45%,transparent);background:#14161c}
-.desk .rm-keeper blockquote{margin:0;font-family:var(--wv-serif);font-size:16px;line-height:1.3;color:var(--wv-ink)}
-.desk .rm-keeper figcaption{font-size:12px;color:color-mix(in srgb,var(--rc) 70%,var(--wv-mute))}
-.desk .rm-h2{margin:0;font-family:var(--wv-serif);font-weight:400;font-size:22px;line-height:1.15;color:var(--wv-ink)}
-.desk .rm-waits ol{list-style:none;margin:14px 0 0;padding:0}
-.desk .rm-waits li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;padding:11px 0;border-top:1px solid var(--wv-line)}
-.desk .rm-waits li b{font-weight:500;font-size:14px;color:var(--wv-ink)}
-.desk .rm-waits li span{grid-column:1;font-size:13px;line-height:1.45;color:var(--wv-mute)}
-.desk .rm-waits li em{grid-column:2;grid-row:1;font-style:normal;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--rc) 80%,var(--wv-mute))}
-.desk .rm-waits li[data-state="asked"] em{color:var(--wv-ok)}
-.desk .rm-guard{margin:36px 0 0;font-size:12.5px;color:var(--wv-faint)}
-.desk .rm section{position:relative}
 
-/* ---------- the Spire: a gilded ledger ---------- */
-.desk .rm-spire{--gold:#d6bc72;--gold-hi:#f3dea3;--gold-line:rgba(214,188,114,.26)}
-.desk .rm-spire .wv-eyb{color:color-mix(in srgb,var(--gold) 70%,var(--wv-mute))}
-.desk .rm-spire .wv-h1 em{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 60%,#a98a45);-webkit-background-clip:text;background-clip:text;color:transparent}
-.desk .sp-ledger{min-height:300px;border:1px solid var(--gold-line);border-radius:3px;background:linear-gradient(180deg,#15130f,#0f0e0b);box-shadow:inset 0 0 0 5px #0f0e0b,inset 0 0 0 6px rgba(214,188,114,.14)}
-.desk .sp-ledger::before{content:"";position:absolute;left:64px;top:6px;bottom:6px;width:1px;background:rgba(214,188,114,.22)}
-.desk .sp-ledger-in{position:relative;z-index:1;padding:20px 28px 22px 88px}
-.desk .sp-ledger-k{margin:0;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:color-mix(in srgb,var(--gold) 75%,var(--wv-mute))}
-.desk .sp-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:28px 0 0}
-.desk .sp-cols div{padding:0 18px;border-left:1px solid var(--gold-line)}
-.desk .sp-cols div:first-child{border-left:0;padding-left:0}
-.desk .sp-cols dt{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--wv-mute)}
-.desk .sp-cols dd{margin:6px 0 0;font-family:var(--wv-serif);font-size:96px;line-height:.9;background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,#8a7038);-webkit-background-clip:text;background-clip:text;color:transparent;opacity:.55}
-.desk .sp-ledger-note{margin:34px 0 0;max-width:62ch;font-family:var(--wv-codex);font-style:italic;font-size:17px;line-height:1.4;color:var(--wv-soft)}
-.desk .sp-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;margin-top:44px}
-.desk .sp-scout{padding-top:4px;border-top:2px solid var(--gold-line)}
-.desk .sp-scout .wv-eyb{margin-top:14px}
-.desk .sp-scout blockquote{margin:6px 0 12px;font-family:var(--wv-serif);font-style:italic;font-size:34px;line-height:1.1;color:color-mix(in srgb,var(--gold) 55%,var(--wv-faint))}
-.desk .sp-waits{padding-top:4px;border-top:2px solid var(--gold-line)}
-.desk .sp-waits .rm-h2{margin-top:14px}
-.desk .sp-waits li b{font-family:var(--wv-serif);font-weight:400;font-size:18px}
-.desk .sp-waits li em{color:var(--gold)}
-.desk .sp-shelf{margin-top:56px}
-.desk .sp-shelf ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--gold-line);border-bottom:1px solid var(--gold-line)}
-.desk .sp-shelf li{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-height:150px;padding:14px 14px 16px;border-left:1px solid var(--gold-line);background:linear-gradient(180deg,rgba(214,188,114,.05),transparent 40%);transition:background .4s}
-.desk .sp-shelf li:first-child{border-left:0}
-.desk .sp-shelf li::before{content:"";position:absolute;left:14px;right:14px;top:14px;height:3px;border-top:1px solid var(--gold-line);border-bottom:1px solid var(--gold-line)}
-.desk .sp-shelf li:hover{background:linear-gradient(180deg,rgba(214,188,114,.1),transparent 70%)}
-.desk .sp-shelf b{font-family:var(--wv-serif);font-weight:400;font-size:18px;line-height:1.15;color:var(--gold-hi)}
-.desk .sp-shelf span{font-size:12px;line-height:1.4;color:var(--wv-mute)}
 
 /* ---------- the Exchange: a trading floor at night ---------- */
 
@@ -123,25 +76,10 @@
 
 /* ---------- narrower screens ---------- */
 @media (max-width:1060px){
-  .desk .sp-shelf ul{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .desk .sp-shelf li:nth-child(5){border-left:0}
-  .desk .sp-shelf li:nth-child(n+5){border-top:1px solid var(--gold-line)}
   .desk .gr-lineup ul{grid-template-columns:repeat(5,minmax(0,1fr))}
 }
 @media (max-width:640px){
-  .desk .rm-head{grid-template-columns:minmax(0,1fr);gap:18px;margin-bottom:24px}
-  .desk .sp-ledger-in{padding:16px 16px 18px 34px}
-  .desk .sp-ledger::before{left:22px}
-  .desk .sp-cols div{padding:0 10px}
-  .desk .sp-cols dd{font-size:56px}
-  .desk .sp-cols dt{font-size:10.5px;letter-spacing:.08em}
-  .desk .sp-ledger-note{font-size:15.5px;margin-top:24px}
-  .desk .sp-row,.desk .gr-row,.desk .ex-grid{grid-template-columns:minmax(0,1fr);gap:28px}
-  .desk .sp-scout blockquote{font-size:28px}
-  .desk .sp-shelf ul{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .desk .sp-shelf li{min-height:110px;border-left:1px solid var(--gold-line)!important;border-top:1px solid var(--gold-line)}
-  .desk .sp-shelf li:nth-child(odd){border-left:0!important}
-  .desk .sp-shelf li:nth-child(-n+2){border-top:0}
+  .desk .gr-row,.desk .ex-grid{grid-template-columns:minmax(0,1fr);gap:28px}
   .desk .gr-pitch{min-height:260px}
   .desk .gr-board{gap:12px;padding:14px 14px}
   .desk .gr-side{min-width:0}
@@ -156,8 +94,6 @@
   .desk .ar-chart{min-height:0;padding-top:120px}
   .desk .ar-leaves{position:relative;grid-template-columns:minmax(0,1fr)}
   .desk .ar-leaves li{border-left:0;border-top:1px solid rgba(168,144,226,.14)}
-  .desk .rm-waits li{grid-template-columns:minmax(0,1fr)}
-  .desk .rm-waits li em{grid-column:1;grid-row:auto;margin-top:4px}
 }
 @media (prefers-reduced-motion:reduce){
   .desk .ex-tape p,.desk .ex-bar::after{animation:none}

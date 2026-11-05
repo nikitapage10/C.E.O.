@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Private } from "../Private.tsx";
-import { useDeskAuth } from "../signin.ts";
-import { STATE_WORD, checkForm, formTotal, invoicesLine, startInvoices, useInvoices, type DraftForm, type InvoiceItem, type LineInput } from "./invoices.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { STATE_WORD, checkForm, formTotal, invoicesLine, startInvoices, useInvoices, type DraftForm, type InvoiceItem, type LineInput } from "../data/invoices.ts";
 import "./invoices.css";
 
 /**

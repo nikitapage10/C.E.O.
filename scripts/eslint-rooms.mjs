@@ -64,7 +64,7 @@ const DESK_ROOMS = {
   relay: [/^relay\//, /^email\//, /^texts\//, /^Relay\.tsx$/],
   boiler: [/^boiler\//],
   archive: [/^Archive\.tsx$/],
-  spire: [/^spire\//, /^rooms\/Spire\.tsx$/],
+  spire: [/^spire\//],
   exchange: [/^exchange\//, /^rooms\/Exchange\.tsx$/],
   green: [/^green\//, /^rooms\/Green\.tsx$/],
 };

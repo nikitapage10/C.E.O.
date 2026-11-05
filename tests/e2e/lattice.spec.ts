@@ -241,7 +241,8 @@ test.describe.serial("the Lattice", () => {
     // Selecting an agent opens their dossier, House and all.
     await page.evaluate(() => (window as unknown as { __ceo: { store: { getState: () => { selectAgent: (id: string) => void } } } }).__ceo.store.getState().selectAgent("loremaster"));
     const dossier = page.locator(".dossier");
-    await expect(dossier).toContainText("House Transformere");
+    // The Loremaster is a Gepetti since the Great Houses were reworked (#831).
+    await expect(dossier).toContainText("House Gepetti");
     await dossier.locator(".house").click();
     await expect(dossier).toContainText("Generatio the Pretrained");
   });
@@ -317,5 +318,7 @@ test("the Desk opens first without loading the Lattice", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Relay at a glance" })).toBeVisible();
   await expect(page).toHaveTitle(/^Relay\b/);
   // Compared as a list so a failure names the script that slipped in (the nightly run of 63a3857 failed here without saying which, #798).
-  expect(scripts.filter((u) => /three|App\.tsx|\/App-/.test(u))).toEqual([]);
+  // Only the Lattice's own code counts: three.js itself is the Senate's on Today since #748 (rotunda/rotundaScene.ts),
+  // and it may still be arriving as the Relay opens (nightly f691bda, #844).
+  expect(scripts.filter((u) => /App\.tsx|\/App-|World3D/.test(u))).toEqual([]);
 });

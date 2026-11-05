@@ -206,6 +206,12 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   // The Council of Skippies on Today loads his model since #666 (the Senate since #740, rotunda/rotundaScene.ts), but never the hologram itself.
   expect(asked.filter((u) => /holoScene|HologramStage/.test(u))).toEqual([]);
 
+  // The call itself is made from a page with no 3D scene behind it, like the hold-music test below (#834): on a CI
+  // runner the Senate's software-rendered chamber holds the main thread for seconds, so his face (a 32 Hz tick) and
+  // the 0.7 s sink after End time the runner, not the call (nightly f691bda, #844).
+  await page.goto(BASE + "/foundry");
+  await expect(page.locator(".desk__skippy")).toBeVisible();
+  expect(asked.filter((u) => /holoScene|HologramStage/.test(u))).toEqual([]);
   await page.locator(".desk__skippy").click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
   await chat.getByRole("button", { name: /live voice call/ }).click();

@@ -116,7 +116,7 @@ for (const [label, width, height] of [
   });
 }
 
-test("signed in: the docket in the chamber, the Council's pods, the to-dos and the Lists", async ({ page }) => {
+test("signed in: the docket in the chamber, the Council's pods and the to-dos", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await stub(page, true);
@@ -146,14 +146,14 @@ test("signed in: the docket in the chamber, the Council's pods, the to-dos and t
   await expect(setup.locator(".rt-floor")).toBeVisible();
   await setup.getByRole("button", { name: "Fold" }).first().click();
 
-  // Still left, under the chamber: his own to-dos and the add line; the Lists beside them.
+  // Still left, under the chamber: his own to-dos and the add line. The Lists live in the Haven since #790.
   await expect(now.getByText("still left")).toBeVisible();
   await expect(now.locator(".td-ni.is-mine")).toHaveCount(2);
   await expect(now.getByRole("textbox", { name: "Add a to-do" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Lists" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Lists" })).toHaveCount(0);
 
   // The Council: Skippy presiding and twelve pods (the ten rooms' subminds and the Desk's two), a button each.
-  const council = page.getByRole("group", { name: /The Council of Skippies/ });
+  const council = page.getByRole("group", { name: /the Council of Skippies/i });
   await expect(council.locator(".rt-pod")).toHaveCount(12);
   await expect(council.getByRole("button", { name: /^Skippy, the Magnificent/ })).toBeVisible();
   const builder = council.getByRole("button", { name: /^The Builder, Foundry/ });
@@ -196,7 +196,7 @@ test("signed out: the chamber and the counts, no private words", async ({ page }
   await page.goto(BASE + "/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await expect(page.getByText("Book the vet")).toHaveCount(0);
-  const council = page.getByRole("group", { name: /The Council of Skippies/ });
+  const council = page.getByRole("group", { name: /the Council of Skippies/i });
   await expect(council.locator(".rt-pod")).toHaveCount(12);
   await council.getByRole("button", { name: /^The Messenger, Relay/ }).click();
   const card = page.getByRole("complementary", { name: "The Messenger, Relay" });

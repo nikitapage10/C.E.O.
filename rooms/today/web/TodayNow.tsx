@@ -14,6 +14,7 @@ import { Icon, type TodayIcon } from "./todayIcons.tsx";
 import { age, DecisionAct, DecisionChoices, IdeasAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
 import { KIND_COLOUR, KIND_LABEL, rites, type RiteInput, type RiteItem, type RiteKind } from "@ceo/desk/rotunda/rite.ts";
 import { KindIcon } from "@ceo/desk/rotunda/KindIcon.tsx";
+import { isSaid, splitArchived, useSenateMemory, versionOf } from "@ceo/desk/rotunda/heard.ts";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { mtTime, roman, until, upcoming } from "../data/todaySchedule.ts";
 import { HANDED_LINE, handedState, type FloorItem } from "../../../api/_today/floor.ts";
@@ -122,7 +123,10 @@ export function TodayNow(p: NowInput) {
   const status = useWorldClock((s) => s.status);
   const [open, setOpen] = useState<string | null>(null);
   const [floor, setFloor] = useState<string | null>(null);
-  const [stamped, setStamped] = useState<ReadonlySet<string>>(() => new Set());
+  // What the Senate has said and which cards are put away, per viewer (#900, heard.ts).
+  const said = useSenateMemory((s) => s.said);
+  const archived = useSenateMemory((s) => s.archived);
+  const [showAway, setShowAway] = useState(false);
   const bring = useRef<((key: string) => void) | null>(null);
   const todoState = useTodos((s) => s.state);
   const talkOn = useTodosOn();
@@ -208,7 +212,8 @@ export function TodayNow(p: NowInput) {
       plain: `Reply to ${o.name}`,
       at: o.since,
       card: () => <ReplyAct o={o} now={now} />,
-      rite: { kind: "duty", by: "relay", room: "Relay", what: `a reply on ${o.channel} waiting on you`, say: `It has waited ${age(o.since, now)}.${o.draft ? " Blasto has a draft ready." : ""} Nothing to debate; it only needs you.` },
+      // Its wait grows by the minute; it is new news only when a draft turns up (#900).
+      rite: { kind: "duty", by: "relay", room: "Relay", what: `a reply on ${o.channel} waiting on you`, say: `It has waited ${age(o.since, now)}.${o.draft ? " Blasto has a draft ready." : ""} Nothing to debate; it only needs you.`, ver: o.draft ? "draft" : "waiting" },
     })),
     ...(p.emailNeeds
       ? [{ key: "email", tier: "ask", icon: "mail", room: "relay", label: "Email, sorted by Dialtone", title: `${n(p.emailNeeds, "email needs", "emails need")} you`, sub: "Subjects stay in the Relay.", plain: "Go through the email that needs me", card: () => <EmailAct count={p.emailNeeds} />, rite: { kind: "duty", by: "relay", room: "Relay", what: `${n(p.emailNeeds, "email")} sorted as needing you`, say: "Dialtone sorted them. The subjects stay in Relay." } } satisfies Row]
@@ -429,7 +434,13 @@ export function TodayNow(p: NowInput) {
 
   // The Senate's docket (#740): every row that needs him, each with its ritual, numbered in the list's order.
   const need = rows.filter((r) => r.room !== "today");
-  const inputs: RiteInput[] = need.map((r) => ({ key: r.key, ...(r.rite ?? { kind: "duty", by: "kernel", room: "Senate", what: "something for you" }) }));
+  const inputOf = (r: Row): RiteInput => ({ key: r.key, ...(r.rite ?? { kind: "duty", by: "kernel", room: "Senate", what: "something for you" }) });
+  // Each row's content version (#900): a card put away stays away until what it says changes.
+  const vers = new Map(need.map((r) => [r.key, versionOf(inputOf(r))]));
+  const verOf = (r: Row) => vers.get(r.key) ?? "";
+  const memory = { said, archived, recess: 0 };
+  const { shown, away: putAwayRows } = splitArchived(need, (r) => r.key, verOf, memory);
+  const inputs: RiteInput[] = shown.map(inputOf);
   const bench = p.rotunda?.bench ?? [];
   const sig = JSON.stringify([inputs, bench]);
   // Keyed on the content, so the chamber gets a new docket only when it changes.
@@ -440,7 +451,12 @@ export function TodayNow(p: NowInput) {
     const R = p.rotunda;
     const left = rows.filter((r) => r.room === "today");
     const onFloor = docket.find((d) => d.key === floor) ?? null;
-    const count = need.length;
+    const count = shown.length;
+    const putAway = (r: Row) => {
+      if (open === r.key) setOpen(null);
+      if (talk?.key === r.key) setTalk(null);
+      useSenateMemory.getState().archive_(r.key, verOf(r));
+    };
     const title = count ? (
       <>
         {cap(words(count))} {count === 1 ? "item" : "items"} <i>before you,</i> {R.name}.
@@ -482,10 +498,16 @@ export function TodayNow(p: NowInput) {
         ) : (
           primary
         );
+      // Got it (#900): off the docket and never read out; it waits under Archived.
+      const done = (
+        <button type="button" className="rt-act is-x" aria-label={`Got it: put away item ${it?.n ?? i + 1}`} title="Got it: put this card away (it waits under Archived)" onClick={() => putAway(r)}>
+          Got it
+        </button>
+      );
       return (
         <li
           key={r.key}
-          className={`td-ni rt-mo is-${kind} is-${r.tier}${isOpen ? " is-open" : ""}${floor === r.key ? " is-on" : ""}${stamped.has(r.key) ? " is-stamped" : ""}${r.due ? " is-due" : ""}`}
+          className={`td-ni rt-mo is-${kind} is-${r.tier}${isOpen ? " is-open" : ""}${floor === r.key ? " is-on" : ""}${isSaid(memory, r.key, verOf(r)) ? " is-stamped" : ""}${r.due ? " is-due" : ""}`}
           data-room={r.room}
           style={{ "--i": i, "--tc": KIND_COLOUR[kind] } as React.CSSProperties}
           onPointerEnter={() => p.onHot?.(r.room === "today" ? null : r.room)}
@@ -528,7 +550,10 @@ export function TodayNow(p: NowInput) {
               </button>
             )}
           </div>
-          <div className="rt-acts">{acts}</div>
+          <div className="rt-acts">
+            {acts}
+            {done}
+          </div>
           {handedLine(r)}
           {talk?.key === r.key && r.talk && (
             <div className="rt-talk">
@@ -585,13 +610,44 @@ export function TodayNow(p: NowInput) {
           {R.chamber({
             docket,
             onFloor: setFloor,
-            onDone: (key) => setStamped((s) => (s.has(key) ? s : new Set([...s, key]))),
+            // Said: its card takes its stamp, and the Senate won't read it out again (#900).
+            onDone: (key) => {
+              const it = docket.find((d) => d.key === key);
+              if (it) useSenateMemory.getState().said_(key, it.ver);
+            },
             bring,
           })}
           <div className="rt-dock">
-            {need.length > 0 ? (
+            {putAwayRows.length > 0 && (
+              <div className="rt-away">
+                <button type="button" className="rt-away-t" aria-expanded={showAway} aria-controls="rt-away-l" onClick={() => setShowAway(!showAway)}>
+                  Archived ({putAwayRows.length})
+                </button>
+                {showAway && (
+                  <ol id="rt-away-l" className="rt-away-l" aria-label="Archived">
+                    {putAwayRows.map((r) => (
+                      <li key={r.key}>
+                        <span className="rt-away-x">
+                          <em>{r.label}</em>
+                          <b>{r.title}</b>
+                        </span>
+                        {r.href && (
+                          <a className="rt-act" href={r.href} onClick={roomLink(r.href)}>
+                            Open
+                          </a>
+                        )}
+                        <button type="button" className="rt-act" onClick={() => useSenateMemory.getState().restore_(r.key)}>
+                          Restore
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            )}
+            {shown.length > 0 ? (
               <ol className="td-now-l rt-docket" aria-label="Held for you">
-                {need.map((r, i) => card(r, i))}
+                {shown.map((r, i) => card(r, i))}
               </ol>
             ) : (
               <p className="ti-clear rt-clear" role="status">
@@ -606,7 +662,7 @@ export function TodayNow(p: NowInput) {
             <p className="ti-left-k">
               <span>still left</span>
             </p>
-            {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, need.length + i, "○"))}</ol>}
+            {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, shown.length + i, "○"))}</ol>}
             <TodoCapture />
           </div>
         </div>

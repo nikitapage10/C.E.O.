@@ -1,3 +1,5 @@
+import { versionOf } from "./heard.ts";
+
 /**
  * The Senate's order of business (#740), pure so it can be tested: how each item on Today's docket plays on the
  * chamber floor. Three kinds, each with its own ritual (the round 3 concept Nikita picked, 2026-11-04):
@@ -32,6 +34,11 @@ export interface RiteInput {
   /** Repair: the cause and the fix, in plain words. */
   cause?: string;
   fix?: string;
+  /**
+   * Its content version's seed (#900), for a row whose words move with the clock: said again only when this changes.
+   * Without it, the version is taken from everything above.
+   */
+  ver?: string;
 }
 
 export interface RiteLine {
@@ -42,6 +49,8 @@ export interface RiteLine {
 
 export interface RiteItem {
   key: string;
+  /** Its content version (heard.ts): the Senate says each version once. */
+  ver: string;
   kind: RiteKind;
   /** Roman numeral: "I", "II". */
   n: string;
@@ -118,7 +127,7 @@ const pick = <T,>(xs: T[], k: number) => xs[((k % xs.length) + xs.length) % xs.l
  */
 export function rite(input: RiteInput, n: number, bench: string[]): RiteItem {
   const num = roman(n);
-  const base = { key: input.key, kind: input.kind, n: num, room: input.room, by: input.by };
+  const base = { key: input.key, ver: versionOf(input), kind: input.kind, n: num, room: input.room, by: input.by };
   const what = input.what.replace(/\.$/, "");
   if (input.kind === "duty") {
     return {

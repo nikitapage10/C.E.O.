@@ -10,6 +10,7 @@ import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import type { ChamberLink } from "../../../../rooms/today/web/TodayNow.tsx";
 import type { Rotunda as Scene, RotundaSeat } from "./rotundaScene.ts";
 import { createVoice, setSound, useRotundaSound, type RotundaVoice } from "./voice.ts";
+import { isArchived, isSaid, useSenateMemory } from "./heard.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./rotunda.css";
 
@@ -18,7 +19,8 @@ import "./rotunda.css";
  * Skippy chairs it from the podium; the subminds sit round the bowl on bronze pods, each floating on a short field of
  * sigils and motes in its room's colour. A pod is lit from real state: dim when its submind isn't active, glowing when
  * it is, brightest while its room is at work (live.ts). The docket's items play on the floor one by one (rite.ts), and
- * between items a lit member flies in and says what it's doing, from the same real feed (councilLines).
+ * between items a lit member flies in and says what it's doing, from the same real feed (councilLines). Each is said
+ * once per viewer (#900, heard.ts); with nothing new left, the chamber goes to its recess debates.
  *
  * The 3D (rotundaScene.ts) loads with three.js in its own chunk once the page has painted. Until then, and on a device
  * without WebGL, the chamber is drawn flat in CSS with every pod in place, so the page is whole at once. Every pod is a
@@ -118,6 +120,17 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
             reduce: reducedMotion(),
             seats: live.current.seats,
             voice,
+            // Each thing said once (#900): read live from this viewer's memory, which the docket marks as items are said.
+            memory: {
+              fresh: (key, ver) => {
+                const m = useSenateMemory.getState();
+                return !isSaid(m, key, ver) && !isArchived(m, key, ver);
+              },
+              heard: (key) => !!useSenateMemory.getState().said[key],
+              hear: (key) => useSenateMemory.getState().said_(key, "1"),
+              recess: () => useSenateMemory.getState().recess,
+              setRecess: (n) => useSenateMemory.getState().setRecess(n),
+            },
             onFloor: (key) => live.current.link.onFloor(key),
             onDone: (key) => live.current.link.onDone(key),
             onPlace: (id, x, y, visible) => {

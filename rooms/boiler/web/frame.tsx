@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import { ago } from "../../../apps/desk/src/foundryGraph.ts";
+import { ago } from "@ceo/desk/foundryGraph.ts";
 import { needsLayout, type Need, type NeedGo } from "../data/pages.ts";
 import "./pages.css";
 

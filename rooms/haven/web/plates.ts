@@ -1,4 +1,4 @@
-import type { DeviceReading } from "../../../apps/desk/src/homeDevices.ts";
+import type { DeviceReading } from "@ceo/desk/homeDevices.ts";
 
 /**
  * The device plates' geometry (#766, the A1 Plates concept Nikita picked): where each live reading sits on its render.

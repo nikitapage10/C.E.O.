@@ -1,6 +1,6 @@
 import type { LinkState } from "../../../apps/world/src/systems.ts";
 import { isHalloweenNight } from "../../../apps/world/src/veil/veil.ts";
-import type { Link, Vendor, VendorProblem, VendorState } from "../../../apps/desk/src/homeDevices.ts";
+import type { Link, Vendor, VendorProblem, VendorState } from "@ceo/desk/homeDevices.ts";
 import { isQuiet, nextMountain } from "../../today/data/todaySchedule.ts";
 
 /**

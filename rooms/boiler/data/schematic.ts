@@ -59,6 +59,8 @@ const PAD = 28;
 const FROM_G: Record<GState, StationState> = { ok: "ok", run: "ok", wait: "dry", bad: "leak" };
 const WORST: StationState[] = ["leak", "shut", "late", "dry", "ok"];
 const worse = (a: StationState, b: StationState): StationState => (WORST.indexOf(a) <= WORST.indexOf(b) ? a : b);
+/** A flow part that is the same thing as an overview fitting, read by that fitting's pipe (#866). */
+const SAME_AS: Record<string, string> = { vqa: "gemini", pings: "phone" };
 
 export interface SchemModel {
   nodes: Record<string, GNode>;
@@ -69,7 +71,11 @@ export interface SchemModel {
 /** The room's parts and links, from the model and its pipes, before they are placed. */
 export function roomGraph(section: RoomSection, model: SchemModel): { nodes: Omit<SchemNode, "rank" | "row" | "x" | "y">[]; links: Omit<SchemLink, "back" | "d" | "mid">[] } {
   const room = section.id;
-  const pipeOf = (id: string): RoomPipe | null => section.pipes.find((p) => p.id === `${room}:${id}`) ?? null;
+  const mine = (id: string): RoomPipe | null => section.pipes.find((p) => p.id === `${room}:${id}`) ?? null;
+  // Two names for one reading: the flow's Visual QA step is the overview's Gemini pipe and its Pings step the phone's,
+  // so the pair never disagree (Gemini red while Visual QA sat grey, #866).
+  const alias = (id: string) => SAME_AS[id];
+  const pipeOf = (id: string): RoomPipe | null => mine(id) ?? (alias(id) ? mine(alias(id)!) : null);
   const flow = (model.flows as Record<string, Flow | undefined>)[room];
   const edges: GEdge[] = [];
   const seen = new Set<string>();

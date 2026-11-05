@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { chronicleDay, useWorldFeed } from "../../../apps/world/src/chronicle.ts";
 import { clockState, useWorldClock } from "../../../apps/world/src/worldClock.ts";
-import { mountainHour, PART } from "../../../apps/desk/src/ilyrTime.ts";
+import { mountainHour, PART } from "@ceo/desk/ilyrTime.ts";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { Icon } from "./todayIcons.tsx";
 import { isQuiet, mtTime, roman, until, upcoming, type Run } from "../data/todaySchedule.ts";

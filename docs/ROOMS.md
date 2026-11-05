@@ -216,6 +216,11 @@ list shrinks. The build's Lattice prefetch (`apps/world/vite.config.ts`) now fin
 `apps/world/src/App.tsx` and fails the build if it can't, and the flow kit's browser harness
 (`desk/flow/harness.html`) is served by the dev server from its file path (`/@fs/…`, `tests/e2e/flow.spec.ts`).
 
+The swap (step three) made it a package from both sides: `apps/world/src/main.tsx` mounts `{ Desk }` from `@ceo/desk`
+(its entry, `apps/desk/src/index.ts`), `@ceo/world` depends on `@ceo/desk`, and every other reader outside the package
+(the Lattice's Foundry store, map and room feed, the rooms, an `api/` test) imports `@ceo/desk/<file>` instead of a
+relative path into `apps/desk`; lint holds that (below). The Lattice stays lazy and the first load is unchanged.
+
 ### The manifest
 
 `defineRoom()` from `@ceo/engine/manifest` parses it on load:
@@ -268,3 +273,5 @@ room data in it.
   or goes through `@ceo/world`, unless it is a file in `WORLD_SHARED`: the files the Desk shares with the Lattice,
   which stay in `apps/world/src` until each moves into a package. Like `KNOWN_CROSSINGS` the list only shrinks:
   `scripts/eslint-rooms.test.mjs` fails on an entry no Desk file imports, and checks the rule on a few imports.
+- **Errors** everywhere outside `apps/desk`: a relative path into `apps/desk`. The Desk is reached through `@ceo/desk`
+  (its entry, which exports `Desk`) or `@ceo/desk/<file>`.

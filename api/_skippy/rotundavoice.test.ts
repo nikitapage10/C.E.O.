@@ -5,11 +5,10 @@ import { signedInCookie } from "../_desk/testing.ts";
 import { PhoneTodos } from "../_haven/todos.ts";
 import { MemoryStoryStore, elevenCost, storyMonth } from "../_world/story.ts";
 import { roomVoicePost, type RoomRouteDeps } from "./roomroute.ts";
-import { ROOM_TTS_MODEL } from "./roomvoice.ts";
+import { ROOM_TTS_MODEL, ROOM_VOICES } from "./roomvoice.ts";
 import { ROTUNDA_CACHE, ROTUNDA_SHARE_USD, ROTUNDA_VOICES, lineKey, speakCast } from "./rotundavoice.ts";
-import { SUBMIND_TITLE } from "../../apps/desk/src/rotunda/rite.ts";
-import { rateOf } from "../../apps/desk/src/rotunda/senators.ts";
-import { ROOM_VOICES } from "./roomvoice.ts";
+import { SUBMIND_TITLE } from "@ceo/desk/rotunda/rite.ts";
+import { rateOf } from "@ceo/desk/rotunda/senators.ts";
 
 /** Today's Rotunda read aloud (#755): one voice per member, each line made once ever, under the cap and its share. Every key and line is made up. */
 

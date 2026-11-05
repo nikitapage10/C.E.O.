@@ -1,4 +1,4 @@
-import { OLDER_WINDOW_MS, OWED_WINDOW_MS } from "../../../api/_relay/texts.ts";
+import { MAX_ITEMS, OLDER_WINDOW_MS, OWED_WINDOW_MS } from "../../../api/_relay/texts.ts";
 import { onlyAcks } from "../../../api/_email/intentWords.ts";
 import type { ChatInfo, Contact } from "./bluebubbles.ts";
 import { settleByRule } from "./rules.ts";
@@ -38,8 +38,8 @@ export interface BacklogSort {
   groups: number;
 }
 
-/** The most chats the backlog marks owed at once; past it, the oldest within the window are counted with the older ones. */
-export const BACKLOG_MAX = 80;
+/** The most chats the backlog marks owed at once (#861: as many as the Desk lists, was 80); past it, the oldest within the window are counted with the older ones. */
+export const BACKLOG_MAX = MAX_ITEMS;
 
 export type Verdict = "owed" | "older" | "settled" | "check" | "answered" | "group" | "empty";
 

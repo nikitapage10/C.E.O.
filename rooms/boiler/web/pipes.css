@@ -12,9 +12,10 @@
   --bp-mut: #8e95a1;
   --bp-dim: #5b6270;
   --bp-brass: #c39a5b;
-  --bp-coral: #ff6f61;
-  --bp-amber: #e8b84a;
-  --bp-ok: #5fd39a;
+  /* The four lamp colours, the same as the 3D gauges' (pipeScene.ts, GLOW; #866). */
+  --bp-coral: #ff5a4e;
+  --bp-amber: #f0b93f;
+  --bp-ok: #4be08f;
   --bp-cond: "Big Shoulders Display Variable", "Arial Narrow", sans-serif;
   --bp-mono: "Overpass Mono Variable", ui-monospace, monospace;
   position: relative;
@@ -103,8 +104,8 @@
 [data-room="boiler"] .bp .bp-rooms button[aria-pressed="true"] { border-color: var(--rc, var(--bp-fg)); color: var(--bp-fg); background: #ffffff0a; }
 [data-room="boiler"] .bp .bp-rooms button:focus-visible { outline: 2px solid var(--bp-brass); outline-offset: 1px; }
 [data-room="boiler"] .bp .bp-rooms i { width: 8px; height: 8px; border-radius: 50%; background: var(--bp-ok); }
-[data-room="boiler"] .bp .bp-rooms i.is-late { background: var(--bp-amber); }
-[data-room="boiler"] .bp .bp-rooms i:is(.is-leak, .is-shut) { background: var(--bp-coral); }
+[data-room="boiler"] .bp .bp-rooms i:is(.is-late, .is-shut) { background: var(--bp-amber); }
+[data-room="boiler"] .bp .bp-rooms i.is-leak { background: var(--bp-coral); }
 [data-room="boiler"] .bp .bp-rooms i.is-dry { background: var(--bp-dim); }
 [data-room="boiler"] .bp .bp-rooms small { font: 500 10.5px var(--bp-mono); letter-spacing: 0; color: var(--bp-dim); }
 
@@ -127,8 +128,8 @@
   transform: translateX(-50%);
   pointer-events: auto;
 }
-[data-room="boiler"] .bp .bp-card.is-late { border-top-color: var(--bp-amber); }
-[data-room="boiler"] .bp .bp-card:is(.is-leak, .is-shut) { border-top-color: var(--bp-coral); }
+[data-room="boiler"] .bp .bp-card:is(.is-late, .is-shut) { border-top-color: var(--bp-amber); }
+[data-room="boiler"] .bp .bp-card.is-leak { border-top-color: var(--bp-coral); }
 [data-room="boiler"] .bp .bp-card.is-dry { border-top-color: var(--bp-dim); }
 [data-room="boiler"] .bp .bp-card p { margin: 0; }
 [data-room="boiler"] .bp .bp-card-k { display: flex; gap: 4px; align-items: baseline; font: 500 10.5px var(--bp-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--bp-dim); }
@@ -138,8 +139,8 @@
 [data-room="boiler"] .bp .bp-card-what { color: var(--bp-mut); }
 [data-room="boiler"] .bp .bp-card-st { display: flex; align-items: center; gap: 6px; margin-top: 8px !important; font-size: 12px; }
 [data-room="boiler"] .bp .bp-card-st i { width: 8px; height: 8px; border-radius: 50%; background: var(--bp-ok); }
-[data-room="boiler"] .bp .bp-card-st.is-late i { background: var(--bp-amber); }
-[data-room="boiler"] .bp .bp-card-st:is(.is-leak, .is-shut) i { background: var(--bp-coral); }
+[data-room="boiler"] .bp .bp-card-st:is(.is-late, .is-shut) i { background: var(--bp-amber); }
+[data-room="boiler"] .bp .bp-card-st.is-leak i { background: var(--bp-coral); }
 [data-room="boiler"] .bp .bp-card-st.is-dry i { background: var(--bp-dim); }
 [data-room="boiler"] .bp .bp-card-st b { color: var(--bp-fg); }
 [data-room="boiler"] .bp .bp-card-st span { margin-left: auto; font: 500 10.5px var(--bp-mono); color: var(--bp-dim); }
@@ -176,15 +177,15 @@
   white-space: nowrap;
   transform: translate(-50%, -100%);
 }
-[data-room="boiler"] .bp .bp-lb:is(.is-leak, .is-shut) { color: var(--bp-coral); }
-[data-room="boiler"] .bp .bp-lb.is-late { color: var(--bp-amber); }
+[data-room="boiler"] .bp .bp-lb.is-leak { color: var(--bp-coral); }
+[data-room="boiler"] .bp .bp-lb:is(.is-late, .is-shut) { color: var(--bp-amber); }
 [data-room="boiler"] .bp .bp-lb.is-dry { color: var(--bp-dim); }
 [data-room="boiler"] .bp .bp-lb.is-boiler { color: var(--bp-brass); font-size: 13px; }
 [data-room="boiler"] .bp .bp-lb.is-planned { color: var(--bp-dim); }
 [data-room="boiler"] .bp .bp-lb.is-sel { outline: 1px solid currentColor; }
 [data-room="boiler"] .bp .bp-lb.is-st { display: none; max-width: 92px; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; letter-spacing: 0.06em; }
 [data-room="boiler"] .bp .bp-lb.is-st.is-show { display: block; }
-[data-room="boiler"] .bp .bp-lb.is-st.is-ok { color: #c9ced8; }
+[data-room="boiler"] .bp .bp-lb.is-st.is-ok { color: var(--bp-ok); }
 [data-room="boiler"] .bp .bp-lb.is-room { pointer-events: auto; cursor: pointer; font-size: 14px; background: #0b0d11d0; border: 1px solid #ffffff14; }
 [data-room="boiler"] .bp .bp-lb.is-room.is-sel { border-color: currentColor; }
 [data-room="boiler"] .bp .bp-lb.is-st.is-show { pointer-events: auto; cursor: pointer; }
@@ -209,11 +210,14 @@
   font-size: 11px;
   pointer-events: none;
 }
-[data-room="boiler"] .bp .bp-key i { display: inline-block; width: 16px; height: 4px; margin-right: 5px; border-radius: 2px; vertical-align: 2px; }
-[data-room="boiler"] .bp .bp-key i.is-ok { background: linear-gradient(90deg, #c39a5b, #ffe2a8, #c39a5b); }
-[data-room="boiler"] .bp .bp-key i.is-late { background: var(--bp-amber); }
-[data-room="boiler"] .bp .bp-key i.is-leak { background: var(--bp-coral); }
-[data-room="boiler"] .bp .bp-key i.is-planned { background: repeating-linear-gradient(90deg, #3a414d 0 3px, transparent 3px 7px); }
+/* The key: the gauges' four lamps, then the pipes (brass with gold pulses while it flows, dull iron when stalled). */
+[data-room="boiler"] .bp .bp-key i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; vertical-align: 0; }
+[data-room="boiler"] .bp .bp-key i.is-ok { background: var(--bp-ok); box-shadow: 0 0 6px var(--bp-ok); }
+[data-room="boiler"] .bp .bp-key i.is-late { background: var(--bp-amber); box-shadow: 0 0 6px var(--bp-amber); }
+[data-room="boiler"] .bp .bp-key i.is-leak { background: var(--bp-coral); box-shadow: 0 0 6px var(--bp-coral); }
+[data-room="boiler"] .bp .bp-key i.is-dry { background: var(--bp-dim); }
+[data-room="boiler"] .bp .bp-key i.is-flow { width: 16px; height: 4px; border-radius: 2px; vertical-align: 2px; background: linear-gradient(90deg, #c39a5b, #ffe2a8, #c39a5b); }
+[data-room="boiler"] .bp .bp-key i.is-stall { width: 16px; height: 4px; border-radius: 2px; vertical-align: 2px; background: #34353a; }
 [data-room="boiler"] .bp .bp-toast {
   position: absolute;
   left: 50%;
@@ -252,7 +256,7 @@
 [data-room="boiler"] .bp .bp-panel p { margin: 0; color: #a9b0bb; font-size: 14px; }
 [data-room="boiler"] .bp .bp-k { display: flex; justify-content: space-between; gap: 10px; font: 500 11px var(--bp-mono); letter-spacing: 0.08em; text-transform: uppercase; }
 [data-room="boiler"] .bp .bp-k b { font-weight: 500; color: #ff8a7e; }
-[data-room="boiler"] .bp .bp-k.is-late b { color: var(--bp-amber); }
+[data-room="boiler"] .bp .bp-k:is(.is-late, .is-shut) b { color: var(--bp-amber); }
 [data-room="boiler"] .bp .bp-k.is-ok b { color: var(--bp-ok); }
 [data-room="boiler"] .bp .bp-k span { color: var(--bp-dim); }
 [data-room="boiler"] .bp .bp-title { margin: 0; font-family: var(--bp-cond); font-weight: 650; font-size: 32px; line-height: 1.05; color: var(--bp-fg); text-wrap: balance; }
@@ -284,7 +288,7 @@
   line-height: 1.2;
   cursor: pointer;
 }
-[data-room="boiler"] .bp .bp-fix.is-late { background: var(--bp-amber); color: #1a1405; }
+[data-room="boiler"] .bp .bp-fix:is(.is-late, .is-shut) { background: var(--bp-amber); color: #1a1405; }
 [data-room="boiler"] .bp .bp-fix:focus-visible { outline: 2px solid var(--bp-fg); outline-offset: 2px; }
 [data-room="boiler"] .bp .bp-fix[disabled] { opacity: 0.6; cursor: progress; }
 [data-room="boiler"] .bp .bp-note { color: var(--bp-mut); font-style: italic; }
@@ -309,7 +313,7 @@
 }
 [data-room="boiler"] .bp .bp-queue button em { font-style: normal; color: var(--bp-dim); font-size: 11.5px; }
 [data-room="boiler"] .bp .bp-queue button i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--bp-coral); }
-[data-room="boiler"] .bp .bp-queue button i.is-late { background: var(--bp-amber); }
+[data-room="boiler"] .bp .bp-queue button i:is(.is-late, .is-shut) { background: var(--bp-amber); }
 [data-room="boiler"] .bp .bp-queue button[aria-current="true"] { color: var(--bp-fg); font-weight: 600; }
 [data-room="boiler"] .bp .bp-queue button:focus-visible { outline: 1px solid var(--bp-brass); }
 [data-room="boiler"] .bp .bp-panel .bp-count { color: var(--bp-mut); font-size: 13px; }
@@ -347,7 +351,7 @@
 [data-room="boiler"] .bp .sc-hit { fill: none; stroke: transparent; stroke-width: 18; }
 [data-room="boiler"] .bp .sc-link.is-ok { --sc: var(--bp-brass); }
 [data-room="boiler"] .bp .sc-link.is-late { --sc: var(--bp-amber); }
-[data-room="boiler"] .bp .sc-link.is-shut { --sc: #ff9a5c; }
+[data-room="boiler"] .bp .sc-link.is-shut { --sc: var(--bp-amber); }
 [data-room="boiler"] .bp .sc-link.is-leak { --sc: var(--bp-coral); }
 [data-room="boiler"] .bp .sc-link.is-dry .sc-core { stroke: var(--bp-dim); stroke-width: 3; stroke-dasharray: 6 6; opacity: 0.8; }
 [data-room="boiler"] .bp .sc-link.is-dry .sc-case { stroke-width: 6; }
@@ -362,9 +366,10 @@
 [data-room="boiler"] .bp .sc-sub { fill: var(--bp-mut); font: 400 11px var(--bp-mono); }
 [data-room="boiler"] .bp .sc-kind { fill: var(--bp-dim); font: 500 9.5px var(--bp-mono); letter-spacing: 0.12em; text-transform: uppercase; }
 [data-room="boiler"] .bp .sc-lamp { fill: var(--bp-ok); }
-[data-room="boiler"] .bp .sc-node.is-late .sc-lamp { fill: var(--bp-amber); }
-[data-room="boiler"] .bp .sc-node:is(.is-leak, .is-shut) .sc-lamp { fill: var(--bp-coral); }
-[data-room="boiler"] .bp .sc-node:is(.is-leak, .is-shut) .sc-plate { stroke: var(--bp-coral); }
+[data-room="boiler"] .bp .sc-node:is(.is-late, .is-shut) .sc-lamp { fill: var(--bp-amber); }
+[data-room="boiler"] .bp .sc-node.is-shut .sc-plate { stroke: var(--bp-amber); }
+[data-room="boiler"] .bp .sc-node.is-leak .sc-lamp { fill: var(--bp-coral); }
+[data-room="boiler"] .bp .sc-node.is-leak .sc-plate { stroke: var(--bp-coral); }
 [data-room="boiler"] .bp .sc-node.is-dry .sc-lamp { fill: var(--bp-dim); }
 [data-room="boiler"] .bp .sc-node.is-dry .sc-plate { fill: #0e1118; stroke-dasharray: 5 4; }
 [data-room="boiler"] .bp .sc-node.is-dry .sc-name { fill: var(--bp-mut); }

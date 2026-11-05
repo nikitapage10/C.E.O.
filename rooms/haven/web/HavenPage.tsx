@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { startHome, useHome, type Vendor, type VendorState } from "../../../apps/desk/src/homeDevices.ts";
-import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "../../../apps/desk/src/haven.ts";
-import { openTodos, useTodos } from "../../../apps/desk/src/todos/todos.ts";
+import { startHome, useHome, type Vendor, type VendorState } from "@ceo/desk/homeDevices.ts";
+import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "@ceo/desk/haven.ts";
+import { openTodos, useTodos } from "@ceo/desk/todos/todos.ts";
 import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";

@@ -1,5 +1,5 @@
 import { CONNECTIONS, type Connection } from "./connections.ts";
-import type { JobRow } from "../../../apps/desk/src/jobs.ts";
+import type { JobRow } from "@ceo/desk/jobs.ts";
 import type { Fitting, GState, PipeRow } from "./systemsGraph.ts";
 import { connectionFor } from "./pressure.ts";
 import { actionOf } from "./controls.ts";

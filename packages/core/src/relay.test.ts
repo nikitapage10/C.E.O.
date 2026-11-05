@@ -119,8 +119,8 @@ describe("Relay's status for the site: counts and states only", () => {
   });
 
   it("lists exactly the keys the spec allows", () => {
-    expect(RELAY_STATUS_KEYS).toEqual(["v", "at", "hub", "messages", "models", "owed", "sooner", "overdue", "later", "settled", "draftsReady", "sentToday", "streakDays", "week", "nextNudgeAt", "unread", "older"]);
-    expect(RELAY_OPTIONAL_KEYS).toEqual(["unread", "older"]);
+    expect(RELAY_STATUS_KEYS).toEqual(["v", "at", "hub", "messages", "models", "owed", "sooner", "overdue", "later", "settled", "draftsReady", "sentToday", "streakDays", "week", "nextNudgeAt", "unread", "older", "contacts"]);
+    expect(RELAY_OPTIONAL_KEYS).toEqual(["unread", "older", "contacts"]);
   });
 
   it("refuses a message, a name, a number or an address in any field", () => {
@@ -193,6 +193,14 @@ describe("Relay's status for the site: counts and states only", () => {
     refused({ ...emptyRelayStatus(NOW, "wiped"), settled: 3 });
     refused({ ...good(), unread: 6 });
     refused({ ...emptyRelayStatus(NOW, "wiped"), older: 2 });
+    refused({ ...emptyRelayStatus(NOW, "wiped"), contacts: 3 });
+  });
+
+  it("takes how many contacts the hub can read, as a count only (#861)", () => {
+    expect(readRelayStatus({ ...good(), contacts: 0 }).ok).toBe(true);
+    expect(readRelayStatus({ ...good(), contacts: 312 }).ok).toBe(true);
+    refused({ ...good(), contacts: 15550100123 });
+    refused({ ...good(), contacts: "312" });
   });
 
   it("takes a status from an older hub without the unread and older counts (#758)", () => {

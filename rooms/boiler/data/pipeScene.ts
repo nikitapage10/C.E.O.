@@ -52,7 +52,7 @@ import { windRoom, type RoomWind } from "./wind.ts";
  * 2026-11-04, board/r2/pipes.js): a blueprint sheet, the riveted boiler with its flickering firebox at the heart, a
  * trunk on each side, and each room a manifold off its trunk: a brass header in the room's colour, and one branch pipe
  * per connection, job or part, a station (a junction and a gauge) at its tip. Healthy branches carry soft flow pulses;
- * a late one flows slow and amber; a shut one has a coral valve on it and a dry pipe; a broken one cracks, steams and
+ * a late one flows slow and amber; a shut one has a yellow valve on it and a dull iron pipe; a broken one cracks, steams and
  * drips coral with its gauge in the red; one not connected yet stays dry, and a planned one is a ghost. Hovering a
  * pipe, valve or gauge tells the page which (onHover), a click or tap picks it (onPick), and the page can track one
  * station's place on screen for its card. Loaded lazily by PipeBoard.tsx. With reduced motion nothing moves.
@@ -61,6 +61,14 @@ import { windRoom, type RoomWind } from "./wind.ts";
 const CORAL = "#ff6f61";
 const AMBER = "#e8b84a";
 const FLOW = "#ffd9a0";
+/**
+ * Each gauge's lamp, by its station's state (#866; Nikita, 2026-11-05: "the little gauges should actually be glowing
+ * red, yellow, green"): green flowing, yellow late or didn't run (a valve shut: skipped, missed or cancelled, nothing
+ * broken), red broken, a dim grey not connected or waiting. The labels (pipes.css) use the same four.
+ */
+export const GLOW: Record<StationState, string> = { ok: "#4be08f", late: "#f0b93f", shut: "#f0b93f", leak: "#ff5148", dry: "#59606b" };
+/** How bright each lamp's halo sits, before it breathes. */
+const HALO: Record<StationState, number> = { ok: 0.5, late: 0.55, shut: 0.55, leak: 0.75, dry: 0 };
 const R = 0.15;
 const RB = 0.085;
 const H = 0.32;
@@ -101,6 +109,12 @@ interface Gauge {
   v: number;
   to: number;
   drawn: number;
+  /** Its station's state: the lamp ring round the dial, its halo and the dial's own lamp take its colour. */
+  state: StationState;
+  lamp: MeshBasicMaterial;
+  halo: MeshBasicMaterial;
+  /** Where its breathing starts, so the lamps don't pulse in step. */
+  phase: number;
 }
 
 /**
@@ -142,6 +156,26 @@ interface Header {
 type Box = [number, number, number, number];
 
 const gaugeG = new CylinderGeometry(0.27, 0.27, 0.07, 32);
+const lampG = new TorusGeometry(0.3, 0.045, 10, 40);
+const haloG = new CircleGeometry(0.66, 40);
+/** A soft round glow, shared by every halo (tinted by its material's colour). */
+let glowTex: CanvasTexture | null = null;
+function glowTexture(): CanvasTexture {
+  if (glowTex) return glowTex;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 64;
+  const c = cv.getContext("2d");
+  if (c) {
+    const g = c.createRadialGradient(32, 32, 6, 32, 32, 32);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.45, "rgba(255,255,255,0.45)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = g;
+    c.fillRect(0, 0, 64, 64);
+  }
+  glowTex = new CanvasTexture(cv);
+  return glowTex;
+}
 
 export class PipeScene {
   private renderer: WebGLRenderer;
@@ -190,7 +224,8 @@ export class PipeScene {
   private picks: Object3D[] = [];
   private brass = new MeshStandardMaterial({ color: 0xb48a50, metalness: 0.85, roughness: 0.32 });
   private iron = new MeshStandardMaterial({ color: 0x24262b, metalness: 0.7, roughness: 0.5 });
-  private dryMat = new MeshStandardMaterial({ color: 0x4b4338, metalness: 0.6, roughness: 0.55 });
+  /** A pipe with nothing in it (not connected, shut or broken): dull iron, so the flowing brass reads apart (#866). */
+  private dryMat = new MeshStandardMaterial({ color: 0x34353a, metalness: 0.5, roughness: 0.75 });
   private ghostMat = new MeshBasicMaterial({ color: 0x3a414d, wireframe: true, transparent: true, opacity: 0.4 });
   private bands = new Map<string, MeshStandardMaterial>();
   /** A room's own connections each carry a flow sized to their length. */
@@ -507,7 +542,8 @@ export class PipeScene {
       const lb = this.label(n.name, at.clone().add(new Vector3(0, n.hub ? 1.2 : 0.85, 0)), n.hub ? "is-st is-node is-hub" : "is-st is-node", true);
       lb.dataset.pipe = n.target;
       lb.title = n.sub ? `${n.name}: ${n.sub}` : n.name;
-      if (n.hub) lb.style.color = sec.c;
+      // The hub wears its room's colour on its border; its name, like every label, takes its gauge's colour (#866).
+      if (n.hub) lb.style.borderColor = sec.c;
       const st: Station = { id: n.target, key: n.key, room: sec.id, kind: ghost ? "planned" : "part", root: at, tip: at, anchor: at.clone().setY(at.y + (n.hub ? 1.0 : 0.75)), body, pipe: null, flow: null, gauge, wheel: null, crack: null, sleeve: null, crackAt: at, label: lb, state: "ok", run: [] };
       this.stations.push(st);
       if (!this.byId.has(n.target)) this.byId.set(n.target, st);
@@ -585,9 +621,10 @@ export class PipeScene {
       if (s.gauge) {
         s.gauge.to = gaugeOf(s.key, st);
         if (this.opts.reduce) s.gauge.v = s.gauge.to;
+        lightGauge(s.gauge, st);
       }
       if (st === "shut" && !s.wheel && s.pipe) {
-        const wm = new MeshStandardMaterial({ color: CORAL, metalness: 0.5, roughness: 0.4, emissive: coral, emissiveIntensity: 0.4 });
+        const wm = new MeshStandardMaterial({ color: AMBER, metalness: 0.5, roughness: 0.4, emissive: amber, emissiveIntensity: 0.4 });
         s.wheel = valveWheel(0.16, wm);
         s.wheel.position.copy(s.root).lerp(s.tip, 0.4).add(new Vector3(0.2, 0.06, 0));
         s.wheel.rotation.y = Math.PI / 2;
@@ -600,12 +637,13 @@ export class PipeScene {
       if (s.crack) s.crack.visible = st === "leak";
       if (s.body) {
         const m = s.body.material;
-        m.emissive.copy(st === "late" ? amber : coral);
+        m.emissive.copy(st === "leak" ? coral : amber);
         m.emissiveIntensity = st === "leak" || st === "shut" ? 0.45 : st === "late" ? 0.35 : 0;
         // A room's own hub keeps its colour; every other station greys while it waits.
         if (!m.userData.hub) m.color.setHex(st === "dry" ? 0x3a4049 : 0x5f6b78);
       }
-      if (s.pipe && s.kind !== "planned") s.pipe.material = st === "dry" ? this.dryMat : this.brass;
+      // Brass while something flows through it; dull iron when it's stalled (shut, broken or not connected).
+      if (s.pipe && s.kind !== "planned") s.pipe.material = st === "ok" || st === "late" ? this.brass : this.dryMat;
       if (s.flow) {
         s.flow.visible = st === "ok" || st === "late";
         if (this.ownFlows.includes(s.flow.material)) {
@@ -646,6 +684,9 @@ export class PipeScene {
     this.steamGeo.attributes.age!.needsUpdate = true;
     this.dripGeo.attributes.position!.needsUpdate = true;
     this.boilerGauge.to = this.stations.some((s) => s.state === "leak" || s.state === "shut" || s.state === "late") ? 0.62 : 0.5;
+    // The boiler's own lamp: red with anything broken, yellow with anything late or shut, green when all of it flows.
+    const all = this.stations.map((s) => s.state);
+    lightGauge(this.boilerGauge, all.includes("leak") ? "leak" : all.includes("shut") || all.includes("late") ? "late" : all.includes("ok") ? "ok" : "dry");
     if (!room) {
       const sec = focusRoom ? this.geo?.sections.find((x) => x.id === focusRoom) : null;
       this.focusBox = sec ? sec.box : (this.geo?.box ?? this.focusBox);
@@ -713,13 +754,24 @@ export class PipeScene {
     const m = new Mesh(gaugeG, [this.brass, new MeshBasicMaterial({ map: tex }), this.brass]);
     const g = new Group();
     g.add(m);
+    // The lamp ring round the dial and the glow behind it, lit by the station's state (lightGauge).
+    const lamp = new MeshBasicMaterial({ color: GLOW.dry, toneMapped: false });
+    const ring = new Mesh(lampG, lamp);
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    const halo = new MeshBasicMaterial({ color: GLOW.dry, map: glowTexture(), transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+    const glow = new Mesh(haloG, halo);
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.y = -0.03;
+    glow.renderOrder = -1;
+    g.add(glow);
     g.position.copy(pos);
     g.scale.setScalar(scale);
     parent.add(g);
     const stem = new Mesh(new CylinderGeometry(0.03, 0.03, Math.max(0.05, pos.y - H), 8), this.brass);
     stem.position.set(pos.x, (pos.y + H) / 2, pos.z);
     parent.add(stem);
-    const gg: Gauge = { cv, tex, g, v: value, to: value, drawn: -1 };
+    const gg: Gauge = { cv, tex, g, v: value, to: value, drawn: -1, state: "dry", lamp, halo, phase: Math.random() * Math.PI * 2 };
     this.gauges.push(gg);
     drawGauge(gg, 0);
     return gg;
@@ -850,8 +902,8 @@ export class PipeScene {
     if (!reduce) {
       for (const s of this.stations) {
         if (!s.body) continue;
-        if (s.state === "leak" || s.state === "shut") s.body.material.emissiveIntensity = 0.35 + 0.2 * Math.sin(T * 3);
-        else if (s.state === "late") s.body.material.emissiveIntensity = 0.3 + 0.15 * Math.sin(T * 2);
+        if (s.state === "leak") s.body.material.emissiveIntensity = 0.35 + 0.2 * Math.sin(T * 3);
+        else if (s.state === "late" || s.state === "shut") s.body.material.emissiveIntensity = 0.3 + 0.15 * Math.sin(T * 2);
       }
     }
     if (this.leaks.length && dt > 0) {
@@ -877,6 +929,16 @@ export class PipeScene {
         }
       }
       this.dripGeo.attributes.position!.needsUpdate = true;
+    }
+    // The gauges' lamps: green breathes slow, yellow a little quicker, red throbs; a dim one stays dark.
+    for (const g of this.gauges) {
+      const base = HALO[g.state];
+      if (!base) g.halo.opacity = 0;
+      else if (reduce) g.halo.opacity = base;
+      else {
+        const w = g.state === "leak" ? Math.abs(Math.sin(T * 5 + g.phase)) : 0.5 + 0.5 * Math.sin(T * (g.state === "ok" ? 1.4 : 2.4) + g.phase);
+        g.halo.opacity = base * (g.state === "leak" ? 0.45 + 0.75 * w : 0.7 + 0.4 * w);
+      }
     }
     // The gauges: a leak's needle shakes in the red.
     for (const g of this.gauges) {
@@ -962,7 +1024,7 @@ function valveWheel(r: number, mat: MeshStandardMaterial) {
 function freeTree(root: Object3D) {
   const seen = new Set<unknown>();
   const free = (x: { dispose?: () => void } | null | undefined) => {
-    if (x && !seen.has(x) && typeof x.dispose === "function" && x !== gaugeG) {
+    if (x && !seen.has(x) && typeof x.dispose === "function" && x !== gaugeG && x !== lampG && x !== haloG && x !== glowTex) {
       seen.add(x);
       x.dispose();
     }
@@ -984,6 +1046,16 @@ function gaugeOf(id: string, s: StationState): number {
   let h = 0;
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return 0.42 + (h % 15) / 100;
+}
+
+/** Light a gauge for its station's state: the lamp ring, the halo and (on its next draw) the dial's bezel and lamp. */
+function lightGauge(g: Gauge, st: StationState) {
+  if (g.state === st && g.drawn >= 0) return;
+  g.state = st;
+  g.lamp.color.set(GLOW[st]);
+  g.halo.color.set(GLOW[st]);
+  if (!HALO[st]) g.halo.opacity = 0;
+  g.drawn = -1;
 }
 
 /** The flow inside a pipe: soft pulses running outward from the boiler. */
@@ -1008,7 +1080,9 @@ function drawGauge(gg: Gauge, jitter: number) {
   const r = s * 0.458;
   const u = s / 192;
   c.clearRect(0, 0, s, s);
-  c.fillStyle = "#e9e2d0";
+  const lit = GLOW[gg.state];
+  // A dial with nothing in its pipe reads dim, so a lit one stands out.
+  c.fillStyle = gg.state === "dry" ? "#8f8b82" : "#e9e2d0";
   c.beginPath();
   c.arc(m, m, r + 4 * u, 0, 7);
   c.fill();
@@ -1045,8 +1119,16 @@ function drawGauge(gg: Gauge, jitter: number) {
   c.beginPath();
   c.arc(m, m, 9 * u, 0, 7);
   c.fill();
-  c.strokeStyle = "#8a6b3e";
-  c.lineWidth = 8 * u;
+  // The dial's own lamp, under the needle's pin, in the state's colour.
+  c.fillStyle = lit;
+  c.beginPath();
+  c.arc(m, m + r * 0.5, 15 * u, 0, 7);
+  c.fill();
+  c.strokeStyle = "#1a1a1a";
+  c.lineWidth = 3 * u;
+  c.stroke();
+  c.strokeStyle = gg.state === "dry" ? "#5d5446" : lit;
+  c.lineWidth = 10 * u;
   c.beginPath();
   c.arc(m, m, r + 4 * u, 0, 7);
   c.stroke();

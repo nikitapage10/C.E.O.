@@ -39,10 +39,17 @@ describe("staticwebapp.config.json matches vercel.json (#214)", () => {
     for (const path of ["/api/*", "/assets/*", "/models/*"]) expect(swa.navigationFallback.exclude).toContain(path);
   });
 
+  it("lists no route twice, trailing slash ignored, since Azure refuses the whole deploy over one (#857)", () => {
+    const keys = swa.routes.map((r) => r.route.replace(/\/+$/, "") || "/");
+    expect(keys.filter((k, i) => keys.indexOf(k) !== i)).toEqual([]);
+  });
+
   it("opens the Relay page on a refresh, while /relay/ still serves the hub's installer files (#803)", () => {
     // dist/relay/ is a real folder (the installer), so /relay itself needs its own rewrite, and only the installer's
     // files are kept out of the fallback.
-    for (const route of ["/relay", "/relay/"]) expect(swa.routes.find((r) => r.route === route)?.rewrite).toBe("/index.html");
+    // Azure counts "/relay" and "/relay/" as one route and refuses the whole config over a duplicate (#857), so only
+    // "/relay" is listed; it covers both.
+    expect(swa.routes.find((r) => r.route === "/relay")?.rewrite).toBe("/index.html");
     expect(swa.navigationFallback.exclude).not.toContain("/relay/*");
     expect(swa.navigationFallback.exclude).toContain("/relay/*.{sh,mjs,sha256}");
   });

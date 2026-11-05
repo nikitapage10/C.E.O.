@@ -14,12 +14,19 @@ import { GroupFlipper } from "./GroupFlipper.tsx";
 import { groupsOf } from "../data/groups.ts";
 import { RelayQueue, useMedia } from "./RelayQueue.tsx";
 import { Said } from "./Said.tsx";
-import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "@ceo/engine/sigils/sigils.ts";
-import { agoShort, askLine, codexOf, initialOf, lastRequest, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "../data/thread.ts";
+import { ghost, ghosted, quill, rise, SigilStage, sink } from "@ceo/engine/sigils/sigils.ts";
+import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGistLine, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "../data/thread.ts";
 import { wavePoint } from "../data/wave.ts";
 import { errorText, useThread, type Notice } from "../data/useThread.ts";
-import { useRoomMic } from "../../../apps/desk/src/roomvoice/roomVoice.ts";
+import { useRoomMic } from "@ceo/desk/roomvoice/roomVoice.ts";
 import "./thread.css";
+
+/**
+ * The Relay's nanites, its sigils, in the app's gold (Nikita, 2026-11-05: "keep the line blue and everything, but the
+ * nanite should be gold"): every glyph on the spine, the wave, the quill and the bursts; the line's own glow and the
+ * rest of the blue look stay as they are. The gold is the Desk's own accent (232, 207, 156).
+ */
+const NANITE = { hi: "#e8cf9c", you: "#f3e3c0", white: "#fff4dc", sink: "#8f7d5c" } as const;
 
 /**
  * Relay's Thread (#615, simplified in #642) in the Codex look Nikita picked: a glowing spine down the page. Since #803
@@ -291,15 +298,21 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
               <>
                 {/* Their own words (#758), oldest first; Dialtone's line stays as a small subtitle. */}
                 <Said messages={x.messages} hidden={hidden} />
-                {x.body && (
+                {x.body ? (
                   <p className="cx-gist">
                     <span className="cx-lab">gist</span> <Private>{x.body}</Private>
                   </p>
+                ) : (
+                  x.wait && (
+                    <p className="cx-gist">
+                      <span className="cx-lab">gist</span> {noGistLine(x)}
+                    </p>
+                  )
                 )}
               </>
             ) : (
               <p className="cx-msg">
-                <Private>{x.body || (x.line === "text" ? "The Mac hasn't read this one yet." : "No gist yet: Dialtone hasn't read this one.")}</Private>
+                <Private>{x.body || noGistLine(x)}</Private>
               </p>
             )}
             {x.line === "email" && x.advice && (
@@ -471,7 +484,7 @@ export function RelayThread({ now }: { now: number }) {
     const H = s.h;
     fx.current.rush = 0.6;
     fx.current.to = 0;
-    await Promise.all([...el.querySelectorAll<HTMLElement>(PARTS)].map((p) => s.dissolve(p, { color: INK.sink, rtl: true, dur: 1300, stagger: 600, to: () => [X + (rnd() - 0.5) * 6, H + 20], path: sink })));
+    await Promise.all([...el.querySelectorAll<HTMLElement>(PARTS)].map((p) => s.dissolve(p, { color: NANITE.sink, rtl: true, dur: 1300, stagger: 600, to: () => [X + (rnd() - 0.5) * 6, H + 20], path: sink })));
   }, []);
 
   const t = useThread(now, { leave });
@@ -552,7 +565,7 @@ export function RelayThread({ now }: { now: number }) {
           a.g = Math.floor(rnd() * 40);
         }
         if (rnd() < dt * 1.2) a.g = Math.floor(rnd() * 40);
-        s.glyph(c, INK.hi, a.g, X + a.o, a.y * (E.y - 10), a.s, 0.4 * Math.sin(a.y * Math.PI));
+        s.glyph(c, NANITE.hi, a.g, X + a.o, a.y * (E.y - 10), a.s, 0.4 * Math.sin(a.y * Math.PI));
       }
       // The queue's wave (#803): a ribbon of sigils flowing along it into the line, the rows riding the same curve.
       const nav = waveRef.current;
@@ -566,7 +579,7 @@ export function RelayThread({ now }: { now: number }) {
           }
           if (rnd() < dt * 0.8) p.g = Math.floor(rnd() * 40);
           const [x, y] = wavePoint(p.u, time, B, wave.current.narrow);
-          s.glyph(c, INK.hi, p.g, x, y + p.o * Math.min(1, p.u * 3), p.s, 0.34 * Math.sin(p.u * Math.PI));
+          s.glyph(c, NANITE.hi, p.g, x, y + p.o * Math.min(1, p.u * 3), p.s, 0.34 * Math.sin(p.u * Math.PI));
         }
       }
       // The ear: a short wick of sigils at the foot of the spine, brighter while it hears you.
@@ -574,7 +587,7 @@ export function RelayThread({ now }: { now: number }) {
       for (let k = 0; k < 4; k++) {
         const gi = Math.floor(time * (2 + loud * 10) + k * 7) % 40;
         const al = (0.25 + 0.75 * Math.max(0, Math.sin(time * (2 + loud * 6) - k * 0.9)) * (0.4 + loud * 0.6)) * live;
-        s.glyph(c, k ? INK.hi : INK.white, gi, X, E.y + E.h - 6 - k * 12, 10 + loud * 2, al, k === 0);
+        s.glyph(c, k ? NANITE.hi : NANITE.white, gi, X, E.y + E.h - 6 - k * 12, 10 + loud * 2, al, k === 0);
       }
     });
     return () => {
@@ -611,7 +624,7 @@ export function RelayThread({ now }: { now: number }) {
     const X = spineX();
     const E = s.rel(earRef.current);
     fx.current.rush = 0.3;
-    await s.form(d, { from: () => [X + (rnd() - 0.5) * 6, E.y + rnd() * E.h], path: quill(X), dur: 250, stagger: 250, jitter: 60, pre: 0.1 });
+    await s.form(d, { from: () => [X + (rnd() - 0.5) * 6, E.y + rnd() * E.h], path: quill(X), dur: 250, stagger: 250, jitter: 60, pre: 0.1, color: NANITE.hi });
   }, []);
 
   // Focus moves: the old entry's words dissolve into the spine, the new one's are written in from the top of it.
@@ -631,7 +644,7 @@ export function RelayThread({ now }: { now: number }) {
     fx.current.to = el ? 1 : 0;
     if (hidden) return;
     const X = spineX();
-    if (old && !s.reduced) for (const p of old.querySelectorAll<HTMLElement>(PARTS)) void s.dissolve(p, { dur: 250, stagger: 100, to: (_i, _x, y) => [X + (rnd() - 0.5) * 8, y + (rnd() - 0.5) * 60] });
+    if (old && !s.reduced) for (const p of old.querySelectorAll<HTMLElement>(PARTS)) void s.dissolve(p, { color: NANITE.hi, dur: 250, stagger: 100, to: (_i, _x, y) => [X + (rnd() - 0.5) * 8, y + (rnd() - 0.5) * 60] });
     if (!el) return;
     void (async () => {
       fx.current.rush = 1;
@@ -641,15 +654,15 @@ export function RelayThread({ now }: { now: number }) {
       for (const p of el.querySelectorAll<HTMLElement>(PARTS)) ghost(p, !s.reduced);
       // The illuminated initial gathers first, poured down the spine. Quick (Nikita, 2026-11-05: the texts loaded too
       // slowly): 250 ms an item at most, about 600 ms for the whole entry; reduced motion shows it at once.
-      if (init) void s.form(init, { gap: 3, size: 8, ltr: false, swirl: 120, dur: 250, stagger: 100, glow: 0.3, from: () => [X + (rnd() - 0.5) * 6, -10 - rnd() * 140] });
+      if (init) void s.form(init, { gap: 3, size: 8, ltr: false, swirl: 120, dur: 250, stagger: 100, glow: 0.3, color: NANITE.hi, from: () => [X + (rnd() - 0.5) * 6, -10 - rnd() * 140] });
       if (!s.reduced) await sleep(120);
       if (run.current !== id) return;
       const vb = s.rel(el.querySelector(".cx-them") ?? el);
       const top = (): [number, number] => [X + (rnd() - 0.5) * 4, Math.max(0, vb.y - 20 - rnd() * 160)];
       // Every text at once (#758: one line each), not one after another.
-      await Promise.all(msgs.map((m) => s.form(m, { from: top, path: quill(X), dur: 250, stagger: 200, jitter: 60, max: 620, pre: 0 })));
+      await Promise.all(msgs.map((m) => s.form(m, { from: top, path: quill(X), dur: 250, stagger: 200, jitter: 60, max: 620, pre: 0, color: NANITE.hi })));
       if (run.current !== id) return;
-      if (adv) void s.form(adv, { from: top, path: quill(X), dur: 220, stagger: 150, jitter: 40, max: 300 });
+      if (adv) void s.form(adv, { from: top, path: quill(X), dur: 220, stagger: 150, jitter: 40, max: 300, color: NANITE.hi });
       if (el.querySelector(".cx-draft")) await writeDraft(el, id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -676,7 +689,7 @@ export function RelayThread({ now }: { now: number }) {
     const r = s.rel(d);
     const X = spineX();
     fx.current.rush = 1;
-    s.burst(r.cx, r.cy, { n: 160, w: r.w, h: r.h, dur: 1500, stagger: 600, size: 8, color: INK.you, to: () => [X, -30], path: rise });
+    s.burst(r.cx, r.cy, { n: 160, w: r.w, h: r.h, dur: 1500, stagger: 600, size: 8, color: NANITE.you, to: () => [X, -30], path: rise });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t.pending]);
 
@@ -685,7 +698,7 @@ export function RelayThread({ now }: { now: number }) {
     const s = sg.current;
     if (t.notice?.kind !== "warn" || !ex || !s) return;
     const el = entryOf(ex.key);
-    for (const p of el?.querySelectorAll<HTMLElement>(PARTS) ?? []) if (ghosted(p) && !hidden) void s.form(p, { dur: 250, stagger: 150 });
+    for (const p of el?.querySelectorAll<HTMLElement>(PARTS) ?? []) if (ghosted(p) && !hidden) void s.form(p, { dur: 250, stagger: 150, color: NANITE.hi });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t.notice]);
 
@@ -938,6 +951,12 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
           </p>
           {back && <p className="cx-note">{RETURN_TEXT[back]}</p>}
           {error && <p className="cx-warn">{error}</p>}
+          {/* The Mac reads no contacts (#861): every sender is "Unknown" until macOS lets BlueBubbles read them. */}
+          {t.signedIn && contactsHint(textsStatus) && (
+            <p className="cx-warn" data-hint="contacts">
+              <b>Allow BlueBubbles to read Contacts.</b> {contactsHint(textsStatus)}
+            </p>
+          )}
           {!t.signedIn && <p className="cx-note">Counts only until you sign in.</p>}
         </div>
       </div>

@@ -2,24 +2,24 @@ import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, ty
 import { whenLabel } from "../../../api/_today/parse.ts";
 import { CREW, crewFor, type Change, type Crate } from "../../../apps/world/src/foundry.ts";
 import { useWorldClock, clockState } from "../../../apps/world/src/worldClock.ts";
-import { DESK_ROOMS, type DeskAction, type DeskRoom, type OwedReply } from "../../../apps/desk/src/deskData.ts";
+import { DESK_ROOMS, type DeskAction, type DeskRoom, type OwedReply } from "@ceo/desk/deskData.ts";
 import { EmailAct } from "../../relay/web/EmailAct.tsx";
-import { ideaTitle, type Setup } from "../../../apps/desk/src/IdeaCard.tsx";
-import { roomLink } from "../../../apps/desk/src/hero/roomLink.ts";
+import { ideaTitle, type Setup } from "@ceo/desk/IdeaCard.tsx";
+import { roomLink } from "@ceo/desk/hero/roomLink.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
-import { words, type RoomPulse } from "../../../apps/desk/src/roomPulse.ts";
-import { SetupAct } from "../../../apps/desk/src/SetupCard.tsx";
-import type { SetupStatus } from "../../../apps/desk/src/setupList.ts";
+import { words, type RoomPulse } from "@ceo/desk/roomPulse.ts";
+import { SetupAct } from "@ceo/desk/SetupCard.tsx";
+import type { SetupStatus } from "@ceo/desk/setupList.ts";
 import { Icon, type TodayIcon } from "./todayIcons.tsx";
 import { age, DecisionAct, DecisionChoices, IdeasAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
-import { KIND_COLOUR, KIND_LABEL, rites, type RiteInput, type RiteItem, type RiteKind } from "../../../apps/desk/src/rotunda/rite.ts";
-import { KindIcon } from "../../../apps/desk/src/rotunda/KindIcon.tsx";
+import { KIND_COLOUR, KIND_LABEL, rites, type RiteInput, type RiteItem, type RiteKind } from "@ceo/desk/rotunda/rite.ts";
+import { KindIcon } from "@ceo/desk/rotunda/KindIcon.tsx";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { mtTime, roman, until, upcoming } from "../data/todaySchedule.ts";
 import { HANDED_LINE, handedState, type FloorItem } from "../../../api/_today/floor.ts";
-import { useHanded } from "../../../apps/desk/src/todos/floorTalk.ts";
-import { TalkBack, TodoCapture, TodoCard, useTodosOn } from "../../../apps/desk/src/todos/TodoBits.tsx";
-import { awayRefs, openTodos, useTodos, type Target } from "../../../apps/desk/src/todos/todos.ts";
+import { useHanded } from "@ceo/desk/todos/floorTalk.ts";
+import { TalkBack, TodoCapture, TodoCard, useTodosOn } from "@ceo/desk/todos/TodoBits.tsx";
+import { awayRefs, openTodos, useTodos, type Target } from "@ceo/desk/todos/todos.ts";
 
 /**
  * Right now (#363, Nikita 2026-10-24: "the focus is what do I need to know right now?"), "Held for you" in the top right

@@ -44,6 +44,21 @@ describe("each room's own schematic (#751)", () => {
     for (const l of relay.links.filter((x) => !x.back)) expect(relay.nodes.find((n) => n.id === l.b)!.rank).toBeGreaterThan(relay.nodes.find((n) => n.id === l.a)!.rank);
   });
 
+  it("reads the Foundry's Visual QA step and its Gemini pipe as one, so the two never disagree (#866)", () => {
+    const links = { ...LIVE };
+    const model = systemsModel({ links, foundry: { nodes: [], edges: [] }, connected: true, building: null, clock: { state: "ok", headline: "On time" }, world: null, pings: true, vqa: "off" });
+    const rows = pipeRows(model.nodes, model.over, model.flows);
+    // The tour ran but Gemini's review was skipped (the day's cap): a shut valve, not a broken pipe and not grey.
+    const vqa = { at: new Date(NOW - 600_000).toISOString(), url: "https://github.com/nikitapage10/C.E.O./actions/runs/2", run: "pass" as const, review: "skipped" as const, rooms: 0, findings: 0, blockers: 0 };
+    const map = readPipes({ now: NOW, nodes: model.nodes, links, jobs: [], vqa, security: null, clock: { state: "ok", at: NOW - 60_000 } });
+    const sec = roomSections({ now: NOW, rows, map, jobs: [], signedIn: false }).find((s) => s.id === "foundry")!;
+    const s = schematic(sec, model);
+    const at = (id: string) => s.nodes.find((n) => n.id === id)!.state;
+    expect(at("gemini")).toBe("shut");
+    expect(at("vqa")).toBe("shut");
+    expect(s.links.find((l) => l.a === "checks" && l.b === "vqa")!.state).toBe("shut");
+  });
+
   it("gives a part or link with no pipe its own card from the model's words", () => {
     const { model, sections } = build({ ...LIVE });
     const sec = sections.find((s) => s.id === "boiler")!;

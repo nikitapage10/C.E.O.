@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { JobRow } from "../../../apps/desk/src/jobs.ts";
+import type { JobRow } from "@ceo/desk/jobs.ts";
 import type { GNode } from "./systemsGraph.ts";
 import { gaugeOf, jobState, MAP_LINES, pipeHeadline, readPipes, STATIONS, type PipeInput } from "./pipes.ts";
 
@@ -85,6 +85,9 @@ describe("the pipe map", () => {
     expect(jobState(job("x", { state: "fail" }))).toBe("leak");
     expect(jobState(job("x", { missed: true }))).toBe("shut");
     expect(jobState(job("x", { lateMin: 31 }))).toBe("late");
+    // A late start a day and more ago reads as the pass it was (#866).
+    expect(jobState(job("x", { lateMin: 490, at: NOW - 3 * 86_400_000 }), NOW)).toBe("ok");
+    expect(jobState(job("x", { lateMin: 490 }), NOW)).toBe("late");
     expect(gaugeOf("a", "leak")).toBeGreaterThan(0.8);
     expect(gaugeOf("a", "shut")).toBeLessThan(0.1);
     expect(gaugeOf("gmail", "ok")).toBeGreaterThanOrEqual(0.42);

@@ -151,7 +151,7 @@ The hub makes only these calls, all outbound to `https://ceo.nikita.page`, all w
 | Call | What goes | Checked by |
 | --- | --- | --- |
 | `POST /api/relay-hub` | The counts (`RelayStatus`) | `parseRelayStatus`, 4 KB, the allowlist below; kept whole or not at all |
-| `POST /api/relay-hub?view=texts` | The who's-waiting list (`TextsView`): per thread its Relay id, name, channel, group or not, state, sort, since, later-until, gist, draft, summary, and since #758 unread, photo id and the shown texts (each its text, time, and in a group the sender's name and photo id); the older unanswered (a count, and up to 40 Relay ids, names, times, unread, photo ids); when the backlog last ran; the learned voice (traits, tones, numbers, never a quote); and the new-text cards (#536): id, state, name, mask, channel, text, choices | `readTextsView` (`api/_relay/texts.ts`): a closed allowlist with length caps; one bad item refuses the list (a shown text that is only invisible characters is left out instead, #803). A card's mask must be `ending 0123` or `r•••@e•••.com` exactly, so no whole number or address can ride on it. Shown texts: 5 at most, 1,000 characters in all, a sender only in a group, each dropped 30 days after it came (#803). 100 items, 1 MB |
+| `POST /api/relay-hub?view=texts` | The who's-waiting list (`TextsView`): per thread its Relay id, name, channel, group or not, state, sort, since, later-until, gist, draft, summary, and since #758 unread, photo id and the shown texts (each its text, time, and in a group the sender's name and photo id), and since #861 why an owed thread has no gist yet (a code from the closed list `GIST_WAITS`: queued, cap, model, site, messages, refused; never an error's words); the older unanswered (a count, and up to 40 Relay ids, names, times, unread, photo ids); when the backlog last ran; the learned voice (traits, tones, numbers, never a quote); and the new-text cards (#536): id, state, name, mask, channel, text, choices | `readTextsView` (`api/_relay/texts.ts`): a closed allowlist with length caps; one bad item refuses the list (a shown text that is only invisible characters is left out instead, #803). A card's mask must be `ending 0123` or `r•••@e•••.com` exactly, so no whole number or address can ride on it. Shown texts: 5 at most, 1,000 characters in all, a sender only in a group, each dropped 30 days after it came (#803). 100 items, 1 MB |
 | `POST /api/relay-hub?view=sort` and `?view=draft` | One placeholdered snippet, or a new text's placeholdered ask (#536) | Above |
 | `POST /api/relay-hub?view=learn` (#758) | The labelled, placeholdered sample of Nikita's own sent texts | `readLearnInput` (`api/_relay/voice.ts`): closed shape, the caps above, 1 MB; the rules run again on the site and drop any text they match |
 | `GET /api/relay-hub?view=requests` | Nothing; it gets the Desk's waiting requests | The send path, below |
@@ -164,7 +164,7 @@ The gist and summary are the models' own words about the thread, and the draft i
 held a message body; now it holds an owed thread's shown texts (below), and nothing else of a message. It never holds a phone number, email address or Messages chat id either; a new-text card shows only the last
 4 digits of the number or the address masked to its first letters (#536), which is a change from #535's rule of no
 number at all, made so Nikita can check who a text goes to before they send it. A name is the contact's name as
-Nikita's contacts have it, "Unknown sender" (since #803 an owed one-to-one chat with someone not in the contacts reads "Unknown (ending 0123)" or "Unknown (r•••@e•••.com)", the same mask a new-text card shows), or a group's name.
+Nikita's contacts have it, "Unknown sender" (since #803 an owed one-to-one chat with someone not in the contacts reads "Unknown (ending 0123)" or "Unknown (r•••@e•••.com)", the same mask a new-text card shows; since #861 an older unanswered one does too), or a group's name.
 
 **The pairing.** The Desk makes a one-time code only with this device's send unlock (below), since a paired Mac can
 push the list and poll for sends, and never while a Mac is paired (Unpair first). The code is 8 characters from a 32-letter alphabet, good 10 minutes and 5 wrong tries;
@@ -193,6 +193,7 @@ nothing else:
 | `owed`, `sooner`, `overdue`, `later` | count | Threads waiting on Nikita, and how many of those are sorted sooner, overdue or pushed to later |
 | `settled` | count | Threads that need nothing (groups, codes, promos) |
 | `unread`, `older` | count, optional (#758) | Owed threads whose last text is unread (never more than `owed`); one-to-one chats unanswered for over 30 days |
+| `contacts` | count, optional (#861) | How many contacts BlueBubbles lets the hub read: 0 means macOS keeps Contacts from BlueBubbles, so every sender reads "Unknown", and the Desk shows how to allow it. Left out until the hub has asked. Never a name |
 | `draftsReady` | count | Owed threads with a draft ready |
 | `sentToday`, `streakDays` | count | Replies sent today; days in a row with nobody left past their window |
 | `week` | up to 7 of `{ day, sent, medianMinutes }` | The reply strip: midnight, replies sent, median minutes or null |
@@ -368,7 +369,11 @@ sealed list holds. The public site still gets counts only.
   rule runs on it as on a new message (money and legal, the skip list, codes, short codes, promos, closing intent), and
   a match settles it with no model call. Where the last message alone can't settle it, the hub reads that chat's
   recent messages (200 chats at most per scan, the newest first; #803, was 40). Owed ones go through Dialtone and Blasto as usual, so the first scan
-  spends from the $10 cap; 80 at most are taken in (#803, was 50), the rest are counted as older. Older unanswered
+  spends from the $10 cap; 100 at most are taken in (#861, as many as the Desk lists; was 80), the rest are counted as
+  older. Every owed thread without a gist is in line for Dialtone, newest first, 6 a round (every 15 seconds), whatever
+  brought it in; a sort that didn't land (a failed model call, the site or BlueBubbles out of reach) is tried again
+  after 2 minutes, doubling to an hour, and at the monthly cap every 6 hours, and the Desk shows the reason (#861).
+  An owed thread stays listed while their latest text is within the 30 days. Older unanswered
   chats (30 to 60 days) are display only: the Desk shows "N older unanswered" and, on "show them", their names and when. They get no
   model call, no gist and no shown text, and the hub forgets the snapshot after 7 days or the next scan. A chat past
   60 days is left out entirely, neither named nor counted (#803). Groups are never part of the backlog.
@@ -572,6 +577,11 @@ Run by `npm test`:
   thread never shows its text; the shown texts' caps), `api/_relay/relay.test.ts` (Rescan and Learn as single-use
   requests, the learn call's shape, caps, budget and quote-free answer, the shown texts' week and sender rules) and
   `packages/core/src/relay.test.ts` (`unread` and `older` are counts, unread never above owed).
+- **Names and gists (#861)**: `apps/hub/src/hub.test.ts` (the contacts count, 0 when BlueBubbles reads none; an
+  unknown sender by the last 4 digits only; why a thread has no gist, from the closed list, and the retry after a
+  backoff; every gist-less owed thread in line after a restart, a few a round), `rooms/relay/data/thread.test.ts`
+  (the Desk's words for each reason, a reason off the list refused, the Contacts hint) and `packages/core/src/relay.test.ts`
+  (`contacts` is a count).
 - **`apps/hub/src/install.test.ts`** runs `relay wipe` and `relay wipe --verify` on a made-up home folder with
   macOS's commands stubbed: every file, the job, the four Keychain items and the PATH line go, and the check passes.
   It does nothing without "wipe" typed, and the check names what is left. `relay status` warns when BlueBubbles is

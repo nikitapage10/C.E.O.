@@ -9,6 +9,8 @@
 //   hero) never imports a room; the rooms plug into the kits instead (desk/roomHooks.ts).
 // ceo/desk-package (error, in apps/desk/**): the Desk's package reaches into another app only for the files in
 //   WORLD_SHARED below, which only shrinks.
+// ceo/desk-entry (error, everywhere else): code outside apps/desk reaches the Desk through @ceo/desk, never by a
+//   relative path into apps/desk.
 //
 // Imports are resolved against the importing file, so `../green/x` and `../../rooms/green/x` are judged by where they
 // land, not how they are spelled.
@@ -140,4 +142,19 @@ const deskPackage = {
   },
 };
 
-export default { rules: { "room-boundary": roomBoundary, "desk-boundary": deskBoundary, "desk-package": deskPackage } };
+// The other side of the package line (#617, the swap): code outside apps/desk (the Lattice, main.tsx, the rooms, api/
+// and the tests) reaches the Desk through @ceo/desk or @ceo/desk/<file>, never by a relative path into apps/desk.
+const deskEntry = {
+  meta: { type: "problem", schema: [], messages: {
+    entry: "Reach the Desk through @ceo/desk (or @ceo/desk/{{file}}), not by a relative path into apps/desk (docs/ROOMS.md).",
+  } },
+  create(context) {
+    if (rel(context.filename).startsWith(DESK_PACKAGE)) return {};
+    return sources(context, (node, _file, _spec, to) => {
+      if (to && to.startsWith(`${DESK_PACKAGE}src/`)) context.report({ node, messageId: "entry", data: { file: to.slice(`${DESK_PACKAGE}src/`.length) } });
+      else if (to && (to === "apps/desk" || to.startsWith(DESK_PACKAGE))) context.report({ node, messageId: "entry", data: { file: "…" } });
+    });
+  },
+};
+
+export default { rules: { "room-boundary": roomBoundary, "desk-boundary": deskBoundary, "desk-package": deskPackage, "desk-entry": deskEntry } };

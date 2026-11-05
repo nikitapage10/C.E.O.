@@ -61,6 +61,7 @@ The parts:
 | BlueBubbles | Its own cache, settings and server password | `~/Library/Application Support/bluebubbles-server/` | Until BlueBubbles is removed (see the wipe) |
 | Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen; the new-message poll's cursor (the newest message time read, and 16 hex of the SHA-256 of each message guid read in the last 2 minutes, never the guid). Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. Since #758: per thread whether its last text is unread; the backlog's older unanswered chats (a random id, the chat id, the time, unread or not; 200 at most) and when it last ran; the learned voice (style traits, tones by relationship, the numbers, when, the cost) and, per learned contact, 16 hex of a SHA-256 of their handle with its relationship (family, friends, work, other). **Never a copy of a message body** |
 | Shown texts (#758) | An owed thread's last 5 texts (1,000 characters in all; since #870 its recent turns from both sides), a group's since Nikita's last reply, with each sender's name | The hub's memory only, never the state file | Until the thread closes or the hub restarts |
+| Tapback line ids (#888) | Each of their shown lines' message guid in Messages, under an opaque 8-hex ref; the site gets only the ref | The hub's memory only, never the state file, the site or a log | With the shown texts: until the thread closes or the hub restarts |
 | The learn pass (#758) | A year of Nikita's messages, read once from BlueBubbles to make the numbers and the sample | Memory, for one run | The run | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
 | Style profile | Four numbers made at draft time from Nikita's own past replies to that contact (usual length, and how often they start with a capital, use emoji, end with a full stop). No text. Since #758 each draft also carries the learned voice: the traits, the tone for that contact's relationship, and the numbers | Memory, for one call | The call |
 | Style examples | Up to 8 of Nikita's own past replies to that contact | Memory only, for one Blasto call | The call |
@@ -302,6 +303,33 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
    confirmed: it may have sent. Check Messages before you resend", with Resend; the check in step 3 refuses a resend
    once Messages shows the reply went.
 
+**Tapbacks (#888, Nikita 2026-11-05: "lets me like heart, thumbs up messages, like you would in iMessage").** Under
+their words on the Relay card (and in a group's flipper), six small buttons: heart, thumbs up, thumbs down, haha, !!
+and ?, aimed at their latest line by default, with a small stepper to pick an earlier one of theirs. A tapback is a
+send in every way that matters: the device's unlock, one tap makes one `react` request, signed with the send key, 10
+minutes to live, single-use (the hub records the id before acting, so a replay is refused), one at a time per thread,
+never made by anything but that tap. What it carries is only which tapback and which line: its text is
+`<tapback>:<ref>` (`love:1a2b3c4d`), never words.
+
+- **The line's ref.** The hub gives each of their shown lines (never Nikita's own) an 8-hex ref, an HMAC under the
+  send key over the thread and the message's guid in Messages. The guid itself stays in the hub's memory, beside the
+  shown texts (`lines` in `apps/hub/src/engine.ts`): never on the site, in the state file or in a log. The site only
+  checks that the ref is one of the thread's shown lines; the hub maps it back to the guid from its own memory, never
+  from the request, so a request can only reach a message the Desk was shown. After a restart, or once the list moves
+  on, an old ref is refused (`no-line`) and the Desk asks again from the fresh list.
+- **On the Mac.** The hub sends it through BlueBubbles' react route (`POST /api/v1/message/react` with `chatGuid`,
+  `selectedMessageGuid`, `reaction`, `partIndex` 0), which BlueBubbles serves only with its **Private API** on (its
+  helper inside Messages). A tapback settles nothing: the thread stays owed, its draft stays, and it is not counted
+  as a reply.
+- **Private API off.** The hub asks `GET /api/v1/server/info` at start and every 5 minutes, and puts one state on the
+  sealed list: `tapbacks: "on"` or `"off"` (`private_api` and `helper_connected` both true, or not). With it off the
+  site makes no tapback request (`tapbacks-off`), the hub refuses one it gets, and the Desk shows one quiet line
+  (turn on BlueBubbles' Private API on the Mac) in place of the buttons. A react call BlueBubbles refuses for the
+  Private API turns the state off at once. `relay check` says which it is.
+
+**The composer's emoji.** A small button beside Send opens a compact, hand-made grid of common emoji (no library); a
+pick goes in at the cursor of the reply box and is part of the typed words, which go only on Send, exactly as typed.
+
 "Later", "Done", "Bring back" (#870) and "Put it in my style" are requests the same way (single-use, 10 minutes, signed). They need the
 session but not the send unlock, because none of them can send. "Say it" uses the browser's own speech recognition:
 in Chrome and Edge, the audio goes to the browser maker's speech service (Google, Microsoft); in Safari, to Apple's,
@@ -451,7 +479,8 @@ sealed list holds. The public site still gets counts only.
 ### Mac to logs
 
 - **Allowed:** timestamps, event kinds from a closed list ("thread owed", "draft ready", "status sent", "sent",
-  "request refused"; since #758 "backlog scanned", "backlog failed", "voice learned", "voice failed"), numeric fields
+  "request refused"; since #758 "backlog scanned", "backlog failed", "voice learned", "voice failed"; since #888
+  "tapback sent", "tapback failed" and "tapbacks" with `on` 1 or 0), numeric fields
   (counts, and the learn's cost), and error class names from a closed list (`apps/hub/src/log.ts`).
 - **Never:** message text, names, phone numbers, email addresses, Messages chat ids (they contain the phone number or
   email address, e.g. `iMessage;-;+1555…`), Relay's thread ids, drafts, summaries, dictation, prompts, model answers,
@@ -629,6 +658,13 @@ Run by `npm test`:
   once per text and never a rule's; the set-aside list carries no text; Bring back keeps a thread owed and refuses a
   rule's; `relay why`'s verdicts and lines hold no text or number; contact pictures in every shape), and
   `apps/hub/src/install.test.ts` (`relay check` and `relay why` reach the hub).
+- **Tapbacks (#888)**: `apps/hub/src/tapbacks.test.ts` (their lines get a ref, Nikita's own none, and no guid leaves
+  the hub; a signed tap reaches BlueBubbles' react route on that very message and settles nothing; a replay, a changed
+  request, an unknown ref and a late one are refused; with the Private API off the list says so and nothing reaches
+  BlueBubbles; the react route's body and the server-info read), `api/_relay/relay.test.ts` (the unlock first; one
+  signed single-use request naming only the tapback and the ref, handed out once; only their shown lines, one of the
+  six, one at a time; none while the Mac says off; refs read back by hand) and `rooms/relay/data/react.test.ts` (the
+  latest line by default, never Nikita's own; the emoji picker puts its pick in at the cursor).
 - **`apps/hub/src/install.test.ts`** runs `relay wipe` and `relay wipe --verify` on a made-up home folder with
   macOS's commands stubbed: every file, the job, the four Keychain items and the PATH line go, and the check passes.
   It does nothing without "wipe" typed, and the check names what is left. `relay status` warns when BlueBubbles is

@@ -1076,3 +1076,75 @@ describe("the backlog's Rescan and the learn chore (#758)", () => {
     expect(readTextsView({ ...view(), older: { count: 0, items: older.items } }, NOW)).toBeNull();
   });
 });
+
+describe("tapbacks (#888): a send request on one of their lines, by its opaque ref", () => {
+  const REF_A = "a1a1a1a1";
+  const REF_B = "b2b2b2b2";
+  const ME = "c3c3c3c3";
+  const lines = () => [
+    { text: "Is the plan still on?", at: NOW - 3 * 60_000, ref: REF_A },
+    { text: "Yes, see you there", at: NOW - 2 * 60_000, me: true as const },
+    { text: "Great, bringing snacks", at: NOW - 60_000, ref: REF_B },
+  ];
+  const withLines = (tapbacks?: "on" | "off"): TextsView => ({ ...view([item({ messages: lines() })]), ...(tapbacks && { tapbacks }) });
+  const live = async (tapbacks: "on" | "off" = "on") => {
+    const d = await ready();
+    expect((await d.hub("POST", "?view=texts", withLines(tapbacks))).status).toBe(200);
+    return d;
+  };
+  const react = (d: Desk, over: Record<string, unknown> = {}) => d.post({ action: "react", thread: THREAD, ref: REF_B, tapback: "love", ...over });
+
+  it("goes round trip: unlock first, one signed single-use request naming only the tapback and the ref", async () => {
+    const d = await live();
+    expect((await react(d)).status).toBe(401);
+    await d.unlock();
+    const res = await react(d);
+    expect(res.status).toBe(200);
+    const { rid, until } = (await res.json()) as { rid: string; until: number };
+    expect(until).toBe(NOW + REQUEST_MS);
+    const [req, ...more] = await d.requests();
+    expect(more).toEqual([]);
+    expect(req).toMatchObject({ rid, kind: "react", thread: THREAD, draftAt: 0, text: `love:${REF_B}` });
+    expect(readTextRequest(req)).not.toBeNull();
+    const key = Buffer.from(d.hubSendKey, "base64url");
+    expect(requestSigned(key, req!, req!.sig)).toBe(true);
+    expect(requestSigned(key, { ...req!, text: `laugh:${REF_B}` }, req!.sig)).toBe(false);
+    expect(requestSigned(key, { ...req!, text: `love:${REF_A}` }, req!.sig)).toBe(false);
+    // Handed out once: a second poll never gets it again.
+    expect(await d.requests()).toEqual([]);
+    const listed = (await d.listed()) as Awaited<ReturnType<Desk["listed"]>> & { requests: { text: string }[]; tapbacks: string | null };
+    expect(listed.requests[0]).toMatchObject({ kind: "react", text: `love:${REF_B}`, state: "taken" });
+    expect(listed.tapbacks).toBe("on");
+  });
+
+  it("goes only on their shown lines, one of the six, one at a time per thread", async () => {
+    const d = await live();
+    await d.unlock();
+    expect(((await (await react(d, { ref: ME })).json()) as { error: string }).error).toBe("no-line");
+    expect(((await (await react(d, { ref: "zzzz" })).json()) as { error: string }).error).toBe("no-line");
+    expect((await react(d, { tapback: "wow" })).status).toBe(400);
+    expect((await react(d, { thread: "fedcba9876543210" })).status).toBe(409);
+    expect((await react(d, { ref: REF_A, tapback: "question" })).status).toBe(200);
+    expect(((await (await react(d)).json()) as { error: string }).error).toBe("busy");
+  });
+
+  it("isn't made while the Mac says the Private API is off, and the Desk is told so", async () => {
+    const d = await live("off");
+    await d.unlock();
+    expect(((await (await react(d)).json()) as { error: string }).error).toBe("tapbacks-off");
+    expect(await d.requests()).toEqual([]);
+    expect(((await d.listed()) as unknown as { tapbacks: string }).tapbacks).toBe("off");
+  });
+
+  it("reads back by hand: a ref only on their lines, once each; a tapback's text only the tapback and the ref", () => {
+    expect(readTextsView(withLines("on"), NOW)?.items[0]?.messages?.map((m) => m.ref)).toEqual([REF_A, undefined, REF_B]);
+    expect(readTextsView({ ...withLines(), items: [item({ messages: [{ text: "Mine", at: NOW - 1, me: true, ref: ME } as never] })] }, NOW)).toBeNull();
+    expect(readTextsView({ ...withLines(), items: [item({ messages: [{ text: "One", at: NOW - 2, ref: REF_A }, { text: "Two", at: NOW - 1, ref: REF_A }] })] }, NOW)).toBeNull();
+    expect(readTextsView({ ...withLines(), tapbacks: "maybe" as never }, NOW)).toBeNull();
+    const base = { rid: "e".repeat(24), kind: "react", thread: THREAD, draftAt: 0, created: NOW, until: NOW + REQUEST_MS, sig: "x" };
+    expect(readTextRequest({ ...base, text: `love:${REF_A}` })).not.toBeNull();
+    expect(readTextRequest({ ...base, text: "Great, bringing snacks" })).toBeNull();
+    expect(readTextRequest({ ...base, text: `wow:${REF_A}` })).toBeNull();
+    expect(readTextRequest({ ...base, text: `love:${REF_A}`, draftAt: DRAFT_AT })).toBeNull();
+  });
+});

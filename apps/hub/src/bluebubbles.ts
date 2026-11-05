@@ -1,4 +1,4 @@
-import type { Reason } from "../../../api/_relay/texts.ts";
+import type { Reason, Tapback } from "../../../api/_relay/texts.ts";
 import { BLUEBUBBLES } from "./config.ts";
 import { errorClass } from "./log.ts";
 
@@ -8,8 +8,9 @@ import { errorClass } from "./log.ts";
  * messages (polled every few seconds from `/api/v1/message/query`, #749: BlueBubbles 1.9.12 refuses API webhooks to
  * 127.0.0.1, and a poll needs no inbound path at all), contacts (names for placeholders and the
  * Desk), a chat's recent messages (fetched for one call and dropped), the one-to-one chats' ids (to find the chat a
- * new text goes in, #536; read for one ask and dropped). Write: one text, only when Nikita's signed send
- * request says so (./engine.ts, `act`). Attachments are never asked for.
+ * new text goes in, #536; read for one ask and dropped). Write: one text, or one tapback (#888, `/api/v1/message/react`,
+ * which needs BlueBubbles' Private API), only when Nikita's signed request says so (./engine.ts, `act`). Attachments
+ * are never asked for.
  */
 
 export interface Message {
@@ -26,6 +27,11 @@ export interface Message {
    * Only the mark: the attachment is never asked for, and `text` keeps only the words (U+FFFC taken out).
    */
   media?: true;
+  /**
+   * The message's guid in Messages (#888), for a tapback on it. Memory only: it never leaves the Mac, is never logged
+   * or stored; the Desk gets an opaque ref made from it instead.
+   */
+  guid?: string;
 }
 
 /**
@@ -76,6 +82,13 @@ export interface BlueBubbles {
   chats(): Promise<string[]>;
   /** The contacts that have a picture (#642), with it: read for one photo sync and dropped. */
   contactPhotos(): Promise<ContactPhoto[]>;
+  /**
+   * One tapback (#888) on one message: true when BlueBubbles took it; otherwise a BlueBubblesError. BlueBubbles' route
+   * needs its Private API (and the helper in Messages) on.
+   */
+  react(chat: string, messageGuid: string, tapback: Tapback): Promise<boolean>;
+  /** Whether BlueBubbles' Private API is on with its helper connected (`/api/v1/server/info`); null when it can't tell. */
+  privateApi(): Promise<boolean | null>;
   /** Messages dated at or after `after` (ms), oldest first, `limit` at most (#749): the hub's way in. */
   since(after: number, limit: number): Promise<Polled[]>;
   /** Every chat with its last message (#758), page by page: `/api/v1/chat/query` with `with: ["lastmessage"]`. */
@@ -127,7 +140,7 @@ export function readAvatar(v: unknown): Uint8Array | null {
 /** A contact's picture from whichever field BlueBubbles filled (#870): `avatar`, else the full image, else the thumbnail. */
 export const avatarOf = (c: Record<string, unknown>): Uint8Array | null => readAvatar(c.avatar) ?? readAvatar(c.contactImage) ?? readAvatar(c.contactThumbnailImage) ?? readAvatar(c.contactImageThumbnail);
 
-export { CONTACTS_HINT } from "../../../api/_relay/texts.ts";
+export { CONTACTS_HINT, TAPBACKS_HINT } from "../../../api/_relay/texts.ts";
 
 /**
  * A contact's handles from BlueBubbles' contact data (#861): each phone number and email as `{ address }` (BlueBubbles
@@ -171,7 +184,8 @@ export function readMessage(o: Record<string, unknown> | null | undefined): Mess
   const media = ATTACHMENT_MARK.test(raw) || o.hasAttachments === true || (Array.isArray(o.attachments) && o.attachments.length > 0) || (typeof o.balloonBundleId === "string" && o.balloonBundleId !== "");
   ATTACHMENT_MARK.lastIndex = 0;
   const text = raw.replace(ATTACHMENT_MARK, "");
-  return { text: text.trim() ? text : "", fromMe: o.isFromMe === true, at: num(o.dateCreated), handle: o.isFromMe === true ? "" : handle, read: num(o.dateRead) > 0, ...(media && { media: true as const }) };
+  const guid = str(o.guid, 200);
+  return { text: text.trim() ? text : "", fromMe: o.isFromMe === true, at: num(o.dateCreated), handle: o.isFromMe === true ? "" : handle, read: num(o.dateRead) > 0, ...(media && { media: true as const }), ...(guid && { guid }) };
 }
 
 /** A message with no words: a photo, a file, a sticker (#870). It counts as a text that came; nothing of it is read. */
@@ -371,6 +385,24 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
     send: async (chat, text, tempGuid) => {
       await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
       return true;
+    },
+    // BlueBubbles Server's react route (messageValidator.sendReactionRules: chatGuid, selectedMessageGuid, reaction
+    // from MessageInterface.possibleReactions, partIndex), behind its PrivateApiMiddleware: with the Private API off it
+    // answers with an error, which goes up like a send's.
+    react: async (chat, messageGuid, tapback) => {
+      await post("/api/v1/message/react", { chatGuid: chat, selectedMessageGuid: messageGuid, reaction: tapback, partIndex: 0 }, BB_SEND_TIMEOUT_MS);
+      return true;
+    },
+    // GeneralInterface.getServerMetadata: `private_api` is the setting, `helper_connected` whether the helper in
+    // Messages answers. A tapback needs both.
+    privateApi: async () => {
+      try {
+        const data = (await get("/api/v1/server/info")) as Record<string, unknown> | null;
+        if (!data || typeof data !== "object") return null;
+        return data.private_api === true && data.helper_connected === true;
+      } catch {
+        return null;
+      }
     },
   };
 }

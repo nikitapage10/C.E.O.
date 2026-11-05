@@ -17,6 +17,10 @@
  *          "lock"             → clears it
  *          "send", thread, draftAt, text   → a send request (needs the unlock; see "The send path" below)
  *          "resend", rid      → a new send request for one that expired (the Mac was offline) or failed
+ *          "react", thread, ref, tapback  → a tapback (#888: heart, thumbs up, thumbs down, haha, !!, ?) on one of their
+ *                                shown lines, by its opaque ref. A send like the one above: the unlock, single-use,
+ *                                10 minutes, one at a time per thread. The Mac maps the ref to the message; the site
+ *                                never has the message's id. It doesn't settle the thread.
  *          "later" | "done", thread        → a request to push a thread to the next nudge, or mark it handled
  *          "back", thread     → "Bring back" (#870): a thread Relay set aside (not by a rule) back in line, kept owed
  *          "restyle", thread, text         → Nikita's dictated words, for Blasto to put in his style
@@ -85,7 +89,7 @@ import { learnRequest, readLearn, readLearnInput } from "./voice.js";
 import { liveClaude } from "./claude.js";
 import { claudeProvider, DRAFT_MODEL, readComposeInput, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
 import { pickRelayStore, update, type PrivateState, type RelayStore, type RequestEntry } from "./store.js";
-import { BACKABLE, DICTATED_MAX, freshItems, MAX_CARDS, OWED_WINDOW_MS, olderWithin, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
+import { BACKABLE, DICTATED_MAX, LINE_REF, tapbackText, TAPBACKS, type Tapback, freshItems, MAX_CARDS, OWED_WINDOW_MS, olderWithin, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
 import { askRuled, cleanGist, cleanWho } from "./compose.js";
 import { privateParts } from "../_privacy.js";
 import { cleanPng, emptyPhotoIndex, MAX_PHOTOS, PHOTO_ID, photoEmailKey, readPhotoIndex, readPhotoList } from "./photos.js";
@@ -236,7 +240,10 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
         // The one-to-one threads Relay set aside (#870): who, when, why from a closed list. No text.
         aside: hub ? (priv.texts?.aside ?? []).filter((a) => deps.now - a.since < OWED_WINDOW_MS) : [],
         textsAt: hub ? (priv.texts?.at ?? null) : null,
-        requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" || e.req.kind === "compose" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now), ...(shownReason(e, deps.now) && { reason: shownReason(e, deps.now) }) })),
+        // Whether tapbacks can go from the Mac (#888): BlueBubbles' Private API on or off, a state only.
+        tapbacks: hub ? (priv.texts?.tapbacks ?? null) : null,
+        // A tapback's text is which one and on which line ("love:1a2b3c4d"), never words.
+        requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" || e.req.kind === "compose" || e.req.kind === "react" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now), ...(shownReason(e, deps.now) && { reason: shownReason(e, deps.now) }) })),
         spend: { usd: spent ? Math.round(monthSpend(spent, deps.now).usd * 10_000) / 10_000 : 0, budget: deps.budget },
       }),
       signed,
@@ -345,6 +352,12 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
     });
     return requestAnswer(made, keep);
   }
+  if (action === "react") {
+    // A tapback (#888) reaches someone, so it is a send: this device's unlock first, as for a text.
+    if ((await unlockedUntil(request, deps.desk.deskKey, signed.passkey.id, deps.now)) === null) return json({ error: "locked" }, 401, keep);
+    const made = await update(store, (s) => makeTapback(s, sendKey, { thread: body?.thread, ref: body?.ref, tapback: body?.tapback }, deps.now));
+    return requestAnswer(made, keep);
+  }
   if (action === "compose") {
     // A new text Skippy was asked for (#536). It can't send, so it needs the session but not the unlock; the send that
     // may follow is the ordinary one above. The relay's rules and the privacy check run before anything is kept.
@@ -385,7 +398,26 @@ export function makeBack(s: PrivateState, sendKey: Buffer, thread: unknown, now:
   return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };
 }
 
-type Made = { rid: string; until: number } | { error: "no-thread" | "changed" | "busy" | "bad-text" | "no-resend" };
+/**
+ * A tapback request (#888): one of the six, on one of their lines the Desk shows for a listed thread (owed, later, or a
+ * group with its summary), by the line's ref, never Nikita's own line. Not while the Mac says the Private API is off.
+ * One at a time per thread, like every kind but a send. Signed over the thread and "tapback:ref", 10 minutes.
+ */
+export function makeTapback(s: PrivateState, sendKey: Buffer, given: { thread: unknown; ref: unknown; tapback: unknown }, now: number): { next: PrivateState; result: Made } {
+  const no = (error: Exclude<Made, { rid: string }>["error"]) => ({ next: s, result: { error } as Made });
+  const item = typeof given.thread === "string" ? s.texts?.items.find((i) => i.id === given.thread) : undefined;
+  if (!item || (item.state === "settled" && !(item.group && item.summary))) return no("no-thread");
+  if (s.texts?.tapbacks === "off") return no("tapbacks-off");
+  if (typeof given.tapback !== "string" || !(TAPBACKS as readonly string[]).includes(given.tapback)) return no("bad-text");
+  const ref = typeof given.ref === "string" && LINE_REF.test(given.ref) ? given.ref : null;
+  if (!ref || !item.messages?.some((m) => m.ref === ref && !m.me)) return no("no-line");
+  if (s.requests.some((e) => e.req.thread === item.id && e.req.kind === "react" && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
+  const fields = { rid: randomBytes(12).toString("hex"), kind: "react" as const, thread: item.id, draftAt: 0, text: tapbackText(given.tapback as Tapback, ref), until: now + REQUEST_MS };
+  const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
+  return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };
+}
+
+type Made = { rid: string; until: number } | { error: "no-thread" | "changed" | "busy" | "bad-text" | "no-resend" | "no-line" | "tapbacks-off" };
 type MadeCompose = { rid: string; until: number; card: string } | Extract<Made, { error: string }>;
 
 function requestAnswer(made: Made | null, keep: string[]): Response {
@@ -400,7 +432,7 @@ function requestAnswer(made: Made | null, keep: string[]): Response {
  */
 export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind, given: { thread: unknown; draftAt: unknown; text: unknown }, now: number): { next: PrivateState; result: Made } {
   const no = (error: Exclude<Made, { rid: string }>["error"]) => ({ next: s, result: { error } as Made });
-  if (kind === "compose") return no("no-thread");
+  if (kind === "compose" || kind === "react") return no("no-thread");
   const found: TextItem | undefined = typeof given.thread === "string" ? s.texts?.items.find((i) => i.id === given.thread) : undefined;
   // A card Skippy asked for (#536) takes a send (bound to its text's time, like a draft) or a "done" (dismiss), nothing else.
   const card: TextCard | undefined = !found && typeof given.thread === "string" ? s.texts?.cards?.find((c) => c.id === given.thread) : undefined;

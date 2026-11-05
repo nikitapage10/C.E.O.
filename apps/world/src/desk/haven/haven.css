@@ -625,6 +625,70 @@
   font: 12px "Geist Mono Variable", ui-monospace, monospace;
 }
 
+/* The wall editor (#747): the plan from above, each wall by what it has. */
+[data-room="haven"] .hv-wallsRow {
+  display: flex;
+  justify-content: center;
+  padding: 12px 16px 0;
+}
+[data-room="haven"] .hv-walls {
+  max-width: 560px;
+}
+[data-room="haven"] .hv-wallMap {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  margin: 10px 0;
+}
+[data-room="haven"] .hv-wallRoom rect {
+  fill: rgba(255, 255, 255, 0.04);
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 2;
+}
+[data-room="haven"] .hv-wallRoom text {
+  fill: var(--hv-ink);
+  opacity: 0.6;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+[data-room="haven"] .hv-wallSeg {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 9;
+  stroke-linecap: round;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-wallSeg.is-windows {
+  stroke: #7fb4ff;
+  stroke-dasharray: 22 8;
+}
+[data-room="haven"] .hv-wallSeg.is-door {
+  stroke: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-wallSeg.is-both {
+  stroke: rgb(var(--hv-gold));
+  stroke-dasharray: 22 8;
+}
+[data-room="haven"] .hv-wallSeg.is-tv {
+  stroke: #39ff7a;
+}
+[data-room="haven"] .hv-wallSeg.is-on,
+[data-room="haven"] .hv-wallSeg:focus-visible {
+  stroke-width: 16;
+  outline: none;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+}
+[data-room="haven"] .hv-wallPick .hv-btn[aria-pressed="true"] {
+  border-color: rgb(var(--hv-gold));
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-wallTv {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+
 @media (max-width: 860px) {
   [data-room="haven"] .hv-houseWrap {
     min-height: min(80svh, 720px);

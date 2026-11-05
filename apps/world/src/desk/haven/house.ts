@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { SIGILS } from "../relay/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
@@ -9,6 +10,8 @@ import { gymBeyond, gymRoom, withGym } from "./gymFill.ts";
 import { emittersOf, type EmitterIn } from "./emitters.ts";
 import { disposeMats, GYM_MODELS, GymGeo, gymMats, gymModel } from "./gymKit.ts";
 import { CatBrain, navGrid, type CatSignals } from "./catBrain.ts";
+import { furnish } from "./furnish.ts";
+import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
 
 /**
@@ -119,7 +122,7 @@ export function fitView(box: { x0: number; x1: number; z0: number; z1: number; h
   return { r: hi, pan: [W / 2 + (b.x0 + b.x1) / 2 - icx, H / 2 - (b.y0 + b.y1) / 2 - icy] as [number, number] };
 }
 
-/** The walls: every room part's edges, merged where they run together, with the doors cut out. Generic. */
+/** The walls: every room part's edges, merged where they run together, with the doors and balcony doors cut out. Generic. */
 export function wallsOf(plan: HavenPlan): Seg[] {
   const H = new Map<number, [number, number][]>(), V = new Map<number, [number, number][]>();
   const add = (m: Map<number, [number, number][]>, k: number, a: number, b: number) => {
@@ -158,16 +161,33 @@ export function wallsOf(plan: HavenPlan): Seg[] {
   const out: Seg[] = [];
   for (const [y, l0] of H) {
     let l = merge(l0);
-    for (const d of plan.doors) if (d[1] === y && d[3] === y) l = cut(l, [Math.min(d[0], d[2]), Math.max(d[0], d[2])]);
+    for (const d of [...plan.doors, ...(plan.balconies ?? [])]) if (d[1] === y && d[3] === y) l = cut(l, [Math.min(d[0], d[2]), Math.max(d[0], d[2])]);
     for (const s of l) if (s[1] - s[0] > 1) out.push([s[0], y, s[1], y]);
   }
   for (const [x, l0] of V) {
     let l = merge(l0);
-    for (const d of plan.doors) if (d[0] === x && d[2] === x) l = cut(l, [Math.min(d[1], d[3]), Math.max(d[1], d[3])]);
+    for (const d of [...plan.doors, ...(plan.balconies ?? [])]) if (d[0] === x && d[2] === x) l = cut(l, [Math.min(d[1], d[3]), Math.max(d[1], d[3])]);
     for (const s of l) if (s[1] - s[0] > 1) out.push([x, s[0], x, s[1]]);
   }
   return out;
 }
+
+/**
+ * Where the kitchen is looked at from (#747): the camera's turn that puts it on the side of the main bedroom, so the
+ * room-focus view reads like walking out of the bedroom toward the hall and the kitchen. Null for any other room, or
+ * when the plan has no bedroom.
+ */
+export function kitchenFrom(plan: HavenPlan, room: PlanRoom): number | null {
+  if (room.tab !== "kitchen" && !/\bkitchen\b/i.test(room.name)) return null;
+  const beds = plan.rooms.filter((r) => !r.detached && /\b(master|bed)/i.test(r.name) && !/\bbath/i.test(r.name));
+  if (!beds.length) return null;
+  const [kx, ky] = centreOf(room);
+  const bed = beds.find((r) => /\bmaster|primary/i.test(r.name)) ?? beds.reduce((a, b) => (Math.hypot(...sub(centreOf(b), [kx, ky])) < Math.hypot(...sub(centreOf(a), [kx, ky])) ? b : a));
+  const [bx, by] = centreOf(bed);
+  // The camera sits at the target plus (sin th, cos th) in world x and z, which run with the plan's x and y.
+  return Math.atan2(bx - kx, by - ky);
+}
+const sub = (a: [number, number], b: [number, number]): [number, number] => [a[0] - b[0], a[1] - b[1]];
 
 /** The glyph atlas: each sigil drawn once, white, into an 8 x 8 grid. Redrawn when the arcane fonts arrive. */
 function drawAtlas(c: HTMLCanvasElement) {
@@ -267,7 +287,8 @@ export class House {
   ) {
     // The Gym drawn filled out (#718): whatever of the kit the plan doesn't place, placed in its free floor.
     // Drawn beyond the home (#729), at the top of the default view, not in front of it.
-    this.plan = withGym(gymBeyond(plan));
+    // The main rooms dressed from their own walls (#747, furnish.ts), before the Gym is moved out back.
+    this.plan = withGym(gymBeyond(furnish(plan)));
     const phone = Math.min(window.innerWidth, window.innerHeight) < 600;
     this.N = phone ? 700 : 1400;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -372,6 +393,7 @@ export class House {
     const cap = new THREE.MeshBasicMaterial({ color: 0xf4f1ea, transparent: true, opacity: 0.7, depthWrite: false });
     this.world.add(this.instanced(new THREE.BoxGeometry(1, 1, 1), cap, boxes(this.walls, 0.012, T + 0.006, WH), 6));
     this.windows();
+    this.balconies();
     this.furniture();
     this.devices();
     this.lightPools();
@@ -577,9 +599,10 @@ export class House {
   private furniture() {
     const groups = new Map<string, { x: number; y: number; z: number; sx: number; sy: number; sz: number }[]>();
     this.gymKit();
+    this.homeKit();
     for (const it of this.plan.items) {
       const st = KIND_STYLE[it.k];
-      if (st.height <= 2 || GYM_MODELS.has(it.k)) continue;
+      if (st.height <= 2 || GYM_MODELS.has(it.k) || HOME_MODELS.has(it.k)) continue;
       const h = st.height / U;
       const key = `${it.k}:${it.round ? "c" : "b"}`;
       const list = groups.get(key) ?? [];
@@ -601,6 +624,116 @@ export class House {
       this.disposers.push(() => mat.dispose());
       const geo = shape === "c" ? new THREE.CylinderGeometry(0.5, 0.5, 1, 20) : new THREE.BoxGeometry(1, 1, 1);
       this.world.add(this.instanced(geo, mat, list, 1));
+    }
+  }
+
+  /**
+   * Which wall a footprint backs onto (#747): the nearest side of the room part it stands in, and the turn that puts
+   * a model's back (local +Z) against it. `along` and `into` are its size along that wall and out from it, in plan units.
+   */
+  private backing(x0: number, y0: number, x1: number, y1: number): { rot: number; along: number; into: number } {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const part = this.plan.rooms.flatMap((r) => r.parts).find(([x, y, pw, ph]) => cx >= x && cx < x + pw && cy >= y && cy < y + ph);
+    const w = x1 - x0, h = y1 - y0;
+    if (!part) return { rot: 0, along: w, into: h };
+    const [px, py, pw, ph] = part;
+    const gaps: [number, number, number, number][] = [
+      [y0 - py, Math.PI, w, h], // north
+      [py + ph - y1, 0, w, h], // south
+      [x0 - px, -Math.PI / 2, h, w], // west
+      [px + pw - x1, Math.PI / 2, h, w], // east
+    ];
+    const [, rot, along, into] = gaps.reduce((a, b) => (b[0] < a[0] ? b : a));
+    return { rot, along, into };
+  }
+
+  private mats: HomeMats | null = null;
+
+  /** The home's furniture, modelled (#747, homeKit.ts): cabinets and tops, appliances, sofas, baths, the cat's things. */
+  private homeKit() {
+    const M = (this.mats = homeMats());
+    const G = new GymGeo(gymMats());
+    this.disposers.push(() => (G.dispose(), disposeMats(G.mats), disposeHomeMats(M)));
+    const all = new THREE.Group();
+    for (const it of this.plan.items) {
+      if (!HOME_MODELS.has(it.k)) continue;
+      const st = KIND_STYLE[it.k];
+      const [x0, y0, x1, y1] = it.round ? [it.x - it.w / 2, it.y - it.w / 2, it.x + it.w / 2, it.y + it.w / 2] : [it.x, it.y, it.x + it.w, it.y + it.h];
+      const { rot, along, into } = this.backing(x0, y0, x1, y1);
+      const m = homeModel(G, M, it.k, along / U, into / U, st.height / U, st.lift / U);
+      if (!m) continue;
+      m.position.set(this.wx((x0 + x1) / 2), 0, this.wz((y0 + y1) / 2));
+      m.rotation.y = rot;
+      if (m.userData.dispose) this.disposers.push(m.userData.dispose as () => void);
+      all.add(m);
+    }
+    // One mesh a material: a few draw calls for the whole home's furniture, however many pieces it has.
+    all.updateMatrixWorld(true);
+    const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    all.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const g = (o.geometry as THREE.BufferGeometry).clone().applyMatrix4(o.matrixWorld);
+      const list = byMat.get(o.material as THREE.Material) ?? [];
+      list.push(g.index ? g.toNonIndexed() : g);
+      if (g.index) g.dispose();
+      byMat.set(o.material as THREE.Material, list);
+    });
+    for (const [mat, list] of byMat) {
+      const merged = mergeGeometries(list, false);
+      for (const g of list) g.dispose();
+      if (!merged) continue;
+      this.disposers.push(() => merged.dispose());
+      const mesh = new THREE.Mesh(merged, mat);
+      mesh.renderOrder = (mat as THREE.MeshStandardMaterial).transparent ? 3 : 1;
+      this.world.add(mesh);
+    }
+  }
+
+  /**
+   * The balcony doors (#747): a tall glass door in a black frame with a transom over it, and the balcony beyond: a
+   * slab on the side away from the rooms with a low glass rail round it.
+   */
+  private balconies() {
+    const list = this.plan.balconies ?? [];
+    if (!list.length) return;
+    const frame = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.5 });
+    const pane = new THREE.MeshStandardMaterial({ color: 0xb8c4dd, roughness: 0.05, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide, emissive: 0x16203a, emissiveIntensity: 0.6 });
+    const slab = new THREE.MeshStandardMaterial({ color: 0x55565a, roughness: 0.9 });
+    const rail = new THREE.MeshStandardMaterial({ color: 0xd8e6f0, roughness: 0.05, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    this.disposers.push(() => (frame.dispose(), pane.dispose(), slab.dispose(), rail.dispose(), geo.dispose()));
+    const box = (mat: THREE.Material, sx: number, sy: number, sz: number, x: number, y: number, z: number, order = 0) => {
+      const o = new THREE.Mesh(geo, mat);
+      o.scale.set(sx, sy, sz);
+      o.position.set(x, y, z);
+      o.renderOrder = order;
+      this.world.add(o);
+    };
+    for (const s of list) {
+      const hz = s[1] === s[3];
+      const a = hz ? Math.min(s[0], s[2]) : Math.min(s[1], s[3]), b = hz ? Math.max(s[0], s[2]) : Math.max(s[1], s[3]);
+      const L = (b - a) / U, mid = (a + b) / 2, line = hz ? s[1] : s[0];
+      // Outside: the side of the wall with no room.
+      const probe = (d: number) => (hz ? roomAt(this.plan, mid, line + d) : roomAt(this.plan, line + d, mid));
+      const out = probe(30) ? -1 : probe(-30) ? 1 : 1;
+      const at = (along: number, off: number): [number, number] => (hz ? [this.wx(along), this.wz(line + off)] : [this.wx(line + off), this.wz(along)]);
+      const put = (mat: THREE.Material, len: number, sy: number, dep: number, along: number, off: number, y: number, order = 0) => {
+        const [x, z] = at(along, off);
+        box(mat, hz ? len : dep, sy, hz ? dep : len, x, y, z, order);
+      };
+      const H = WH * 0.97, tr = WH * 0.8;
+      // The door: glass, a frame round it, the transom bar, the meeting stile of a pair.
+      put(pane, L, H, 0.012, mid, 0, H / 2, 3);
+      for (const e of [a + 2, b - 2]) put(frame, 0.035, H, T + 0.02, e, 0, H / 2);
+      put(frame, L, 0.035, T + 0.02, mid, 0, H);
+      put(frame, L, 0.025, T + 0.02, mid, 0, tr);
+      if (L > 1.1) put(frame, 0.025, tr, T + 0.02, mid, 0, tr / 2);
+      // The balcony beyond.
+      const dep = 120, wide = b - a + 80;
+      put(slab, wide / U, 0.04, dep / U, mid, out * (dep / 2 + 3), -0.015);
+      put(rail, wide / U, 0.42, 0.01, mid, out * (dep + 3), 0.21, 3);
+      put(frame, wide / U, 0.02, 0.025, mid, out * (dep + 3), 0.43);
+      for (const e of [mid - wide / 2, mid + wide / 2]) put(rail, 0.01, 0.42, dep / U, e, out * (dep / 2 + 3), 0.21, 3);
     }
   }
 
@@ -657,7 +790,17 @@ export class House {
     const dark = new THREE.MeshStandardMaterial({ color: 0x1a1b1f, roughness: 0.4, emissive: 0x4fd6ff, emissiveIntensity: 0.25 });
     this.disposers.push(() => (body.dispose(), dark.dispose()));
     const s = 1 / U;
+    const G = new GymGeo(gymMats());
+    this.disposers.push(() => (G.dispose(), disposeMats(G.mats)));
     for (const d of this.plan.devices) {
+      // The pets' devices as they are (#747): modelled, their front to the room.
+      const model = this.mats ? deviceModel(G, this.mats, d.kind, s) : null;
+      if (model) {
+        model.position.set(this.wx(d.x), d.lift / U, this.wz(d.y));
+        model.rotation.y = this.backing(d.x - 10, d.y - 10, d.x + 10, d.y + 10).rot;
+        this.world.add(model);
+        continue;
+      }
       let geo: THREE.BufferGeometry;
       if (d.kind === "vacuum") geo = new THREE.BoxGeometry(26 * s, 30 * s, 22 * s);
       else if (d.kind === "dry-feeder" || d.kind === "wet-feeder") geo = new THREE.CylinderGeometry(11 * s, 13 * s, 28 * s, 24);
@@ -1051,6 +1194,10 @@ export class House {
     const w = (x1 - x0) / U, d = (y1 - y0) / U;
     const r0 = Math.max((d * 1.9) / 2 / Math.tan(fov / 2), (w * 1.8) / 2 / (Math.tan(fov / 2) * asp)) + 0.8;
     const turn = Math.atan2(Math.sin(this.cam.th - HOME_TH), Math.cos(this.cam.th - HOME_TH));
+    // The kitchen (#747) as it is seen walking out of the bedroom: from the bedroom's side, lower and closer, looking
+    // across the island to the fridge and the cabinet run.
+    const from = kitchenFrom(this.plan, r);
+    if (from) return { tx: this.wx((x0 + x1) / 2), tz: this.wz((y0 + y1) / 2), th: from, ph: 0.98, r: Math.max(2.6, r0 * 0.72) };
     return { tx: this.wx((x0 + x1) / 2), tz: this.wz((y0 + y1) / 2) + 0.1, th: HOME_TH + turn * 0.5, ph: 0.55, r: Math.max(3.4, r0) };
   }
 

@@ -29,12 +29,15 @@ export const KINDS = [
   "console", "tv", "sofa", "ctable", "lamp", "cattree", "minifridge", "vanity", "wc", "tub", "shower",
   "desk", "monitor", "tower", "speaker", "ochair", "dj", "loveseat", "printer", "bed", "night", "dresser", "rail",
   "rack", "barbell", "bench", "dbrack", "kettle", "treadmill", "bike", "gmat", "mirror",
+  // #747: a sideboard with an espresso machine on it, a tub chair, a small plant greenhouse, a coat rack, a plain litter
+  // box, a towel bar, raised double bowls and a ceiling projector.
+  "sideboard", "espresso", "tubchair", "greenhouse", "coatrack", "litterbox", "towelbar", "bowls", "projector",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 
 /** [x, y, width, depth] in plan units, from the top left. */
 export type Rect = [number, number, number, number];
-/** [x1, y1, x2, y2]: a straight run along a wall (doors and windows). */
+/** [x1, y1, x2, y2]: a straight run along a wall (doors, windows and balcony doors). */
 export type Seg = [number, number, number, number];
 
 export interface PlanRoom {
@@ -76,14 +79,19 @@ export interface HavenPlan {
   h: number;
   rooms: PlanRoom[];
   doors: Seg[];
+  /** Windows, wall by wall: only where a wall really has them; a wall with none is solid (#747). */
   windows: Seg[];
+  /** Glass doors out to a balcony, each on an outside wall (#747): drawn as a glass door with the balcony beyond. */
+  balconies: Seg[];
+  /** The wall a room's TV hangs on (#747), as a run along it; the living room is laid out facing it. */
+  tv: Seg[];
   items: PlanItem[];
   devices: PlanDevice[];
   /** The walk from the front door to a detached block, as points. */
   path: [number, number][];
 }
 
-const LIMITS = { rooms: 24, parts: 6, doors: 80, windows: 80, items: 400, devices: 16, path: 24 } as const;
+const LIMITS = { rooms: 24, parts: 6, doors: 80, windows: 80, balconies: 12, tv: 4, items: 400, devices: 16, path: 24 } as const;
 
 const o = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const arr = (v: unknown, max: number): unknown[] => (Array.isArray(v) ? v.slice(0, max) : []);
@@ -156,6 +164,8 @@ export function readPlan(v: unknown): HavenPlan | null {
     rooms,
     doors: arr(b.doors, LIMITS.doors).map(seg).filter((s): s is Seg => s !== null),
     windows: arr(b.windows, LIMITS.windows).map(seg).filter((s): s is Seg => s !== null),
+    balconies: arr(b.balconies, LIMITS.balconies).map(seg).filter((s): s is Seg => s !== null),
+    tv: arr(b.tv, LIMITS.tv).map(seg).filter((s): s is Seg => s !== null),
     items,
     devices,
     path,

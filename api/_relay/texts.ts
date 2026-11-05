@@ -102,7 +102,40 @@ export interface TextItem {
    * code, a promo or the skip list). Sealed with the list; never public, never logged, never sent to a model.
    */
   messages?: ShownText[];
+  /** Why an owed one-to-one thread has no gist yet (#861), from the closed list GIST_WAITS. Left out once it has one. */
+  wait?: GistWait;
 }
+
+/**
+ * Why Dialtone hasn't sorted an owed text yet (#861), so the Desk says the real reason instead of "hasn't read this
+ * one". A closed list: never the error's own words.
+ *
+ *   queued    waiting in line (the backlog goes a few threads a round, newest first)
+ *   cap       the texts line's monthly model cap is reached; it waits for next month or a higher cap
+ *   model     the model call failed (Anthropic or the site's function answered with an error); it tries again
+ *   site      the Mac couldn't reach the site; it tries again
+ *   messages  the Mac couldn't read the thread from BlueBubbles; it tries again
+ *   refused   Dialtone's answer didn't pass the checks; it tries again later
+ */
+export const GIST_WAITS = ["queued", "cap", "model", "site", "messages", "refused"] as const;
+export type GistWait = (typeof GIST_WAITS)[number];
+
+/** Each reason in words for the Desk, after "No gist yet: ". */
+export const GIST_WAIT_WORDS: Record<GistWait, string> = {
+  queued: "waiting in line for Dialtone.",
+  cap: "the texts line's monthly model cap is reached.",
+  model: "the model call failed. Relay tries again shortly.",
+  site: "the Mac couldn't reach the site. Relay tries again shortly.",
+  messages: "the Mac couldn't read this thread from BlueBubbles. Relay tries again shortly.",
+  refused: "Dialtone's answer didn't pass the checks. Relay tries again later.",
+};
+
+/**
+ * What to do when the hub reads no contacts (#861: `contacts: 0` in RelayStatus): macOS hasn't let BlueBubbles read
+ * Contacts, so every sender reads "Unknown". The Desk and `relay check` on the Mac say the same words.
+ */
+export const CONTACTS_HINT =
+  "BlueBubbles can't read your contacts, so every sender shows as Unknown. On the Mac, open System Settings > Privacy & Security > Contacts and turn on BlueBubbles, then quit BlueBubbles (BlueBubbles menu > Quit) and open it again. If BlueBubbles isn't in that list, quit and reopen it once so macOS asks. Names show within a few minutes.";
 
 export interface ShownText {
   text: string;
@@ -250,7 +283,7 @@ const isTime = (v: unknown): v is number => typeof v === "number" && Number.isIn
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")) : null);
 const keysOnly = (o: Record<string, unknown>, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k));
 
-const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages"] as const;
+const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages", "wait"] as const;
 
 /** One item, rebuilt from the allowlist; null for anything else (an unknown key, a long string, a bad time). */
 export function readTextItem(v: unknown): TextItem | null {
@@ -283,7 +316,9 @@ export function readTextItem(v: unknown): TextItem | null {
   if (o.messages !== undefined && !messages) return null;
   // A one-to-one item's texts are only someone else's, with no sender line; a group's each name their sender.
   if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined))) return null;
-  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }) };
+  if (o.wait !== undefined && !(GIST_WAITS as readonly unknown[]).includes(o.wait)) return null;
+  const wait = o.wait as GistWait | undefined;
+  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }), ...(wait && !gist && { wait }) };
 }
 
 /** One older unanswered chat (#758), rebuilt from the allowlist; null for anything else. */

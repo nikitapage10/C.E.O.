@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
-import type { DeviceReading } from "../../../apps/world/src/desk/homeDevices.ts";
+import type { DeviceReading } from "@ceo/desk/homeDevices.ts";
 import { introDue, introStarted, resetIntro } from "./intro.ts";
 import { angleOf, DIAL_A0, DIAL_SWEEP, gaugesOf, setOf, threadPoint, THREAD_TO, turnTo, type GaugeInput } from "./plinth.ts";
 import { hullHits, hullOf } from "./house.ts";

@@ -1,6 +1,6 @@
 /**
  * The Talk call's start timings (#512), kept like the Lattice's boot timings (#373, timing.ts): the Desk's Talk button
- * times each call from the tap to Skippy's first word (apps/world/src/desk/skippy/talk.ts, #496) and sends the numbers
+ * times each call from the tap to Skippy's first word (apps/desk/src/skippy/talk.ts, #496) and sends the numbers
  * here when the call reaches its first word or fails. Behind the site lock, like every function; on Vercel a rewrite
  * (/api/talk-timing → /api/world?timing=talk), on Azure its own endpoint.
  *

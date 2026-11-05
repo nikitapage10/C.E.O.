@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { ago } from "../../../apps/world/src/desk/foundryGraph.ts";
+import { ago } from "@ceo/desk/foundryGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
 import { useSecurityFeed, type FeedState, type SecurityFeed } from "../data/feed.ts";
 import { BOUNDARIES, EVAL_AREAS, EVALS, OWASP_LLM, ROADMAP, ZONES, isShipped, partsOf, refsOf } from "../data/model.ts";

@@ -698,7 +698,8 @@ export class House {
 
   /**
    * The balcony doors (#747): a tall glass door in a black frame with a transom over it, and the balcony beyond: a
-   * slab on the side away from the rooms with a low glass rail round it.
+   * slab on the side away from the rooms with a low glass rail round it. A wide balcony's wall is glazed like the other
+   * rooms' (#860): its windows are drawn with theirs, the door is one of these, and its slab (`decks`) runs its width.
    */
   private balconies() {
     const list = this.plan.balconies ?? [];
@@ -716,18 +717,26 @@ export class House {
       o.renderOrder = order;
       this.world.add(o);
     };
-    for (const s of list) {
+    const decks = this.plan.decks ?? [];
+    // A door no deck holds (a plan drawn before #860) gets a balcony just wider than itself.
+    const holds = (d: Seg, s: Seg) => (s[1] === s[3] ? d[1] === s[1] && d[3] === s[1] && Math.min(d[0], d[2]) >= Math.min(s[0], s[2]) && Math.max(d[0], d[2]) <= Math.max(s[0], s[2]) : d[0] === s[0] && d[2] === s[0] && Math.min(d[1], d[3]) >= Math.min(s[1], s[3]) && Math.max(d[1], d[3]) <= Math.max(s[1], s[3]));
+    const along = (s: Seg) => {
       const hz = s[1] === s[3];
       const a = hz ? Math.min(s[0], s[2]) : Math.min(s[1], s[3]), b = hz ? Math.max(s[0], s[2]) : Math.max(s[1], s[3]);
-      const L = (b - a) / U, mid = (a + b) / 2, line = hz ? s[1] : s[0];
+      const mid = (a + b) / 2, line = hz ? s[1] : s[0];
       // Outside: the side of the wall with no room.
       const probe = (d: number) => (hz ? roomAt(this.plan, mid, line + d) : roomAt(this.plan, line + d, mid));
       const out = probe(30) ? -1 : probe(-30) ? 1 : 1;
-      const at = (along: number, off: number): [number, number] => (hz ? [this.wx(along), this.wz(line + off)] : [this.wx(line + off), this.wz(along)]);
-      const put = (mat: THREE.Material, len: number, sy: number, dep: number, along: number, off: number, y: number, order = 0) => {
-        const [x, z] = at(along, off);
+      const at = (t: number, off: number): [number, number] => (hz ? [this.wx(t), this.wz(line + off)] : [this.wx(line + off), this.wz(t)]);
+      const put = (mat: THREE.Material, len: number, sy: number, dep: number, t: number, off: number, y: number, order = 0) => {
+        const [x, z] = at(t, off);
         box(mat, hz ? len : dep, sy, hz ? dep : len, x, y, z, order);
       };
+      return { a, b, mid, out, put };
+    };
+    for (const s of list) {
+      const { a, b, mid, put } = along(s);
+      const L = (b - a) / U;
       const H = DOOR_H, tr = DOOR_H * 0.86;
       // The door: glass, a frame round it, the transom bar, the meeting stile of a pair.
       put(pane, L, H, 0.012, mid, 0, H / 2, 3);
@@ -737,8 +746,11 @@ export class House {
       if (L > 1.1) put(frame, 0.025, tr, T + 0.02, mid, 0, tr / 2);
       // The handle, a tall bar at the meeting stile (or the door's far edge), so a door never reads as a window.
       put(frame, 0.03, WH * 0.12, 0.06, L > 1.1 ? mid + 0.06 : mid + L * 0.3, 0, WH * 0.3);
-      // The balcony beyond.
-      const dep = 120, wide = b - a + 80;
+    }
+    // The balconies beyond.
+    for (const s of [...decks, ...list.filter((d) => !decks.some((k) => holds(d, k)))]) {
+      const { a, b, mid, out, put } = along(s);
+      const dep = 120, wide = b - a + (b - a > 140 ? 24 : 80);
       put(slab, wide / U, 0.04, dep / U, mid, out * (dep / 2 + 3), -0.015);
       const RH = WH * 0.3; // the balcony rail: about waist height against the wall
       put(rail, wide / U, RH, 0.01, mid, out * (dep + 3), RH / 2, 3);

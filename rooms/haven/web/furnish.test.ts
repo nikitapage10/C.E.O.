@@ -40,8 +40,14 @@ describe("dressing the rooms (#747, #764)", () => {
     }
   });
 
-  it("hangs the living room's TV on the wall the plan names, over its console, the sectional facing it", () => {
-    const list = plan.items.filter(inRoom("living"));
+  it("with a Gym, hangs the TV on the solid wall nearest it even when another wall was saved (#860)", () => {
+    const named = furnish(base).items.filter(inRoom("living")).find((i) => i.k === "tv")!;
+    const fresh = furnish({ ...base, tv: [] }).items.filter(inRoom("living")).find((i) => i.k === "tv")!;
+    expect([named.x, named.y, named.w, named.h]).toEqual([fresh.x, fresh.y, fresh.w, fresh.h]);
+  });
+
+  it("without a Gym, hangs the living room's TV on the wall the plan names, over its console, the sectional facing it", () => {
+    const list = furnish({ ...base, rooms: base.rooms.filter((r) => r.id !== "gym") }).items.filter(inRoom("living"));
     const tv = list.find((i) => i.k === "tv")!;
     expect(tv.x).toBe(600);
     expect(list.find((i) => i.k === "console")!.x).toBeLessThan(650);
@@ -79,7 +85,9 @@ describe("dressing the rooms (#747, #764)", () => {
 
   it("puts the fridge at the left end of the cabinet run, the espresso machine on the counter, and no sideboard", () => {
     // The made-up kitchen's run is on its north wall: looking at it, left is west. The stored fridge stood at the east.
-    const k = plan.items.filter(inRoom("kitchen"));
+    // With no dining room of its own, the coffee stays on the counter (#860).
+    const p = furnish({ ...base, rooms: base.rooms.filter((r) => r.id !== "nook") });
+    const k = p.items.filter(inRoom("kitchen"));
     const fridge = k.find((i) => i.k === "fridge")!, counter = k.find((i) => i.k === "counter")!;
     expect(fridge.x).toBeLessThan(counter.x);
     expect(fridge.x).toBeGreaterThanOrEqual(220);
@@ -94,7 +102,7 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(ex).toBeLessThan(counter.x + counter.w);
     expect(ey).toBeGreaterThan(counter.y);
     expect(ey).toBeLessThan(counter.y + counter.h);
-    expect(plan.items.some((i) => i.k === "sideboard")).toBe(false);
+    expect(p.items.some((i) => i.k === "sideboard")).toBe(false);
     // Loose jars (the bottles) are gone with it.
     expect(k.some((i) => i.k === "jar")).toBe(false);
   });
@@ -148,6 +156,38 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(m).not.toContain("tub");
   });
 
+  it("with a door across the back wall, stands the coffee station on the next free wall; the espresso leaves the counter (#860)", () => {
+    for (const p of [plan, furnish({ ...base, windows: [], balconies: [], tv: [], openings: undefined })]) {
+      const d = p.items.filter(inRoom("nook"));
+      const board = d.find((i) => i.k === "sideboard")!, esp = d.find((i) => i.k === "espresso")!;
+      // The made-up dining room's back wall (y 320) is mostly a door, so the station stands against another wall.
+      const R = room("nook").parts[0]!;
+      expect(board.x <= R[0] + 6 || board.x + board.w >= R[0] + R[2] - 6 || board.y + board.h >= R[1] + R[3] - 6).toBe(true);
+      const [ex, ey] = mid(esp);
+      expect(ex).toBeGreaterThan(board.x);
+      expect(ex).toBeLessThan(board.x + board.w);
+      expect(ey).toBeGreaterThan(board.y);
+      expect(ey).toBeLessThan(board.y + board.h);
+      // Behind the table, clear of it and of the feeding station.
+      const table = d.find((i) => i.k === "table")!;
+      const overlap = (a: PlanItem, b: PlanItem) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      expect(overlap(board, table)).toBe(false);
+      expect(p.items.filter((i) => i.k === "espresso")).toHaveLength(1);
+    }
+  });
+
+  it("stands the coffee station on the dining room's back wall, the TV's side, stepping the table out for it (Nikita 2026-11-05 21:09Z)", () => {
+    // A deeper made-up dining room whose back wall (y 320, the living room TV's side, away from the Gym) has no door.
+    const rooms = base.rooms.filter((r) => r.id !== "bedroom").map((r) => (r.id === "nook" ? { ...r, parts: [[220, 320, 380, 260]] as typeof r.parts } : r));
+    // The living room's north wall solid too, so the TV hangs there and the dining room's matching wall takes the station.
+    const p = furnish({ ...base, rooms, tv: [], windows: base.windows.filter((w) => !(w[1] === 40 && w[0] >= 600)), doors: base.doors.filter((d) => !(d[1] === 320 && d[3] === 320)) });
+    const d = p.items.filter(inRoom("nook"));
+    const board = d.find((i) => i.k === "sideboard")!, table = d.find((i) => i.k === "table")!;
+    expect(board.y).toBeLessThan(330);
+    expect(table.y).toBeGreaterThanOrEqual(board.y + board.h + 40);
+    expect(p.items.filter((i) => i.k === "espresso")).toHaveLength(1);
+  });
+
   it("puts a coat rack by the front door, the raised bowls at the end of the feeding row, a tub chair in the dining area", () => {
     const rack = plan.items.find((i) => i.k === "coatrack")!;
     expect(rack.y).toBeLessThan(90);
@@ -173,27 +213,41 @@ describe("dressing the rooms (#747, #764)", () => {
     const got = furnish(bare);
     const on = (segs: number[][], x0: number, y0: number, x1: number, y1: number) => segs.filter((s) => s[0]! >= x0 && s[2]! <= x1 && s[1]! >= y0 && s[3]! <= y1);
 
-    it("runs the living room's balcony the whole length of its longest outside wall (#806)", () => {
-      // Its outside walls: north (360 long) and east (420): the east wins.
+    it("runs the living room's balcony the whole length of its longest outside wall (#806), glazed like the other rooms (#860)", () => {
+      // Its outside walls: north (360 long) and east (420): the east wins. The balcony slab runs all of it.
+      const deck = on(got.decks ?? [], 960, 40, 960, 460);
+      expect(deck).toHaveLength(1);
+      expect(Math.abs(deck[0]![3]! - deck[0]![1]!)).toBeGreaterThan(380);
+      // One door out, at the end nearest the Studio (south), and windows along the rest.
       const door = on(got.balconies, 960, 40, 960, 460);
       expect(door).toHaveLength(1);
-      expect(Math.abs(door[0]![3]! - door[0]![1]!)).toBeGreaterThan(380);
-      expect(on(got.windows, 960, 40, 960, 460)).toHaveLength(0);
+      expect(Math.abs(door[0]![3]! - door[0]![1]!)).toBeLessThanOrEqual(90);
+      expect(Math.min(door[0]![1]!, door[0]![3]!)).toBeGreaterThan(300);
+      const win = on(got.windows, 960, 40, 960, 460);
+      expect(win).toHaveLength(1);
+      expect(Math.abs(win[0]![3]! - win[0]![1]!)).toBeGreaterThan(250);
       expect(on(got.windows, 600, 40, 960, 40)).toHaveLength(0);
     });
 
-    it("hangs the TV on the solid wall opposite, the sectional facing it and the cat tree by the balcony door", () => {
-      expect(got.tv).toEqual([[600, 40, 600, 460]]);
+    it("without a Gym, hangs the TV across from the balcony", () => {
+      const p = furnish({ ...bare, rooms: bare.rooms.filter((r) => r.id !== "gym") });
+      expect(p.tv).toEqual([[600, 40, 600, 460]]);
+    });
+
+    it("hangs the TV on the back wall, across the room from the Gym (Nikita 2026-11-05 21:09Z), the sectional facing it", () => {
+      // The made-up Gym lies below the flat: the living room's south wall (y 460) is nearest it, so the TV goes on
+      // the north wall (y 40), the room turned 180° from the gym side.
+      expect(got.tv).toEqual([[600, 40, 960, 40]]);
       const list = got.items.filter(inRoom("living"));
-      const tv = list.find((i) => i.k === "tv")!;
-      expect(tv.x).toBeLessThan(612);
+      const tv = list.find((i) => i.k === "tv")!, con = list.find((i) => i.k === "console")!;
+      expect(tv.y).toBeLessThan(50);
+      expect(tv.w).toBeGreaterThan(tv.h);
+      expect(con.y).toBeLessThan(50);
       const sofas = list.filter((i) => i.k === "sofa");
-      const run = sofas.reduce((a, b) => (b.h > a.h ? b : a));
-      expect(run.h).toBeGreaterThan(run.w);
-      expect(run.x).toBeGreaterThan(tv.x + 150);
-      const tree = list.find((i) => i.k === "cattree")!;
-      expect(tree.x).toBeGreaterThan(900);
-      expect(tree.y).toBeGreaterThan(380);
+      const run = sofas.reduce((a, b) => (b.w > a.w ? b : a));
+      expect(run.w).toBeGreaterThan(run.h);
+      expect(run.y).toBeGreaterThan(tv.y + tv.h + 150);
+      expect(list.filter((i) => i.k === "cattree")).toHaveLength(1);
     });
 
     it("keeps the arc lamp where it stood before the walls gave the openings", () => {
@@ -213,7 +267,12 @@ describe("dressing the rooms (#747, #764)", () => {
     it("gives the hall outside the bedroom a balcony door and a window, and its nook: greenhouse, cat bed, purifier", () => {
       const door = on(got.balconies, 40, 40, 40, 540), win = on(got.windows, 40, 40, 40, 540);
       expect(door).toHaveLength(1);
-      expect(win).toHaveLength(1);
+      // The big window, and the balcony's own windows beside its door (#860): no wall of glass door.
+      expect(win).toHaveLength(2);
+      expect(Math.abs(door[0]![3]! - door[0]![1]!)).toBeLessThanOrEqual(90);
+      const deck = on(got.decks ?? [], 40, 40, 40, 540);
+      expect(deck).toHaveLength(1);
+      expect(Math.abs(deck[0]![3]! - deck[0]![1]!)).toBeGreaterThan(200);
       // The corner by the bedroom door (y 470 to 530) is left for the greenhouse: the door is short of it.
       expect(Math.max(door[0]![1]!, door[0]![3]!)).toBeLessThanOrEqual(540 - 90);
       const hallItems = got.items.filter(inRoom("hall"));

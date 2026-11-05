@@ -1,4 +1,4 @@
-import type { FlowLine, Pt } from "../../../apps/world/src/desk/flow/index.ts";
+import type { FlowLine, Pt } from "@ceo/desk/flow/index.ts";
 import type { SecurityFeed } from "./feed.ts";
 import type { RiskStatus } from "./model.ts";
 

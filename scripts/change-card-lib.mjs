@@ -16,7 +16,7 @@ export const AREA_RULES = [
   [/^tests\//, "Tests"],
   [/^api\/_security\//, "Security"],
   [/^api\//, "API"],
-  [/^apps\/world\/src\/desk\//, "Desk"],
+  [/^apps\/desk\//, "Desk"],
   [/^apps\/world\/public\//, "Assets"],
   [/^apps\/world\/src\//, "Lattice"],
   [/^apps\/hub\//, "Hub"],

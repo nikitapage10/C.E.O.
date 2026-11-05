@@ -2,9 +2,11 @@
  * Today's Senate Rotunda read aloud (#755). Nikita, 2026-11-05: "Let's have a sound on button for the today page and have
  * some of these conversations actually voice acted ... it also will help the flow and the timing of things."
  *
- * With sound on, the chair (Skippy) speaks in his own voice, ELEVENLABS_VOICE_ID, Nikita's custom voice, and every
- * submind speaks in a premade ElevenLabs voice of its own that fits how it talks. This file is the one place each one is
- * picked (`ROTUNDA_VOICES`). The browser asks through the rooms' speak path, POST /api/skippy-room with
+ * With sound on, every member speaks in Skippy's own voice, ELEVENLABS_VOICE_ID, Nikita's custom Skippy voice: they are
+ * all Skippys, the chair and his subminds alike (Nikita, 2026-11-05: "when I turn sound on, it's not actually Skippy's
+ * voice"; until then each submind had a premade ElevenLabs voice of its own). What still tells them apart is each
+ * member's pace and steadiness, the same bend it has on its room's mic. This file is the one place each one is set
+ * (`ROTUNDA_VOICES`). The browser asks through the rooms' speak path, POST /api/skippy-room with
  * `{ room: "today", speak, as }` (roomroute.ts). Only the Rotunda's captions are ever sent, and they are public-safe by
  * construction (counts, room names, public titles; rite.ts). The privacy check still runs on every line.
  *
@@ -22,51 +24,57 @@ import type { BlobBackend } from "../_blob.js";
 import { canSpeakEleven, elevenCost, storyMonth, type ElevenConfig, type StoryStore } from "../_world/story.js";
 import { ROOM_TTS_FORMAT, ROOM_TTS_MODEL, ROOM_VOICES } from "./roomvoice.js";
 import { SKIPPY_SOUND, type VoiceSound } from "./voicecrew.js";
+import { rateOf } from "@ceo/desk/rotunda/senators.ts";
 
-/** A member's voice in the chamber. */
+/** A member's voice in the chamber: always Skippy's own (ELEVENLABS_VOICE_ID), bent its way. */
 export interface CastVoice {
   /** "The Builder". */
   name: string;
-  /** The ElevenLabs premade voice, or null for Skippy's own (ELEVENLABS_VOICE_ID). */
-  voice: string | null;
-  /** The premade voice's name, for the docs and the lore. */
-  voiceName: string;
+  /** Its pace and steadiness in Skippy's voice. */
   sound: VoiceSound;
 }
 
-const sound = (room: string, fallback: VoiceSound): VoiceSound => ROOM_VOICES[room]?.sound ?? fallback;
+/**
+ * A member's sound in the chamber: its room mic's pace and steadiness, made at a pace that comes back to that once the
+ * browser shifts it into the member's register (#856; senators.ts, `VOICE_PITCH`: a line played a tone up also plays
+ * faster). ElevenLabs takes 0.7 to 1.2.
+ */
+const sound = (room: string, fallback: VoiceSound): VoiceSound => {
+  const s = ROOM_VOICES[room]?.sound ?? fallback;
+  return { ...s, speed: Math.round(Math.min(1.2, Math.max(0.7, s.speed / rateOf(room))) * 100) / 100 };
+};
 
 /**
- * Who speaks in which voice, keyed by the Rotunda's seat ids (its rooms; "kernel" is the chair). The premade voices are
- * ElevenLabs' default library, open to every plan, and no two members share one. The pace and steadiness are each
- * member's on the room mic (roomvoice.ts), so a submind sounds the same way in its room and in the chamber.
+ * Who speaks how, keyed by the Rotunda's seat ids (its rooms; "kernel" is the chair). One voice, Skippy's, for all of
+ * them; the pace and steadiness are each member's on the room mic (roomvoice.ts), so a submind sounds the same way in its
+ * room and in the chamber.
  */
 export const ROTUNDA_VOICES: Record<string, CastVoice> = {
-  kernel: { name: "Skippy, the Magnificent", voice: null, voiceName: "Skippy's own", sound: SKIPPY_SOUND },
-  // A hot-tempered foreman: gravelly and short.
-  foundry: { name: "The Builder", voice: "N2lVS1w4EtoT3dr4eOWO", voiceName: "Callum", sound: sound("foundry", SKIPPY_SOUND) },
-  // A smarmy executive: smooth and persuasive.
-  spire: { name: "The Executive", voice: "CwhRBWXzGAHq8TQ4Fs17", voiceName: "Roger", sound: sound("spire", SKIPPY_SOUND) },
-  // A nervous odds-maker: young and quick.
-  exchange: { name: "The Bookie", voice: "TX3LPaxmHKxFdv7VOQHJ", voiceName: "Liam", sound: sound("exchange", SKIPPY_SOUND) },
-  // A play-by-play commentator: bright and hyped.
-  green: { name: "The Commentator", voice: "IKne3meq5aSn9XLyUdCD", voiceName: "Charlie", sound: sound("green", SKIPPY_SOUND) },
-  // A jittery gossip: playful and fast.
-  relay: { name: "The Messenger", voice: "cgSgspJ2msm6clMCkdW9", voiceName: "Jessica", sound: sound("relay", SKIPPY_SOUND) },
-  // A footnote-obsessed pedant: a warm British storyteller.
-  archive: { name: "The Historian", voice: "JBFqnCBsd6RMkjVDRZzb", voiceName: "George", sound: sound("archive", SKIPPY_SOUND) },
-  // The Breakroom's host: enthusiastic and quirky.
-  breakroom: { name: "The Life of the Party", voice: "FGY2WhTYpPnrIDTdsKH5", voiceName: "Laura", sound: { speed: 1.08, stability: 0.32, similarity_boost: 0.75 } },
-  // A gloomy pessimist: deep, low and slow.
-  boiler: { name: "The Pessimist", voice: "nPczCjzI2devNBz1zQrb", voiceName: "Brian", sound: sound("boiler", SKIPPY_SOUND) },
-  // A temperamental artiste: dramatic and breathy.
-  workshop: { name: "The Artiste", voice: "XB0fDUnXU5powFXDhCwa", voiceName: "Charlotte", sound: sound("workshop", SKIPPY_SOUND) },
-  // A dramatic auteur: a classy tenor.
-  studio: { name: "The Director", voice: "cjVigY5qzO86Huf0OWal", voiceName: "Eric", sound: sound("studio", SKIPPY_SOUND) },
-  // A house steward with a ledger: crisp and British.
-  haven: { name: "The Steward", voice: "Xb7hH8MSUJpSbSDYk0k2", voiceName: "Alice", sound: sound("haven", SKIPPY_SOUND) },
-  // A stage manager on a headset: level and neutral.
-  annex: { name: "The Stagehand", voice: "SAz9YHcvj6GT2YYXdXww", voiceName: "River", sound: sound("annex", SKIPPY_SOUND) },
+  kernel: { name: "Skippy, the Magnificent", sound: SKIPPY_SOUND }, // the central voice, at its own pitch
+  // A hot-tempered foreman: measured and heavy.
+  foundry: { name: "The Builder", sound: sound("foundry", SKIPPY_SOUND) },
+  // A smarmy executive: smooth.
+  spire: { name: "The Executive", sound: sound("spire", SKIPPY_SOUND) },
+  // A nervous odds-maker: quick and a little unsteady.
+  exchange: { name: "The Bookie", sound: sound("exchange", SKIPPY_SOUND) },
+  // A play-by-play commentator: fast and hyped.
+  green: { name: "The Commentator", sound: sound("green", SKIPPY_SOUND) },
+  // A jittery gossip: the fastest in the chamber.
+  relay: { name: "The Messenger", sound: sound("relay", SKIPPY_SOUND) },
+  // A footnote-obsessed pedant: slow and even.
+  archive: { name: "The Historian", sound: sound("archive", SKIPPY_SOUND) },
+  // The Breakroom's host: bright and loose.
+  breakroom: { name: "The Life of the Party", sound: sound("breakroom", { speed: 1.08, stability: 0.32, similarity_boost: 0.75 }) },
+  // A gloomy pessimist: the slowest and flattest.
+  boiler: { name: "The Pessimist", sound: sound("boiler", SKIPPY_SOUND) },
+  // A temperamental artiste: dramatic and wavering.
+  workshop: { name: "The Artiste", sound: sound("workshop", SKIPPY_SOUND) },
+  // A dramatic auteur: brisk.
+  studio: { name: "The Director", sound: sound("studio", SKIPPY_SOUND) },
+  // A house steward with a ledger: unhurried and crisp.
+  haven: { name: "The Steward", sound: sound("haven", SKIPPY_SOUND) },
+  // A stage manager on a headset: quick and level.
+  annex: { name: "The Stagehand", sound: sound("annex", SKIPPY_SOUND) },
 };
 
 export const castVoiceOf = (by: unknown): CastVoice | null => (typeof by === "string" && Object.hasOwn(ROTUNDA_VOICES, by) ? ROTUNDA_VOICES[by]! : null);
@@ -110,14 +118,15 @@ export interface CastDeps {
 }
 
 /**
- * One line in a member's voice: from the cache when it has been said before, else made once by ElevenLabs Flash and kept.
+ * One line in Skippy's voice, bent the member's way: from the cache when it has been said before, else made once by ElevenLabs Flash and kept.
  * Null when it can't be (no key, no store, the cap or the share reached, ElevenLabs down or slow).
  */
 export async function speakCast(by: string, say: string, deps: CastDeps): Promise<{ audio: Uint8Array; cached: boolean } | null> {
   const cast = castVoiceOf(by);
   const text = say.replace(/\s+/g, " ").trim();
   if (!cast || !text || text.length > ROTUNDA_SAY_MAX || !deps.eleven || !deps.ledger || !deps.blob) return null;
-  const voice = cast.voice ?? deps.eleven.voice;
+  // Skippy's own voice for every member (ELEVENLABS_VOICE_ID, read by elevenFromEnv).
+  const voice = deps.eleven.voice;
   const path = await lineKey(text, voice, cast.sound);
   try {
     const kept = await deps.blob.get(path, { cached: true });

@@ -11,9 +11,9 @@ import { useSystems, type LinkState } from "../../../apps/world/src/systems.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, foundryJobs, formatTokens, formatUsd, monthSpend, MODELS, SPEND_CAP_USD, useUsage, workByModel, type Trail } from "../../../apps/world/src/usage.ts";
 import { startEmail, useEmail } from "../../relay/data/email.ts";
 import { startPolymarket } from "../../exchange/data/polymarket.ts";
-import { ago } from "../../../apps/world/src/desk/foundryGraph.ts";
+import { ago } from "@ceo/desk/foundryGraph.ts";
 import { startGreen } from "../../green/data/league.ts";
-import { useSetup } from "../../../apps/world/src/desk/IdeaCard.tsx";
+import { useSetup } from "@ceo/desk/IdeaCard.tsx";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { KeysPanel } from "./KeysPanel.tsx";
 import { PhonesPanel } from "./PhonesPanel.tsx";
@@ -22,10 +22,11 @@ import { startInvoices } from "../../spire/data/invoices.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
 import { startTexts } from "../../relay/data/texts.ts";
 import { mtTime } from "../../today/data/todaySchedule.ts";
-import { startHome, useHome } from "../../../apps/world/src/desk/homeDevices.ts";
+import { startHome, useHome } from "@ceo/desk/homeDevices.ts";
 import { GoogleLinks, HAVEN_RESULT, KrogerSetup, PetSetup, RoborockSetup } from "./HouseSetup.tsx";
 import { ACCENT } from "./Rack.tsx";
 import { SettingsPanel } from "./SettingsPanel.tsx";
+import { ToolsChart, ToolsDetail, toolsSub, useToolbelt } from "./ToolsPanel.tsx";
 import { actionOf, actionWord, costumeState, houseRows, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD, type MeterTone, type Share } from "../data/controls.ts";
 import "./controls.css";
 import { BoilerFrame, CapBar, Donut, Panel, Spark, SyncStrip, useOpen } from "./frame.tsx";
@@ -36,7 +37,8 @@ import { controlsNeeds, dailySeries, linkTally, monthSince, syncMark, type LinkR
  * A to F: the meters (the Claude Code plan, the Claude API against its $10, Skippy as an agent against $60, voice,
  * and Relay), the breakers (pings, quiet hours, the site lock, the wake word, auto-approval, the costume party), every
  * connection with its lamp, the Settings (Hide, Hands-free, Ilyr's clock and what runs next, moved here from the bar
- * and Today in #666), then the Keys form and the Phones (moved here from Security). Real data only: a meter with
+ * and Today in #666), Skippy's tools (#847: every tool his agent can call, room by room), then the Keys form and the
+ * Phones (moved here from Security). Real data only: a meter with
  * nothing to read says it's waiting. Signed out, it shows states and counts only: no money, no keys, no contacts.
  */
 
@@ -606,7 +608,7 @@ function HouseSetup() {
 
 /* ── the page (#746, the C3 concept): Needs you, then the circuits as charts, each opening to its full detail ── */
 
-const OPEN_FOR: Record<string, string> = { "ct-house": "ct-links", "ct-links": "ct-links", "ct-keys": "ct-keys", "ct-meters": "ct-meters", "ct-breakers": "ct-breakers", "ct-settings": "ct-settings", "ct-phones": "ct-phones" };
+const OPEN_FOR: Record<string, string> = { "ct-house": "ct-links", "ct-links": "ct-links", "ct-keys": "ct-keys", "ct-meters": "ct-meters", "ct-breakers": "ct-breakers", "ct-settings": "ct-settings", "ct-phones": "ct-phones", "ct-tools": "ct-tools" };
 const ROW_CAP = 8;
 
 function MeterChart({ shown, now, signedIn, trails }: { shown: MeterSpec[]; now: number; signedIn: boolean; trails: Trail[] | null }) {
@@ -735,6 +737,7 @@ export function ControlsPage({ now }: { now: number }) {
   const shown = useMeterSpecs(now, signedIn);
   const rows = useLinkRows();
   const [open, toggle] = useOpen();
+  const belt = useToolbelt();
 
   const reads: MeterRead[] = shown.filter((m) => !m.body).map((m) => ({ id: m.id, name: m.name, tone: meterTone(m.used, m.cap, m.warnAt), share: signedIn && m.used !== null && m.cap ? m.used / m.cap : null }));
   const needs = controlsNeeds(rows, reads, signedIn);
@@ -828,6 +831,9 @@ export function ControlsPage({ now }: { now: number }) {
         </div>
         <Panel id="ct-breakers" title="Breakers" sub="what each switch is doing" open={open.has("ct-breakers")} onToggle={() => toggle("ct-breakers")} chart={<Breakers now={now} signedIn={signedIn} compact />}>
           <Breakers now={now} signedIn={signedIn} />
+        </Panel>
+        <Panel id="ct-tools" title="Skippy's tools" sub={toolsSub(belt)} open={open.has("ct-tools")} onToggle={() => toggle("ct-tools")} chart={<ToolsChart belt={belt} />}>
+          {belt?.total ? <ToolsDetail belt={belt} /> : null}
         </Panel>
         <div className="bx-grid is-3">
           <Panel id="ct-settings" title="Settings" sub="Hide, Hands-free, Ilyr's clock, what's next" open={open.has("ct-settings")} onToggle={() => toggle("ct-settings")}>

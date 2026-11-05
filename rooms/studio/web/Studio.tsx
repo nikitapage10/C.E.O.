@@ -1,6 +1,6 @@
-import { PORTRAITS } from "../../../apps/world/src/desk/portraits.ts";
-import { Keeper, Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
-import "../../../apps/world/src/desk/rooms/rooms.css";
+import { PORTRAITS } from "@ceo/desk/portraits.ts";
+import { Keeper, Waits, type Wait } from "@ceo/desk/rooms/parts.tsx";
+import "@ceo/desk/rooms/rooms.css";
 import "./studio.css";
 
 /**

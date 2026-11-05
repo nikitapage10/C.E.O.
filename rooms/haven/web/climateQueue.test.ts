@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useHome, type DeviceReading } from "../../../apps/world/src/desk/homeDevices.ts";
+import { useHome, type DeviceReading } from "@ceo/desk/homeDevices.ts";
 import { HOLD_MS, moodOf, sameAs, SENT_MS, shownChange, useClimateQueue } from "./climateQueue.ts";
 import { GAP_F, gaugesOf, moveSide, orderGauges } from "./plinth.ts";
 

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { CREW, crewFor, type Crate } from "../../../apps/world/src/foundry.ts";
-import { DESK_ROOMS, formatWait, portrait, useDesk, type DeskAction, type DeskRoom, type OwedReply } from "../../../apps/world/src/desk/deskData.ts";
-import { ideaTitle, Mic, useIdeaChoice, type Setup } from "../../../apps/world/src/desk/IdeaCard.tsx";
-import { link } from "../../../apps/world/src/desk/nav.ts";
+import { DESK_ROOMS, formatWait, portrait, useDesk, type DeskAction, type DeskRoom, type OwedReply } from "@ceo/desk/deskData.ts";
+import { ideaTitle, Mic, useIdeaChoice, type Setup } from "@ceo/desk/IdeaCard.tsx";
+import { link } from "@ceo/desk/nav.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
 

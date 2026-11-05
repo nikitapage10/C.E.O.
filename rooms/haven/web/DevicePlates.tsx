@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import type { DeviceReading } from "../../../apps/world/src/desk/homeDevices.ts";
+import type { DeviceReading } from "@ceo/desk/homeDevices.ts";
 import { bowlChip, cycling, dockOf, DRAWER, drawerWidth, flowing, frontBowl, GLOBE, HOPPER, hopperOf, renderUrl, ringOffset, TANK, trayTurn, TURRET, waterline, type Render } from "./plates.ts";
 import "./plates.css";
 
@@ -29,7 +29,7 @@ function Photo({ name, dim, children }: { name: Render; dim?: boolean; children?
 /** A plate: the render on top, the reading below it (a serif name and number, then whatever the device adds). */
 export function Plate({ title, num, unit, tone, stage, children, label }: { title: string; num?: ReactNode; unit?: string; tone?: "warn" | "ok" | "wait"; stage: ReactNode; children?: ReactNode; label?: string }) {
   return (
-    <section className="hv-plate" aria-label={label ?? title}>
+    <section className="hv-dplate" aria-label={label ?? title}>
       <div className="hv-plStage">{stage}</div>
       <div className="hv-plRead">
         <h3>{title}</h3>

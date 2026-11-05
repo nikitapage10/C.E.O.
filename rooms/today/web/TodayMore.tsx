@@ -1,13 +1,13 @@
 import { chronicleDay, sinceAway, useWorldFeed } from "../../../apps/world/src/chronicle.ts";
 import { shippedToday, useFoundry } from "../../../apps/world/src/foundry.ts";
 import { loadLattice } from "../../../apps/world/src/route.ts";
-import { DESK_ROOMS, roomImage, type DeskAction, type DeskData, type DeskRoom } from "../../../apps/world/src/desk/deskData.ts";
-import { roomLink } from "../../../apps/world/src/desk/hero/roomLink.ts";
-import { link } from "../../../apps/world/src/desk/nav.ts";
-import type { RoomPulse } from "../../../apps/world/src/desk/roomPulse.ts";
+import { DESK_ROOMS, roomImage, type DeskAction, type DeskData, type DeskRoom } from "@ceo/desk/deskData.ts";
+import { roomLink } from "@ceo/desk/hero/roomLink.ts";
+import { link } from "@ceo/desk/nav.ts";
+import type { RoomPulse } from "@ceo/desk/roomPulse.ts";
 import { LaterAct } from "./TodayActs.tsx";
 import { ShortVersion, shortVersion, WorthKnowing } from "./TodayWeave.tsx";
-import { Avatar } from "../../../apps/world/src/desk/ui.tsx";
+import { Avatar } from "@ceo/desk/ui.tsx";
 
 /**
  * Today's "Not worth knowing now" (#363; first "More from today", #336): what can wait, the short version of what

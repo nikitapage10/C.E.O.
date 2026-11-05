@@ -84,6 +84,11 @@ export const RelayStatusSchema = z.strictObject({
   unread: count.optional(),
   /** One-to-one chats whose last message is someone else's but older than the 30-day owed window (#758). Left out by an older hub. */
   older: count.optional(),
+  /**
+   * How many contacts the hub can read through BlueBubbles (#861): 0 means macOS hasn't let BlueBubbles read Contacts,
+   * so every sender reads "Unknown". A count only, never a name. Left out by an older hub, or before the hub has asked.
+   */
+  contacts: count.optional(),
 });
 export type RelayStatus = z.infer<typeof RelayStatusSchema>;
 
@@ -92,8 +97,8 @@ export const RELAY_STATUS_KEYS = Object.keys(RelayStatusSchema.shape) as (keyof 
 
 /** The count fields, for checks that treat them alike. */
 export const RELAY_COUNT_KEYS = ["owed", "sooner", "overdue", "later", "settled", "draftsReady", "sentToday", "streakDays"] as const satisfies readonly (keyof RelayStatus)[];
-/** The counts an older hub may leave out (#758). Each is a count like the others when it is there. */
-export const RELAY_OPTIONAL_KEYS = ["unread", "older"] as const satisfies readonly (keyof RelayStatus)[];
+/** The counts an older hub may leave out (#758, #861). Each is a count like the others when it is there. */
+export const RELAY_OPTIONAL_KEYS = ["unread", "older", "contacts"] as const satisfies readonly (keyof RelayStatus)[];
 
 export type RelayStatusRead = { ok: true; status: RelayStatus } | { ok: false; problems: string[] };
 

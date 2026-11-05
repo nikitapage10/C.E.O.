@@ -5,9 +5,10 @@ import { signedInCookie } from "../_desk/testing.ts";
 import { PhoneTodos } from "../_haven/todos.ts";
 import { MemoryStoryStore, elevenCost, storyMonth } from "../_world/story.ts";
 import { roomVoicePost, type RoomRouteDeps } from "./roomroute.ts";
-import { ROOM_TTS_MODEL } from "./roomvoice.ts";
+import { ROOM_TTS_MODEL, ROOM_VOICES } from "./roomvoice.ts";
 import { ROTUNDA_CACHE, ROTUNDA_SHARE_USD, ROTUNDA_VOICES, lineKey, speakCast } from "./rotundavoice.ts";
-import { SUBMIND_TITLE } from "../../apps/world/src/desk/rotunda/rite.ts";
+import { SUBMIND_TITLE } from "@ceo/desk/rotunda/rite.ts";
+import { rateOf } from "@ceo/desk/rotunda/senators.ts";
 
 /** Today's Rotunda read aloud (#755): one voice per member, each line made once ever, under the cap and its share. Every key and line is made up. */
 
@@ -40,16 +41,33 @@ function fakeEleven(status = 200) {
 }
 
 describe("the Rotunda's voices (#755)", () => {
-  it("gives every member of the chamber a voice, Skippy his own and each submind a distinct premade one", () => {
+  it("gives every member of the chamber Skippy's voice, each bent its own way", () => {
     expect(Object.keys(ROTUNDA_VOICES).sort()).toEqual(Object.keys(SUBMIND_TITLE).sort());
-    expect(ROTUNDA_VOICES.kernel!.voice).toBeNull();
-    const premade = Object.entries(ROTUNDA_VOICES).filter(([id]) => id !== "kernel");
-    expect(premade.length).toBe(12);
-    for (const [id, v] of premade) {
-      expect(v.voice, id).toMatch(/^[A-Za-z0-9]{20}$/);
-      expect(v.name, id).toBe(SUBMIND_TITLE[id]);
+    const subs = Object.entries(ROTUNDA_VOICES).filter(([id]) => id !== "kernel");
+    expect(subs.length).toBe(12);
+    for (const [id, v] of subs) expect(v.name, id).toBe(SUBMIND_TITLE[id]);
+    // No two members sound alike: each has its own pace and steadiness.
+    const bends = Object.values(ROTUNDA_VOICES).map((v) => JSON.stringify([v.sound.speed, v.sound.stability, v.sound.similarity_boost]));
+    expect(new Set(bends).size).toBe(13);
+  });
+
+  it("makes each line at a pace that comes back to the member's own once the browser shifts it into its register (#856)", () => {
+    for (const [id, v] of Object.entries(ROTUNDA_VOICES)) {
+      expect(v.sound.speed, id).toBeGreaterThanOrEqual(0.7);
+      expect(v.sound.speed, id).toBeLessThanOrEqual(1.2);
+      const own = ROOM_VOICES[id]?.sound.speed;
+      if (own !== undefined) expect(v.sound.speed * rateOf(id), id).toBeCloseTo(own, 1);
     }
-    expect(new Set(premade.map(([, v]) => v.voice)).size).toBe(12);
+  });
+
+  it("speaks every member, chair and subminds alike, in Skippy's own voice (ELEVENLABS_VOICE_ID), never a premade one", async () => {
+    const { blob } = memoryBlob();
+    const { calls, fetcher } = fakeEleven();
+    const deps = { blob, eleven, ledger: new MemoryStoryStore(), now: NOW, fetcher };
+    for (const id of Object.keys(ROTUNDA_VOICES)) await speakCast(id, `Order, from ${id}.`, deps);
+    expect(calls).toHaveLength(13);
+    for (const c of calls) expect(c.url).toContain("/text-to-speech/testSkippyVoice01?");
+    expect(new Set(calls.map((c) => JSON.stringify(c.body.voice_settings))).size).toBe(13);
   });
 
   it("names a line by everything that changes how it sounds", async () => {
@@ -70,7 +88,7 @@ describe("the Rotunda's voices (#755)", () => {
     const first = await speakCast("boiler", "Again?", deps);
     expect(first).toMatchObject({ cached: false });
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toContain(`/text-to-speech/${ROTUNDA_VOICES.boiler!.voice}`);
+    expect(calls[0]!.url).toContain("/text-to-speech/testSkippyVoice01");
     expect(calls[0]!.body).toMatchObject({ text: "Again?", model_id: ROOM_TTS_MODEL });
     expect(files.size).toBe(1);
     const month = storyMonth(ledger.spend, NOW);
@@ -146,7 +164,7 @@ describe("the Rotunda's voices (#755)", () => {
       const body = (await (await roomVoicePost(post({ room: "today", speak: "Seconded", as: "foundry" }), d)).json()) as { audio?: string; cached?: boolean; kind: string };
       expect(body).toMatchObject({ kind: "spoken", cached: false });
       expect(Buffer.from(body.audio!, "base64").length).toBe(3_000);
-      expect(calls[0]!.url).toContain(ROTUNDA_VOICES.foundry!.voice!);
+      expect(calls[0]!.url).toContain("/text-to-speech/testSkippyVoice01");
       const twice = (await (await roomVoicePost(post({ room: "today", speak: "Seconded", as: "foundry" }), d)).json()) as { cached?: boolean };
       expect(twice.cached).toBe(true);
       expect(calls).toHaveLength(1);

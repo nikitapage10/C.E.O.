@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Keeper, Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import { Keeper, Waits, type Wait } from "@ceo/desk/rooms/parts.tsx";
 import { InvoicesSection } from "./InvoicesSection.tsx";
 import { startInvoices, useInvoices } from "../data/invoices.ts";
 import { Parts, Poly, useViz, weave, type VizSpec } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import "../../../apps/world/src/desk/rooms/rooms.css";
+import "@ceo/desk/rooms/rooms.css";
 import "./spire.css";
 
 /**

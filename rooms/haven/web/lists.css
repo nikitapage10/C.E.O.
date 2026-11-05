@@ -2,9 +2,11 @@
  * Lists in the Haven (#735): a folded panel on the left of the house, glass over the night, one folding section per
  * list. Scoped to the room; reads the Haven's own tokens.
  */
-/* Spelled with the stage in it so it outranks the engine's `.fl-stage > :not(.fl-cv) {position:relative}`: otherwise the panel falls into the stage's grid and, on a wide screen, can end up a 2px sliver under the house. */
-[data-room="haven"] .hv-stage.fl-stage > .hv-lists{position:absolute;z-index:3;left:var(--fl-pad,16px);top:150px;width:272px;max-height:calc(100% - 330px);overflow:auto;border:1px solid var(--hv-line);border-radius:14px;background:var(--hv-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-[data-room="haven"][data-open] .hv-stage.fl-stage > .hv-lists{display:none}
+[data-room="haven"] .hv-lists{position:absolute;z-index:3;left:var(--fl-pad,16px);top:150px;width:272px;max-height:calc(100% - 330px);overflow:auto;border:1px solid var(--hv-line);border-radius:14px;background:var(--hv-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+[data-room="haven"][data-open] .hv-lists{display:none}
+/* The engine makes every .fl-stage child position:relative (flow.css), which dropped the panel under the house, off the
+   screen (#844); it floats over the house, so it says so a step more specifically. */
+[data-room="haven"] .hv-stage.fl-stage>.hv-lists{position:absolute;z-index:3}
 [data-room="haven"] .hv-lists-h,[data-room="haven"] .hv-ls-h{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 14px;border:0;background:none;color:var(--hv-ink);font-family:var(--hv-text);font-size:13px;letter-spacing:.06em;text-transform:uppercase;text-align:left;cursor:pointer}
 [data-room="haven"] .hv-ls-h{font-size:14px;letter-spacing:0;text-transform:none;color:var(--hv-soft);border-top:1px solid var(--hv-line)}
 [data-room="haven"] .hv-lists-h span,[data-room="haven"] .hv-ls-h span{flex:1}
@@ -36,7 +38,8 @@
 [data-room="haven"] .hv-ls-counts b{margin-left:4px;font-weight:500;color:var(--hv-soft)}
 
 @media (max-width:860px){
-  [data-room="haven"] .hv-stage.fl-stage > .hv-lists{position:relative;left:auto;top:auto;width:auto;max-height:none;margin:12px var(--fl-pad,16px) 0}
+  [data-room="haven"] .hv-lists{position:relative;left:auto;top:auto;width:auto;max-height:none;margin:12px var(--fl-pad,16px) 0}
+  [data-room="haven"] .hv-stage.fl-stage>.hv-lists{position:relative}
 }
 @media (max-width:760px){
   [data-room="haven"] .hv-ls-l label,[data-room="haven"] .hv-ls-add input{font-size:16px}

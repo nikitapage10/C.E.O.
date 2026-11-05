@@ -50,7 +50,7 @@ jobs:
         run: |
           run=true
           if [ "$SUITE" = lattice ] && [ "$EVENT" = pull_request ]; then
-            if ! git diff --name-only "$BASE"...HEAD | sed 's#^tests/e2e/lattice\.spec\.ts$#lattice-spec#' | grep -vqE '^(apps/world/src/desk/|api/|docs/|lore/|tests/e2e/[a-z-]+\.spec\.ts$|.*\.md$)'; then
+            if ! git diff --name-only "$BASE"...HEAD | sed 's#^tests/e2e/lattice\.spec\.ts$#lattice-spec#' | grep -vqE '^(apps/desk/src/|api/|docs/|lore/|tests/e2e/[a-z-]+\.spec\.ts$|.*\.md$)'; then
               run=false
               echo "Nothing the Lattice uses changed; skipping its suite."
             fi

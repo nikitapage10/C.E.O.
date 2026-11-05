@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useFlow, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
+import { useFlow, type FlowLayoutFn, type FlowLine } from "@ceo/desk/flow/index.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { MINT, nowPrice, positionLine, returnPct, toneRgb, waterline } from "../data/floor.ts";

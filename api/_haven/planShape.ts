@@ -87,6 +87,11 @@ export interface HavenPlan {
   balconies: Seg[];
   /** The wall a room's TV hangs on (#747), as a run along it; the living room is laid out facing it. */
   tv: Seg[];
+  /**
+   * Drawing only, never stored or read (#860): the balconies themselves, the slabs outside, each as wide as the run it
+   * was glazed from (rooms/haven/web/furnish.ts); the door out is one of `balconies`.
+   */
+  decks?: Seg[];
   /** True once the openings were set in the wall editor: then windows, balcony doors and TV above are exactly what is drawn. */
   openings?: true;
   items: PlanItem[];

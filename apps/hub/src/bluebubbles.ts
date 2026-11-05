@@ -96,6 +96,30 @@ export function readAvatar(v: unknown): Uint8Array | null {
   return bytes.length >= 64 && bytes.length <= AVATAR_MAX ? bytes : null;
 }
 
+export { CONTACTS_HINT } from "../../../api/_relay/texts.ts";
+
+/**
+ * A contact's handles from BlueBubbles' contact data (#861): each phone number and email as `{ address }` (BlueBubbles
+ * 1.9's shape) or as a bare string, so a shape change can't leave every contact with no handle and every sender
+ * "Unknown".
+ */
+export function contactHandles(c: Record<string, unknown>): string[] {
+  const all: unknown[] = [...(Array.isArray(c.phoneNumbers) ? c.phoneNumbers : []), ...(Array.isArray(c.emails) ? c.emails : [])];
+  return all.map((h) => (typeof h === "string" ? h.slice(0, 200) : str((h as Record<string, unknown> | null)?.address, 200)).trim()).filter(Boolean);
+}
+
+/**
+ * One contact from BlueBubbles' contact data (#861): the name to show first (its display name, else first and last
+ * together, else the nickname), then each part for the placeholders. Memory only.
+ */
+export function readContact(c: Record<string, unknown>): Contact {
+  const first = str(c.firstName, 40).trim();
+  const last = str(c.lastName, 40).trim();
+  const whole = [first, last].filter(Boolean).join(" ");
+  const names = [str(c.displayName, 80).trim(), whole, first, last, str(c.nickname, 40).trim()].filter((x, i, all) => x.length > 1 && all.indexOf(x) === i);
+  return { names, handles: contactHandles(c) };
+}
+
 /** Whether a chat id is a group's (iMessage;+;chat…) rather than one person's (iMessage;-;+1…). */
 export const isGroupChat = (chat: string) => /;\+;/.test(chat);
 export const channelOf = (chat: string): "iMessage" | "SMS" => (/^SMS;/i.test(chat) ? "SMS" : "iMessage");
@@ -244,7 +268,7 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
   const url = (path: string, q: Record<string, string> = {}) => `${base}${path}?${new URLSearchParams({ ...q, password }).toString()}`;
   const get = async (path: string, q?: Record<string, string>) => (await body(await call(fetcher, url(path, q), {}, BB_TIMEOUT_MS), secrets)).data;
   const post = async (path: string, json: unknown, ms = BB_TIMEOUT_MS) => (await body(await call(fetcher, url(path), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(json) }, ms), secrets)).data;
-  const handlesOf = (c: Record<string, unknown>) => [...(Array.isArray(c.phoneNumbers) ? c.phoneNumbers : []), ...(Array.isArray(c.emails) ? c.emails : [])].map((h) => str((h as Record<string, unknown>)?.address, 200)).filter(Boolean);
+  const handlesOf = contactHandles;
   return {
     ping: async () => {
       try {
@@ -257,10 +281,7 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
     contacts: async () => {
       const data = await get("/api/v1/contact");
       if (!Array.isArray(data)) return [];
-      return (data as Record<string, unknown>[]).map((c) => ({
-        names: [str(c.displayName, 80), str(c.firstName, 40), str(c.lastName, 40)].filter((x) => x.trim().length > 1),
-        handles: handlesOf(c),
-      }));
+      return (data as Record<string, unknown>[]).filter((c) => c && typeof c === "object").map(readContact).filter((c) => c.handles.length > 0);
     },
     messages: async (chat, limit) => {
       const data = await get(`/api/v1/chat/${encodeURIComponent(chat)}/message`, { limit: String(Math.min(100, limit)), sort: "DESC", with: "handle" });

@@ -89,7 +89,8 @@ async function stub(page: Page, broken: boolean) {
 }
 
 async function noSideScroll(page: Page) {
-  // The room loader fades out over the page (and its sparks run wide) for a moment after the page is up: wait it out.
+  // The page as it reads once its loader (#752) has faded: the loader is a fixed cover whose motes gather from outside
+  // its mark, so its own boxes overflow while it is up, without ever scrolling the page (rooms/boiler since #842).
   await expect(page.locator(".room-loader")).toHaveCount(0);
   const wide = await page.evaluate(() => {
     const els = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".desk, .desk *")];

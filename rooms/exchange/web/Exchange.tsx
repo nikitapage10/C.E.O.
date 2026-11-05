@@ -1,14 +1,14 @@
-import { Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import { Waits, type Wait } from "@ceo/desk/rooms/parts.tsx";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import { SetupAsks } from "../../../apps/world/src/desk/skippy/SetupAsks.tsx";
-import { RC } from "../../../apps/world/src/desk/flow/index.ts";
+import { SetupAsks } from "@ceo/desk/skippy/SetupAsks.tsx";
+import { RC } from "@ceo/desk/flow/index.ts";
 import { Floor } from "./Floor.tsx";
 import { Watchlist } from "./Markets.tsx";
 import { Movers } from "./Movers.tsx";
 import { PositionsBoard } from "./PositionsBoard.tsx";
 import { bookLine, usePositions } from "../data/positions.ts";
 import { tapeLine, usePolymarket } from "../data/polymarket.ts";
-import "../../../apps/world/src/desk/rooms/rooms.css";
+import "@ceo/desk/rooms/rooms.css";
 import "./exchange.css";
 
 /**

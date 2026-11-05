@@ -3,7 +3,7 @@ import { areaLine, areaOf, cardHtml, checksVerdict, groupAreas, parseChecks, par
 
 describe("change card helpers (#158)", () => {
   it("files each path under the area Nikita would name", () => {
-    expect(areaOf("apps/world/src/desk/Desk.tsx")).toBe("Desk");
+    expect(areaOf("apps/desk/src/Desk.tsx")).toBe("Desk");
     expect(areaOf("apps/world/src/rooms/primitives.tsx")).toBe("Lattice");
     expect(areaOf("api/foundry.ts")).toBe("API");
     expect(areaOf("api/_security/rules.ts")).toBe("Security");
@@ -18,7 +18,7 @@ describe("change card helpers (#158)", () => {
   });
 
   it("reads numstat, binaries included, and groups biggest first", () => {
-    const files = parseNumstat("10\t2\tapps/world/src/desk/Desk.tsx\n3\t0\tapi/foundry.ts\n40\t5\tdocs/FOUNDRY.md\n-\t-\tapps/world/public/desk/a.webp\n1\t1\tdocs/DELIVERY.md\n\njunk line");
+    const files = parseNumstat("10\t2\tapps/desk/src/Desk.tsx\n3\t0\tapi/foundry.ts\n40\t5\tdocs/FOUNDRY.md\n-\t-\tapps/world/public/desk/a.webp\n1\t1\tdocs/DELIVERY.md\n\njunk line");
     expect(files).toHaveLength(5);
     expect(files[3]).toEqual({ path: "apps/world/public/desk/a.webp", added: 0, removed: 0 });
     const groups = groupAreas(files);

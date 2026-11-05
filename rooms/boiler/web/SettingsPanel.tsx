@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { HideButton } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { handsFreeSupported } from "../../../apps/world/src/desk/roomvoice/roomVoice.ts";
-import { HandsFree } from "../../../apps/world/src/desk/roomvoice/RoomMic.tsx";
-import { PlanWatch } from "../../../apps/world/src/desk/skippy/PlanWatch.tsx";
+import { handsFreeSupported } from "@ceo/desk/roomvoice/roomVoice.ts";
+import { HandsFree } from "@ceo/desk/roomvoice/RoomMic.tsx";
+import { PlanWatch } from "@ceo/desk/skippy/PlanWatch.tsx";
 import { Ephemeris, IlyrReadout, useRuns } from "../../today/web/TodayRail.tsx";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 

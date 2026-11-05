@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Keeper } from "../../../apps/world/src/desk/rooms/parts.tsx";
-import { SetupAsks } from "../../../apps/world/src/desk/skippy/SetupAsks.tsx";
+import { Keeper } from "@ceo/desk/rooms/parts.tsx";
+import { SetupAsks } from "@ceo/desk/skippy/SetupAsks.tsx";
 import { clamp, reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import {
   callConfidence,
@@ -30,8 +30,8 @@ import {
 } from "../data/league.ts";
 import { useGreenAnalysis, waitWords, type GreenAnalysis } from "../data/analysis.ts";
 import { formation, modeFor, paintField, place, yardAt, type Mode, type Tok, type TokState } from "./stadium.ts";
-import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
-import "../../../apps/world/src/desk/rooms/rooms.css";
+import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "@ceo/desk/flow/index.ts";
+import "@ceo/desk/rooms/rooms.css";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./green.css";
 

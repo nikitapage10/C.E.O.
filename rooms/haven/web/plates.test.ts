@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DeviceReading } from "../../../apps/world/src/desk/homeDevices.ts";
+import type { DeviceReading } from "@ceo/desk/homeDevices.ts";
 import { bowlChip, cycling, dockOf, drawerWidth, flowing, frontBowl, HOPPER, hopperOf, renderUrl, ringOffset, TANK, trayTurn, waterline } from "./plates.ts";
 
 /** The device plates' marks (#766), from made-up readings: each comes from the reading, and none is invented. */

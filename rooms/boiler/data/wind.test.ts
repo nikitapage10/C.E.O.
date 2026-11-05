@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GraphEdge, GraphNode } from "../../../apps/world/src/desk/foundryGraph.ts";
+import type { GraphEdge, GraphNode } from "@ceo/desk/foundryGraph.ts";
 import { pipeRows, systemsModel } from "./systemsGraph.ts";
 import { readPipes } from "./pipes.ts";
 import { roomSections } from "./rooms.ts";

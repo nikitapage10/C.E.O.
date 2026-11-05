@@ -5,7 +5,7 @@ import { navigateTo } from "../../../apps/world/src/route.ts";
 import { refreshWorldClock } from "../../../apps/world/src/worldClock.ts";
 import { useEmail } from "../../relay/data/email.ts";
 import { groceryAction, isKrogerSignIn } from "../../haven/web/groceries.ts";
-import { googleAction } from "../../../apps/world/src/desk/homeDevices.ts";
+import { googleAction } from "@ceo/desk/homeDevices.ts";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { pipeHeadline, sinceWords, type Fix, type StationState } from "../data/pipes.ts";
 import { layout, roomCounts, roomFaults, roomState, STATE_SAY, type RoomPipe, type RoomSection } from "../data/rooms.ts";
@@ -458,19 +458,27 @@ export function PipeBoard({ sections, model, now, signedIn, tabs, onOpenRoom }: 
         <ul className="bp-key" aria-hidden="true">
           <li>
             <i className="is-ok" />
-            flowing
+            working
           </li>
           <li>
             <i className="is-late" />
-            late
+            late or didn't run
           </li>
           <li>
             <i className="is-leak" />
-            broken or shut
+            broken
           </li>
           <li>
-            <i className="is-planned" />
-            not connected · planned
+            <i className="is-dry" />
+            not connected · waiting
+          </li>
+          <li>
+            <i className="is-flow" />
+            flowing
+          </li>
+          <li>
+            <i className="is-stall" />
+            stalled
           </li>
         </ul>
       </div>

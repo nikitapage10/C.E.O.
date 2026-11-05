@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, useDayStory, useWeekStory, type DayPage, type DayStoryView, type HistoryEntry, type RoomId } from "../../../apps/world/src/chronicle.ts";
 import { madeAt, paragraphs, STORY_WHY, useStoryMaker } from "./DayStory.tsx";
-import { PORTRAITS } from "../../../apps/world/src/desk/portraits.ts";
-import { SKIPPY_PORTRAIT } from "../../../apps/world/src/desk/skippy/SkippyAvatar.tsx";
+import { PORTRAITS } from "@ceo/desk/portraits.ts";
+import { SKIPPY_PORTRAIT } from "@ceo/desk/skippy/SkippyAvatar.tsx";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**

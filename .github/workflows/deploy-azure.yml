@@ -53,6 +53,13 @@ jobs:
         run: npm run build
       - name: Build the functions package
         run: npm run build:azure
+      # Ship first, test after (#863, Nikita 2026-11-05): typecheck, lint and unit tests run on main in checks.yml
+      # after the deploy and open a Foundry fix when red. The boot check alone stays in front of the upload, since a
+      # site that throws at load blanks every page (#173).
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Boot check
+        run: node scripts/boot-check.mjs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: site
@@ -207,7 +214,9 @@ jobs:
           echo "Applied, and $APP re-reads the vault." >> "$GITHUB_STEP_SUMMARY"
 
   site:
-    needs: [build, infra]
+    # Only the build: the upload needs no Azure change from infra, and waiting on its what-if and apply added
+    # about 2.5 minutes to every ship. The functions still wait on infra, since its app settings feed them.
+    needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: azure

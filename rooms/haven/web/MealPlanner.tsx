@@ -39,7 +39,7 @@ import {
   type Slot,
 } from "./meals.ts";
 import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoState } from "./mealPhotos.ts";
-import { onWrote, touchesList, touchesMeals } from "../../../apps/world/src/desk/skippy/wrote.ts";
+import { onWrote, touchesList, touchesMeals } from "@ceo/desk/skippy/wrote.ts";
 import { cookLunchOf, cookOf, type Cook } from "./cook.ts";
 import { CookMode } from "./CookMode.tsx";
 import { onListCleared } from "./groceries.ts";

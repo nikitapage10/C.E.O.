@@ -8,7 +8,7 @@
   gap: 14px;
   align-items: start;
 }
-[data-room="haven"] .hv-plate {
+[data-room="haven"] .hv-dplate {
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -17,7 +17,7 @@
   background: #050507;
   position: relative;
 }
-[data-room="haven"] .hv-plate::before {
+[data-room="haven"] .hv-dplate::before {
   content: "";
   position: absolute;
   inset: 0 0 auto;
@@ -433,7 +433,7 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
   gap: 10px;
 }
-[data-room="haven"] .is-compact .hv-plate {
+[data-room="haven"] .is-compact .hv-dplate {
   flex-direction: row;
   align-items: stretch;
 }
@@ -479,9 +479,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-room="haven"] .hv-plate *,
-  [data-room="haven"] .hv-plate *::before,
-  [data-room="haven"] .hv-plate *::after {
+  [data-room="haven"] .hv-dplate *,
+  [data-room="haven"] .hv-dplate *::before,
+  [data-room="haven"] .hv-dplate *::after {
     animation: none !important;
     transition: none !important;
   }

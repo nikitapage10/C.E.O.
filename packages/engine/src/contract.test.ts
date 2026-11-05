@@ -67,7 +67,7 @@ const NAV_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
 const isRoomId = (id: string): id is RoomId => (ROOM_IDS as readonly string[]).includes(id);
 const threatModel = readRepoFile("docs/THREAT-MODEL.md");
 const loreHeadings = headingsOf(readRepoFile("lore/syntherion.md") ?? "");
-const deskTokens = cssTokens("apps/world/src/desk/desk.css");
+const deskTokens = cssTokens("apps/desk/src/desk.css");
 const cast = defaultCast();
 const endpoints = azureEndpoints();
 const settings = secretSettings();

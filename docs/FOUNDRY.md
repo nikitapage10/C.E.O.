@@ -168,16 +168,19 @@ The path for every change:
 1. **Branch** from the latest `main`, named as above. One issue per branch, one branch per PR.
 2. **Pull request** into `main`, titled like the issue, with `Closes #<issue>` and the lane label (`foundry:fix`,
    `foundry:build` or `foundry:upkeep`) on it.
-3. **Checks** run on the PR (`checks.yml`). Red means back to the ladder; never merge red.
+3. **Ship first, test after** (Nikita, 2026-11-05, #863): the builder runs the build and the boot check locally, then
+   merges without waiting on CI. Deploy to Azure boot-checks the built site before uploading it. Sign-in, keys,
+   permissions and deletions still wait for a green `checks` run on the PR.
 4. **No preview site** (Azure, the only home since #313, deploys `main` only): `checks` builds the PR and the boot
-   check loads that build in Chromium. The change ships once its checks pass.
+   check loads that build in Chromium. The change ships once its boot check passes.
 5. **Pictures** on the issue before it ships: screenshots for a visual change, a change card for anything else
    ("Pictures on every change" below). The Trail runs Work, Pictures, Checks, Shipped, and a Progress note at a
    milestone when there's something worth saying; the Desk measures how far along it is itself ("Build progress" below).
-6. **Merge** with a squash commit through GitHub's auto-merge, turned on when the PR opens (until "Allow auto-merge"
-   and the gated ruleset are on, the Builder squash-merges it once `checks` is green), then delete the branch. Deploy to Azure ships `main` to the site.
-7. **Watch:** the push to `main` runs the checks again. If they go red there, the merge is reverted with a
-   `git revert` commit through a `foundry/fix/` branch, and the fix starts over.
+6. **Merge** with a squash commit as soon as the PR is open, then delete the branch. Deploy to Azure ships `main` to
+   the site.
+7. **Watch:** the push to `main` runs typecheck, lint, unit tests and the scans (`checks.yml`). Red there opens a
+   Foundry fix, which goes first in the queue: fix forward, or `git revert` through a `foundry/fix/` branch when the
+   fix isn't quick.
 
 ## The checks (the furnace)
 

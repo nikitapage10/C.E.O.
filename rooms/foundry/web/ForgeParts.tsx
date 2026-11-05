@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, recentWork, sparesAwake, type Crate, type CrewId, type FoundryData } from "../../../apps/world/src/foundry.ts";
-import { countdown, nextRuns, runTime } from "../../../apps/world/src/desk/crewRuns.ts";
-import { FOUNDRY_THREAD } from "../../../apps/world/src/desk/deskData.ts";
-import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "../../../apps/world/src/desk/IdeaCard.tsx";
-import { usePictureLinks } from "../../../apps/world/src/desk/ideaImages.ts";
-import { ROOM_META, ROOM_ORDER } from "../../../apps/world/src/desk/roomPulse.ts";
+import { countdown, nextRuns, runTime } from "@ceo/desk/crewRuns.ts";
+import { FOUNDRY_THREAD } from "@ceo/desk/deskData.ts";
+import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "@ceo/desk/IdeaCard.tsx";
+import { usePictureLinks } from "@ceo/desk/ideaImages.ts";
+import { ROOM_META, ROOM_ORDER } from "@ceo/desk/roomPulse.ts";
 import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
-import { describeRun, useVisualQa } from "../../../apps/world/src/desk/visualqa/feed.ts";
+import { describeRun, useVisualQa } from "@ceo/desk/visualqa/feed.ts";
 import { isBuild } from "../data/forge.ts";
 import { progressWords, type Progress } from "../data/progress.ts";
 

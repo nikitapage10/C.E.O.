@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Keeper } from "../../../apps/world/src/desk/rooms/parts.tsx";
-import { fan, useFlow, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
+import { Keeper } from "@ceo/desk/rooms/parts.tsx";
+import { fan, useFlow, type FlowLayoutFn, type FlowLine } from "@ceo/desk/flow/index.ts";
 import { asideLine, byMove } from "../data/asides.ts";
 import { biggestMove, floorWord, marketLine, MINT } from "../data/floor.ts";
 import { Marquee } from "./Marquee.tsx";

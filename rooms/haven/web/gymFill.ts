@@ -138,6 +138,7 @@ export function gymBeyond(plan: HavenPlan): HavenPlan {
     windows: moved.windows.map(S),
     balconies: moved.balconies.map(S),
     tv: moved.tv.map(S),
+    ...(plan.decks ? { decks: plan.decks.map(S) } : {}),
     path: [],
   };
 }

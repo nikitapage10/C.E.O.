@@ -266,7 +266,7 @@ describe("the engine's backlog scan", () => {
     const view = readTextsView(h.engine.texts(), NOW)!;
     expect(view.items.map((i) => i.name).sort()).toEqual(["Avery Sample", "Blake Example"]);
     expect(view.items.every((i) => !i.unread)).toBe(true);
-    expect(view.older).toEqual({ count: 1, items: [{ id: expect.stringMatching(/^[0-9a-f]{16}$/), name: "Unknown sender", channel: "iMessage", since: NOW - 45 * DAY, unread: true }] });
+    expect(view.older).toEqual({ count: 1, items: [{ id: expect.stringMatching(/^[0-9a-f]{16}$/), name: "Unknown (ending 0104)", channel: "iMessage", since: NOW - 45 * DAY, unread: true }] });
     // Never a number, a chat id or a message (ids are random hex, so the check looks for the numbers' own shape).
     expect(JSON.stringify(view)).not.toMatch(/\+1 ?555|555 0177|iMessage;-;|Are we still/);
     expect(view.scannedAt).toBe(NOW);

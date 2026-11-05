@@ -14,7 +14,7 @@ import "@fontsource/ibm-plex-sans/latin-500.css";
 import "@fontsource/ibm-plex-sans/latin-600.css";
 import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Desk } from "./desk/Desk.tsx";
+import { Desk } from "@ceo/desk";
 import { askedForLattice, keepLattice, startLetGo } from "./latticeWarm.ts";
 import { lastMove, loadLattice, useRoute } from "./route.ts";
 import { installSiteGate } from "./siteGate.ts";

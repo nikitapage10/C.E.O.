@@ -14,7 +14,7 @@ import { syncPhotos, type Resize } from "./photos.ts";
 import { settleByRule } from "./rules.ts";
 import type { Site } from "./site.ts";
 import { MAX_OLDER_ROWS, newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
-import { MAX_ITEMS, MAX_OLDER, OWED_WINDOW_MS, SHOWN_KEEP_MS, type OlderItem } from "../../../api/_relay/texts.ts";
+import { MAX_ITEMS, MAX_OLDER, OWED_WINDOW_MS, SHOWN_KEEP_MS, type GistWait, type OlderItem } from "../../../api/_relay/texts.ts";
 import { readLearn, type DraftVoice, type Relation, type Voice } from "../../../api/_relay/voice.ts";
 import { sortBacklog, verdictOf } from "./backlog.ts";
 import { chatPerson, handleKey, LEARN_MIN, LEARN_WINDOW_MS, sampleSent, voiceStats, type Said } from "./learn.ts";
@@ -81,6 +81,23 @@ export const SHOWN_MESSAGES = 5;
 export const SHOWN_CHARS = 1_000;
 /** The older-unanswered snapshot is dropped this long after the scan that made it. */
 export const OLDER_KEEP_MS = 7 * 24 * 60 * 60_000;
+/**
+ * The most threads one round of `work` sorts (#861): a 100-thread backlog goes a few at a time, newest first, so the
+ * Desk's sends and the list's pushes never wait behind it, and the site and Anthropic aren't hit in one burst.
+ */
+export const WORK_PER_ROUND = 6;
+/** When a sort that didn't land is tried again (#861): a failed call backs off from 2 minutes to an hour; the cap waits 6 hours. */
+export const RETRY_MIN_MS = 2 * 60_000;
+export const RETRY_MAX_MS = 60 * 60_000;
+export const RETRY_CAP_MS = 6 * 60 * 60_000;
+/** Dialtone's answer failed the checks this many times in a row: the thread waits for the next scan instead of looping. */
+export const REFUSED_MAX = 3;
+
+/** Why a sort call threw (#861): the site answered 502 for a failed model call; anything else is the site or the way there. */
+export function waitOf(e: unknown): GistWait {
+  const status = e && typeof e === "object" && "status" in e ? (e as { status: unknown }).status : 0;
+  return status === 502 ? "model" : "site";
+}
 
 /** A message guid as the state file keeps it (#749): 16 hex of its SHA-256, never the guid. */
 const guidHash = (guid: string) => createHash("sha256").update(guid).digest("hex").slice(0, 16);
@@ -180,6 +197,12 @@ export class Engine {
   private restyles = new Map<string, string>();
   private contacts: Contact[] = [];
   private contactsAt = 0;
+  /** BlueBubbles has answered the contacts call at least once (#861): only then is a count of 0 worth reporting. */
+  private contactsAsked = false;
+  /** Why each owed thread has no gist yet (#861), and when a sort that didn't land is tried again. Memory only. */
+  private waits = new Map<string, GistWait>();
+  private retryAt = new Map<string, number>();
+  private tries = new Map<string, number>();
   private groupNames = new Map<string, string>();
   private skipTerms: string[] = [];
   private skipAt = 0;
@@ -218,8 +241,11 @@ export class Engine {
       try {
         const got = await this.d.bb.contacts();
         // An empty answer (BlueBubbles still starting, or Contacts not yet allowed) is asked again next time, not kept
-        // for an hour: every name would read "Unknown" meanwhile (#803).
+        // for an hour: every name would read "Unknown" meanwhile (#803). The status counts what the hub can use (#861).
+        const before = this.contactsAsked ? this.contacts.length : -1;
         if (got.length || !this.contacts.length) this.contacts = got;
+        this.contactsAsked = true;
+        if (this.contacts.length !== before) this.dirty = true;
         if (got.length) this.contactsAt = this.d.now();
       } catch (e) {
         this.d.log.error("error", e);
@@ -377,12 +403,30 @@ export class Engine {
     this.d.log.log("thread replied", { minutes });
   }
 
-  /** Sorts (and drafts for) the queued threads, one call at a time, each once its burst has settled. */
+  /**
+   * Sorts (and drafts for) the queued threads, one call at a time, each once its burst has settled, WORK_PER_ROUND at
+   * most a round. #861: every owed one-to-one thread without a gist is in line, whatever brought it in (a text, the
+   * backlog, a restart), and one whose sort didn't land (the cap, a failed call, the site or BlueBubbles out of reach)
+   * is tried again after a backoff instead of waiting for the next day's scan; the reason goes to the Desk meanwhile.
+   */
   async work(): Promise<void> {
     if (this.working) return;
     this.working = true;
     try {
+      const now = this.d.now();
+      const listed = this.d.store.load().threads;
+      // Newest first, behind what is already in line.
+      for (const t of [...listed].sort((a, b) => b.lastIn - a.lastIn)) {
+        if (t.group || (t.state !== "owed" && t.state !== "later") || t.gist || this.queue.has(t.id)) continue;
+        const at = this.retryAt.get(t.id);
+        if (at !== undefined && at > now) continue;
+        if (at === undefined && (this.tries.get(t.id) ?? 0) >= REFUSED_MAX) continue;
+        this.retryAt.delete(t.id);
+        this.queue.add(t.id);
+      }
+      let done = 0;
       for (const id of [...this.queue]) {
+        if (done >= WORK_PER_ROUND) break;
         const s = this.d.store.load();
         if (s.paused) return;
         const t = s.threads.find((x) => x.id === id);
@@ -392,17 +436,49 @@ export class Engine {
         }
         if (this.d.now() - t.lastIn < SETTLE_MS && !this.restyles.has(id)) continue;
         this.queue.delete(id);
+        done++;
+        this.waits.delete(id);
         try {
           if (t.group) await this.summarise(t);
           else if (t.state === "owed" || t.state === "later") await this.sortAndDraft(t);
         } catch (e) {
           this.d.log.error("model error", e);
           this.linkModels = "down";
+          this.waits.set(id, waitOf(e));
         }
+        if (!t.group) this.afterSort(id);
       }
     } finally {
       this.working = false;
     }
+  }
+
+  /** After a sort (#861): a gist clears the wait; an owed thread still without one is tried again after a backoff. */
+  private afterSort(id: string) {
+    const t = this.d.store.load().threads.find((x) => x.id === id);
+    if (!t || t.gist || (t.state !== "owed" && t.state !== "later")) {
+      this.waits.delete(id);
+      this.retryAt.delete(id);
+      this.tries.delete(id);
+      return;
+    }
+    const why = this.waits.get(id) ?? "messages";
+    this.waits.set(id, why);
+    const n = (this.tries.get(id) ?? 0) + 1;
+    this.tries.set(id, n);
+    if (why === "refused" && n >= REFUSED_MAX) {
+      this.retryAt.delete(id);
+      this.dirty = true;
+      return;
+    }
+    this.retryAt.set(id, this.d.now() + (why === "cap" ? RETRY_CAP_MS : Math.min(RETRY_MAX_MS, RETRY_MIN_MS * 2 ** (n - 1))));
+    this.dirty = true;
+  }
+
+  /** What the Desk says about an owed thread with no gist (#861): the last reason it didn't land, or in line. */
+  private waitFor(t: Thread): GistWait | undefined {
+    if (t.group || t.gist || (t.state !== "owed" && t.state !== "later")) return undefined;
+    return this.waits.get(t.id) ?? "queued";
   }
 
   private async recent(chat: string, limit: number): Promise<Message[] | null> {
@@ -468,9 +544,10 @@ export class Engine {
 
   private async sortAndDraft(t: Thread): Promise<void> {
     const msgs = await this.recent(t.chat, 100);
-    if (!msgs) return;
+    if (!msgs) return void this.waits.set(t.id, "messages");
     const contacts = await this.contactList();
-    const theirs = msgs.find((m) => !m.fromMe)?.handle ?? "";
+    // A one-to-one chat's other person from its chat id when no message of theirs carries a handle (#861).
+    const theirs = msgs.find((m) => !m.fromMe && m.handle)?.handle || chatPerson(t.chat);
     const contact = this.contactOf(theirs);
     const ph = new Placeholders({ contact: { names: contact?.names ?? [], handle: theirs }, others: contacts.filter((c) => c !== contact).flatMap((c) => c.names) });
     const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
@@ -523,11 +600,17 @@ export class Engine {
       // Nikita's own last message goes first, as context (#642): a thanks for his "no worries" reads as closed.
       const mineBefore = lastMine >= 0 ? [line(msgs[lastMine]!)] : [];
       const got = await this.d.site.sort({ group: false, lines: within([...mineBefore, ...unanswered.map(line)], CAPS.sortMessages, CAPS.sortChars) });
-      if ("paused" in got) return this.budgetStop();
+      if ("paused" in got) {
+        this.waits.set(t.id, "cap");
+        return this.budgetStop();
+      }
       this.linkModels = "up";
       this.d.log.log("model call", { sort: 1 });
       const answer = readSort(got.answer, false);
-      if (!answer || !("needsReply" in answer)) return this.d.log.log("model refused");
+      if (!answer || !("needsReply" in answer)) {
+        this.waits.set(t.id, "refused");
+        return this.d.log.log("model refused");
+      }
       const settled = !answer.needsReply;
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
@@ -1163,6 +1246,8 @@ export class Engine {
 
   async checkMessages(): Promise<void> {
     this.linkMessages = (await this.d.bb.ping()) ? "up" : "down";
+    // Contacts asked again while there are none (#861), so names appear soon after macOS lets BlueBubbles read them.
+    if (this.linkMessages === "up" && !this.contacts.length) await this.contactList();
   }
 
   pause(): void {
@@ -1209,6 +1294,8 @@ export class Engine {
       nextNudgeAt: s.paused ? null : nextNudge(this.d.config.nudges, now, this.offsetAt),
       unread: cap(owedT.filter((t) => t.unread === true).length),
       older: cap(s.olderCount),
+      // How many contacts BlueBubbles let the hub read (#861): 0 means macOS keeps Contacts from BlueBubbles. A count only.
+      ...(this.contactsAsked && { contacts: cap(this.contacts.length) }),
     };
     const read = readRelayStatus(status);
     if (!read.ok) {
@@ -1230,7 +1317,9 @@ export class Engine {
     // Owed ones within the 30-day window (#758), newest first (#803: oldest first, the cap cut the newest ones off the
     // list); then the groups' summaries from the last week. The Desk orders them itself.
     const items: TextItem[] = s.threads
-      .filter((t) => t.state !== "replied" && (t.state !== "settled" || (t.group && t.summary)) && now - t.since < (owedState(t) ? OWED_WINDOW_MS : THREAD_KEEP_MS))
+      // An owed thread is listed while their latest text is inside the window (#861: by `since`, the first unanswered
+      // one, a thread they kept writing in for over 30 days was counted owed and never shown).
+      .filter((t) => t.state !== "replied" && (t.state !== "settled" || (t.group && t.summary)) && (owedState(t) ? now - t.lastIn < OWED_WINDOW_MS : now - t.since < THREAD_KEEP_MS))
       .sort((a, b) => Number(owedState(b)) - Number(owedState(a)) || b.lastIn - a.lastIn)
       .slice(0, MAX_ITEMS)
       .map((t) => {
@@ -1258,13 +1347,17 @@ export class Engine {
           ...(owedState(t) && t.unread === true && { unread: true as const }),
           // Their own texts (#758): an owed one-to-one thread's unanswered ones, a group's since Nikita's last reply.
           ...((owedState(t) || t.group) && shownNow(t.id).length && { messages: shownNow(t.id) }),
+          // Why there's no gist yet (#861), from a closed list.
+          ...(this.waitFor(t) && { wait: this.waitFor(t) }),
         };
       });
-    // Older unanswered (#758): who and since when, no gist or draft. Unknown senders are counted, not named.
+    // Older unanswered (#758): who and since when, no gist or draft. Someone not in the contacts reads as the owed ones
+    // do (#861): the number's last 4 digits or a masked address, never the handle.
     const olderItems: OlderItem[] = s.older.slice(0, MAX_OLDER).map((o) => {
       const contact = this.contactOf(chatPerson(o.chat));
       const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
-      return { id: o.id, name: (contact?.names[0] || "Unknown sender").slice(0, 80), channel: channelOf(o.chat), since: Math.max(Date.UTC(2026, 0, 1), Math.floor(o.at)), ...(photo && s.photos[photo] && { photo }), ...(o.unread && { unread: true as const }) };
+      const mask = contact ? null : maskHandle(chatPerson(o.chat));
+      return { id: o.id, name: (contact?.names[0] || (mask ? `Unknown (${mask})` : "Unknown sender")).slice(0, 80), channel: channelOf(o.chat), since: Math.max(Date.UTC(2026, 0, 1), Math.floor(o.at)), ...(photo && s.photos[photo] && { photo }), ...(o.unread && { unread: true as const }) };
     });
     // The cards (#536): who (name and mask, never the handle), the text, the choices. Newest first.
     const cards: TextCard[] = s.cards

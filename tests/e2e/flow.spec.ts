@@ -1,10 +1,17 @@
+import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * The flow kit's loop (#428, apps/world/src/desk/flow): its one canvas draws while it is on screen and stops drawing
+ * The flow kit's loop (#428, apps/desk/src/flow): its one canvas draws while it is on screen and stops drawing
  * when the tab is hidden, when it is scrolled out of view and when the page unmounts it (a laptop stays smooth: no
  * hidden heavy work, #401). Run against the dev server's kit harness (flow/harness.html, never built).
  */
+
+/**
+ * The harness lives in the Desk's package (@ceo/desk, #617), outside @ceo/world's Vite root, so the dev server serves it
+ * by its file path (`/@fs/…`, inside the repo, which Vite's fs.allow already covers).
+ */
+const HARNESS = `/@fs${fileURLToPath(new URL("../../apps/desk/src/flow/harness.html", import.meta.url))}`;
 
 const frames = (page: Page) => page.evaluate(() => (window as unknown as { __flow: { field?: { frames: number } } }).__flow.field?.frames ?? -1);
 const idle = (page: Page, ms: number) => page.evaluate((t) => new Promise((r) => setTimeout(r, t)), ms);
@@ -17,7 +24,7 @@ const setHidden = (page: Page, hidden: boolean) =>
 test("the flow field's loop pauses when hidden, off screen or unmounted", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/src/desk/flow/harness.html");
+  await page.goto(HARNESS);
   await expect.poll(() => frames(page), { timeout: 30_000 }).toBeGreaterThan(5);
 
   // Hidden: no frames at all.
@@ -52,7 +59,7 @@ test("the flow field's loop pauses when hidden, off screen or unmounted", async 
 test("the flow field draws one still frame under reduced motion", async ({ browser }) => {
   const ctx = await browser.newContext({ reducedMotion: "reduce" });
   const page = await ctx.newPage();
-  await page.goto("/src/desk/flow/harness.html");
+  await page.goto(HARNESS);
   await expect.poll(() => frames(page), { timeout: 30_000 }).toBeGreaterThan(0);
   // A still frame is redrawn on each layout (mount, fonts arriving); then nothing until something changes.
   let f0 = -1;

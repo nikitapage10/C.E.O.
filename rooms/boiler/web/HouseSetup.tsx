@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { googleAction, loadGoogle, problemSay, useHome, VENDOR_NAME, type HavenGoogle } from "../../../apps/world/src/desk/homeDevices.ts";
+import { googleAction, loadGoogle, problemSay, useHome, VENDOR_NAME, type HavenGoogle } from "@ceo/desk/homeDevices.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { CONNECT_NOTE, groceryAction, GROCERY_NOTE, isKrogerSignIn, loadGroceries, type GAction, type Groceries } from "../../haven/web/groceries.ts";
 

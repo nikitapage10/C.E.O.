@@ -157,7 +157,7 @@ const CLOVE_G = 5;
 
 const NUM = String.raw`(\d*\s*[¼½¾⅓⅔⅛]|\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)`;
 const UNITS = [...Object.keys(MASS), ...Object.keys(VOLUME), ...Object.keys(COUNT), "fl oz", "fl. oz"].sort((a, b) => b.length - a.length);
-const UNIT_RE = UNITS.map((u) => u.replace(/[.]/g, "\\.").replace(" ", "\\s*")).join("|");
+const UNIT_RE = UNITS.map((u) => u.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&").replace(/ /g, "\\s*")).join("|");
 const AMOUNT = new RegExp(String.raw`(?:^|[^\p{L}\d])(?:(\d+)\s*[x×]\s*)?${NUM}\s*(${UNIT_RE})?(?![\p{L}])`, "giu");
 
 function num(raw: string): number {

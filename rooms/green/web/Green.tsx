@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Keeper } from "./parts.tsx";
-import { SetupAsks } from "../skippy/SetupAsks.tsx";
-import { clamp, reducedMotion } from "../wvCanvas.ts";
+import { Keeper } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import { SetupAsks } from "../../../apps/world/src/desk/skippy/SetupAsks.tsx";
+import { clamp, reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import {
   callConfidence,
   locked,
@@ -27,13 +27,13 @@ import {
   type GreenSide,
   type GreenSlot,
   type GreenStatus,
-} from "../green/league.ts";
-import { useGreenAnalysis, waitWords, type GreenAnalysis } from "../green/analysis.ts";
-import { formation, modeFor, paintField, place, yardAt, type Mode, type Tok, type TokState } from "../green/stadium.ts";
-import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
-import "./rooms.css";
+} from "../data/league.ts";
+import { useGreenAnalysis, waitWords, type GreenAnalysis } from "../data/analysis.ts";
+import { formation, modeFor, paintField, place, yardAt, type Mode, type Tok, type TokState } from "./stadium.ts";
+import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
+import "../../../apps/world/src/desk/rooms/rooms.css";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import "../green/green.css";
+import "./green.css";
 
 /**
  * The Green (#225, live since #252, an analyst desk since #276, its own stadium since #389): Nikita's Sleeper league,

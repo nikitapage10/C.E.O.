@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { claimWaiting, commentatorCall, greenLinks, ordinal, readGreen, sayNumber, scoreboardLine, sleeperLeagueUrl, tickerItems, tradeDeadlineLine, yardLine, type GreenBoard, type GreenPlayer } from "./league.ts";
 import { readAnalysis, waitWords } from "./analysis.ts";
-import { roomPhrase, roomPulses, type PulseInput } from "../roomPulse.ts";
-import { EMPTY_FOUNDRY } from "../../foundry.ts";
+import { roomPhrase, roomPulses, type PulseInput } from "../../../apps/world/src/desk/roomPulse.ts";
+import { EMPTY_FOUNDRY } from "../../../apps/world/src/foundry.ts";
 
 const pl = (id: string, name: string, pos: GreenPlayer["pos"], proj: number | null, over: Partial<GreenPlayer> = {}): GreenPlayer => ({ id, name, pos, team: "KC", inj: null, proj, src: "form", avg: proj, last: proj, wk: null, ecr: null, posRank: null, bye: null, ...over });
 

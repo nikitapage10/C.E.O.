@@ -16,10 +16,32 @@
  *                 masked address, the channel and Blasto's text; or the choices when the name fits several; or why
  *                 not. A send to a card is an ordinary send request, bound to the card and the text on screen.
  *
- * No raw message ever crosses here: the hub sends only who, when, its states and the models' outputs.
+ * Since #758 (Nikita, 2026-11-05) an owed thread also carries its own newest texts for the Desk (`messages`, sealed, capped,
+ * only when every rule passed); the models still see only placeholdered snippets.
  */
 
+import { readVoice, type Voice } from "./voice.js";
+
 export const TEXT_KEEP_MS = 7 * 24 * 60 * 60_000;
+/**
+ * How far back a text still counts as owed (#758): a one-to-one chat whose last message is someone else's, sent
+ * within 30 days. An owed item stays on the list this long; a settled one (a group's summary) TEXT_KEEP_MS.
+ */
+export const OWED_WINDOW_MS = 30 * 24 * 60 * 60_000;
+/** The longest one of the Desk's shown texts (#758) is kept on the site, whatever the item's own window. */
+export const SHOWN_KEEP_MS = TEXT_KEEP_MS;
+
+/** Items with every shown text older than SHOWN_KEEP_MS dropped (an item whose texts all aged out shows its gist). */
+export function freshItems(items: readonly TextItem[], now: number): TextItem[] {
+  return items.map((i) => {
+    if (!i.messages) return i;
+    const fresh = i.messages.filter((m) => now - m.at < SHOWN_KEEP_MS);
+    const { messages: _old, ...rest } = i;
+    return fresh.length ? { ...rest, messages: fresh } : rest;
+  });
+}
+/** The most "older unanswered" chats the list names (the count can be larger). */
+export const MAX_OLDER = 40;
 export const MAX_ITEMS = 60;
 export const NAME_MAX = 80;
 export const GIST_MAX = 160;
@@ -51,6 +73,63 @@ export interface TextItem {
   summary: { text: string; asked: boolean } | null;
   /** The contact's photo id (#642, ./photos.ts): opaque, the Desk asks for it passkey-only. Left out without one. */
   photo?: string;
+  /** Their latest text has no read time in Messages (#758). Never hides an item: a read one is still owed. */
+  unread?: true;
+  /**
+   * Their own texts, for Nikita's eyes on the Desk (#758; Nikita, 2026-11-05: "It should be the full text"): an owed
+   * one-to-one thread's newest unanswered texts, a group's since their last reply, with each sender's name and photo
+   * id in a group. MAX_SHOWN at most, SHOWN_CHARS in all. Only for a thread every rule passed (never money, legal, a
+   * code, a promo or the skip list). Sealed with the list; never public, never logged, never sent to a model.
+   */
+  messages?: ShownText[];
+}
+
+export interface ShownText {
+  text: string;
+  at: number;
+  /** A group member's name as Nikita's contacts have it ("Unknown sender"); left out in a one-to-one thread. */
+  from?: string;
+  /** That member's photo id (#642), when the site has it. */
+  photo?: string;
+}
+
+export const MAX_SHOWN = 5;
+export const SHOWN_CHARS = 1_000;
+
+/** The texts on an item (#758), checked: closed shape, MAX_SHOWN at most, SHOWN_CHARS in all. Null for anything off. */
+export function readShown(v: unknown): ShownText[] | null {
+  if (!Array.isArray(v) || !v.length || v.length > MAX_SHOWN) return null;
+  const out: ShownText[] = [];
+  let used = 0;
+  for (const m of v as Record<string, unknown>[]) {
+    if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo"])) return null;
+    const text = str(m.text, SHOWN_CHARS);
+    if (!text?.trim() || !isTime(m.at)) return null;
+    used += text.length;
+    if (used > SHOWN_CHARS) return null;
+    let from: string | null = null;
+    if (m.from !== undefined) {
+      from = str(m.from, NAME_MAX);
+      if (!from?.trim() || from.includes("\n")) return null;
+    }
+    if (m.photo !== undefined && (typeof m.photo !== "string" || !/^[0-9a-f]{32}$/.test(m.photo))) return null;
+    out.push({ text, at: m.at, ...(from !== null && { from }), ...(typeof m.photo === "string" && { photo: m.photo }) });
+  }
+  return out;
+}
+
+/**
+ * A one-to-one chat whose last message is someone else's but older than OWED_WINDOW_MS (#758): who and since when,
+ * nothing else (no gist, no draft, no model call). The Desk folds them into "N older unanswered", with "show them".
+ */
+export interface OlderItem {
+  /** The hub's own random id (16 hex). */
+  id: string;
+  name: string;
+  channel: "iMessage" | "SMS";
+  since: number;
+  photo?: string;
+  unread?: true;
 }
 
 export interface TextsView {
@@ -60,6 +139,12 @@ export interface TextsView {
   items: TextItem[];
   /** The texts Skippy asked Blasto to write (#536), newest first; left out by an older hub. */
   cards?: TextCard[];
+  /** Older unanswered chats (#758): how many, and up to MAX_OLDER of them. Left out by an older hub. */
+  older?: { count: number; items: OlderItem[] };
+  /** When the hub last read every chat (#758: at start and on Rescan); null before it has. */
+  scannedAt?: number | null;
+  /** How Nikita texts, learned on "Learn from my texts" (#758, ./voice.ts); null before. */
+  voice?: Voice | null;
 }
 
 /* ── New texts Skippy asks for (#536) ── */
@@ -108,7 +193,11 @@ export interface TextCard {
   at: number;
 }
 
-export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose"] as const;
+/**
+ * "rescan" and "learn" (#758) ask the hub to read every chat again, or to learn Nikita's voice from their sent texts:
+ * chores, not about one thread, so they name a fresh random id and carry no text. Neither can send.
+ */
+export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose", "rescan", "learn"] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** A request's state as the Desk sees it. "expired": never taken (the Mac was offline); Resend makes a new one. */
@@ -138,7 +227,7 @@ const isTime = (v: unknown): v is number => typeof v === "number" && Number.isIn
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")) : null);
 const keysOnly = (o: Record<string, unknown>, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k));
 
-const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo"] as const;
+const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages"] as const;
 
 /** One item, rebuilt from the allowlist; null for anything else (an unknown key, a long string, a bad time). */
 export function readTextItem(v: unknown): TextItem | null {
@@ -166,7 +255,32 @@ export function readTextItem(v: unknown): TextItem | null {
     summary = { text, asked: g.asked };
   }
   if (o.photo !== undefined && (typeof o.photo !== "string" || !/^[0-9a-f]{32}$/.test(o.photo))) return null;
-  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }) };
+  if (o.unread !== undefined && o.unread !== true) return null;
+  const messages = o.messages === undefined ? null : readShown(o.messages);
+  if (o.messages !== undefined && !messages) return null;
+  // A one-to-one item's texts are only someone else's, with no sender line; a group's each name their sender.
+  if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined))) return null;
+  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages && { messages }) };
+}
+
+/** One older unanswered chat (#758), rebuilt from the allowlist; null for anything else. */
+export function readOlderItem(v: unknown): OlderItem | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["id", "name", "channel", "since", "photo", "unread"])) return null;
+  const name = str(o.name, NAME_MAX);
+  if (typeof o.id !== "string" || !ID.test(o.id) || !name?.trim() || name.includes("\n") || !isTime(o.since) || (o.channel !== "iMessage" && o.channel !== "SMS")) return null;
+  if (o.photo !== undefined && (typeof o.photo !== "string" || !/^[0-9a-f]{32}$/.test(o.photo))) return null;
+  if (o.unread !== undefined && o.unread !== true) return null;
+  return { id: o.id, name, channel: o.channel, since: o.since, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }) };
+}
+
+/** The older-unanswered block (#758), checked; null for anything off the shape. */
+export function readOlder(v: unknown): { count: number; items: OlderItem[] } | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["count", "items"]) || !Number.isInteger(o.count) || (o.count as number) < 0 || (o.count as number) > 9_999) return null;
+  if (!Array.isArray(o.items) || o.items.length > MAX_OLDER || o.items.length > (o.count as number)) return null;
+  const items = o.items.map(readOlderItem);
+  return items.some((i) => i === null) ? null : { count: o.count as number, items: items as OlderItem[] };
 }
 
 const channelOk = (v: unknown): v is "iMessage" | "SMS" => v === "iMessage" || v === "SMS";
@@ -210,7 +324,7 @@ export function readTextCard(v: unknown): TextCard | null {
 /** The list, checked whole: one bad item refuses it (a hub that sends something extra has a bug). */
 export function readTextsView(v: unknown, now: number): TextsView | null {
   const o = v as Record<string, unknown> | null;
-  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["v", "at", "items", "cards"]) || o.v !== 1 || !isTime(o.at) || !Array.isArray(o.items) || o.items.length > MAX_ITEMS) return null;
+  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["v", "at", "items", "cards", "older", "scannedAt", "voice"]) || o.v !== 1 || !isTime(o.at) || !Array.isArray(o.items) || o.items.length > MAX_ITEMS) return null;
   const items = o.items.map(readTextItem);
   if (items.some((i) => i === null)) return null;
   let cards: TextCard[] = [];
@@ -220,7 +334,14 @@ export function readTextsView(v: unknown, now: number): TextsView | null {
     if (read.some((c) => c === null)) return null;
     cards = (read as TextCard[]).filter((c) => now - c.at < CARD_KEEP_MS);
   }
-  return { v: 1, at: o.at, items: (items as TextItem[]).filter((i) => now - i.since < TEXT_KEEP_MS), cards };
+  const older = o.older === undefined ? { count: 0, items: [] } : readOlder(o.older);
+  if (!older) return null;
+  if (o.scannedAt !== undefined && o.scannedAt !== null && !isTime(o.scannedAt)) return null;
+  const voice = o.voice === undefined || o.voice === null ? null : readVoice(o.voice);
+  if (o.voice !== undefined && o.voice !== null && !voice) return null;
+  // An owed item stays OWED_WINDOW_MS (#758); a settled one (a group's summary) a week.
+  const kept = freshItems((items as TextItem[]).filter((i) => now - i.since < (i.state === "settled" ? TEXT_KEEP_MS : OWED_WINDOW_MS)), now);
+  return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice };
 }
 
 const REQ_KEYS = ["rid", "kind", "thread", "draftAt", "text", "who", "created", "until", "sig"] as const;
@@ -234,7 +355,8 @@ export function readTextRequest(v: unknown): TextRequest | null {
   if (o.draftAt !== 0 && !isTime(o.draftAt)) return null;
   const text = str(o.text, o.kind === "restyle" ? DICTATED_MAX : o.kind === "compose" ? GIST_IN_MAX : SEND_MAX);
   if (text === null || ((o.kind === "send" || o.kind === "restyle" || o.kind === "compose") && !text.trim())) return null;
-  if ((o.kind === "later" || o.kind === "done") && text !== "") return null;
+  if ((o.kind === "later" || o.kind === "done" || o.kind === "rescan" || o.kind === "learn") && text !== "") return null;
+  if ((o.kind === "rescan" || o.kind === "learn") && o.draftAt !== 0) return null;
   // Only a compose names who, and it must.
   if (o.kind === "compose") {
     const who = str(o.who, WHO_MAX);

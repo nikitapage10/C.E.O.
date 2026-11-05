@@ -14,11 +14,18 @@ describe("the queue", () => {
   it("holds needs-you mail and owed one-to-one texts, sooner first, then the longest waiting", () => {
     const q = queueOf(
       [mail(), mail({ id: "aa11bb22cc34", kind: "fyi" }), mail({ id: "aa11bb22cc35", done: true })],
-      [text(), text({ id: "1123456789abcdef", group: true }), text({ id: "2123456789abcdef", state: "settled" }), text({ id: "3123456789abcdef", sort: "sooner", since: NOW - 60_000, draft: null })],
+      [text(), text({ id: "1123456789abcdef", group: true, state: "settled" }), text({ id: "2123456789abcdef", state: "settled" }), text({ id: "3123456789abcdef", sort: "sooner", since: NOW - 60_000, draft: null })],
     );
     expect(q.map((x) => x.key)).toEqual(["t:3123456789abcdef", "e:aa11bb22cc33", "t:0123456789abcdef"]);
     expect(q[1]).toMatchObject({ line: "email", sendable: false, body: "Robin asks about the picnic." });
     expect(q[2]).toMatchObject({ line: "text", sendable: true, draft: "start without me! running 10 late", draftAt: NOW - 60_000 });
+  });
+
+  it("holds a group once it asked or named Nikita (#758), never sendable, with its own texts", () => {
+    const messages = [{ text: "Nikita, are you coming?", at: NOW - 60_000, from: "Sam Test" }];
+    const q = queueOf([], [text({ id: "1123456789abcdef", group: true, draft: null, summary: { text: "Plans for Friday.", asked: true }, messages })]);
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ group: true, sendable: false, body: "Plans for Friday.", messages });
   });
 
   it("puts skipped ones at the back, in the order skipped", () => {
@@ -169,10 +176,18 @@ describe("the four numbers", () => {
   const texts = { v: 1, at: NOW, hub: "listening", messages: "up", models: "up", owed: 3, sooner: 1, overdue: 0, later: 0, settled: 4, draftsReady: 2, sentToday: 6, streakDays: 0, week: [], nextNudgeAt: null } as never;
 
   it("are dashes with no line, counts signed out, and the queue signed in", () => {
-    expect(metricsOf(null, null, null, 0)).toEqual({ waiting: null, drafted: null, sent: null, filtered: null });
-    expect(metricsOf(email, texts, null, 0)).toEqual({ waiting: 5, drafted: 2, sent: 6, filtered: 39 });
+    expect(metricsOf(null, null, null, 0)).toEqual({ waiting: null, drafted: null, sent: null, filtered: null, unread: null });
+    expect(metricsOf(email, texts, null, 0)).toEqual({ waiting: 5, drafted: 2, sent: 6, filtered: 39, unread: null });
     const q = queueOf([mail()], [text()]);
-    expect(metricsOf(email, texts, q, 0)).toEqual({ waiting: 2, drafted: 1, sent: 6, filtered: 39 });
+    expect(metricsOf(email, texts, q, 0)).toEqual({ waiting: 2, drafted: 1, sent: 6, filtered: 39, unread: 0 });
+  });
+
+  it("count unread texts (#758) without hiding a read one", () => {
+    expect(metricsOf(email, { ...(texts as object), unread: 2 } as never, null, 0).unread).toBe(2);
+    const q = queueOf([], [{ ...text(), unread: true }, { ...text(), id: "b".repeat(16) }]);
+    expect(q).toHaveLength(2);
+    expect(q.filter((x) => x.unread)).toHaveLength(1);
+    expect(metricsOf(email, texts, q, 0).unread).toBe(1);
   });
 });
 

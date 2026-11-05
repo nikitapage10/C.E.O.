@@ -54,9 +54,11 @@ export function pathsFor(home = homedir()): Paths {
 export interface HubConfig {
   /** Dialtone's daily nudges, local time, [hour, minute]. */
   nudges: [number, number][];
+  /** The names a group mention of Nikita goes by (#758): a group that names them, or asks them something, is owed. */
+  me: string[];
 }
 
-export const DEFAULT_CONFIG: HubConfig = { nudges: [[12, 30], [18, 30]] };
+export const DEFAULT_CONFIG: HubConfig = { nudges: [[12, 30], [18, 30]], me: ["Nikita"] };
 
 /** The config from config.json's text, every field checked; anything odd falls back to the default. */
 export function readConfig(raw: string | null): HubConfig {
@@ -67,5 +69,6 @@ export function readConfig(raw: string | null): HubConfig {
     o = {};
   }
   const nudges = Array.isArray(o.nudges) && o.nudges.length <= 4 && o.nudges.every((n) => Array.isArray(n) && n.length === 2 && Number.isInteger(n[0]) && Number.isInteger(n[1]) && n[0] >= 7 && n[0] < 22 && n[1] >= 0 && n[1] < 60) ? (o.nudges as [number, number][]) : DEFAULT_CONFIG.nudges;
-  return { nudges };
+  const me = Array.isArray(o.me) && o.me.length <= 6 && o.me.every((n) => typeof n === "string" && n.trim().length >= 2 && n.length <= 40) ? (o.me as string[]).map((n) => n.trim()) : DEFAULT_CONFIG.me;
+  return { nudges, me };
 }

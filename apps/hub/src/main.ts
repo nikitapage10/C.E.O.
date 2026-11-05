@@ -96,6 +96,8 @@ async function serve(): Promise<void> {
   };
   await poll();
   setInterval(() => void poll(), POLL_MS);
+  // The backlog (#758): every chat read once at start, so Relay knows who is owed from before the hub ran.
+  void engine.backlog().then(() => engine.report(true));
 
   let busy = false;
   const round = async () => {
@@ -112,6 +114,7 @@ async function serve(): Promise<void> {
   setInterval(() => void round(), 15_000);
   setInterval(() => void engine.checkMessages().then(() => engine.recheck()).then(() => engine.report(true)), 5 * 60_000);
   setInterval(() => void engine.syncPhotos().then(() => engine.report(true)), 24 * 60 * 60_000);
+  setInterval(() => void engine.backlog().then(() => engine.report(true)), 24 * 60 * 60_000);
   setInterval(() => {
     engine.sweep();
     void engine.refreshSkipTerms();

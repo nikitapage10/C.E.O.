@@ -1,7 +1,7 @@
 /*
  * Relay's queue on the line (#803, #869): every circle on the line, its name a small label to its left, magnified
- * under a frosted glass lens where the pointer (or the scroll) is. Lives inside .cx-stage and borrows the Codex's
- * tokens (thread.css). Only transform and opacity move; the lens blurs the line's glow and sigils beneath it.
+ * magnified where the pointer (or the scroll) is. Lives inside .cx-stage and borrows the Codex's
+ * tokens (thread.css). Only transform and opacity move.
  */
 .rq {
   position: absolute;
@@ -137,40 +137,10 @@
   }
 }
 
-/* the lens: frosted glass over the line where the magnifier is, a soft highlight along its top */
-.rq-lens {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 236px;
-  height: 66px;
-  border-radius: 999px;
-  pointer-events: none;
-  opacity: 0.55;
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.14), transparent 60%),
-    linear-gradient(180deg, rgba(190, 215, 255, 0.07), rgba(190, 215, 255, 0.02));
-  -webkit-backdrop-filter: blur(7px) saturate(170%) brightness(1.12);
-  backdrop-filter: blur(7px) saturate(170%) brightness(1.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 0 0 1px rgba(200, 220, 255, 0.12),
-    0 10px 30px rgba(0, 0, 0, 0.35);
-  transition: opacity 0.35s var(--cx-e);
-  will-change: transform;
-}
-.rq-lens[data-on="1"] {
-  opacity: 1;
-}
 
 /* reduced motion: still rows, no glide, no ring */
 .rq[data-still] .rq-row {
   will-change: auto;
-}
-.rq[data-still] .rq-face,
-.rq[data-still] .rq-lens {
-  transition: none;
 }
 .rq[data-still] .rq-item[data-sent] .rq-face::after {
   animation: none;
@@ -220,11 +190,6 @@
 .rq[data-narrow] .rq-top em,
 .rq[data-narrow] .rq-gist {
   display: none;
-}
-.rq[data-narrow] .rq-lens {
-  width: 62px;
-  height: 64px;
-  border-radius: 22px;
 }
 
 /* a thread that needs no reply (#869): on the line in its place, quieter */

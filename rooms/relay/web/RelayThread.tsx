@@ -32,7 +32,7 @@ const NANITE = { hi: "#eef2ff", you: "#ffffff", white: "#ffffff", sink: "#8a90a6
  * everything about the exchange in focus sits right of the line (their photo, logo or glowing initial, their name in
  * serif italic, their own texts, the gist small, Blasto's advice, one row of actions: Draft it or Reply, Write, Done,
  * Later, Skip and "…"), written in by a quill of sigils from the spine; every owed thread's circle sits on the line
- * itself, magnified under a glass lens where the pointer or the scroll is (./RelayQueue.tsx, #869), and a small toggle
+ * itself, magnified where the pointer or the scroll is (./RelayQueue.tsx, #869), and a small toggle
  * on the line orders the queue newest, oldest or by priority. A text opens straight on Nikita's own words (#869): the
  * composer, with a mic to dictate into it and Blasto's draft only as a faint suggestion beside it; an email's draft
  * appears when asked for, with Send, Edit and Change. Write and Edit send your own words exactly as typed.

@@ -3,8 +3,8 @@ import { agoShort, initialOf, type Exchange, type Line } from "./thread.ts";
 /**
  * Relay's queue on the line (#803, reshaped in #869), the logic with no DOM. Nikita, 2026-11-05: every owed thread's
  * circle sits on the line itself, in the queue's order, its name a small label beside it; hovering or scrolling
- * magnifies them like a dock, the nearest largest and its neighbours scaled along a bell curve, under a frosted glass
- * lens. Scrolling moves the list along the line; the ones scrolled past compress toward the end of the line and fade,
+ * magnifies them like a dock, the nearest largest and its neighbours scaled along a bell curve, through a warped
+ * magnifying glass: the rows on its rim squash and lean away, as through a convex lens. Scrolling moves the list along the line; the ones scrolled past compress toward the end of the line and fade,
  * but never leave it.
  *
  *   waveRows     every row of the queue (a window of WAVE_MAX around the one in focus on a very long queue), each
@@ -92,9 +92,11 @@ export interface LineOpts {
   sigma: number;
   /** How far the magnified ones push their neighbours apart, px each way (the dock's spread). */
   spread: number;
+  /** How hard the glass warps the rows on its rim: they squash along the line and tilt away (0 is a flat zoom). */
+  warp: number;
 }
 
-export const LINE: LineOpts = { gap: 46, half: 260, mag: 0.9, sigma: 44, spread: 10 };
+export const LINE: LineOpts = { gap: 46, half: 260, mag: 0.9, sigma: 44, spread: 16, warp: 1 };
 
 export interface Placed {
   /** Offset from the centre along the line, px (down on a desktop, right on a phone). */
@@ -105,6 +107,10 @@ export interface Placed {
   label: number;
   /** 0 to 1: how close to the magnifier. */
   lens: number;
+  /** The scale along the line: under the rim of the glass a row squashes, as through a convex lens. */
+  squash: number;
+  /** Degrees the row tilts away on the rim, signed by its side of the glass (0 at its middle and far off). */
+  tilt: number;
 }
 
 /**
@@ -123,7 +129,11 @@ export function lineLayout(n: number, p: number, focus: number, o: LineOpts = LI
     const fade = d < 0 ? Math.max(0.3, 1 - 0.14 * -d) : Math.max(0.42, 1 - 0.07 * d);
     const alpha = Math.min(1, fade + 0.6 * lens);
     const room = clamp01((lineStep(d, o.gap, half) - 24) / 12);
-    out.push({ at, scale: 1 + o.mag * lens, alpha, label: Math.max(room * (d < 0 ? 0.75 : 1), clamp01(lens * 1.6)) * alpha, lens });
+    // The warped magnifying glass (Nikita 2026-11-05, in place of a frosted pill): strongest on the rim, where the bell
+    // falls fastest, nothing at its middle or far off; the rim rows squash along the line and lean away from the centre.
+    const rim = 4 * lens * (1 - lens) * o.warp;
+    const scale = 1 + o.mag * lens;
+    out.push({ at, scale, alpha, label: Math.max(room * (d < 0 ? 0.75 : 1), clamp01(lens * 1.6)) * alpha, lens, squash: scale * (1 - 0.3 * rim), tilt: Math.sign(b - focus) * 38 * rim });
   }
   return out;
 }

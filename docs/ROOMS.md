@@ -160,7 +160,9 @@ unchanged). The Spire followed (step 5): `web/Spire.tsx` and `spire.css`, its in
 Lattice's Spire, read it through the old `desk/spire/invoices.ts`, which re-exports it until step 14). The Green
 followed (step 6): `web/Green.tsx`, `web/stadium.ts` and `web/green.css` (its rules from `rooms.css` at the top, unchanged),
 the league store and the analysis in `data/`, and its lines for Skippy in `skippy.ts` (the old `desk/green/league.ts`
-and `desk/green/skippy.ts` re-export them). Every other
+and `desk/green/skippy.ts` re-export them). The Haven followed (step 7): its whole page, `web/HavenPage.tsx` with its
+parts, sheets and tests (moved from `desk/haven` unchanged); the Boiler Room's house setup reads its grocery list through
+the old `desk/haven/groceries.ts`, which re-exports it. Every other
 room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest

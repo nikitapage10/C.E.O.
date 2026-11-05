@@ -83,7 +83,7 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   towelbar: S(70, 40, 0x111113, 0.9),
   bowls: S(0, 14, 0x111113, 0.4, 0.6),
   projector: S(104, 10, 0x1a1a1c, 0.4, 0, [0x9fd0ff, 0.4]),
-  art: S(70, 120, 0xe8e8e6, 0.8),
+  art: S(48, 80, 0xe8e8e6, 0.8), // top at 128, under the 140 cut-down wall (#892)
 };
 
 /** Floor finishes, drawn into the floor's texture. */

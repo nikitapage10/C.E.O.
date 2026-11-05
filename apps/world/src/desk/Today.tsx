@@ -9,7 +9,7 @@ import { Icon } from "./todayIcons.tsx";
 import { fires, TodayNow } from "./TodayNow.tsx";
 import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
 import { skippyLine } from "./roomPulse.ts";
-import { Iris } from "./council/Iris.tsx";
+import { Rotunda } from "./rotunda/Rotunda.tsx";
 import { useDeskPulses } from "./council/deskPulses.ts";
 import { forwardHavenResult } from "./homeDevices.ts";
 import { clockState, useWorldClock } from "../worldClock.ts";
@@ -19,6 +19,9 @@ import { Lists } from "./Lists.tsx";
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
 import "@fontsource-variable/jost/wght.css";
+import "@fontsource-variable/eb-garamond/wght.css";
+import "@fontsource-variable/eb-garamond/wght-italic.css";
+import "@fontsource-variable/source-sans-3/wght.css";
 import "./today.css";
 
 /** The rest of Today, loaded the first time "Not worth knowing now" is opened (or in the idle time after first paint). */
@@ -26,15 +29,14 @@ export const loadTodayMore = () => import("./TodayMore.tsx");
 const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore })));
 
 /**
- * Today, as the Iris (#666; concept 2 of 2026-11-04, Nikita: "too much going on... Can we get a much simplified
- * view?"). Two things only. On the left, standing alone, the priority: the date, "N things, Nikita.", what needs him
- * numbered with its Answer, then his own to-dos under "still left" and the add line (TodayNow). On the right, the
- * Council of Skippies in 3D round Skippy, the pupil of a nanite eye (council/Iris.tsx): point at a member for a light
- * from above and what it's doing, click for its card. Under the fold, everything that can wait stays folded away under
- * "Not worth knowing now" (TodayMore, loaded on demand). What used to crowd the page moved: the stat row's clock, Coming
- * up, Hide and Hands-free to the Boiler Room's Settings (/boiler/controls), Today in Ilyr to the Archive's edition,
- * the Kitchen list to the Haven, Enter the Lattice to the bar. Ask Skippy stays bottom right. Real data only. Under
- * the to-dos, the Lists (#735, Lists.tsx): Groceries and Things to buy, signed in to read and tick off.
+ * Today, as the Senate Rotunda (#740; the round 3 concept Nikita picked, 2026-11-04). Skippy chairs a round chamber
+ * and the Council's subminds sit round it on bronze pods (rotunda/Rotunda.tsx, 3D in its own chunk, flat CSS until it
+ * loads). What needs Nikita is the docket along the chamber's foot, one card per item, each a duty, a decision or a
+ * repair that plays on the floor in turn (rotunda/rite.ts): a duty is moved and seconded, a decision is debated and
+ * put to him as buttons, a repair is reported with one fix. Every card still answers in place (TodayNow, TodayActs).
+ * Under the chamber, his own to-dos under "still left", the add line, and the Lists (#735, Lists.tsx). Under the fold,
+ * everything that can wait stays folded away under "Not worth knowing now" (TodayMore, loaded on demand). Ask Skippy
+ * stays bottom right. Real data only: a part that isn't connected says it's waiting.
  */
 
 /** Replies that make "Held for you": the ones marked sooner, and anything waiting longer than this. */
@@ -100,13 +102,19 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
   const foundryHeld = questions.filter((c) => !away.has(`q${c.number}`)).length + (toPick.length && !away.has("ideas") ? 1 : 0);
   if (foundryHeld) add("foundry", foundryHeld);
   if (setupLeft && !away.has("setup")) add("boiler");
+  // The pods free to advocate on the floor: the active subminds, in the chamber's order.
+  const bench = council.filter((p) => p.submind.active && p.state !== "sim").map((p) => p.id);
 
   return (
-    <div className="today wv-page td ti-page">
-      <section className="ti" aria-label="Today">
-        <div className="ti-list">
-          <TodayNow
-            iris={{ name: "Nikita" }}
+    <div className="today wv-page td rt-page">
+      <section className="rt" aria-label="Today">
+        <TodayNow
+            rotunda={{
+              name: "Nikita",
+              bench,
+              chamber: (link) => <Rotunda link={link} pulses={council} now={now} since={since} held={heldBy} skippySays={says} hotRef={hot} />,
+              aside: <Lists />,
+            }}
             now={now}
             pulses={pulses}
             questions={questions}
@@ -122,9 +130,6 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
             awaySince={awaySince}
             onHot={(r) => hot.current(r)}
           />
-          <Lists />
-        </div>
-        <Iris pulses={council} now={now} since={since} held={heldBy} skippySays={says} hotRef={hot} />
       </section>
 
       <section className={`td-later cf-later${more ? " is-open" : ""}`} aria-label="Not worth knowing now">

@@ -1,21 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { annexPulse, COUNCIL_RC, havenPulse } from "./deskPulses.ts";
 import { memberLive } from "./live.ts";
-import { DESK_MANNERS, mannerOf, STILL_MANNER } from "./manner.ts";
-import { MARKS } from "./marks.ts";
 
 const NOW = Date.parse("2026-11-04T12:00:00");
 const vendors = { roborock: "live", petlibro: "live", whisker: "live", nest: "waiting" } as const;
 const links = { tasks: "waiting", kroger: "waiting" } as const;
 
 describe("the Desk's own subminds on the Council", () => {
-  it("seats the Steward and the Stagehand with colours, manners and sigils", () => {
-    for (const id of ["haven", "annex"]) {
-      expect(COUNCIL_RC[id]).toMatch(/^\d+,\d+,\d+$/);
-      expect(mannerOf(id)).not.toBe(STILL_MANNER);
-      expect(MARKS[id]).toBeTypeOf("function");
-    }
-    expect(DESK_MANNERS.haven.word).not.toBe(DESK_MANNERS.annex.word);
+  it("seats the Steward and the Stagehand with their colours", () => {
+    for (const id of ["haven", "annex"]) expect(COUNCIL_RC[id]).toMatch(/^\d+,\d+,\d+$/);
     expect(havenPulse("idle", null).submind.title).toBe("The Steward");
     expect(annexPulse("idle", { elections: "live" }, NOW).submind.title).toBe("The Stagehand");
   });

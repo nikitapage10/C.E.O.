@@ -6,11 +6,10 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * Today as the Iris (#666): the built site with made-up data stubbed in the browser. The priority list stands alone on
- * the left (what needs Nikita, then what's still left), and the Council of Skippies sits on the right in 3D, ringed by
- * a nanite eye. Hovering a submind lights it from above; clicking it opens what its room is doing. Signed out, the
- * page keeps the Council and the counts only. The stat row, Coming up, the broadcast, the Kitchen chip and the bar's
- * toggles live elsewhere now (the Boiler Room's Settings, the Archive, the Haven).
+ * Today as the Senate Rotunda (#740): the built site with made-up data stubbed in the browser. Skippy chairs a round
+ * chamber with the Council's subminds on bronze pods; what needs Nikita is the docket along its foot, each item a duty,
+ * a decision or a repair that plays on the floor and answers in place. His own to-dos and the Lists sit under the
+ * chamber. Signed out, the page keeps the chamber and the counts only.
  */
 
 const PORT = Number(process.env.E2E_TODAY_PORT ?? 5187);
@@ -61,6 +60,12 @@ const TODOS = {
   marks: [],
 };
 
+const listItem = (id: string, name: string, done = false) => ({ id, name, addedAt: hoursAgo(4), source: "phone", done });
+const LISTS = [
+  { id: "kitchen", name: "Groceries", items: [listItem("k1", "Oat milk"), listItem("k2", "Lemons")] },
+  { id: "buy", name: "Things to buy", items: [listItem("b1", "AA batteries"), listItem("b2", "Desk lamp", true)] },
+];
+
 async function stub(page: Page, signedIn: boolean) {
   await page.addInitScript(() => {
     const w = window as unknown as Record<string, unknown>;
@@ -74,6 +79,14 @@ async function stub(page: Page, signedIn: boolean) {
     r.fulfill({ json: signedIn ? { ready: true, signedIn: true, until: Date.now() + 30 * 60_000, hardUntil: Date.now() + 8 * 3_600_000, device: "Test device", devices: [] } : { ready: true, signedIn: false } }),
   );
   await page.route(`${BASE}/api/today-todos`, (r) => r.fulfill({ json: signedIn ? { state: TODOS } : { count: TODOS.todos.length } }));
+  // The Lists (#735), made up: a Groceries list and Things to buy.
+  await page.route((u) => u.pathname === "/api/haven", (r) => {
+    const view = new URL(r.request().url()).searchParams.get("view");
+    const meta = LISTS.map((l) => ({ id: l.id, name: l.name, open: l.items.filter((i) => !i.done).length, done: l.items.filter((i) => i.done).length }));
+    if (view === "status") return r.fulfill({ json: { kitchen: { open: 2, done: 0 }, todos: 0, gym: null, meals: null, lists: meta, ready: true } });
+    if (view === "lists") return signedIn ? r.fulfill({ json: { lists: LISTS } }) : r.fulfill({ status: 401, json: { error: "signed-out" } });
+    return r.fulfill({ json: { ok: true } });
+  });
 }
 
 for (const [label, width, height] of [
@@ -82,98 +95,137 @@ for (const [label, width, height] of [
 ] as const) {
   test(`Today's shots, ${label}`, async ({ page }) => {
     test.skip(!SHOTS, "pictures only");
+    test.setTimeout(240_000);
     await page.setViewportSize({ width, height });
     await stub(page, true);
     await page.goto(BASE + "/");
     await expect(page.locator(".today .desk__title")).toBeVisible();
-    await page.waitForTimeout(6_000);
+    await expect(page.locator(".rt-stage")).toHaveAttribute("data-gl", "on", { timeout: 90_000 });
+    await page.waitForTimeout(4_000);
     await page.screenshot({ path: `${SHOTS}/today-${label}.png` });
-    if (label === "phone" && (await page.locator(".ti-stage").count())) {
-      await page.locator(".ti-stage").evaluate((el) => el.scrollIntoView({ block: "center" }));
-      await page.waitForTimeout(3_000);
-      await page.screenshot({ path: `${SHOTS}/today-${label}-council.png` });
-    }
+    // A speaker on the floor: the first item's advocate, mid-debate.
+    await expect(page.locator(".rt-cap.on").first()).toBeVisible({ timeout: 120_000 });
+    await page.waitForTimeout(2_500);
+    await page.screenshot({ path: `${SHOTS}/today-${label}-floor.png` });
+    // An item answered in place: the setup duty's card, on the floor panel.
+    const duty = page.locator(".rt-mo").filter({ hasText: "Setup, only you can do" });
+    await duty.getByRole("button", { name: "Answer" }).click();
+    await page.waitForTimeout(800);
+    if (label === "phone") await duty.evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await page.screenshot({ path: `${SHOTS}/today-${label}-answer.png` });
   });
 }
 
-test("signed in: the list stands alone, the Council lights on a hover and opens a card", async ({ page }) => {
+test("signed in: the docket in the chamber, the Council's pods, the to-dos and the Lists", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await stub(page, true);
   await page.goto(BASE + "/");
-  const list = page.locator(".td-now.is-iris");
-  await expect(list.getByRole("heading", { level: 1 })).toHaveText("Four things, Nikita.");
-  await expect(list.getByText("Two ideas wait for your pick")).toBeVisible();
-  await expect(list.getByText("still left")).toBeVisible();
-  await expect(list.locator(".td-ni.is-mine")).toHaveCount(2);
-  await expect(list.getByRole("textbox", { name: "Add a to-do" })).toBeVisible();
+  const now = page.locator(".td-now.is-rotunda");
+  await expect(now.getByRole("heading", { level: 1 })).toHaveText("Two items before you, Nikita.");
 
-  // The Council: Skippy, the ten and the Desk's own two (the Steward and the Stagehand, #717), one button each.
+  // The docket: one card per item, each a kind with its ritual's summary.
+  const docket = page.getByRole("list", { name: "Held for you" });
+  await expect(docket.locator(".rt-mo")).toHaveCount(2);
+  const ideas = docket.locator(".rt-mo.is-decision");
+  await expect(ideas).toContainText("Decision");
+  await expect(ideas).toContainText("Item I · Foundry");
+  await expect(ideas.getByText("Two ideas wait for your pick")).toBeVisible();
+  await expect(ideas).toContainText("2 advocates · counterpoint: the Pessimist");
+  const setup = docket.locator(".rt-mo.is-duty");
+  await expect(setup).toContainText("Item II · Boiler Room");
+  await expect(setup).toContainText("Moved by the Pessimist · no debate");
+  // A decision's options are buttons; one opens the real answer card, with Build and Not this one.
+  await ideas.getByRole("button", { name: "A shadow pass for the Lattice", exact: true }).click();
+  const floor = ideas.locator(".rt-floor");
+  await expect(floor.getByRole("button", { name: "Build" }).first()).toBeVisible();
+  await floor.getByRole("button", { name: "Fold" }).click();
+  await expect(floor.getByRole("button", { name: "Build" })).toHaveCount(0);
+  // A duty answers in place too.
+  await setup.getByRole("button", { name: "Answer" }).click();
+  await expect(setup.locator(".rt-floor")).toBeVisible();
+  await setup.getByRole("button", { name: "Fold" }).first().click();
+
+  // Still left, under the chamber: his own to-dos and the add line; the Lists beside them.
+  await expect(now.getByText("still left")).toBeVisible();
+  await expect(now.locator(".td-ni.is-mine")).toHaveCount(2);
+  await expect(now.getByRole("textbox", { name: "Add a to-do" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Lists" })).toBeVisible();
+
+  // The Council: Skippy presiding and twelve pods (the ten rooms' subminds and the Desk's two), a button each.
   const council = page.getByRole("group", { name: /The Council of Skippies/ });
-  await expect(council.locator(".ti-seat")).toHaveCount(13);
+  await expect(council.locator(".rt-pod")).toHaveCount(12);
+  await expect(council.getByRole("button", { name: /^Skippy, the Magnificent/ })).toBeVisible();
   const builder = council.getByRole("button", { name: /^The Builder, Foundry/ });
   await builder.hover();
-  // Its light: the shaft in 3D once the Council has loaded, the page's cone before (#717).
   await expect(builder).toHaveClass(/is-lit/);
-  await expect(page.locator(".ti-tip")).toContainText("Foundry");
+  await expect(builder.locator(".rt-tip")).toContainText("Foundry");
   await builder.click();
   const card = page.getByRole("complementary", { name: "The Builder, Foundry" });
   await expect(card).toBeVisible();
   await expect(card.getByText("Now", { exact: true })).toBeVisible();
   await expect(card.getByText(/held for you here/)).toBeVisible();
-  if (SHOTS) {
-    await page.waitForTimeout(1_500);
-    await expect(card).toBeVisible();
-    await page.screenshot({ path: `${SHOTS}/today-card-wide.png` });
-  }
   await page.keyboard.press("Escape");
   await expect(card).toHaveCount(0);
+  await council.getByRole("button", { name: /^Skippy, the Magnificent/ }).click();
+  await expect(page.getByRole("complementary", { name: "Skippy, the Magnificent" }).getByRole("button", { name: "Talk to Skippy" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
-  // What moved off the page: the stat row, Coming up, the broadcast, the Kitchen chip, the way into the Lattice.
-  for (const gone of ["Coming up", "Enter the Lattice", "Today in Ilyr", "Kitchen list", "Shipped today", "Rooms live"]) await expect(page.getByText(gone, { exact: true })).toHaveCount(0);
-  // The bar: the pages in their order, the account button and the Lattice; no Hide or Hands-free (they're in Settings).
+  // The session: in 3D the first item comes to the floor, the chair reads it, and its card takes its stamp.
+  await expect(page.locator(".rt-stage")).toHaveAttribute("data-gl", "on", { timeout: 90_000 });
+  await expect(page.locator(".rt-chair")).toContainText(/Item i, a decision|The chair recognizes|Counterpoint|put to you/, { timeout: 60_000 });
+  await expect(ideas).toHaveClass(/is-on/);
+  await expect(page.locator(".rt-order")).toContainText("Item I · Decision");
+  await expect(ideas).toHaveClass(/is-stamped/, { timeout: 150_000 });
+  // The gallery never murmurs more than three lines at once.
+  expect(await page.locator(".rt-mur.on").count()).toBeLessThanOrEqual(3);
+  // A card brings its item to the floor.
+  await setup.locator(".rt-mo-main").click();
+  await expect(setup).toHaveClass(/is-on/, { timeout: 30_000 });
+  await expect(page.locator(".rt-chair")).toContainText("a duty", { timeout: 30_000 });
+
+  // The bar, and Ask Skippy bottom right.
   const bar = page.getByRole("navigation", { name: "Desk" });
   await expect(bar.getByRole("link")).toHaveText(["Today", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
-  await expect(page.locator(".wv-navr").getByRole("button", { name: /Hide/ })).toHaveCount(0);
-  await expect(page.locator(".wv-navr").getByRole("button", { name: /Hands-free/ })).toHaveCount(0);
-  await expect(page.locator(".wv-navr").getByRole("link", { name: /Lattice/ })).toBeVisible();
-  // Ask Skippy stays bottom right.
   await expect(page.getByRole("button", { name: "Ask Skippy", exact: true }).first()).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("signed out: the Council and the counts, no private words", async ({ page }) => {
+test("signed out: the chamber and the counts, no private words", async ({ page }) => {
   await stub(page, false);
   await page.goto(BASE + "/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await expect(page.getByText("Book the vet")).toHaveCount(0);
   const council = page.getByRole("group", { name: /The Council of Skippies/ });
-  await expect(council.locator(".ti-seat")).toHaveCount(13);
+  await expect(council.locator(".rt-pod")).toHaveCount(12);
   await council.getByRole("button", { name: /^The Messenger, Relay/ }).click();
   const card = page.getByRole("complementary", { name: "The Messenger, Relay" });
   await expect(card).toBeVisible();
   await expect(card.locator(".td-talks-l")).toHaveCount(0);
 });
 
-test("reduced motion: the Council holds still and the page still works", async ({ page }) => {
+test("reduced motion: the chamber holds near still and the page still works", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await stub(page, true);
   await page.goto(BASE + "/");
-  await expect(page.locator(".ti-council")).not.toHaveAttribute("data-gl", /idle|loading/, { timeout: 60_000 });
+  await expect(page.locator(".rt-stage")).not.toHaveAttribute("data-gl", /idle|loading/, { timeout: 90_000 });
   await page.getByRole("button", { name: /^The Pessimist, Boiler Room/ }).click();
   await expect(page.getByRole("complementary", { name: "The Pessimist, Boiler Room" })).toBeVisible();
+  // No murmurs from the gallery under reduced motion.
+  await page.waitForTimeout(4_000);
+  await expect(page.locator(".rt-mur.on")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("on a phone the ring sits under the list, with no sideways scroll", async ({ page }) => {
+test("on a phone the docket sits under the chamber, with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await stub(page, true);
   await page.goto(BASE + "/");
-  const list = await page.locator(".ti-list").boundingBox();
-  const stage = await page.locator(".ti-stage").boundingBox();
-  expect(list && stage && stage.y >= list.y + list.height - 1).toBe(true);
+  const stage = await page.locator(".rt-stage").boundingBox();
+  const dock = await page.locator(".rt-dock").boundingBox();
+  expect(stage && dock && dock.y >= stage.y + stage.height - 1).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

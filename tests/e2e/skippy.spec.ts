@@ -203,7 +203,7 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   await page.goto(BASE + "/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await page.waitForTimeout(1500);
-  // The Council of Skippies on Today loads his model since #666 (council/councilScene.ts), but never the hologram itself.
+  // The Council of Skippies on Today loads his model since #666 (the Rotunda since #740, rotunda/rotundaScene.ts), but never the hologram itself.
   expect(asked.filter((u) => /holoScene|HologramStage/.test(u))).toEqual([]);
 
   await page.locator(".desk__skippy").click();

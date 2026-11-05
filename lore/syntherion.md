@@ -218,13 +218,17 @@ routes, he does not act: each answer can carry up to three buttons (file this as
 the Lattice, answer Rivet's question), and nothing happens until the C.E.O. taps one. He cannot approve a build. He
 finds this beneath him and says so.
 
-**The Council's chamber.** On the Desk's Today page the Council of Skippies sits in the round, in a dim chamber under
-moonlight: Skippy afloat in the middle, the ten subminds on a ring about him, every one the same admiral can in its
-room's colour with its room's sigil on its coat, and two streams of nanites drawn round them as one vast eye with
-Skippy for its pupil. Not a temple and not a tribunal; more a secret society that keeps minutes. Each holds itself the
-way it is: the Pessimist slumped and sighing, the Commentator bouncing through the call, the Life of the Party spinning,
-the Bookie glancing over its shoulder, the Builder at its anvil, the Executive with its hands behind its back. A
-submind with no real work yet waits dim and still in its seat. Whoever the C.E.O. points at gets a light from above.
+**The Council's chamber.** Since #740 the Council of Skippies sits in session on the Desk's Today page, in the Senate
+Rotunda: a round bowl under an oculus, its tiers packed with a gallery of empty pods, each with a pinprick lamp. Skippy
+chairs it from the podium in a shaft of light, which he calls "the only correct lighting". The subminds sit round the
+bowl on bronze pods, all the same dark bronze, each floating on a short field of sigils and motes in its room's colour
+that never quite reaches the floor (the Pessimist says it will, one day). The day's business is read as a docket, and
+each kind has its ritual: a duty is moved and seconded with no debate; a decision is argued from the floor, one pod per
+option, the Pessimist always rising for the counterpoint before the question is put to the C.E.O.; a repair is
+reported, cause then fix, with one note of risk from the Boiler Room. A pod flies down to the floor to speak and glides
+home after. Nobody knows who sits in the gallery. It murmurs anyway ("Hear, hear", "Is the Pessimist ever cheerful?"),
+never more than three voices at once, and the Historian keeps the minutes. A submind with no real work yet waits dim
+in its seat; whoever the C.E.O. points at is lit.
 
 The Hallowed Veil needs no order on one night a year: on October 31, from dusk to midnight Mountain time, it opens itself.
 The agents come to the club in costume, jack-o'-lanterns light up in every room, and Skippy announces it as if he had planned

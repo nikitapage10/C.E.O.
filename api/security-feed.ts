@@ -64,7 +64,13 @@ export interface SecurityFeed {
   at: string;
   workflows: WorkflowState[];
   features: { id: string; name: string; state: FeatureState }[];
-  alerts: { codeScanning: AlertCount | null; dependabot: AlertCount | null };
+  /**
+   * `codeScanning` counts the code findings (CodeQL and any other code scanner) and `dependabot` the vulnerable
+   * packages: the actionable ones. `posture` counts what Scorecard uploads to code scanning, which grades how the repo
+   * is run (branch protection, reviews, fuzzing…) rather than a bug in its code (#901); absent from older answers,
+   * where `codeScanning` counted both.
+   */
+  alerts: { codeScanning: AlertCount | null; dependabot: AlertCount | null; posture?: AlertCount | null };
   scorecard: { score: number; date: string; checks: { name: string; score: number; short: string }[] } | null;
 }
 
@@ -169,12 +175,30 @@ export function featureStates(repo: unknown, pvr: unknown, dependabotListed: boo
 
 const PAGE = 100;
 
-/** Open and fixed alert counts for one kind of alert: the lists are read only to be counted, then dropped. */
-async function alertCount(kind: "code-scanning" | "dependabot"): Promise<AlertCount | null> {
+/**
+ * Whether a code scanning alert is Scorecard's: a repo-posture check (Maintained, Code-Review, Branch-Protection…)
+ * uploaded as an alert, not a finding in the code. Read from the tool's name only, which is then dropped.
+ */
+export function isPostureAlert(alert: unknown): boolean {
+  const tool = obj(obj(alert)?.tool)?.name;
+  return typeof tool === "string" && /^(openssf )?scorecard$/i.test(tool.trim());
+}
+
+const countOf = (kind: "code-scanning" | "dependabot", open: unknown[], fixed: unknown[], more: boolean): AlertCount => ({ open: open.length, fixed: fixed.length, more, severity: severityCounts(kind, open) });
+
+/**
+ * Open and fixed alert counts for one kind of alert: the lists are read only to be counted, then dropped. Code
+ * scanning's are split into code findings and Scorecard's posture checks (`posture`).
+ */
+async function alertCount(kind: "code-scanning" | "dependabot"): Promise<{ count: AlertCount; posture: AlertCount | null } | null> {
   try {
     const [open, fixed] = await Promise.all([read(`/${kind}/alerts?state=open&per_page=${PAGE}`), read(`/${kind}/alerts?state=fixed&per_page=${PAGE}`)]);
     if (!Array.isArray(open) || !Array.isArray(fixed)) return null;
-    return { open: open.length, fixed: fixed.length, more: open.length >= PAGE || fixed.length >= PAGE, severity: severityCounts(kind, open) };
+    const more = open.length >= PAGE || fixed.length >= PAGE;
+    if (kind === "dependabot") return { count: countOf(kind, open, fixed, more), posture: null };
+    const code = (list: unknown[]) => list.filter((a) => !isPostureAlert(a));
+    const card = (list: unknown[]) => list.filter(isPostureAlert);
+    return { count: countOf(kind, code(open), code(fixed), more), posture: countOf(kind, card(open), card(fixed), more) };
   } catch {
     return null;
   }
@@ -233,7 +257,7 @@ const feed = memo(TTL * 1000, async () => {
     at: new Date().toISOString(),
     workflows: runs.map((r) => r.state),
     features: featureStates(repo, pvr, dependabot !== null),
-    alerts: { codeScanning, dependabot },
+    alerts: { codeScanning: codeScanning?.count ?? null, dependabot: dependabot?.count ?? null, posture: codeScanning?.posture ?? null },
     scorecard: card,
   };
   return JSON.stringify(out);

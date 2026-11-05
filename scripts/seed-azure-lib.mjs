@@ -41,6 +41,22 @@ export const STORY_STYLE = 4;
 export const TTS_MODEL = "gemini-3.8-flash-tts";
 export const TTS_VOICE = "Achird";
 
+/** The largest story audio the seed takes: a day's reading runs a few MB, so anything far past this isn't one. */
+export const MAX_WAV_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Whether bytes from the network are a whole WAV file before they are written to disk (#901, CodeQL's "network data
+ * written to file"): a RIFF header naming WAVE, a `fmt ` chunk first, the RIFF size matching the bytes received, and
+ * no bigger than MAX_WAV_BYTES. Anything else (an error page, a cut-off download) is refused, not written.
+ */
+export function isWav(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 44 || bytes.byteLength > MAX_WAV_BYTES) return false;
+  const tag = (at) => String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
+  if (tag(0) !== "RIFF" || tag(8) !== "WAVE" || tag(12) !== "fmt ") return false;
+  const riff = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(4, true);
+  return riff + 8 === bytes.byteLength;
+}
+
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isDay = (d) => typeof d === "string" && DAY_RE.test(d);
 const json = (value) => JSON.stringify(value);
@@ -116,7 +132,7 @@ export function publicSeedFiles({ feed, pages = [], stories = [], weeks = [] }) 
 
   // The day stories: what the public view shows, and the audio's own size. What it cost isn't public (no reader uses it).
   for (const { view, wav } of stories) {
-    if (!view?.ready || !isDay(view.day) || !(wav instanceof Uint8Array) || wav.byteLength === 0) continue;
+    if (!view?.ready || !isDay(view.day) || !isWav(wav)) continue;
     files.push({ name: `world/stories/${view.day}.wav`, data: wav });
     files.push({
       name: `world/stories/${view.day}.json`,
@@ -139,7 +155,7 @@ export function publicSeedFiles({ feed, pages = [], stories = [], weeks = [] }) 
   }
   for (const { view, wav } of weeks) {
     if (!view?.ready || !isDay(view.week)) continue;
-    const audio = wav instanceof Uint8Array && wav.byteLength > 0;
+    const audio = isWav(wav);
     if (audio) files.push({ name: `world/stories/week-${view.week}.wav`, data: wav });
     files.push({
       name: `world/stories/week-${view.week}.json`,

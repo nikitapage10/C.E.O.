@@ -8,7 +8,7 @@ import { ACCENT, type Check, type Group } from "./Checks.tsx";
 import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId } from "../data/explain.ts";
 import { Chips, DOC_URL, Facts, Out, REPO_URL, Rich } from "./parts.tsx";
 import { BoilerFrame, Panel, Ring, RunStrip, useOpen } from "./frame.tsx";
-import { scanTrend, securityNeeds, severityTotals } from "../data/pages.ts";
+import { actionableAlerts, scanTrend, securityHeadline, securityNeeds, severityTotals } from "../data/pages.ts";
 import { CheckList, TrustMap } from "./CheckList.tsx";
 
 /**
@@ -57,9 +57,9 @@ export function SecurityPage({ now }: { now: number }) {
   const card = feed?.scorecard ?? null;
   const cs = feed?.alerts.codeScanning ?? null;
   const dep = feed?.alerts.dependabot ?? null;
-  const alertsKnown = !!cs || !!dep;
-  const alerts = (cs?.open ?? 0) + (dep?.open ?? 0);
-  const alertsMore = !!cs?.more || !!dep?.more;
+  const posture = feed?.alerts.posture ?? null;
+  // Only code findings and package alerts count as open here; Scorecard's posture checks are shown apart (#901).
+  const act = actionableAlerts(feed?.alerts);
 
   /* ---------- the stage: scans, the Scorecard, alerts, the eval suite ---------- */
   const scans: Check[] = SCAN_IDS.map((id) => {
@@ -107,13 +107,13 @@ export function SecurityPage({ now }: { now: number }) {
     detail: <ScorecardDetail card={card} feed={feed} now={now} />,
   };
 
-  const alertRow = (kind: keyof SecurityFeed["alerts"], name: string, c: SecurityFeed["alerts"]["codeScanning"]): Check => ({
+  const alertRow = (kind: keyof SecurityFeed["alerts"], name: string, c: SecurityFeed["alerts"]["codeScanning"] | undefined): Check => ({
     id: `alerts-${kind}`,
     name,
     label: name,
     sub: !c ? "Not reported" : c.open ? `${n(c, c.open)} open` : "None open",
-    state: alertState(c, feed),
-    kicker: "Counts only",
+    state: alertState(c ?? undefined, feed),
+    kicker: kind === "posture" ? "Repo posture · counts only" : "Counts only",
     about: ALERT_EXPLAIN[kind],
     value: c ? (
       <span className="sx-pair">
@@ -157,7 +157,12 @@ export function SecurityPage({ now }: { now: number }) {
       title: "How the repo is run",
       note: "the Scorecard, and alerts as counts only",
       aside: <Out href={`${REPO_URL}/security`}>Security tab</Out>,
-      checks: [scoreCheck, alertRow("codeScanning", "Code scanning alerts", cs), alertRow("dependabot", "Dependabot alerts", dep)],
+      checks: [
+        scoreCheck,
+        alertRow("codeScanning", "Code findings", cs),
+        alertRow("dependabot", "Dependabot alerts", dep),
+        ...(posture ? [alertRow("posture", "Scorecard posture checks", posture)] : []),
+      ],
     },
     {
       id: "evals",
@@ -275,20 +280,12 @@ export function SecurityPage({ now }: { now: number }) {
     },
   ];
 
-  const headline =
-    !feed || !reported.length ? (
-      <>
-        Waiting on <em className="is-wait">GitHub's scans.</em>
-      </>
-    ) : failing.length ? (
-      <>
-        {WORDS[failing.length] ?? failing.length} {failing.length === 1 ? "scan is" : "scans are"} <em className="is-fail">failing.</em>
-      </>
-    ) : (
-      <>
-        Every scan is <em>passing.</em>
-      </>
-    );
+  const head = securityHeadline(feed);
+  const headline = (
+    <>
+      {head.lead} <em className={head.tone === "pass" ? undefined : `is-${head.tone}`}>{head.em}</em>
+    </>
+  );
 
   const needs = securityNeeds(feed);
   const [open, toggle] = useOpen();
@@ -385,13 +382,13 @@ export function SecurityPage({ now }: { now: number }) {
             <Panel
               id="sx-alerts"
               title="Alerts"
-              sub={alertsKnown ? `${alerts}${alertsMore ? "+" : ""} open · counts only` : "not reported"}
-              tone={!alertsKnown ? "wait" : alerts ? "part" : "pass"}
+              sub={act ? `${act.open}${act.more ? "+" : ""} to fix${posture?.open ? ` · ${posture.open} posture` : ""} · counts only` : "not reported"}
+              tone={!act ? "wait" : act.open ? "part" : "pass"}
               open={open.has("sx-alerts")}
               onToggle={() => toggle("sx-alerts")}
               chart={
                 sev ? (
-                  <div className="bx-sev" aria-label={`Open alerts by severity: ${sev.critical} critical, ${sev.high} high, ${sev.medium} medium, ${sev.low} low`}>
+                  <div className="bx-sev" aria-label={`Open code and package alerts by severity: ${sev.critical} critical, ${sev.high} high, ${sev.medium} medium, ${sev.low} low`}>
                     {(["critical", "high", "medium", "low"] as const).map((k) => (
                       <div key={k} className={`is-${k}`}>
                         <b>{sev[k]}</b>
@@ -401,7 +398,7 @@ export function SecurityPage({ now }: { now: number }) {
                     ))}
                   </div>
                 ) : (
-                  <p className="bx-note">{alertsKnown ? "The split by severity comes with the feed's next read." : "Waiting for GitHub's alert counts."}</p>
+                  <p className="bx-note">{act ? "The split by severity comes with the feed's next read." : "Waiting for GitHub's alert counts."}</p>
                 )
               }
             >

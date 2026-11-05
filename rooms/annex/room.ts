@@ -4,7 +4,7 @@ import { nav } from "./nav.ts";
 /**
  * The Annex: the Desk's staging room for short-run pop-ups (#618), Election night first. A Desk-only room with no
  * Lattice room behind it; led by the Stagehand (DESK_SUBMINDS). Its number key follows the bar (route.ts NAV_ORDER). Data only
- * (docs/ROOMS.md). Its code is in apps/world/src/desk/annex and api/_annex until its migration step.
+ * (docs/ROOMS.md). Its page is in web/ and its stores in data/ (#617); its endpoints are in api/_annex.
  */
 export default defineRoom({
   id: "annex",

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
-import { POPUPS, useAnnex, type Popup, type PopupStatus } from "../annex/annex.ts";
+import { POPUPS, useAnnex, type Popup, type PopupStatus } from "../data/annex.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import "../annex/annex.css";
+import "./annex.css";
 
 /**
  * The Annex (#618): the Desk's staging room. Short-lived pop-ups run here on the C.E.O. engine, each a small module of
@@ -11,7 +11,7 @@ import "../annex/annex.css";
  * stops reading for it; its code and settings stay, and one tap revives it as it was. Skippy, the Stagehand, keeps it.
  */
 
-const ElectionNight = lazy(() => import("../annex/elections/ElectionNight.tsx").then((m) => ({ default: m.ElectionNight })));
+const ElectionNight = lazy(() => import("./ElectionNight.tsx").then((m) => ({ default: m.ElectionNight })));
 
 const STATUS_WORD: Record<PopupStatus, string> = { live: "Live", ended: "Ended", archived: "On the Shelf", graduated: "Graduated" };
 

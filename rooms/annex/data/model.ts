@@ -1,4 +1,4 @@
-import type { Candidate, ElectionBoard, Office, PartyKey, Race } from "../../../../../../api/_annex/elections.ts";
+import type { Candidate, ElectionBoard, Office, PartyKey, Race } from "../../../api/_annex/elections.ts";
 
 /**
  * Election night's pure parts (#618): the state tile map, who leads, the filters and the order. No React, so the

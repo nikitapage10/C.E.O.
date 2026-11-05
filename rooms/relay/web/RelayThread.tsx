@@ -13,13 +13,15 @@ import { setRelayHandler } from "../data/bridge.ts";
 import { GroupFlipper } from "./GroupFlipper.tsx";
 import { groupsOf } from "../data/groups.ts";
 import { RelayQueue, useMedia } from "./RelayQueue.tsx";
+import { isTyping } from "@ceo/engine/web/wasdPan.ts";
 import { Said } from "./Said.tsx";
 import { EmojiPicker, Tapbacks } from "./Tapbacks.tsx";
 import { SetAside } from "./SetAside.tsx";
 import { ghost, ghosted, quill, rise, SigilStage, sink } from "@ceo/engine/sigils/sigils.ts";
-import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGistLine, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "../data/thread.ts";
+import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGistLine, olderInOrder, weekSent, type Exchange, type Order } from "../data/thread.ts";
 import { errorText, useThread, type Notice } from "../data/useThread.ts";
-import { listen, useRoomMic, type Listener } from "@ceo/desk/roomvoice/roomVoice.ts";
+import { useRoomMic } from "@ceo/desk/roomvoice/roomVoice.ts";
+import { useHoldSpace } from "./holdSpace.ts";
 import "./thread.css";
 
 /**
@@ -218,31 +220,49 @@ function More({ x, t }: { x: Exchange; t: ReturnType<typeof useThread> }) {
   );
 }
 
-/** Opens a text's composer (#869): its circle on the line, R, or Reply. */
+/** Opens a text's reply box and puts the cursor in it (#869, #904): a tap on its circle on the line, R or Enter. */
 const WRITE_EVENT = "relay:write";
 const openComposer = (key: string) => window.dispatchEvent(new CustomEvent(WRITE_EVENT, { detail: key }));
 
 const focusWords = () => document.getElementById("cx-words")?.focus();
 
 /**
- * Nikita's own reply (#803): what he types here goes exactly as typed when he taps Send, after the same few seconds of
- * Undo; no rewrite and no model. Blasto's voice is for his drafts and for what is said aloud (the dock's line).
+ * Nikita's own reply (#803), always open under the newest message on a text (#904): what he types here goes exactly
+ * as typed when he taps Send or presses Enter (Shift+Enter is a new line), after the same few seconds of Undo; no
+ * rewrite and no model. Blasto's draft waits in the empty box as ghost text: Tab (or "Use draft") puts it in, typing
+ * replaces it, and it is never sent unless it is in the box and Send is pressed. Esc leaves the box so the page's keys
+ * work again. Holding Space (outside a text field) talks into it (./holdSpace.ts).
  */
-function Own({ x, t, start, close, autoFocus, launch, children }: { x: Exchange; t: ReturnType<typeof useThread>; start: string; close: (() => void) | null; autoFocus: boolean; launch: (el: HTMLElement | null) => void; children?: ReactNode }) {
+function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: ReturnType<typeof useThread>; focus: boolean; start?: string; launch: (el: HTMLElement | null) => void; children?: ReactNode }) {
   const [text, setText] = useState(start);
   const ref = useRef<HTMLTextAreaElement>(null);
-  const ear = useRef<Listener | null>(null);
-  const [hearing, setHearing] = useState(false);
-  const [micNote, setMicNote] = useState("");
+  const textRef = useRef(text);
+  textRef.current = text;
+  const { hearing, note } = useHoldSpace(focus && !t.hidden, setText, () => textRef.current);
   useEffect(() => {
+    if (!focus) setText("");
+  }, [focus]);
+  // Edit (an email's draft, or a text's spoken one) starts the box from it, cursor at the end.
+  useEffect(() => {
+    if (!start) return;
     const el = ref.current;
-    if (!el || !autoFocus) return;
-    el.focus({ preventScroll: true });
-    el.setSelectionRange(el.value.length, el.value.length);
-  }, [autoFocus]);
-  useEffect(() => () => ear.current?.cancel(), []);
+    el?.focus({ preventScroll: true });
+    el?.setSelectionRange(start.length, start.length);
+  }, [start]);
+  // A tap on the line, R or Enter puts the cursor in the box.
+  useEffect(() => {
+    if (!focus) return;
+    const open = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== x.key) return;
+      const el = ref.current;
+      el?.focus({ preventScroll: true });
+      el?.setSelectionRange(el.value.length, el.value.length);
+    };
+    window.addEventListener(WRITE_EVENT, open);
+    return () => window.removeEventListener(WRITE_EVENT, open);
+  }, [focus, x.key]);
   const locked = x.line === "text" && !t.unlocked;
-  const hint = x.hint && !t.hidden && text.trim() !== x.hint.trim() ? x.hint : null;
+  const hint = x.hint && !t.hidden && !text ? x.hint : null;
   const take = (words: string) => {
     setText(words);
     window.setTimeout(() => {
@@ -251,97 +271,82 @@ function Own({ x, t, start, close, autoFocus, launch, children }: { x: Exchange;
       el?.setSelectionRange(words.length, words.length);
     }, 0);
   };
-  /** Dictation (#869): the browser's own speech recognition writes into the box; nothing goes until Send. */
-  const mic = async () => {
-    if (ear.current) {
-      const l = ear.current;
-      ear.current = null;
-      setHearing(false);
-      const got = await l.finish();
-      if ("error" in got) setMicNote(got.error);
-      else if ("clip" in got) setMicNote("Dictation needs a browser with speech recognition (Chrome, Edge or Safari).");
-      return;
-    }
-    const base = text.trim() ? `${text.trimEnd()} ` : "";
-    setMicNote("");
-    ear.current = listen((w) => setText(`${base}${w}`));
-    setHearing(true);
-  };
+  const who = t.hidden ? "them" : x.who;
+  const id = `cx-own-${x.key}`;
   return (
     <form
       className="cx-own"
       data-hint={hint ? "" : undefined}
+      data-hearing={hearing || undefined}
       onSubmit={(e) => {
         e.preventDefault();
-        ear.current?.cancel();
-        ear.current = null;
-        setHearing(false);
+        if (locked) return;
         if (t.sendOwn(text)) {
           launch(ref.current);
           setText("");
-          close?.();
         }
       }}
     >
-      <label className="cx-sr" htmlFor={`cx-own-${x.key}`}>
-        Your reply to {t.hidden ? "them" : x.who}, sent exactly as you type it
+      <label className="cx-sr" htmlFor={id}>
+        Your reply to {who}, sent exactly as you type it
       </label>
-      <div className="cx-ownrow">
+      <div className="cx-box">
         <textarea
-          id={`cx-own-${x.key}`}
+          id={id}
           ref={ref}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            // Tab on an empty box takes the suggestion, as the iPhone's does on a tap.
-            if (e.key === "Tab" && !e.shiftKey && hint && !text.trim()) {
+            if (e.key === "Tab" && !e.shiftKey && hint) {
               e.preventDefault();
               take(hint);
+            } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              e.currentTarget.blur();
             }
           }}
-          rows={Math.min(6, Math.max(2, text.split("\n").length))}
+          rows={Math.min(6, Math.max(1, text.split("\n").length))}
           maxLength={2_000}
-          placeholder={hearing ? "Listening…" : "Write it, or tap the mic and say it. It goes exactly as written."}
+          placeholder={hearing ? "Listening…" : (hint ?? `Reply to ${t.hidden ? "them" : first(x.who)}`)}
+          aria-describedby={hint ? `${id}-hint` : undefined}
           data-private=""
         />
-        {/* Blasto's draft, faint, off to the side: a suggestion to pick, never sent unless picked and sent (#869). */}
         {hint && (
-          <div className="cx-hints" aria-label="Suggestion">
-            <button type="button" className="cx-hint" onClick={() => take(hint)} title="Use this suggestion (Tab)">
-              <Private>{hint}</Private>
-            </button>
-          </div>
+          <button type="button" className="cx-take" onClick={() => take(hint)} title="Put Blasto's draft in the box (Tab)">
+            <span id={`${id}-hint`} className="cx-sr">
+              Blasto's draft is in the box as a suggestion; Tab puts it in.
+            </span>
+            Use draft <kbd>Tab</kbd>
+          </button>
+        )}
+        {hearing && (
+          <span className="cx-listen" role="status">
+            <i aria-hidden="true" /> Listening · let go of Space to stop
+          </span>
         )}
       </div>
       <div className="cx-ask cx-acts">
         {locked ? (
-          <button type="button" className="cx-opt is-yes" onClick={() => void useTexts.getState().unlock()} title="One passkey check unlocks sending on this device for 72 hours">
+          <button type="button" className="cx-opt is-yes cx-send" onClick={() => void useTexts.getState().unlock()} title="One passkey check unlocks sending on this device for 72 hours">
             Unlock to send
           </button>
         ) : (
-          <button type="submit" className="cx-opt is-yes" disabled={!text.trim() || t.hidden}>
-            Send
+          <button type="submit" className="cx-opt is-yes cx-send" disabled={!text.trim() || t.hidden}>
+            Send <kbd>Enter</kbd>
           </button>
         )}
         <EmojiPicker box={ref} value={text} set={setText} />
-        {typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
-          <button type="button" className="cx-opt cx-mic" data-on={hearing || undefined} aria-pressed={hearing} onClick={() => void mic()} title={hearing ? "Stop dictating" : "Dictate into the box"}>
-            {hearing ? "Stop" : "Mic"}
-          </button>
-        )}
-        {close && (
-          <button type="button" className="cx-opt" onClick={close}>
-            Cancel
-          </button>
-        )}
         {children}
       </div>
-      {micNote && <p className="cx-warn">{micNote}</p>}
+      {note && <p className="cx-warn">{note}</p>}
     </form>
   );
 }
 
-/** One exchange, right of the line (#803): who, their words, Blasto's advice, one row of actions; a draft only once asked for. */
+/** One exchange, right of the line (#803, #904): the conversation, then the reply box always open under it on a text. */
 function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now: number; t: ReturnType<typeof useThread>; launch: (el: HTMLElement | null) => void }) {
   const hidden = t.hidden;
   const sealed = t.pending === x.key;
@@ -351,33 +356,23 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
   const textsView = useTexts((s) => s.view);
   const req = x.line === "text" ? lastRequest(textsView?.requests, x.id) : undefined;
   const reading = t.reading === x.key;
-  /** The own-words box (#803): closed, empty, or started from the draft on screen. */
+  /** An email's own-words box, or a spoken draft taken into the box by Edit: closed, empty, or started from a draft. */
   const [own, setOwn] = useState<string | null>(null);
   useEffect(() => {
     if (!focus) setOwn(null);
   }, [focus]);
-  // Reply on a text (#869): a tap on its circle, R, or the Reply button opens the composer, Nikita's own words first.
-  useEffect(() => {
-    if (!focus || x.line !== "text" || !x.sendable) return;
-    const open = (e: Event) => {
-      if ((e as CustomEvent<string>).detail === x.key) setOwn((o) => o ?? "");
-    };
-    window.addEventListener(WRITE_EVENT, open);
-    return () => window.removeEventListener(WRITE_EVENT, open);
-  }, [focus, x.key, x.line, x.sendable]);
-  const textReply = x.line === "text" && x.sendable && phase === "incoming";
-  const writing = focus && own !== null && (phase === "incoming" || phase === "ask");
-  /** One small, quiet row (#869): Skip, Done, Later, and "…". */
+  const textLine = x.line === "text" && x.sendable;
+  const open = phase === "incoming" || phase === "ask";
+  /** A text's reply box is open whenever it is in focus (#904); an email's only on Write or Edit. */
+  const writing = focus && open && !reading && (own !== null || (textLine && phase === "incoming"));
+  /** The one row (#904): Send lives in the box; then Done, Later and "…". No Skip, no Cancel. */
   const rest = (
     <>
-      <button type="button" className="cx-opt" onClick={() => t.say("skip")}>
-        Skip <kbd>S</kbd>
-      </button>
       <button type="button" className="cx-opt" onClick={() => t.say("done")}>
         Done <kbd>D</kbd>
       </button>
-      <button type="button" className="cx-opt" onClick={() => t.say("later")}>
-        Later <kbd>L</kbd>
+      <button type="button" className="cx-opt" onClick={() => t.say("later")} title={x.line === "text" ? "Back at the next nudge" : "To the back of the line"}>
+        Later <kbd>A</kbd>
       </button>
       <More x={x} t={t} />
     </>
@@ -385,7 +380,6 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
   return (
     <article className="cx-entry" data-key={x.key} data-focus={focus || undefined} aria-label={`From ${hidden ? "someone" : x.who}`} aria-current={focus || undefined}>
       <div className="cx-folio">
-        {/* Right of the line (#803): who, then their words; what comes next rides the wave on the left. */}
         <div className="cx-verse cx-them">
           <div className="cx-body">
             <header className="cx-head">
@@ -393,24 +387,23 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
               <span className="cx-id">
                 <Private className="cx-rub">{x.who}</Private>
                 <span className="cx-meta">
-                  {x.line === "email" ? "email" : x.channel === "SMS" ? "sms" : "text"} · {agoShort(now - x.at)}
+                  {x.line === "email" ? "email" : x.channel === "SMS" ? "sms" : "text"} · waiting {agoShort(now - x.at)}
                   {x.unread && <span className="cx-unread"> · unread</span>}
                   {x.settled && <span className="cx-settled"> · no reply needed</span>}
                 </span>
               </span>
             </header>
             {x.messages?.length ? (
-              <>
-                {/* Their own words (#758), the hero (#869): oldest first, the newest last and largest; no gist. */}
-                <Said messages={x.messages} hidden={hidden} />
-                {/* Tapbacks (#888): small, under their words, on the card in focus. */}
-                {focus && x.line === "text" && <Tapbacks thread={x.id} messages={x.messages} hidden={hidden} />}
-              </>
+              <Said messages={x.messages} hidden={hidden} />
             ) : (
-              <p className="cx-msg">
-                <Private>{x.body || noGistLine(x)}</Private>
+              <p className="cx-bub cx-bub-hero">
+                <span className="cx-msg cx-hero">
+                  <Private>{x.body || noGistLine(x)}</Private>
+                </span>
               </p>
             )}
+            {/* Tapbacks (#888): small, under their words, on the card in focus. */}
+            {focus && x.line === "text" && x.messages?.length ? <Tapbacks thread={x.id} messages={x.messages} hidden={hidden} /> : null}
             {x.line === "email" && x.advice && (
               <p className="cx-adv">
                 <span className="cx-lab">Blasto</span> <Private>{x.advice}</Private>
@@ -433,8 +426,8 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
                 </p>
               )}
               {writing ? (
-                <Own x={x} t={t} start={own ?? ""} close={() => setOwn(null)} autoFocus launch={launch}>
-                  {textReply ? rest : null}
+                <Own x={x} t={t} focus={focus} start={own ?? ""} launch={launch}>
+                  {rest}
                 </Own>
               ) : focus && reading ? (
                 <p className="cx-quiet">Reading that…</p>
@@ -455,11 +448,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
 
               {focus && phase === "incoming" && !reading && !writing && (
                 <div className="cx-ask cx-acts">
-                  {textReply ? (
-                    <button type="button" className="cx-opt is-yes" onClick={() => setOwn("")} title="Write or say your reply; it goes exactly as written">
-                      Reply <kbd>R</kbd>
-                    </button>
-                  ) : x.line === "email" ? (
+                  {x.line === "email" && (
                     <>
                       <button type="button" className="cx-opt is-yes" onClick={() => t.say("draft")}>
                         Draft it <kbd>R</kbd>
@@ -470,7 +459,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
                         </button>
                       )}
                     </>
-                  ) : null}
+                  )}
                   {rest}
                 </div>
               )}
@@ -504,10 +493,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
                       >
                         Change
                       </button>
-                      <button type="button" className="cx-opt" onClick={() => t.say("skip")}>
-                        Skip <kbd>S</kbd>
-                      </button>
-                      <More x={x} t={t} />
+                      {rest}
                     </>
                   ) : (
                     <>
@@ -572,18 +558,46 @@ function GroupShelf({ groups, hidden, open }: { groups: readonly TextItem[]; hid
   );
 }
 
-const ORDER_LABEL: Record<Order, string> ={ newest: "Newest", oldest: "Oldest", priority: "Priority" };
+const ORDER_LABEL: Record<Order, string> = { oldest: "Longest waiting", newest: "Newest", priority: "Priority" };
+const ORDER_MENU: readonly Order[] = ["oldest", "newest", "priority"];
 
-/** Newest (the default), Oldest or Priority (Dialtone's "reply sooner" first): one segmented toggle on the line (#803). */
-function OrderToggle({ order, set }: { order: Order; set: (o: Order) => void }) {
+/**
+ * The order (#803; #904, Nikita: "fewer controls"): longest waiting first by default, Newest and Priority (Dialtone's
+ * "reply sooner" first) in one small menu beside the count, remembered on this device.
+ */
+function OrderMenu({ order, set }: { order: Order; set: (o: Order) => void }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const away = (e: Event) => {
+      const d = ref.current;
+      if (d?.open && !d.contains(e.target as Node)) d.open = false;
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, []);
   return (
-    <div className="cx-order" role="radiogroup" aria-label="Order of the queue">
-      {ORDERS.map((o) => (
-        <button key={o} type="button" role="radio" aria-checked={order === o} onClick={() => set(o)}>
-          {ORDER_LABEL[o]}
-        </button>
-      ))}
-    </div>
+    <details className="cx-order" ref={ref}>
+      <summary aria-label={`Order: ${ORDER_LABEL[order]}`}>
+        {ORDER_LABEL[order]} <span aria-hidden="true">▾</span>
+      </summary>
+      <div className="cx-ordermenu" role="radiogroup" aria-label="Order of the queue">
+        {ORDER_MENU.map((o) => (
+          <button
+            key={o}
+            type="button"
+            role="radio"
+            aria-checked={order === o}
+            onClick={() => {
+              set(o);
+              ref.current?.removeAttribute("open");
+            }}
+          >
+            {o === "oldest" ? "Oldest" : ORDER_LABEL[o]}
+            {o === "oldest" && <em> longest waiting first</em>}
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -921,15 +935,13 @@ export function RelayThread({ now }: { now: number }) {
     [goTo],
   );
 
-  // Keys: Y send, N no, R draft it, D done, L later, S skip, Z undo; J and K move; ? the list. Space is the room mic's.
-  // Never while typing.
+  // Keys (#904, Nikita: WASD): W and S the person before and after, A later, D done; R or Enter into the reply box,
+  // Enter there sends and Esc leaves it. Y sends a draft on screen, Z undoes; J and K move too; ? the list. Holding
+  // Space talks into the box (./holdSpace.ts). Never while typing in a field.
   useEffect(() => {
-    const typing = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
-      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-    };
     const down = (e: KeyboardEvent) => {
-      if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (isTyping(el) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "?") {
         setHints((h) => !h);
         e.preventDefault();
@@ -940,15 +952,20 @@ export function RelayThread({ now }: { now: number }) {
         return;
       }
       const k = e.key.toLowerCase();
-      if ((k === "j" || k === "k") && t.queue?.length) {
+      if ((k === "w" || k === "s" || k === "j" || k === "k") && t.queue?.length) {
         const i = t.queue.findIndex((x) => x.key === ex?.key);
-        const next = t.queue[Math.max(0, Math.min(t.queue.length - 1, i + (k === "j" ? 1 : -1)))];
+        const next = t.queue[Math.max(0, Math.min(t.queue.length - 1, i + (k === "s" || k === "j" ? 1 : -1)))];
         if (next) goTo(next.key);
         e.preventDefault();
         return;
       }
-      // R on a text opens its composer (#869): Nikita's own words first; Blasto's draft waits there as a suggestion.
-      if (k === "r" && ex?.line === "text" && ex.sendable && phase === "incoming") {
+      if (k === "a") {
+        if (!e.repeat && t.say("later")) e.preventDefault();
+        return;
+      }
+      // R, or Enter anywhere but a button or link, puts the cursor in a text's reply box.
+      const onControl = !!el?.closest?.("button, a, summary, [role=button]");
+      if ((k === "r" || (e.key === "Enter" && !onControl)) && ex?.line === "text" && ex.sendable && phase === "incoming") {
         openComposer(ex.key);
         e.preventDefault();
         return;
@@ -978,18 +995,20 @@ export function RelayThread({ now }: { now: number }) {
     <div className="cx" data-phase={phase} data-still={engine?.reduced || undefined}>
       <section className="cx-stage" ref={stageRef} aria-label="Relay at a glance">
         <header className="cx-top">
-          <h1 className="cx-mark">
-            <b>Relay</b>
-            <span>C.E.O.</span>
-          </h1>
-          <p className="cx-count">
-            <span>{waiting === null ? "—" : waiting.toLocaleString()} waiting</span>
-            <a href="#cx-codex">Codex ↓</a>
-          </p>
+          <div className="cx-title">
+            <h1 className="cx-mark">
+              <b>Relay</b>
+            </h1>
+            <p className="cx-count">
+              <b>{waiting === null ? "—" : waiting.toLocaleString()}</b> waiting
+            </p>
+            {/* The order (#904): longest waiting first; the others in a small menu. */}
+            {t.queue && t.queue.length > 1 && <OrderMenu order={t.order} set={t.setOrder} />}
+          </div>
+          <a className="cx-codexlink" href="#cx-codex">
+            Codex ↓
+          </a>
         </header>
-
-        {/* The order (#803): one small toggle sitting on the line, remembered on this device. */}
-        {t.queue && t.queue.length > 1 && <OrderToggle order={t.order} set={t.setOrder} />}
 
         {/* Group chats (#869): off the line, on their own shelf. */}
         <GroupShelf groups={shelf} hidden={hidden} open={showGroup} />
@@ -1004,7 +1023,7 @@ export function RelayThread({ now }: { now: number }) {
         <div className="cx-dock">
           <div className="cx-dl">
             {/* The mic is the Desk's room mic (#638): one listener for every room. What's said here reaches the Thread. */}
-            <span className="cx-lab">{micPhase === "listening" ? "Listening" : micPhase === "thinking" ? "Reading that…" : "Talk with the mic, or type"}</span>
+            <span className="cx-lab">{micPhase === "listening" ? "Listening" : micPhase === "thinking" ? "Reading that…" : "Hold Space to talk, or type"}</span>
           </div>
           <div className="cx-dr">
             <UndoLine n={t.notice} now={now} sg={engine} />
@@ -1032,9 +1051,7 @@ export function RelayThread({ now }: { now: number }) {
             </div>
             {hints && (
               <p className="cx-keys" id="cx-keys">
-                <b>Y</b> send · <b>N</b> no · <b>R</b> reply · <b>D</b> done · <b>L</b> later · <b>S</b> skip · <b>Z</b> undo · <b>J K</b> move
-                {" "}
-                · hold <b>Space</b> to talk
+                <b>W S</b> move · <b>A</b> later · <b>D</b> done · <b>Enter</b> reply, send · <b>Esc</b> leave the box · <b>Tab</b> take the draft · hold <b>Space</b> to talk · <b>Z</b> undo
               </p>
             )}
           </div>

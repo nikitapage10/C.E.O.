@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EmailItem } from "./email.ts";
 import type { TextItem } from "./texts.ts";
-import { allowed, codexOf, commandOf, contactsHint, fromText, isOrder, noGistLine, olderInOrder, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
+import { allowed, codexOf, commandOf, contactsHint, doneHere, fromText, isOrder, noGistLine, olderInOrder, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
 import { readTextItem } from "../../../api/_relay/texts.ts";
 import { emptyRelayStatus } from "@ceo/core";
 import { GHOST, MAX_LIVE, room, SigilStage, SIGILS } from "@ceo/engine/sigils/sigils.ts";
@@ -338,5 +338,20 @@ describe("why a text has no name or no gist (#861)", () => {
     expect(contactsHint(on)).toBeNull();
     expect(contactsHint({ ...emptyRelayStatus(NOW, "wiped"), contacts: 0 })).toBeNull();
     expect(contactsHint(null)).toBeNull();
+  });
+});
+
+describe("doneHere (#914): a Done stays off the line across reloads until the Mac settles it", () => {
+  const T = 1_800_000_000_000;
+  const item = { id: "a".repeat(16), since: T - 60_000, last: T - 30_000 };
+  const req = (kind: "done" | "back", state: "waiting" | "taken" | "done" | "expired" | "failed" | "refused", created: number) => ({ kind, thread: item.id, state, created });
+  it("hides a thread whose latest Done the site still holds, made after their latest text", () => {
+    for (const s of ["waiting", "taken", "done"] as const) expect(doneHere([item], [req("done", s, T)]).has(item.id)).toBe(true);
+  });
+  it("shows it again for a Done the Mac never took, a newer text, or a later Bring back", () => {
+    for (const s of ["expired", "failed", "refused"] as const) expect(doneHere([item], [req("done", s, T)]).size).toBe(0);
+    expect(doneHere([{ ...item, last: T + 1 }], [req("done", "done", T)]).size).toBe(0);
+    expect(doneHere([item], [req("done", "done", T), req("back", "waiting", T + 5)]).size).toBe(0);
+    expect(doneHere([item], undefined).size).toBe(0);
   });
 });

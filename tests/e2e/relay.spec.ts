@@ -8,7 +8,7 @@ import { startDistServer } from "./dist-server.ts";
 /**
  * Relay's Thread (#615, simplified in #642), the Codex, on the built site, with a signed-in session and /api/email and
  * /api/relay stubbed in the browser. The queue is one scrolling codex; only the entry in focus answers voice and keys
- * ("yes" only with its draft on screen); an email's draft comes only on "Draft it", a text's ready draft on Reply; a
+ * ("yes" only with its draft on screen); an email's draft comes only on "Draft it", a text's ready draft is the reply box's ghost text (#904); a
  * yes waits five seconds and Undo sends nothing; an email sends only with Gmail's send grant, and otherwise offers
  * Open in Gmail; Done, skip and "already did it" leave at once with Undo; words go through the intent layer; the sender
  * rules have Undo; the Codex is one line of numbers and two lists; reduced motion draws no sigils. Every person, mail
@@ -67,8 +67,12 @@ const FAKE_SPEECH = () => {
   };
 };
 
-async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean } = {}) {
+async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; order?: string | null } = {}) {
   const signedIn = opts.signedIn ?? true;
+  // Longest waiting first is the page's default (#904); most tests here walk the queue newest first (Sam, Jordan,
+  // Priya), as a device that picked Newest would. null leaves the default.
+  const order = opts.order === undefined ? "newest" : opts.order;
+  if (order) await page.addInitScript((o) => window.localStorage.setItem("relay.order.v2", o), order);
   const posts: Record<string, unknown>[] = [];
   let samDraft: { text: string; at: number } | null = null;
   let requests: Record<string, unknown>[] = [];
@@ -137,7 +141,12 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean } 
       if (url.searchParams.get("view") === "status" || !signedIn) return r.fulfill({ json: { ok: true, status: textsStatus() } });
       const texts = [
         { id: SAM, name: "Sam Test", channel: "iMessage", group: false, state: "owed", sort: "sooner", since: now - 4 * 60_000, laterUntil: null, gist: "Everyone's there already; they ask if they should start without you", draft: samDraft, summary: null },
-        { id: JORDAN, name: "Jordan Test", channel: "iMessage", group: false, state: "owed", sort: "normal", since: now - 12 * 60_000, laterUntil: null, gist: "Says the meme you sent at 2am was too accurate", draft: { text: "haha right?? saw it and thought of you", at: now - 60_000 }, summary: null },
+        { id: JORDAN, name: "Jordan Test", channel: "iMessage", group: false, state: "owed", sort: "normal", since: now - 12 * 60_000, laterUntil: null, gist: "Says the meme you sent at 2am was too accurate", draft: { text: "haha right?? saw it and thought of you", at: now - 60_000 }, summary: null, messages: [
+          { text: "did you see what I sent", at: now - 40 * 60_000, ref: "0000000a" },
+          { text: "the one with the cat in the box", at: now - 39 * 60_000, me: true },
+          { text: "Photo", at: now - 20 * 60_000, media: true, ref: "0000000b" },
+          { text: "ok that meme you sent at 2am was way too accurate", at: now - 12 * 60_000, ref: "0000000c" },
+        ] },
       ];
       return r.fulfill({ json: { ok: true, status: textsStatus(), ready: true, paired: true, pairedAt: now - 86_400_000, lastSeen: now, unlockedUntil: now + 3_600_000, texts, cards: [], textsAt: now, requests, spend: { usd: 0.03, budget: 10 } } });
     }
@@ -145,6 +154,8 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean } 
     posts.push({ line: "texts", ...body });
     if (body.action === "restyle") samDraft = { text: SAM_DRAFT, at: Date.now() };
     if (body.action === "send") requests = [{ rid: "b".repeat(24), kind: "send", thread: body.thread, text: body.text, created: Date.now(), until: Date.now() + 600_000, state: "sent" }];
+    // The site holds a Done until the Mac takes it (#914).
+    if (body.action === "done") requests = [...requests, { rid: "e".repeat(24), kind: "done", thread: body.thread, text: "", created: Date.now(), until: Date.now() + 600_000, state: "waiting" }];
     return r.fulfill({ json: { ok: true, rid: "c".repeat(24), until: Date.now() + 600_000 } });
   });
   return posts;
@@ -202,7 +213,7 @@ for (const width of [1440, 400]) {
     await expect(focused(page)).toContainText("Sam Test");
     await expect(focused(page).getByText(/should start without you/)).toBeVisible();
     await expect(page.locator(".cx-count")).toContainText("3 waiting");
-    // A text's ready draft stays folded until Reply.
+    // A text's ready draft stays folded: only ghost text in the reply box (#904), never a draft on its own.
     await expect(focused(page).locator(".cx-draft")).toHaveCount(0);
     if (SHOTS) await page.waitForTimeout(3_000);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-focus-${width}.png` });
@@ -241,15 +252,21 @@ for (const width of [1440, 400]) {
     await page.waitForTimeout(1_500);
     expect(sends(posts)).toEqual([]);
     await expect.poll(() => sends(posts), { timeout: 8_000 }).toEqual([{ line: "texts", action: "send", thread: SAM, draftAt: expect.any(Number), text: SAM_DRAFT }]);
-    // Sam leaves the codex; the next entry takes focus.
+    // Once, and only once; the thread stays in the queue after the send (#870) and leaves on Done (#904's row).
+    await page.waitForTimeout(1_000);
+    expect(sends(posts)).toHaveLength(1);
+    await expect(focused(page)).toContainText("Sam Test");
+    await focused(page).getByRole("button", { name: /^Done/ }).click();
     await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
     await expect(focused(page)).toHaveCount(1);
+    expect(sends(posts)).toHaveLength(1);
     expect(errors).toEqual([]);
   });
 
   test(`scrolling moves the focus, and keys act only on the entry in focus (${width} wide)`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+    await page.addInitScript(FAKE_SPEECH);
     const posts = await stub(page);
     await page.goto(`${BASE}/relay`);
     await expect(focused(page)).toContainText("Sam Test");
@@ -263,21 +280,62 @@ for (const width of [1440, 400]) {
     await scrollTo(page, "Jordan Test");
     await expect(focused(page)).toContainText("Jordan Test");
     await expect(focused(page).getByText("Send to Jordan?")).toHaveCount(0);
-    // R opens the composer, Nikita's own words first; the ready draft waits beside it as a faint suggestion (#869),
-    // and Tab on the empty box takes it. Nothing sends.
-    await page.keyboard.press("r");
+    // The card is the conversation (#904): their lines left, Nikita's own right, a photo-only line a "Photo" chip,
+    // the newest last and largest.
+    await expect(focused(page).locator(".cx-bub[data-me]")).toContainText("the one with the cat in the box");
+    await expect(focused(page).locator(".cx-chip")).toHaveText("Photo");
+    await expect(focused(page).locator(".cx-bub-hero")).toContainText("way too accurate");
+    // One row (#904): no Reply, Skip, Cancel or mic button; the reply box is already open under the newest message.
+    for (const gone of [/^Reply/, /^Skip/, /^Cancel/, /^Mic/]) await expect(focused(page).getByRole("button", { name: gone })).toHaveCount(0);
+    await expect(focused(page).getByRole("button", { name: /^Done/ })).toBeVisible();
+    await expect(focused(page).getByRole("button", { name: /^Later/ })).toBeVisible();
     const box = focused(page).getByRole("textbox", { name: /Your reply to Jordan Test/ });
+    await expect(box).toBeVisible();
+    // Blasto's draft is the empty box's ghost text; R puts the cursor in, Tab takes it. Nothing sends.
+    await expect(box).toHaveAttribute("placeholder", "haha right?? saw it and thought of you");
+    if (SHOTS) await page.waitForTimeout(1_500);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/904-card-${width}.png` });
+    await page.keyboard.press("r");
     await expect(box).toBeFocused();
-    await expect(focused(page).locator(".cx-hint")).toContainText("haha right");
     await box.press("Tab");
     await expect(box).toHaveValue("haha right?? saw it and thought of you");
-    await box.blur();
-    // J and K move through the codex (newest first, #803: Sam, Jordan, Priya).
+    // Typing replaces it; Shift+Enter is a new line, not a send; Esc leaves the box so the keys work again.
+    await box.fill("");
+    await box.pressSequentially("ha");
+    await box.press("Shift+Enter");
+    await box.pressSequentially("yes");
+    await expect(box).toHaveValue("ha\nyes");
+    await box.press("Escape");
+    await expect(box).not.toBeFocused();
+    await page.waitForTimeout(300);
+    expect(sends(posts)).toEqual([]);
+    // Hold Space (outside a text field) talks into the box; letting go ends it. Still nothing sends.
+    await box.fill("");
+    await box.press("Escape");
+    await page.keyboard.down("Space");
+    await expect(focused(page).locator(".cx-listen")).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __say: (t: string) => boolean }).__say("on my way"))).toBe(true);
+    await expect(box).toHaveValue("on my way");
+    await page.keyboard.up("Space");
+    await expect(focused(page).locator(".cx-listen")).toHaveCount(0);
+    // Enter in the box sends it, after the undo window; Z inside the window takes it back.
+    await box.press("Enter");
+    await expect(undoLine(page)).toContainText("Sending to Jordan Test");
+    await undoLine(page).getByRole("button", { name: /Undo/ }).click();
+    await page.waitForTimeout(5_600);
+    expect(sends(posts)).toEqual([]);
+    // W and S move through the codex (here newest first: Sam, Jordan, Priya); J and K still do too.
+    await page.keyboard.press("w");
+    await expect(focused(page)).toContainText("Sam Test");
+    await page.keyboard.press("s");
+    await expect(focused(page)).toContainText("Jordan Test");
     await page.keyboard.press("k");
     await expect(focused(page)).toContainText("Sam Test");
     await page.keyboard.press("j");
     await expect(focused(page)).toContainText("Jordan Test");
-    await page.waitForTimeout(500);
+    // A is Later: Jordan goes to the back and the Mac hears it after the undo-free notice.
+    await page.keyboard.press("a");
+    await expect.poll(() => posts.filter((p) => p.action === "later")).toEqual([{ line: "texts", action: "later", thread: JORDAN }]);
     expect(sends(posts)).toEqual([]);
   });
 }
@@ -400,6 +458,26 @@ test("Done, skip and \"already did it\" leave at once, Undo brings one back, and
   await expect.poll(() => posts.filter((p) => p.action === "skip"), { timeout: 8_000 }).toEqual([{ line: "email", action: "skip", id: PRIYA }]);
 });
 
+test("Done sticks (#914): a reload inside the Undo window still sends it, and it stays off the line while the Mac hasn't settled it", async ({ page }) => {
+  test.setTimeout(60_000);
+  const posts = await stub(page);
+  await page.goto(`${BASE}/relay`);
+  await expect(focused(page)).toContainText("Sam Test");
+  await focused(page).getByRole("button", { name: /^Done/ }).click();
+  await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
+  // Reloaded at once, before the five seconds are up: the Done goes as the page leaves, and Sam doesn't come back.
+  await page.reload();
+  await expect(focused(page)).toHaveCount(1);
+  await expect.poll(() => posts.filter((p) => p.action === "done")).toEqual([{ line: "texts", action: "done", thread: SAM }]);
+  await expect(page.locator(".cx-entry", { hasText: "Jordan Test" })).toHaveCount(1);
+  await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
+  // And again later, while the site still holds the request for the Mac.
+  await page.reload();
+  await expect(page.locator(".cx-entry", { hasText: "Jordan Test" })).toHaveCount(1);
+  await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
+  await expect(page.locator(".cx-rows li", { hasText: "Sam Test" })).toHaveCount(0);
+});
+
 test("a rule from a sentence: \"invites can wait\" says what changed, with Undo", async ({ page }) => {
   const posts = await stub(page);
   await page.goto(`${BASE}/relay`);
@@ -441,26 +519,39 @@ test("signed out: counts only, never a name", async ({ page }) => {
   await expect(page.locator(".rq")).toHaveCount(0);
 });
 
-test("the queue on the wave (#803): what comes next left of the line, a tap jumps there, and the order toggle", async ({ page }) => {
+test("the queue on the wave (#803): a face, a first name and the wait; a tap jumps there; the order menu (#904)", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   // The rows drift on the wave all the time, so Playwright never sees one "stable" enough to click: with reduced
   // motion they sit still (one frame per change), which is the same queue and the same taps.
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await stub(page);
+  await stub(page, { order: null });
   await page.goto(`${BASE}/relay`);
   const wave = page.getByRole("navigation", { name: "Up next" });
-  await expect(wave.locator(".rq-item[data-cur]")).toContainText("Sam Test");
+  // Longest waiting first by default (#904): Priya's mail an hour ago, then Jordan, then Sam.
+  await expect(page.locator(".cx-entry").first()).toContainText("Priya Madeup");
+  await expect(page.locator(".cx-entry").last()).toContainText("Sam Test");
+  await expect(page.locator(".cx-order summary")).toContainText("Longest waiting");
+  await expect(page.locator(".cx-count")).toContainText("3 waiting");
+  // Say things once (#904): the line shows the first name and the wait, no gist and no full name.
+  await expect(wave.locator(".rq-item").first()).toContainText("Priya");
+  await expect(wave).not.toContainText("Madeup");
+  await expect(wave).not.toContainText("which trail");
   // The rows drift on the wave every frame, so Playwright's pointer click never finds the row "stable" and waits out
   // the test; the tap is sent to the row itself instead (#844).
-  await wave.getByRole("button", { name: /Next: Jordan Test/ }).dispatchEvent("click");
-  await expect(focused(page)).toContainText("Jordan Test");
-  await expect(wave.locator(".rq-item[data-cur]")).toContainText("Jordan Test");
-  // Oldest first puts Priya's mail at the top; the one in focus stays in focus.
-  await page.getByRole("radio", { name: "Oldest" }).click();
-  await expect(page.getByRole("radio", { name: "Oldest" })).toHaveAttribute("aria-checked", "true");
-  await expect(focused(page)).toContainText("Jordan Test");
-  await expect(page.locator(".cx-entry").first()).toContainText("Priya Madeup");
+  await wave.getByRole("button", { name: /: Priya Madeup/ }).dispatchEvent("click");
+  await expect(focused(page)).toContainText("Priya Madeup");
+  await expect(wave.locator(".rq-item[data-cur]")).toContainText("Priya");
+  // Newest first, from the small menu, puts Sam at the top and Priya last; the one in focus stays in focus.
+  await page.locator(".cx-order summary").click();
+  await page.getByRole("radio", { name: "Newest" }).click();
+  await expect(page.locator(".cx-order summary")).toContainText("Newest");
+  await expect(focused(page)).toContainText("Priya Madeup");
+  await expect(page.locator(".cx-entry").first()).toContainText("Sam Test");
+  await expect(page.locator(".cx-entry").last()).toContainText("Priya Madeup");
   // Remembered on this device.
   await page.reload();
-  await expect(page.getByRole("radio", { name: "Oldest" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".cx-order summary")).toContainText("Newest");
+  await page.locator(".cx-order summary").click();
+  await expect(page.getByRole("radio", { name: "Newest" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: /Oldest/ })).toHaveAttribute("aria-checked", "false");
 });

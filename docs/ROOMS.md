@@ -12,7 +12,8 @@ kits into the engine (below). Step 3 turned the backwards imports round: the sha
 the rooms plug into them instead (below, "Rooms plug in"); and the Desk's bar names and page loaders now come from
 the rooms: each room's `rooms/<id>/nav.ts` holds its `name` and `page`, its `room.ts` takes them in, and the Desk's
 shell loads only those small files (`desk/roomPages.ts`; the full manifests would add about 40 kB to the first load).
-The bar's order stays route.ts `NAV_ORDER`. Until a room's own step lands, its code stays where it is in
+The bar's order stays route.ts `NAV_ORDER`. A room's sub-menu comes from its `nav.ts` too (`sections`, below), drawn by
+the engine's `<RoomSections>`. Until a room's own step lands, its code stays where it is in
 `apps/world/src/desk` and `api/`.
 
 ## What the engine holds
@@ -26,6 +27,7 @@ The bar's order stays route.ts `NAV_ORDER`. Until a room's own step lands, its c
 | `@ceo/engine/tools` | The rooms' tools (#646): `RoomTool` (a name, a title, a description, a strict input schema and an effect: `read`, `write`, `send`, `spend` or `delete`), `needsConfirm`, `checkInput` and `ToolOutcome`. One registry for Desk Skippy's agent and the room voice | |
 | `@ceo/engine/sigils/*` | The particle layer: `wvCanvas.ts` (the Desk's one shared loop and canvas helpers), `motion.tsx`, the flow kit's core (`field.ts`, `draw.ts`, `path.ts`, `rise.ts`, `motes.ts`, `tempo.ts`, `flow.css`) and the glyph engine (`sigils.ts`, `sigils.css`, #615) | `desk/wvCanvas.ts`, `desk/motion.tsx`, `desk/flow/`, `desk/relay/sigils.ts` |
 | `@ceo/engine/web/*` | The sign-in shell: `signin.ts`, `SignIn.tsx`, `SitePassword.tsx`, the Hide veil (`hide.ts`, `Private.tsx`) and the device pings (`pings.ts`, `PingSwitch.tsx`) | the same names in `desk/` |
+| `@ceo/engine/web/sections.ts`, `web/RoomSections.tsx` | A room's sub-menu: which section a path opens, the tab's title, and the links (see `sections` under "The manifest") | `desk/SystemsNav.tsx` |
 | `@ceo/engine/web/RoomLoader.tsx`, `web/roomReady.ts`, `sigils/roomSigils.ts` | The room loader (#752): see "The room loader" below | |
 
 ### The room loader
@@ -166,6 +168,7 @@ So far each room has only its `room.ts` and `nav.ts`, whose `page` still points 
 | `threat` | Its THREAT-MODEL.md ids (`TB1`, `R5`). |
 | `budgetKb` | Its lazy-loaded JS budget, in raw KB. |
 | `name`, `page` (from `nav.ts`) | `page` is the lazy page loader, resolving to `{ default: Page }`; the Desk renders and prefetches it and hands it `{ data, now, connected, awaySince }`. Every room but Today has one (Today is in the first load). |
+| `sections` (from `nav.ts`) | Optional: the room's sub-menu, `{ id, label, path, hint }[]` (`@ceo/engine/web/sections.ts`). The first is the room's front page at its own path, the rest at `<path>/<id>`, each linkable and reloadable (the contract test holds the addresses). The Desk names the tab from them (`Controls · Boiler Room · C.E.O.`) and the page draws them with `<RoomSections>` (`@ceo/engine/web/RoomSections.tsx`) in its own look. The Boiler Room is the first. |
 | `purpose` | `goal` (one sentence, at most 200 characters), `agents` (its real integrations: `{ name, use }`, named as THREAT-MODEL.md names them) and `measure`. |
 | `tools` | Optional (#646): the room's tools for Skippy, data only, from `rooms/<id>/tools.ts` (`RoomTool[]`, `@ceo/engine/tools`). Names are unique across rooms and each has a server executor in `api/_skippy/agent/tools.ts`; anything that sends, spends or deletes needs Nikita's tap (a contract test holds both). |
 | `lore` | `submind`, `agents`, `house`, `section` (a heading in `lore/syntherion.md`) and `lines` (the flavour pool: a `ROOM_QUIPS` room, or `skippy`). |

@@ -50,6 +50,8 @@ const NANITE = { hi: "#eef2ff", you: "#ffffff", white: "#ffffff", sink: "#8a90a6
  */
 
 const PARTS = ".cx-init, .cx-msg, .cx-adv, .cx-draft";
+/** How long a scroll of our own may take to arrive before scrolling picks the focus again (#895). */
+const STEER_MS = 2_000;
 const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 const rnd = Math.random;
 const first = (who: string) => who.trim().split(/\s+/)[0] || who;
@@ -834,6 +836,26 @@ export function RelayThread({ now }: { now: number }) {
   // Scrolling picks the entry in focus: the one filling most of the page.
   const pick = t.pick;
   const keys = (t.queue ?? []).map((x) => x.key).join("|");
+  /**
+   * Where a scroll of our own is taking the codex (a tap on the line, J/K, a new order), and until when (#895). While
+   * one is under way the entries it passes (the one it left fills most of the page for its first frames) don't take
+   * the focus: only arriving does, or Nikita's own wheel, touch or key. Without it a new order chosen mid-scroll kept
+   * the entry the scroll left, not the one he picked.
+   */
+  const steer = useRef<{ key: string; until: number } | null>(null);
+  const steerTo = useCallback((key: string | null) => {
+    steer.current = key ? { key, until: performance.now() + STEER_MS } : null;
+  }, []);
+  useEffect(() => {
+    const root = pagesRef.current;
+    if (!root) return;
+    const mine = () => steerTo(null);
+    const evs = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+    for (const ev of evs) root.addEventListener(ev, mine, { passive: true });
+    return () => {
+      for (const ev of evs) root.removeEventListener(ev, mine);
+    };
+  }, [steerTo]);
   useEffect(() => {
     const root = pagesRef.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
@@ -848,6 +870,12 @@ export function RelayThread({ now }: { now: number }) {
         let best: string | null = null;
         let most = 0.5;
         for (const [k, f] of fill) if (f > most) [best, most] = [k, f];
+        const going = steer.current;
+        if (going && performance.now() < going.until) {
+          // Our own scroll is still on its way: only its target takes the focus, and arriving ends it.
+          if (best !== going.key) return;
+          steer.current = null;
+        }
         if (best) pick(best);
       },
       { root, threshold: [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1] },
@@ -858,21 +886,25 @@ export function RelayThread({ now }: { now: number }) {
 
   // A new order (#803) keeps the same exchange in focus: the codex jumps to where it now sits, before paint.
   useLayoutEffect(() => {
-    const el = entryOf(tRef.current.ex?.key);
-    if (el && pagesRef.current) pagesRef.current.scrollTop = el.offsetTop;
-  }, [t.order]);
+    const key = tRef.current.ex?.key;
+    const el = entryOf(key);
+    if (!el || !pagesRef.current) return;
+    steerTo(key ?? null);
+    pagesRef.current.scrollTo({ top: el.offsetTop, behavior: "instant" });
+  }, [t.order, steerTo]);
 
   /** Puts an exchange in focus and scrolls the codex to it. */
   const goTo = useCallback(
     (key: string) => {
       pick(key);
+      steerTo(key);
       const top = stageRef.current?.getBoundingClientRect().top ?? 0;
       if (Math.abs(top) > 4) stageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       const el = entryOf(key);
       const root = pagesRef.current;
       if (el && root) root.scrollTo({ top: el.offsetTop, behavior: "smooth" });
     },
-    [pick],
+    [pick, steerTo],
   );
   /** A tap on the line (#869): puts it in focus and, for a text, opens straight on the composer. */
   const goWrite = useCallback(

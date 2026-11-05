@@ -6,7 +6,8 @@
  *
  * It listens only while the scene is hovered or has focus, never while something is being typed into (Skippy's chat,
  * a quick-add), and not at all on a touch-only device. A scene owns its camera; it calls `step(dt)` each frame and
- * adds `x`/`z` to its camera's target and position:
+ * adds `x`/`z` to its camera's target and position. A scene that orbits a fixed centre (the Senate, #802) passes
+ * `orbit` instead: A/D (and the arrows) turn the camera round it and W/S zoom, and there is no pan at all:
  *
  * ```ts
  * const pan = wasdPan({ el: host, bounds: () => ({ kind: "disc", cx: 0, cz: 0, r: 8 }), origin: () => [look.x, look.z], forward: () => [look.x - cam.position.x, look.z - cam.position.z] });
@@ -161,6 +162,11 @@ export interface PanCoreOpts {
   speed?: () => number;
   /** Q/E's turn, for a scene that already orbits. */
   rotate?: (rad: number) => void;
+  /**
+   * Orbit mode (#802): A/D turn the camera round the scene (radians, + clockwise seen from above) and W/S zoom
+   * (+ in, in units a second at full speed); Escape calls `home`. The scene clamps and smooths both.
+   */
+  orbit?: { turn: (rad: number) => void; zoom: (amount: number) => void; home?: () => void };
   /** Idle time before it eases home (ms). */
   returnMs?: number;
   reduce?: boolean;
@@ -198,6 +204,7 @@ export class PanCore {
   /** Ease back to the scene's own view (at once with reduced motion). */
   home() {
     this.held.clear();
+    this.o.orbit?.home?.();
     if (!this.x && !this.z && !this.vx && !this.vz) return;
     this.returning = true;
   }
@@ -229,6 +236,13 @@ export class PanCore {
     }
     const f = (this.held.has("fwd") ? 1 : 0) - (this.held.has("back") ? 1 : 0);
     const r = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
+    // Orbit mode: the keys turn and zoom the scene's own camera; nothing pans.
+    const orbit = this.o.orbit;
+    if (orbit) {
+      if (r && dt) orbit.turn(r * TURN * dt);
+      if (f && dt) orbit.zoom(f * dt);
+      return turned || (!!dt && (r !== 0 || f !== 0));
+    }
     const b = this.o.bounds();
     // Idle for a while: home.
     if (!this.held.size && (this.x || this.z) && !this.returning && this.clock - this.lastKey > (this.o.returnMs ?? 5000)) this.returning = true;

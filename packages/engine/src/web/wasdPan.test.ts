@@ -166,6 +166,29 @@ describe("the pan (#776)", () => {
     expect(p.z).toBe(0);
   });
 
+  it("in orbit mode, A/D turn and W/S zoom, nothing pans, and Escape goes home (#802)", () => {
+    const turn = vi.fn();
+    const zoom = vi.fn();
+    const home = vi.fn();
+    const p = make({ orbit: { turn, zoom, home } });
+    p.press("right");
+    p.press("fwd");
+    expect(p.step(0.1)).toBe(true);
+    expect(turn.mock.calls[0]![0]).toBeGreaterThan(0);
+    expect(zoom.mock.calls[0]![0]).toBeGreaterThan(0);
+    expect([p.x, p.z]).toEqual([0, 0]);
+    p.release("right");
+    p.release("fwd");
+    p.press("left");
+    p.press("back");
+    p.step(0.1);
+    expect(turn.mock.calls[1]![0]).toBeLessThan(0);
+    expect(zoom.mock.calls[1]![0]).toBeLessThan(0);
+    p.press("home");
+    expect(home).toHaveBeenCalled();
+    expect(p.step(0.1)).toBe(false);
+  });
+
   it("turns with Q/E only for a scene that orbits", () => {
     const rotate = vi.fn();
     const p = make({ rotate });

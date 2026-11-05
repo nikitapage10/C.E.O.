@@ -1191,7 +1191,30 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const IDLE_SHAFT = new Color(0xffe6b8);
   const minStep = PH0 ? 1000 / 30 - 2 : 0;
   // WASD to look around the floor (#776); idle or Escape, it eases back to the session's own camera.
-  const pan = wasdPan({ el: host, reduce, bounds: () => ({ kind: "disc", cx: 0, cz: 0, r: R + 1 }), origin: () => [look.x, look.z], forward: () => [look.x - cam.position.x, look.z - cam.position.z] });
+  // WASD round the Senate (#802): A/D orbit the camera round the chamber, W/S zoom in and out a little, both eased
+  // and the zoom held to sensible limits; Escape brings the session's own view back. The shared helper (#776) keeps
+  // the keys off while anything is typed into.
+  let yaw = 0;
+  let yawTo = 0;
+  let zoom = 1;
+  let zoomTo = 1;
+  const ZOOM_IN = 0.7;
+  const ZOOM_OUT = 1.18;
+  const pan = wasdPan({
+    el: host,
+    reduce,
+    bounds: () => ({ kind: "disc", cx: 0, cz: 0, r: R + 1 }),
+    origin: () => [look.x, look.z],
+    forward: () => [look.x - cam.position.x, look.z - cam.position.z],
+    orbit: {
+      turn: (r) => (yawTo += r),
+      zoom: (a) => (zoomTo = Math.max(ZOOM_IN, Math.min(ZOOM_OUT, zoomTo - a * 0.45))),
+      home: () => {
+        yawTo = Math.round(yaw / (Math.PI * 2)) * Math.PI * 2;
+        zoomTo = 1;
+      },
+    },
+  });
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
     if (!visible || document.visibilityState === "hidden") {
@@ -1281,9 +1304,12 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     look.lerp(lookTo, k * 0.35);
     dolly += (dollyTo - dolly) * k * 0.35;
     const ph = phone();
-    const orbit = Math.PI / 2 + (reduce ? 0 : Math.sin(T * 0.06) * 0.32);
+    const ek = reduce ? 1 : 1 - Math.exp(-dt * 5);
+    yaw += (yawTo - yaw) * ek;
+    zoom += (zoomTo - zoom) * ek;
+    const orbit = Math.PI / 2 + yaw + (reduce ? 0 : Math.sin(T * 0.06) * 0.32);
     // A tall phone stands further back, so the whole bowl fits across it.
-    const rad = (ph ? (cam.aspect < 0.95 ? 17.5 : 15.5) : 13.2) * dolly;
+    const rad = (ph ? (cam.aspect < 0.95 ? 17.5 : 15.5) : 13.2) * dolly * zoom;
     const camY = (ph ? 7.4 : 5.0) * (0.8 + dolly * 0.2);
     pan.step(dt);
     cam.position.set(Math.cos(orbit) * rad + pan.x, camY, Math.sin(orbit) * rad + pan.z);

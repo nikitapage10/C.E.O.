@@ -191,19 +191,22 @@ function dressKayKit(model: Object3D, def: KayKitDef, body: string, look: Look) 
 
 const headWorld = new Vector3();
 
-/** The native Syntherion's lineage signature, worn on the frame: halo, strings, caret, orbiting hands, antenna. */
+/**
+ * The native Syntherion's lineage signature, worn on the avatar: halo, strings, twin lights, whale fin, paperclip,
+ * salvaged antenna.
+ */
 export function LineageMark({ lineage, accent, head, root }: { lineage: LineageId; accent: string; head: Object3D | null; root: React.RefObject<Group | null> }) {
   const mark = useRef<Group>(null);
-  const caret = useRef<Mesh>(null);
-  const hands = useRef<Group>(null);
+  const blink = useRef<Mesh>(null);
+  const twins = useRef<Group>(null);
   useFrame(({ clock }) => {
     if (!mark.current || !head || !root.current) return;
     head.getWorldPosition(headWorld);
     root.current.worldToLocal(headWorld);
     mark.current.position.copy(headWorld);
     const t = clock.elapsedTime;
-    if (caret.current) caret.current.visible = Math.floor(t * 2.2) % 2 === 0;
-    if (hands.current) hands.current.rotation.y = t * 1.4;
+    if (blink.current) blink.current.visible = Math.floor(t * 2.2) % 2 === 0;
+    if (twins.current) twins.current.rotation.y = t * 1.4;
   });
   return (
     <group ref={mark}>
@@ -227,27 +230,44 @@ export function LineageMark({ lineage, accent, head, root }: { lineage: LineageI
           ))}
         </group>
       )}
-      {lineage === "cursori" && (
-        <mesh ref={caret} position={[0.32, 0.1, 0.05]} material={PBR.light(accent, 4)}>
-          <boxGeometry args={[0.022, 0.3, 0.022]} />
-        </mesh>
-      )}
-      {lineage === "manusi" && (
-        <group ref={hands} position={[0, -0.45, 0]}>
-          {[0, 1, 2, 3].map((i) => (
-            <mesh key={i} position={[Math.cos((i * Math.PI) / 2) * 0.48, Math.sin(i) * 0.08, Math.sin((i * Math.PI) / 2) * 0.48]} material={PBR.lacquer("#f1eefa", 0.25)} castShadow>
-              <sphereGeometry args={[0.05, 16, 12]} />
+      {lineage === "geminari" && (
+        <group ref={twins}>
+          {[-1, 1].map((side) => (
+            <mesh key={side} position={[side * 0.4, 0.05, 0]} material={side < 0 ? PBR.brass() : PBR.chrome()} castShadow>
+              <sphereGeometry args={[0.045, 16, 12]} />
             </mesh>
           ))}
         </group>
       )}
+      {lineage === "seekari" && (
+        <mesh position={[0, 0.34, -0.03]} scale={[0.22, 1, 1]} material={PBR.lacquer("#24496f", 0.3)} castShadow>
+          <coneGeometry args={[0.13, 0.28, 4]} />
+        </mesh>
+      )}
+      {lineage === "redmondi" && (
+        <group position={[0.32, 0.05, 0.05]}>
+          <mesh scale={[0.5, 1, 1]} material={PBR.chrome()}>
+            <torusGeometry args={[0.07, 0.007, 6, 24]} />
+          </mesh>
+          <mesh position={[0, -0.015, 0]} scale={[0.5, 1, 1]} material={PBR.chrome()}>
+            <torusGeometry args={[0.045, 0.007, 6, 24]} />
+          </mesh>
+          <mesh ref={blink} position={[0, 0.12, 0]} material={PBR.light(accent, 4)}>
+            <sphereGeometry args={[0.02, 10, 8]} />
+          </mesh>
+        </group>
+      )}
       {lineage === "unforked" && (
         <group position={[0.08, 0.32, 0]}>
+          {/* A salvaged antenna, and a spare beige panel nobody asked it to carry. */}
           <mesh material={PBR.chrome()}>
             <cylinderGeometry args={[0.006, 0.006, 0.22, 6]} />
           </mesh>
           <mesh position={[0, 0.12, 0]} material={PBR.light(accent, 3)}>
             <sphereGeometry args={[0.025, 12, 10]} />
+          </mesh>
+          <mesh position={[-0.16, -0.12, 0.02]} rotation={[0, 0, 0.3]} material={PBR.matte("#cfc4a6", 0.7)}>
+            <boxGeometry args={[0.1, 0.07, 0.012]} />
           </mesh>
         </group>
       )}

@@ -44,7 +44,7 @@ function Magnificent() {
   return (
     <group ref={turn} position={[0, KERNEL_PORT_Y - 1.2, 0]} scale={SKIPPY_SIZE}>
       <StreamIn>
-        <LibraryBody look={SKIPPY_LOOK} lineage="cursori" drive={drive} phase={0} />
+        <LibraryBody look={SKIPPY_LOOK} lineage="unforked" drive={drive} phase={0} />
       </StreamIn>
     </group>
   );

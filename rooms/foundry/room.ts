@@ -31,5 +31,5 @@ export default defineRoom({
     ],
     measure: "issues shipped this week (foundry:shipped)",
   },
-  lore: { submind: "ember", agents: ["tessellate", "semicolon", "caret"], house: ["claudari", "cursori"], section: "The cast", lines: "foundry" },
+  lore: { submind: "ember", agents: ["tessellate", "semicolon", "caret"], house: ["claudari", "seekari"], section: "The cast", lines: "foundry" },
 });

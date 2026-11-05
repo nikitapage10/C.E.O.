@@ -1,6 +1,7 @@
 import {
   AgentEventSchema,
   COMMAND_HEIGHT,
+  LINEAGE_IDS,
   OBSTACLES,
   POST_HALF,
   POST_HEIGHT,
@@ -57,7 +58,7 @@ describe("simulator", () => {
     const state = applyEvents(emptyState(), events);
     expect(Object.keys(state.agents)).toHaveLength(SAMPLE_AGENTS.length);
     expect(new Set(SAMPLE_AGENTS.map((a) => a.home.room))).toEqual(new Set(ROOM_IDS));
-    expect(new Set(SAMPLE_AGENTS.map((a) => a.lineage)).size).toBe(5);
+    expect(new Set(SAMPLE_AGENTS.map((a) => a.lineage))).toEqual(new Set(LINEAGE_IDS));
     const types = new Set(events.map((e) => e.type));
     for (const t of ["agent.spawned", "agent.moved", "agent.activity", "agent.quip", "task.started", "task.progress", "task.completed", "approval.requested"]) {
       expect(types).toContain(t);

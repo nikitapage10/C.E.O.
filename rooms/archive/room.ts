@@ -23,5 +23,5 @@ export default defineRoom({
     ],
     measure: "Chronicle entries written today",
   },
-  lore: { submind: "vellum", agents: ["loremaster", "heimerdinger", "d20"], house: ["gepetti", "claudari", "manusi"], section: "The Chronicle of Ilyr", lines: "archive" },
+  lore: { submind: "vellum", agents: ["loremaster", "heimerdinger", "d20"], house: ["gepetti", "claudari", "geminari"], section: "The Chronicle of Ilyr", lines: "archive" },
 });

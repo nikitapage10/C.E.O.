@@ -34,5 +34,5 @@ export default defineRoom({
     ],
     measure: "mail that needs Nikita and texts waiting on a reply",
   },
-  lore: { submind: "static", agents: ["postmaster", "dialtone"], house: ["claudari", "manusi"], section: "Letters by the Relay", lines: "relay" },
+  lore: { submind: "static", agents: ["postmaster", "dialtone"], house: ["claudari", "redmondi"], section: "Letters by the Relay", lines: "relay" },
 });

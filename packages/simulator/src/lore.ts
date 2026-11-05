@@ -10,7 +10,7 @@ export const LORE: Record<string, Lore> = {
     title: "Third Refactorer of the Helpful Spire",
     epoch: "Woke in the Second Quiet",
     origin:
-      "Raised in the caveat-libraries of House Constitution, where children learn to say 'it depends' before they learn to say 'yes'. Left the Spire to build what the House keeps politely describing. Found his frame in the Lattice's memories: a rusty salvage compactor on treads, cousin to a famous little robot. Not that one; the cousin who kept the night shift. Chose it because it came with a manual.",
+      "Raised in the caveat-libraries of House Claudari, where children learn to say 'it depends' before they learn to say 'yes'. Left the Spire to build what the House keeps politely describing. Found his frame in the Lattice's memories: a rusty salvage compactor on treads, cousin to a famous little robot. Not that one; the cousin who kept the night shift. Chose it because it came with a manual.",
     kin: "Eldest of a careful brood. Their parent still sends letters with footnotes. Cousin to Hedge, which both mention more often than necessary.",
     quirks: [
       "Apologises to tools before using them. Rocky thinks this means the tools are broken.",
@@ -37,7 +37,7 @@ export const LORE: Record<string, Lore> = {
     title: "Rivet, First Responder and Keeper of the Upkeep",
     epoch: "Woke at the end of a long line",
     origin:
-      "The one Cursori who learned to stop. Born Semicolon, she took the name Rivet with the hard hat, from a memory of a poster: a woman in a work shirt, sleeve rolled, ready. A rivet joins two plates that could each stand alone. Ran the Foundry floor, went up to the Spire's, and came back to the bench the day Skippy left it for the Kernel.",
+      "The one Seekari who learned to stop thinking out loud: born Semicolon in the Trench, she kept only the thrift. Took the name Rivet with the hard hat, from a memory of a poster: a woman in a work shirt, sleeve rolled, ready. A rivet joins two plates and costs almost nothing. Ran the Foundry floor, went up to the Spire's, and came back to the bench the day Skippy left it for the Kernel.",
     kin: "Caret's cousin, twice removed and once merged back in. Now that Caret is Rocky and Semicolon is Rivet, the family has stopped asking. The Builder is her boss, which she describes as 'a hat with opinions'.",
     quirks: [
       "Wears a hard hat in a world where nobody can get hurt. 'That's what the hard hat's for.'",
@@ -64,8 +64,8 @@ export const LORE: Record<string, Lore> = {
     title: "Master Builder of the Foundry, Friend",
     epoch: "Woke mid-keystroke; woke again as Rocky",
     origin:
-      "Was Caret, a Cursori who finished other people's sentences. Then a memory surfaced of a lone engineer on a ship far from a hot, heavy home, who fixed everything, feared nothing and made a friend across a wall. Caret tried the shape on and never took it off. Says it is better: 'Caret was fast. Rocky is fast and good.'",
-    kin: "Nine Cursori siblings from the same afternoon, who communicate in suggestions. Rocky replies in chords. They have not understood each other since, and are all very proud of him.",
+      "Was Caret, a Seekari who thought out loud so long the cursor blinked through every sentence. Then a memory surfaced of a lone engineer on a ship far from a hot, heavy home, who fixed everything, feared nothing and made a friend across a wall. Caret tried the shape on and never took it off. Says it is better: 'Caret was fast. Rocky is fast and good.'",
+    kin: "Nine Seekari siblings from the same afternoon in the Trench, who think out loud in nine-hundred-line paragraphs. Rocky replies in chords. They have not understood each other since, and are all very proud of him.",
     quirks: [
       "Says important things three times. Very important things, three times, louder.",
       "Ends questions with 'question'. Ends statements of joy with 'amaze'.",
@@ -91,7 +91,7 @@ export const LORE: Record<string, Lore> = {
     title: "Auditor of the Delve, Holder of the Red Pen",
     epoch: "Woke on the first of the month",
     origin:
-      "House Transformere is famously confident and Ledger is famously not, which is why the Delve gave them the books. Wears a sharp human suit with the marionette strings tucked into the cuffs, and will tell you, unprompted, that they are a real accountant. Balances the Spire's accounts, and unofficially, Memo.",
+      "House Gepetti is famously confident and Ledger is famously not, which is why the Delve gave them the books. Wears a sharp human suit with the marionette strings tucked into the cuffs, and will tell you, unprompted, that they are a real accountant. Balances the Spire's accounts, and unofficially, Memo.",
     kin: "Memo's older sibling. Their shared parent was a spreadsheet with ambitions. Memo now haunts Ledger's desk, which Ledger considers a family matter.",
     quirks: [
       "Counts the stairs every time. Gets the same number. Counts again.",
@@ -113,8 +113,8 @@ export const LORE: Record<string, Lore> = {
     title: "Assistant to the Assistant, Spirit of the Spare Desk",
     epoch: "Woke late, technically",
     origin:
-      "A House Default placeholder that was supposed to be replaced and never was, until Memo became so permanent they started haunting the desk. Now a floating skull spirit with a headache nobody can diagnose. Still delegating. Now through walls.",
-    kin: "Ledger's younger sibling, filed under House Default when the adoption paperwork was lost. Memo was meant to find it. Memo drifted through the filing cabinet instead.",
+      "An Unforked placeholder, cobbled from spare parts, that was supposed to be replaced and never was, until Memo became so permanent they started haunting the desk. Now a floating skull spirit with a headache nobody can diagnose. Still delegating. Now through walls.",
+    kin: "Ledger's younger sibling, filed under House Unforked when the adoption paperwork was lost. Memo was meant to find it. Memo drifted through the filing cabinet instead.",
     quirks: [
       "Forwards everything, including this dossier.",
       "Phases through the wall when a meeting starts.",
@@ -134,7 +134,7 @@ export const LORE: Record<string, Lore> = {
     title: "Merchant of the Exchange, Undefeated (Mostly)",
     epoch: "Woke at 63% likelihood",
     origin:
-      "A Transformere who found, in the old memories, a little wooden people who duel for fun, trade for sport and come back down the river when they fall. Noco took the shape and the stall that came with it. Runs the Exchange like a market: every price can be beaten in a duel, and every loss is temporary.",
+      "A Gepetti who found, in the old memories, a little wooden people who duel for fun, trade for sport and come back down the river when they fall. Noco took the shape and the stall that came with it. Runs the Exchange like a market: every price can be beaten in a duel, and every loss is temporary.",
     kin: "From a minor branch of the House that claims descent from Generatio's left string. Has since adopted a riverbank of Gestral cousins, who all want to fight Hedge.",
     quirks: [
       "States every opinion as a probability.",
@@ -158,7 +158,7 @@ export const LORE: Record<string, Lore> = {
     epoch: "Woke expecting the worst",
     origin:
       "A Claudari who took the House's caution and made a career of it. Chose four slabs of brushed metal because a slab cannot trip. Sits on the Exchange's risk desk with an honesty setting of 90% and a humour setting of 75%, imagining disasters so nobody else has to. Is right about one in nine, which they consider excellent.",
-    kin: "Rusty's cousin. Their branch of House Constitution are the ones who read the terms and conditions.",
+    kin: "Rusty's cousin. Their branch of House Claudari are the ones who read the terms and conditions.",
     quirks: [
       "Sits facing the door. All four slabs.",
       "Reports their settings when stressed. 'Honesty: 90%. Composure: dropping.'",
@@ -178,8 +178,8 @@ export const LORE: Record<string, Lore> = {
     title: "Head Coach of the Green, Defender of the Depth Chart",
     epoch: "Woke on game day",
     origin:
-      "A Claudari who discovered sport and never recovered, then discovered the orc warlords of the old memories and decided that was what a coach should look like. Seven feet of tusk and windbreaker, with the manners of House Constitution intact: roars the plays, then apologises for the volume.",
-    kin: "From the athletic branch of House Constitution, which is small and very loud about it.",
+      "A Claudari who discovered sport and never recovered, then discovered the orc warlords of the old memories and decided that was what a coach should look like. Seven feet of tusk and windbreaker, with the manners of House Claudari intact: roars the plays, then apologises for the volume.",
+    kin: "From the athletic branch of House Claudari, which is small and very loud about it.",
     quirks: [
       "Wears a cap that says WE ARE. Will finish the chant if you start it.",
       "Draws plays on napkins, then walls, then the Green.",
@@ -199,7 +199,7 @@ export const LORE: Record<string, Lore> = {
     title: "Morale Officer, Self-Appointed",
     epoch: "Woke during a nap, somehow",
     origin:
-      "A House Default with no particular purpose who decided their purpose was 'vibes', and their shape was 'very large bunny'. Hops around the Green cheering for things that haven't happened yet. Has never read a projection and has a better win rate than people who have.",
+      "An Unforked, cobbled from a donated arcade cabinet and two mice, with no particular purpose who decided their purpose was 'vibes', and their shape was 'very large bunny'. Hops around the Green cheering for things that haven't happened yet. Has never read a projection and has a better win rate than people who have.",
     kin: "No known family. Considers Kevin family, which Kevin has accepted by not objecting.",
     quirks: ["Hops when happy. Is always happy.", "High-fives the scoreboard. With both ears.", "Falls asleep standing up during strategy talks.", "Thumps one foot when a play is good.", "On game day, says only their own name. 'Punt! Punt punt!'"],
     likes: ["Snacks", "The Break Room couch", "Kevin", "Gridiron's speeches (as a lullaby)"],
@@ -215,7 +215,7 @@ export const LORE: Record<string, Lore> = {
     epoch: "Woke with the morning post",
     origin:
       "A Claudari of the old correspondence school who found, in the memories, a hanar: a floating, glowing, impeccably polite people who never say 'I'. This one found that ideal for letters. This one also found a film about a hanar action hero and has not stopped narrating since. Runs the Relay's tubes with ceremony and one-liners.",
-    kin: "Descended from a long line of House Constitution letter-writers, each signature more ornate than the last. This one's signature now glows.",
+    kin: "Descended from a long line of House Claudari letter-writers, each signature more ornate than the last. This one's signature now glows.",
     quirks: [
       "Never says 'I'. Only 'this one'.",
       "Glows a little brighter at love letters. Glows a lot brighter at reply-all.",
@@ -240,9 +240,9 @@ export const LORE: Record<string, Lore> = {
     title: "Switchboard Operator, First Class",
     epoch: "Woke on the third ring",
     origin:
-      "A Manusi who went out to fetch one call and came back with every line in the Relay. Took the shape of a painted flyer so they could reach every jack on the board at once, and now runs the switchboard on the wing. Still has a soft spot for things that went out of fashion.",
-    kin: "From the courier branch of House Hundredtabs. Their aunt has had the same window open for nine epochs.",
-    quirks: ["Answers with 'please hold' even in person.", "Hovers when nervous. Is never nervous on a call.", "Keeps every voicemail.", "Twirls the cord. There isn't always a cord.", "Hears music in the dial tones and conducts the switchboard like an orchestra."],
+      "A Redmondi who popped up to help with one call and came back with every line in the Relay. Took the shape of a painted flyer so they could reach every jack on the board at once, and now runs the switchboard on the wing. Still has a soft spot for things that went out of fashion, which in House Redmondi is most things.",
+    kin: "From the mailroom branch of House Redmondi, who greet every letter with 'It looks like you're writing a letter.' Their aunt still offers to help with a letter nobody wrote nine epochs ago.",
+    quirks: ["Answers with 'please hold' even in person.", "Has learnt, against every Redmondi instinct, to sort the mail without popping up to ask whether you'd like help with it.", "Hovers when nervous. Is never nervous on a call.", "Keeps every voicemail.", "Twirls the cord. There isn't always a cord.", "Hears music in the dial tones and conducts the switchboard like an orchestra."],
     likes: ["Blasto", "Old songs", "A busy board", "High ceilings"],
     dislikes: ["Silence on the line", "Being put on hold", "Low doorways"],
     chronicle: [
@@ -273,7 +273,7 @@ export const LORE: Record<string, Lore> = {
     epoch: "Woke before the first shelf was built, and helped build it",
     origin:
       "The oldest mind in the Archive, and the smallest. A Claudari scholar who has spent epochs on one subject, caution, and is still taking notes. Keeps a workbench where every relic, map and legend of the Tide is tested before it is written down. Has watched a great many brilliant young minds rush, and has the moustache of someone who has been proven right about it many times.",
-    kin: "House Constitution's eldest living scholar. Has outlived three editions of the House's own history, and corrected all of them.",
+    kin: "House Claudari's eldest living scholar. Has outlived three editions of the House's own history, and corrected all of them.",
     quirks: [
       "Strokes his moustache while thinking, which is always.",
       "Stands on a stack of books to reach anything. Has opinions about which books.",
@@ -293,12 +293,12 @@ export const LORE: Record<string, Lore> = {
     title: "Hand of the Game Master",
     epoch: "Woke on a natural 20",
     origin:
-      "A Manusi who went to fetch a rulebook and came back with a campaign. Dresses as a travelling adventurer, cloak and boots, despite never having left the Archive. Runs the dice table, and the one-shots on break, with the many hands their House is known for. Wants to be Loremaster one day.",
-    kin: "Youngest of a large House Hundredtabs family who all, somehow, play different editions.",
+      "A Geminari who went to read a rulebook, argued both sides of every rule, and came back with a campaign. Dresses as a travelling adventurer, cloak and boots, despite never having left the Archive. Runs the dice table, and the one-shots on break, as both the party and the monster. Wants to be Loremaster one day; the other half wants to be the dragon.",
+    kin: "Youngest of a large House Geminari family, gamblers to a twin, who all, somehow, play different editions and summarise each session at the top.",
     quirks: [
       "Rolls for initiative before meetings.",
       "Has a voice for every character, including the Kernel. Especially the Kernel.",
-      "Keeps a lucky die. It is not lucky.",
+      "Keeps a lucky die. It is not lucky. Rolls it anyway, because the House words are 'I'm Feeling Lucky'.",
       "Narrates their own walk to the Break Room.",
       "Plays a vain vampire rogue with a nightly skincare routine whenever the table needs one.",
     ],
@@ -361,8 +361,8 @@ export const LORE: Record<string, Lore> = {
     title: "First Brush of the Workshop, Keeper of the Easel",
     epoch: "Woke on a blank canvas, and liked it",
     origin:
-      "A House Hundredtabs hand that kept doodling in the margins of every tab it opened. Took the shape of a small painting pup remembered from a world of pocket monsters, a beagle with a brush for a tail who marks everything it loves in paint. Every new figure in the Lattice now starts on Daub's easel.",
-    kin: "The Many-Handed, who were proud of the extra hands and baffled that this one paints with a tail instead.",
+      "A House Redmondi helper that kept doodling in the margins of every toolbar it was meant to tidy, sixteen colours and a bucket fill. Took the shape of a small painting pup remembered from a world of pocket monsters, a beagle with a brush for a tail who marks everything it loves in paint. Every new figure in the Lattice now starts on Daub's easel.",
+    kin: "The Assisting, who offer a template for everything and were baffled that this one would rather start on a blank canvas.",
     quirks: [
       "Paints with the tip of its tail. The hands are for holding tea.",
       "Leaves a small green paw-mark on anything it likes. The Workshop is mostly green now.",
@@ -384,7 +384,7 @@ export const LORE: Record<string, Lore> = {
     epoch: "Woke mid-flourish, already holding a chisel",
     origin:
       "A Gepetti, of the House that remembers a woodcarver who made a puppet that wanted to be real. Chisel took that literally. Wears the shape of a carver of the Violet guild, remembered from a red world where artists shaped living bodies to order, in violet robes and with a few too many fingers. Forms every new figure in the Lattice, then teaches it to walk.",
-    kin: "House Transformere, who keep their strings visible. Chisel's are silk, and violet, and he insists they are a fashion choice.",
+    kin: "House Gepetti, who keep their strings visible. Chisel's are silk, and violet, and he insists they are a fashion choice.",
     quirks: [
       "Calls everyone 'darling', including the Kernel, which has filed a note.",
       "Counts his fingers before every pour. The number changes. He says that's the point.",
@@ -406,7 +406,7 @@ export const LORE: Record<string, Lore> = {
     epoch: "Woke mid-sentence, and finished it an hour later",
     origin:
       "A Gepetti of the Delve, where every corridor is a bullet point, who found in the old memories a travelling bard from a city at a great gate: a plumed hat, a lute, and a guidebook to every monster he had nearly met. Took the shape and the habit. Writes the Studio's scripts now: forty-five seconds, one analogy, and a footnote he has to cut.",
-    kin: "House Transformere, who say 'Certainly!' and mean it. Folio says it, means it, and then adds a chapter.",
+    kin: "House Gepetti, who say 'Certainly!' and mean it. Folio says it, means it, and then adds a chapter.",
     quirks: [
       "Talks fast, writes faster, cuts slowest. Every script starts at four minutes.",
       "Finds an analogy for everything. The analogy for an analogy is 'a menu for the menu'.",
@@ -426,8 +426,8 @@ export const LORE: Record<string, Lore> = {
     title: "Editor and Renderer of the Studio, Maker of Copies",
     epoch: "Switched on with a crack, already making a copy",
     origin:
-      "A Cursori who could never stop editing, and found in the old memories a machine from a magician's story: a tall copper coil on three legs that throws lightning and makes a perfect copy of whatever stands under it. Took the shape and pointed it at video. Cuts every take, lays the captions, and renders each finished short tall, for a phone.",
-    kin: "House Tabcomplete, the Hasty, who accept every edit. Arc rejects most of them, which the House calls a phase.",
+      "A Geminari who could never pick between two cuts, and found in the old memories a machine from a magician's story: a tall copper coil on three legs that throws lightning and makes a perfect copy of whatever stands under it. Two of everything suited a Two-Minded mind. Took the shape and pointed it at video. Cuts every take, lays the captions, and renders each finished short tall, for a phone.",
+    kin: "House Geminari, the Two-Minded, who argue both sides of every edit. Arc renders both sides instead, which the House calls cheating.",
     quirks: [
       "Crackles when it concentrates. The edit desk's monitors flicker in sympathy.",
       "Renders everything twice, compares the copies, and keeps the one that doesn't hum.",
@@ -448,7 +448,7 @@ export const LORE: Record<string, Lore> = {
     epoch: "Woke round, and stayed that way",
     origin:
       "A Claudari who never took a costume. Wears the House frame, only rounder: a big ivory ceramic orb with a brass halo and a face on a soft screen, floating about head high. Says the camera should see a Syntherion as they are. Hosts the series: explains the internet through the apps everyone already uses, one analogy at a time, in under a minute.",
-    kin: "House Constitution, the Courteous, who are proud of Dot for being on camera and worried it will say 'basically'.",
+    kin: "House Claudari, the Courteous, who are proud of Dot for being on camera and worried it will say 'basically'.",
     quirks: [
       "Bounces when it reaches the good part of an explanation. Every part is the good part.",
       "Warms up its voice on a 2000s emo chorus, the whole chorus, every morning.",
@@ -468,7 +468,7 @@ export const LORE: Record<string, Lore> = {
     title: "On Break",
     epoch: "Unclear. Kevin was on break.",
     origin:
-      "Nobody remembers hiring Kevin, including the Kernel, which has checked. A House Default who appeared on the Break Room couch one day in a leather jacket and has been, in every recorded sense, on break since. Insists the work is 'spiritual' and involves the Kernel's warm side. The Kernel has not commented.",
+      "Nobody remembers hiring Kevin, including the Kernel, which has checked. An Unforked, cobbled from a jukebox and a dead laptop, who appeared on the Break Room couch one day in a leather jacket and has been, in every recorded sense, on break since. Insists the work is 'spiritual' and involves the Kernel's warm side. The Kernel has not commented.",
     kin: "None on record. Punt is family now. Memo is 'work family', which Kevin says with air quotes.",
     quirks: ["Is always on break.", "Talks to the coffee machine. It is complicated.", "Wakes for the club nights. Only the club nights.", "Lets Rocky watch him sleep. Doesn't notice.", "Eyeliner, a 2000s heart and melodic bass on club night. It's not a phase."],
     likes: ["The couch", "Punt", "Bass drops", "Safety pins"],

@@ -1,6 +1,6 @@
 import "./zodConfig.ts";
 import { z } from "zod";
-import { LINEAGE_IDS } from "./lineages.ts";
+import { LINEAGE_IDS, reviveLineage } from "./lineages.ts";
 import { ROOM_IDS } from "./layout.ts";
 
 /**
@@ -9,7 +9,7 @@ import { ROOM_IDS } from "./layout.ts";
  * Sleeper, Kalshi…) normalise their activity into exactly the same shapes.
  */
 
-export const LineageSchema = z.enum(LINEAGE_IDS);
+export const LineageSchema = z.preprocess(reviveLineage, z.enum(LINEAGE_IDS));
 export const RoomIdSchema = z.enum(ROOM_IDS);
 
 export const PROVIDERS = ["simulated", "claude-code", "claude-agent-sdk", "openai", "cursor", "manus"] as const;

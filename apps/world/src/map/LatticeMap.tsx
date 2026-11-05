@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { submindOf } from "../../../../packages/simulator/src/subminds.ts";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
-import { useFlow, type FlowLayoutFn } from "../desk/flow/index.ts";
+import { useFlow, type FlowLayoutFn } from "../../../desk/src/flow/index.ts";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { feedLines, formatClock, type FeedLine } from "../hud/format.ts";
 import { navigate } from "../route.ts";

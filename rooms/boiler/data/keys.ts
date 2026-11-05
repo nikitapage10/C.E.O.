@@ -4,7 +4,7 @@
  * was written. The value lives in the input until it is sent, then the form forgets it, sent or not.
  */
 
-import { ago } from "../../../apps/world/src/desk/foundryGraph.ts";
+import { ago } from "../../../apps/desk/src/foundryGraph.ts";
 import { assertionJson, canPasskey, requestOptions } from "@ceo/engine/web/signin.ts";
 
 export interface KeyRow {

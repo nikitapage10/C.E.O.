@@ -3,11 +3,11 @@ import type { HistoryEntry, RoomId } from "../../../apps/world/src/chronicle.ts"
 import { CREW, type Change, type FoundryData } from "../../../apps/world/src/foundry.ts";
 import { useSystems, type LinkState } from "../../../apps/world/src/systems.ts";
 import { DayStory } from "../../archive/web/DayStory.tsx";
-import { DESK_ROOMS, type DeskData } from "../../../apps/world/src/desk/deskData.ts";
-import { ideaTitle } from "../../../apps/world/src/desk/IdeaCard.tsx";
+import { DESK_ROOMS, type DeskData } from "../../../apps/desk/src/deskData.ts";
+import { ideaTitle } from "../../../apps/desk/src/IdeaCard.tsx";
 import { Private } from "@ceo/engine/web/Private.tsx";
-import { link } from "../../../apps/world/src/desk/nav.ts";
-import { ROOM_META } from "../../../apps/world/src/desk/roomPulse.ts";
+import { link } from "../../../apps/desk/src/nav.ts";
+import { ROOM_META } from "../../../apps/desk/src/roomPulse.ts";
 import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**

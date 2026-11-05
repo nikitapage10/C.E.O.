@@ -1,6 +1,6 @@
 import { submindOf } from "@ceo/simulator";
 import { useEffect } from "react";
-import { newEvents, readPublicFeed } from "../desk/skippy/roomFeed.ts";
+import { newEvents, readPublicFeed } from "../../../desk/src/skippy/roomFeed.ts";
 import { useWorld } from "../store.ts";
 
 /** How often the Lattice reads the room feed (real ms). */

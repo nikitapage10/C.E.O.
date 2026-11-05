@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import type { DeviceReading } from "../../../apps/world/src/desk/homeDevices.ts";
+import type { DeviceReading } from "../../../apps/desk/src/homeDevices.ts";
 import { bowlChip, cycling, dockOf, DRAWER, drawerWidth, flowing, frontBowl, GLOBE, HOPPER, hopperOf, renderUrl, ringOffset, TANK, trayTurn, TURRET, waterline, type Render } from "./plates.ts";
 import "./plates.css";
 

@@ -7,7 +7,7 @@
  * No site cap (#532). The site holds the talk to no monthly budget and no per-call limit: the ElevenLabs plan's own
  * credits are the only limit, and when ElevenLabs refuses for them (a 402, or a `quota_exceeded` reason) the Desk says
  * so ("ElevenLabs credits used up"). Two safeties stay: the agent ends a call after VOICE_SILENCE_SECS of silence (and the
- * browser after two minutes of nobody speaking, apps/world/src/desk/skippy/silence.ts), takes one call at a time, and
+ * browser after two minutes of nobody speaking, apps/desk/src/skippy/silence.ts), takes one call at a time, and
  * only answers a minted token (auth on), so nobody else can spend the plan. The talk keeps no ledger of its own: a
  * conversation is only followed (pending) until it is over, so the Council gets the subminds' exchanges (#479).
  *

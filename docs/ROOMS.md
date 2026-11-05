@@ -13,8 +13,9 @@ the rooms plug into them instead (below, "Rooms plug in"); and the Desk's bar na
 the rooms: each room's `rooms/<id>/nav.ts` holds its `name` and `page`, its `room.ts` takes them in, and the Desk's
 shell loads only those small files (`desk/roomPages.ts`; the full manifests would add about 40 kB to the first load).
 The bar's order stays route.ts `NAV_ORDER`. A room's sub-menu comes from its `nav.ts` too (`sections`, below), drawn by
-the engine's `<RoomSections>`. Until a room's own step lands, its code stays where it is in
-`apps/world/src/desk` and `api/`.
+the engine's `<RoomSections>`. The Desk's own code (its shell, bar, council, Skippy, room voice, the Rotunda and the
+kits) lives in its package, `@ceo/desk` in `apps/desk/src` (below, "The Desk's package"); `desk/<file>` in this doc
+means `apps/desk/src/<file>`.
 
 ## What the engine holds
 
@@ -203,6 +204,18 @@ build bundles it like `@ceo/engine`, `boot-check` opens that one `dist`, and Dep
 with no new Azure resources. The Desk may import `@ceo/engine`, the rooms, the other packages and `api/`; it reaches
 into another app only for the files it shares with the Lattice, listed in `WORLD_SHARED` (below, "Lint").
 
+The move (step two of three) took every file of `apps/world/src/desk` to the same place under `apps/desk/src` with
+`git mv`, and a codemod rewrote each relative path that crossed the move (imports, `import.meta.glob` patterns and
+test fixture paths), in the Desk, the rooms, the Lattice and the tests; nothing else in them changed. The files the
+Desk shares with the Lattice stay in `apps/world/src`, read by their relative paths and listed in `WORLD_SHARED`:
+`route.ts`, `systems.ts`, `foundry.ts`, `chronicle.ts`, `worldClock.ts`, `boot.ts`, `latticeWarm.ts`, `modelUrl.ts` and
+`agents/bodies/recolor.ts`. They don't move yet because each is a change of shape, not a move: `route.ts` lazy-loads the
+Lattice's `App.tsx`, `foundry.ts` reads the Desk's `crewRuns.ts` and `jobs.ts` (a package between them would import
+the Desk back), and `recolor.ts` is three.js. Each can go to a package of its own once that is turned round, and the
+list shrinks. The build's Lattice prefetch (`apps/world/vite.config.ts`) now finds the Lattice by
+`apps/world/src/App.tsx` and fails the build if it can't, and the flow kit's browser harness
+(`desk/flow/harness.html`) is served by the dev server from its file path (`/@fs/…`, `tests/e2e/flow.spec.ts`).
+
 ### The manifest
 
 `defineRoom()` from `@ceo/engine/manifest` parses it on load:
@@ -248,7 +261,7 @@ room data in it.
   `@ceo/engine/lore`; no `process.env` in `rooms/*/api`. The one allowance is `KNOWN_CROSSINGS`: the reads one room
   still makes of another, listed file by file (19 at step 14, in the Boiler Room, Today and the Exchange). The list
   only shrinks: `scripts/eslint-rooms.test.mjs` fails on an entry whose import is gone, and a new crossing is an error.
-- **Errors** in `apps/world/src/desk/**`: a shared kit (flow, skippy, confluence, hologram, hero) importing a room.
+- **Errors** in `apps/desk/src/**` (`apps/world/src/desk/**` before the move): a shared kit (flow, skippy, confluence, hologram, hero) importing a room.
   This was a warning while the rooms moved out (15 at step 1, 18 by step 3, 0 by step 13) and became an error at
   step 14, once every room had left the Desk.
 - **Errors** in `apps/desk/**` (the Desk's package): an import that lands in another app (`apps/world`, `apps/hub`),

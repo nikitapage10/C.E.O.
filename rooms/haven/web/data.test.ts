@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
-import type { DeviceReading } from "../../../apps/world/src/desk/homeDevices.ts";
+import type { DeviceReading } from "../../../apps/desk/src/homeDevices.ts";
 import { climateOf, deviceLit, litRooms, roomAt, roomsLitBy, summaryOf, tabOf } from "./data.ts";
 import { wallsOf } from "./house.ts";
 

@@ -45,7 +45,7 @@ export default tseslint.config(
     rules: { "no-restricted-properties": ["error", { object: "process", property: "env", message: "Read keys through the engine (readKey), for names in the room's manifest keys (docs/ROOMS.md)." }] },
   },
   // The Desk's shared kits (flow, skippy, confluence, hologram, hero) import no rooms; the rooms plug in (desk/roomHooks.ts).
-  { files: ["apps/world/src/desk/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-boundary": "error" } },
+  { files: ["apps/desk/src/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-boundary": "error" } },
   // The Desk's package (@ceo/desk, apps/desk): another app only for the files in WORLD_SHARED (scripts/eslint-rooms.mjs).
   { files: ["apps/desk/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-package": "error" } },
 );

@@ -3,7 +3,7 @@
  * The C.E.O. mark and the Desk's icons (#135, #640). The mark is the Lattice C: a pointy-top hexagon of thin silver
  * lines and nodes, open on the right so it reads as a C, its mouth running in to one gold core (Nikita's pick, option
  * 4). Hand-built here from a hexagon of radius 20 on a 48 grid; the Desk header draws the same lines
- * (apps/world/src/desk/DeskNav.tsx, LatticeMark). Written under apps/world/public/desk/ and listed in
+ * (apps/desk/src/DeskNav.tsx, LatticeMark). Written under apps/world/public/desk/ and listed in
  * apps/world/index.html and apps/world/public/manifest.webmanifest:
  *
  *   favicon.svg, favicon-32.png     the browser tab (the small cut: no inner lattice, heavier lines)

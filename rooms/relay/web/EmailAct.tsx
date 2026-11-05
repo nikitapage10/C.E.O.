@@ -1,5 +1,5 @@
-import { portrait } from "../../../apps/world/src/desk/deskData.ts";
-import { link } from "../../../apps/world/src/desk/nav.ts";
+import { portrait } from "../../../apps/desk/src/deskData.ts";
+import { link } from "../../../apps/desk/src/nav.ts";
 import { useEmail } from "../data/email.ts";
 
 /**

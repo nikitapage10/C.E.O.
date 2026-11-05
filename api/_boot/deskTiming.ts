@@ -1,7 +1,7 @@
 /**
  * The Desk's load timings (#561), kept like the Lattice's boot timings (#373, timing.ts) and the Talk calls' (#512): on a
  * real load of the Desk (not the Lattice) the browser times the page from its opening to the Desk's first paint and to
- * its live data being ready (apps/world/src/desk/deskBeacon.ts) and sends the two numbers here. Behind the site lock,
+ * its live data being ready (apps/desk/src/deskBeacon.ts) and sends the two numbers here. Behind the site lock,
  * like every function; on Vercel a rewrite (/api/desk-timing → /api/world?timing=desk), on Azure its own endpoint.
  *
  * POST /api/desk-timing { firstPaint, dataReady } → 204. Two numbers of milliseconds, each checked and clamped;

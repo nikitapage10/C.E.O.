@@ -78,7 +78,7 @@ self.addEventListener("notificationclick", (event) => {
       const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       const desk = open.find((c) => new URL(c.url).origin === self.location.origin);
       if (desk) {
-        // The Desk moves itself to the tab (apps/world/src/desk/pings.ts), without a reload.
+        // The Desk moves itself to the tab (apps/desk/src/pings.ts), without a reload.
         desk.postMessage({ type: "ceo-desk-open", url });
         if ("focus" in desk) await desk.focus();
         return;

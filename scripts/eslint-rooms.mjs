@@ -5,7 +5,7 @@
 //     KNOWN_CROSSINGS below, which only shrinks;
 //   - the engine imports no rooms (packages/engine/ reaching into rooms/);
 //   - a room's web code reaches lore only through @ceo/engine/lore (not @ceo/simulator, the lore modules or lore/).
-// ceo/desk-boundary (error, in apps/world/src/desk/**): a shared kit of the Desk (flow, skippy, confluence, hologram,
+// ceo/desk-boundary (error, in apps/desk/src/**): a shared kit of the Desk (flow, skippy, confluence, hologram,
 //   hero) never imports a room; the rooms plug into the kits instead (desk/roomHooks.ts).
 // ceo/desk-package (error, in apps/desk/**): the Desk's package reaches into another app only for the files in
 //   WORLD_SHARED below, which only shrinks.
@@ -84,9 +84,10 @@ const roomBoundary = {
   },
 };
 
-// The Desk's shared kits (apps/world/src/desk). Every room now lives in rooms/<id>/ (#617, step 14), so a kit reaching
-// into rooms/ is what this rule catches; the Desk's shell (Desk.tsx, roomHooks.ts, the council) may load rooms.
-const DESK = "apps/world/src/desk/";
+// The Desk's shared kits (apps/desk/src, moved from apps/world/src/desk, #617). Every room now lives in rooms/<id>/
+// (step 14), so a kit reaching into rooms/ is what this rule catches; the Desk's shell (Desk.tsx, roomHooks.ts, the
+// council) may load rooms.
+const DESK = "apps/desk/src/";
 const DESK_KITS = [/^flow\//, /^skippy\//, /^confluence\//, /^hologram\//, /^hero\//];
 const isKit = (path) => path.startsWith(DESK) && DESK_KITS.some((p) => p.test(path.slice(DESK.length)));
 
@@ -108,7 +109,19 @@ const deskBoundary = {
 // (the route, the systems and Foundry stores, the chronicle and the rest), which stay in apps/world/src until each moves
 // into a package of its own. Like KNOWN_CROSSINGS the list only shrinks (scripts/eslint-rooms.test.mjs fails on an
 // entry no Desk file imports). @ceo/world's package name is no way round it: it is an error too.
-export const WORLD_SHARED = [];
+// Why they stay in apps/world for now: route.ts lazy-loads the Lattice (App.tsx), foundry.ts reads the Desk's
+// crewRuns.ts and jobs.ts, and recolor.ts is three.js, so moving them is a change of shape, not a move (#617).
+export const WORLD_SHARED = [
+  "apps/world/src/route.ts", // the router, the bar's order and the Lattice's lazy loader
+  "apps/world/src/systems.ts", // the link states every live store reports to
+  "apps/world/src/foundry.ts", // the Foundry store (crates, crew, ships), read by the Lattice's Foundry too
+  "apps/world/src/chronicle.ts", // the world's history feed, read by the Archive and the Lattice's Weave
+  "apps/world/src/worldClock.ts", // the world's clock
+  "apps/world/src/boot.ts", // the boot timings
+  "apps/world/src/latticeWarm.ts", // the Lattice's warm-up, started from the Desk
+  "apps/world/src/modelUrl.ts", // the hashed model paths, for the holograms and the Rotunda
+  "apps/world/src/agents/bodies/recolor.ts", // the agents' liveries, for the holograms and the Rotunda
+];
 
 const DESK_PACKAGE = "apps/desk/";
 

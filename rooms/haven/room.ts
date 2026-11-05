@@ -5,7 +5,7 @@ import { TOOLS } from "./tools.ts";
 /**
  * The Haven: home and health (#616). A Desk-only room for now (its Lattice room comes later), led by the Steward
  * (DESK_SUBMINDS). Its number key follows the bar (route.ts NAV_ORDER). Data only (docs/ROOMS.md). Its page is in
- * apps/world/src/desk/haven and its endpoints in api/_haven until its migration step. The home devices' and Hey
+ * apps/desk/src/haven and its endpoints in api/_haven until its migration step. The home devices' and Hey
  * Skippy's endpoints (`haven/devices*`, `haven`, `capture`) stay where #627 and #632 put them; this room adds the
  * floor plan, which only a passkey session reads or writes.
  */

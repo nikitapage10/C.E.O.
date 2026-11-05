@@ -73,8 +73,11 @@ function prefetchLattice(): Plugin {
         const chunks = Object.values(bundle).filter((c): c is OutputChunk => c.type === "chunk");
         const byName = new Map(chunks.map((c) => [c.fileName, c]));
         const entry = chunks.find((c) => c.isEntry);
-        const app = chunks.find((c) => c.facadeModuleId?.replace(/\\/g, "/").endsWith("/src/App.tsx"));
-        if (!entry || !app) return;
+        // The Lattice's App.tsx by its full path: the Desk is its own package now (@ceo/desk in apps/desk, #617), so a
+        // bare "/src/App.tsx" could one day match a file of the Desk's. Finding neither fails the build rather than
+        // quietly shipping a Desk that no longer prefetches the Lattice.
+        const app = chunks.find((c) => c.facadeModuleId?.replace(/\\/g, "/").endsWith("/apps/world/src/App.tsx"));
+        if (!entry || !app) throw new Error(`ceo:prefetch-lattice: no ${entry ? "chunk for apps/world/src/App.tsx" : "entry chunk"} in the bundle`);
         const walk = (c: OutputChunk, into: Set<string>) => {
           if (into.has(c.fileName)) return;
           into.add(c.fileName);

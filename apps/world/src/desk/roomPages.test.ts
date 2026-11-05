@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NAV_ORDER } from "../route.ts";
 import { PAGE_LOADERS, pageName, pageSections } from "./roomPages.ts";
-import { systemsPageOf } from "./SystemsNav.tsx";
+import { systemsPageOf } from "../../../../rooms/boiler/web/SystemsNav.tsx";
 
 /** The Desk's bar and page loaders, read from the room manifests (#617, step 3): the same bar as before. */
 describe("the Desk's pages from the manifests", () => {

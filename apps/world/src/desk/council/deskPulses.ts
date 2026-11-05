@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { DESK_SUBMINDS } from "../../../../../packages/simulator/src/subminds.ts";
-import { RC } from "../wvCanvas.ts";
+import { RC } from "@ceo/engine/sigils/wvCanvas.ts";
 import { homeLine, startHome, useHome, type DeviceKind, type HomeLoad, type HomePublic, VENDOR_NAME, VENDORS } from "../homeDevices.ts";
 import { POPUPS, useAnnex, type PopupStatus } from "../../../../../rooms/annex/data/annex.ts";
 import type { RoomSubmind } from "../roomPulse.ts";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PmMarket } from "../desk/exchange/polymarket.ts";
+import type { PmMarket } from "../../../../rooms/exchange/data/polymarket.ts";
 import { tickerChunks } from "./exchangeTicker.ts";
 
 const m = (over: Partial<PmMarket>): PmMarket => ({ id: "1", question: "Fed cuts in December?", outcome: "Yes", prob: 0.63, change24h: 0.02, volume24h: 1, volume: 1, endDate: null, url: null, closed: false, spark: [], ...over });

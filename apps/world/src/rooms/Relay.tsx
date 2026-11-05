@@ -7,8 +7,8 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { Dust, Haze } from "../fx/atmos.tsx";
 import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
-import { emailLine, startEmail, useEmail } from "../desk/email/email.ts";
-import { startTexts, STALE_MS, textsLine, useTexts } from "../desk/texts/texts.ts";
+import { emailLine, startEmail, useEmail } from "../../../../rooms/relay/data/email.ts";
+import { startTexts, STALE_MS, textsLine, useTexts } from "../../../../rooms/relay/data/texts.ts";
 import { Block, Chair, FONTS, Plinth, ahead } from "./primitives.tsx";
 
 const dummy = new Object3D();

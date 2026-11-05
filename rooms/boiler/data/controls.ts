@@ -1,7 +1,7 @@
 import type { LinkState } from "../../../apps/world/src/systems.ts";
 import { isHalloweenNight } from "../../../apps/world/src/veil/veil.ts";
 import type { Link, Vendor, VendorProblem, VendorState } from "../../../apps/world/src/desk/homeDevices.ts";
-import { isQuiet, nextMountain } from "../../../apps/world/src/desk/todaySchedule.ts";
+import { isQuiet, nextMountain } from "../../today/data/todaySchedule.ts";
 
 /**
  * Boiler Room > Controls (#647): the panel board's arithmetic, kept apart from the page so it can be tested. Meters

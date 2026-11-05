@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { submindOf } from "../../../../../packages/simulator/src/subminds.ts";
-import { Private } from "../Private.tsx";
-import { useDeskAuth } from "../signin.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { whenAsked } from "./asked.ts";
 import { useRoomFeed, type FeedRoom } from "./roomFeed.ts";
 import "./asked.css";

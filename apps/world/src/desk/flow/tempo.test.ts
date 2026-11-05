@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_FOUNDRY, type Crate } from "../../foundry.ts";
 import type { Link } from "../../systems.ts";
 import { roomPulses, type PulseInput } from "../roomPulse.ts";
-import { driveOf, IDLE, legendOf, NEUTRAL, tempoLine, tempoOf } from "./tempo.ts";
+import { driveOf, IDLE, legendOf, NEUTRAL, tempoLine, tempoOf } from "@ceo/engine/sigils/tempo.ts";
 import { roomOfRoute } from "./useTempo.ts";
 
 const NOW = Date.parse("2026-10-22T19:00:00Z");

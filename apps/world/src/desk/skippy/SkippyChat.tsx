@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Mic } from "../IdeaCard.tsx";
 import { useDictation } from "../dictate.ts";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { MESSAGE_MAX, loadRoundTrip, stopSpeaking, useSkippy } from "./chat.ts";
 import { useTalk } from "./talk.ts";
 import "./skippy.css";

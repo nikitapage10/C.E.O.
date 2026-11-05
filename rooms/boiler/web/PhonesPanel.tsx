@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { ago } from "../../../apps/world/src/desk/foundryGraph.ts";
-import { Private } from "../../../apps/world/src/desk/Private.tsx";
+import { Private } from "@ceo/engine/web/Private.tsx";
 import { ADD_NOTE, GREET_NOTE, addPhone, loadPhones, makeGreetings, revokePhone, type Load, type PhonesView } from "../../../apps/world/src/desk/haven.ts";
 
 /**

@@ -1,7 +1,7 @@
 /**
  * How sure a start-or-sit call is (#261): one word the Desk's call cards and the Commentator both use, worked out from
  * the call itself (FantasyPros' margin, whether Sleeper agrees, and the call's flags). Pure, no imports beyond types,
- * so the browser reads it too (apps/world/src/desk/green/league.ts).
+ * so the browser reads it too (rooms/green/data/league.ts).
  *
  *   low     a split decision, a tiebreak, a late-game risk, or a call on form under 3 points
  *   high    FantasyPros' margin of 3 points or more, with Sleeper not disagreeing

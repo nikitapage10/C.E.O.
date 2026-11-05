@@ -19,7 +19,7 @@ import {
 import { Dust, Haze, Smoke, Sparks } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
-import { startEmail } from "../desk/email/email.ts";
+import { startEmail } from "../../../../rooms/relay/data/email.ts";
 import { daysSinceIncident, useSystems, type Link, type LinkState } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
 import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";

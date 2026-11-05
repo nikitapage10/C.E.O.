@@ -94,6 +94,9 @@ redrawn only on layout or focus. Counts: at most 240 particles a line and 2400 a
 
 ## Files
 
+The kit's core lives in the engine (`packages/engine/src/sigils/`, imported as `@ceo/engine/sigils/<file>`, #617); the
+Desk keeps `index.ts`, `useFlow.ts`, `useTempo.ts`, `pulse.ts` and the harness here.
+
 - `path.ts`: path maths (sampling, `fan`, `converge`, counts, filter, pulses, hit-testing), unit tested.
 - `draw.ts`: `stream()`, the particle line itself (Today's stage draws its streams with it), and `knotAt()`.
 - `field.ts`: `makeFlowField()`, the engine. `useFlow.ts`: the React hook.

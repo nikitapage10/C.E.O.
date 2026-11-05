@@ -1,11 +1,12 @@
 // The room contract's import boundaries (#617, docs/ROOMS.md), as a small local ESLint plugin.
 //
 // ceo/room-boundary (error, in rooms/** and packages/engine/**):
-//   - a room never imports another room (rooms/<a>/ reaching into rooms/<b>/);
+//   - a room never imports another room (rooms/<a>/ reaching into rooms/<b>/), apart from the reads listed in
+//     KNOWN_CROSSINGS below, which only shrinks;
 //   - the engine imports no rooms (packages/engine/ reaching into rooms/);
 //   - a room's web code reaches lore only through @ceo/engine/lore (not @ceo/simulator, the lore modules or lore/).
-// ceo/desk-boundary (warn, in apps/world/src/desk/**): the same idea for the Desk's old layout, so the baseline is
-//   counted while the rooms move out: a room's folder importing another room's, or a shared kit importing a room.
+// ceo/desk-boundary (error, in apps/world/src/desk/**): a shared kit of the Desk (flow, skippy, confluence, hologram,
+//   hero) never imports a room; the rooms plug into the kits instead (desk/roomHooks.ts).
 //
 // Imports are resolved against the importing file, so `../green/x` and `../../rooms/green/x` are judged by where they
 // land, not how they are spelled.
@@ -34,6 +35,30 @@ const roomOf = (path) => path.match(/^rooms\/([^/]+)\//)?.[1] ?? null;
 const LORE_PATHS = [/^packages\/simulator\//, /^packages\/core\/src\/(houses|cast|lineages)(\.ts)?$/, /^lore\//];
 const LORE_NAMES = new Set(["HOUSES", "KERNEL_LORE", "LINEAGES"]);
 
+// The reads one room still makes of another's code (#617, step 14). Until step 14 they went through the Desk's
+// re-export stubs, which hid them from this rule; now each is listed here by file, so they stay in sight. Each is a
+// gap to close by plugging the room in through the Desk (desk/roomHooks.ts) or sharing it through @ceo/engine; the
+// list only shrinks (scripts/eslint-rooms.test.mjs fails on an entry whose import is gone). docs/ROOMS.md, "Lint".
+export const KNOWN_CROSSINGS = {
+  "rooms/boiler/data/controls.ts": ["rooms/today/data/todaySchedule.ts"],
+  "rooms/boiler/web/ControlsPage.tsx": [
+    "rooms/relay/data/email.ts",
+    "rooms/exchange/data/polymarket.ts",
+    "rooms/green/data/league.ts",
+    "rooms/spire/data/invoices.ts",
+    "rooms/relay/data/texts.ts",
+    "rooms/today/data/todaySchedule.ts",
+  ],
+  "rooms/boiler/web/HouseSetup.tsx": ["rooms/haven/web/groceries.ts"],
+  "rooms/boiler/web/PipeBoard.tsx": ["rooms/relay/data/email.ts", "rooms/haven/web/groceries.ts"],
+  "rooms/boiler/web/SettingsPanel.tsx": ["rooms/today/web/TodayRail.tsx"],
+  "rooms/boiler/web/Systems.tsx": ["rooms/relay/data/email.ts", "rooms/spire/data/invoices.ts", "rooms/exchange/data/polymarket.ts", "rooms/green/data/league.ts"],
+  "rooms/exchange/data/asides.ts": ["rooms/green/data/league.ts"],
+  "rooms/today/web/Today.tsx": ["rooms/relay/data/email.ts"],
+  "rooms/today/web/TodayNow.tsx": ["rooms/relay/web/EmailAct.tsx"],
+  "rooms/today/web/TodayWeave.tsx": ["rooms/archive/web/DayStory.tsx"],
+};
+
 const roomBoundary = {
   meta: { type: "problem", schema: [], messages: {
     room: "A room never imports another room ({{other}}). Share it through @ceo/engine instead (docs/ROOMS.md).",
@@ -47,7 +72,7 @@ const roomBoundary = {
     const engine = here.startsWith("packages/engine/");
     return sources(context, (node, _file, spec, to) => {
       const other = to ? roomOf(to + "/") : null;
-      if (room && other && other !== room) context.report({ node, messageId: "room", data: { other } });
+      if (room && other && other !== room && !KNOWN_CROSSINGS[here]?.includes(to)) context.report({ node, messageId: "room", data: { other } });
       if (engine && to && (to === "rooms" || to.startsWith("rooms/"))) context.report({ node, messageId: "engine" });
       if (!web) return;
       const viaPackage = spec === "@ceo/simulator" || spec.startsWith("@ceo/simulator/");
@@ -57,39 +82,21 @@ const roomBoundary = {
   },
 };
 
-// The Desk's rooms and shared kits in today's layout (apps/world/src/desk), until each room moves to rooms/<id>/.
+// The Desk's shared kits (apps/world/src/desk). Every room now lives in rooms/<id>/ (#617, step 14), so a kit reaching
+// into rooms/ is what this rule catches; the Desk's shell (Desk.tsx, roomHooks.ts, the council) may load rooms.
 const DESK = "apps/world/src/desk/";
-const DESK_ROOMS = {
-  foundry: [/^foundry\//, /^FoundryPage\.tsx$/],
-  relay: [/^relay\//, /^email\//, /^texts\//, /^Relay\.tsx$/],
-  boiler: [/^boiler\//],
-  archive: [/^Archive\.tsx$/],
-  spire: [/^spire\//],
-  exchange: [/^exchange\//, /^rooms\/Exchange\.tsx$/],
-  green: [/^green\//],
-};
 const DESK_KITS = [/^flow\//, /^skippy\//, /^confluence\//, /^hologram\//, /^hero\//];
-
-function deskGroup(path) {
-  if (!path.startsWith(DESK)) return null;
-  const inner = path.slice(DESK.length);
-  for (const [room, pats] of Object.entries(DESK_ROOMS)) if (pats.some((p) => p.test(inner) || p.test(inner + ".tsx"))) return room;
-  if (DESK_KITS.some((p) => p.test(inner))) return "kit";
-  return null;
-}
+const isKit = (path) => path.startsWith(DESK) && DESK_KITS.some((p) => p.test(path.slice(DESK.length)));
 
 const deskBoundary = {
-  meta: { type: "suggestion", schema: [], messages: {
-    room: "The {{from}} room imports the {{to}} room. Rooms stay apart in the engine layout (#617, docs/ROOMS.md).",
-    kit: "A shared kit imports the {{to}} room. Kits move into @ceo/engine, which imports no rooms (#617, docs/ROOMS.md).",
+  meta: { type: "problem", schema: [], messages: {
+    kit: "A shared kit imports the {{to}} room. Kits import no rooms; the room plugs in instead (desk/roomHooks.ts, docs/ROOMS.md).",
   } },
   create(context) {
-    const from = deskGroup(rel(context.filename));
-    if (!from) return {};
+    if (!isKit(rel(context.filename))) return {};
     return sources(context, (node, _file, _spec, to) => {
-      const room = to ? deskGroup(to) : null;
-      if (!room || room === "kit" || room === from) return;
-      context.report({ node, messageId: from === "kit" ? "kit" : "room", data: { from, to: room } });
+      const room = to ? roomOf(to + "/") : null;
+      if (room) context.report({ node, messageId: "kit", data: { to: room } });
     });
   },
 };

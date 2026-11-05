@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 
 /**
  * The room feed (#281), browser side: short events the active subminds post from their project threads with the feed

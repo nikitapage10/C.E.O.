@@ -5,7 +5,7 @@ import { PlanWatch } from "../../../apps/world/src/desk/skippy/PlanWatch.tsx";
 import { roomLink } from "../../../apps/world/src/desk/hero/roomLink.ts";
 import { ROOM_META } from "../../../apps/world/src/desk/roomPulse.ts";
 import type { Fitting, GState, PipeRow } from "../data/systemsGraph.ts";
-import { BAD } from "../../../apps/world/src/desk/wvCanvas.ts";
+import { BAD } from "@ceo/engine/sigils/wvCanvas.ts";
 import { connectionFor, fittingsOf, pipeState, pressureOf, roomConnections } from "../data/pressure.ts";
 import { changesOf, lookOf, rackCols, rowGeo, segId, segsOf, STATE_LONG, STATE_WORD, type Seg } from "../data/rack.ts";
 

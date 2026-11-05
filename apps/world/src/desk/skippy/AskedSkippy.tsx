@@ -1,8 +1,8 @@
 import { AnswerCard } from "./AnswerCard.tsx";
 import { useEffect, useState } from "react";
-import { Private } from "../Private.tsx";
+import { Private } from "@ceo/engine/web/Private.tsx";
 import { stripTags } from "../hologram/tags.ts";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { handedName, modelName, useAsked, whenAsked, type AskedRoom } from "./asked.ts";
 import { useSkippy } from "./chat.ts";
 import "./asked.css";

@@ -44,6 +44,6 @@ export default tseslint.config(
     files: ["rooms/*/api/**/*.{ts,tsx}"],
     rules: { "no-restricted-properties": ["error", { object: "process", property: "env", message: "Read keys through the engine (readKey), for names in the room's manifest keys (docs/ROOMS.md)." }] },
   },
-  // The Desk's old layout: the same boundaries as warnings, counted as the baseline while the rooms move out.
-  { files: ["apps/world/src/desk/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-boundary": "warn" } },
+  // The Desk's shared kits (flow, skippy, confluence, hologram, hero) import no rooms; the rooms plug in (desk/roomHooks.ts).
+  { files: ["apps/world/src/desk/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-boundary": "error" } },
 );

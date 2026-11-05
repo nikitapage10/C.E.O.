@@ -1,7 +1,7 @@
 /**
  * What the Green's league board reads (#252): Nikita's Sleeper league, trimmed to the fields the Desk shows, with the
  * predictions worked out on the server. Shared by the function (api/_green/route.ts) and the Desk
- * (apps/world/src/desk/green/league.ts).
+ * (rooms/green/data/league.ts).
  *
  * Only league and team names, player names and football numbers: no usernames, no avatars, nothing private.
  *

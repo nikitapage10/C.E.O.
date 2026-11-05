@@ -2,11 +2,11 @@ import { useEffect, useMemo } from "react";
 import { useWorldFeed } from "../chronicle.ts";
 import { useFoundry } from "../foundry.ts";
 import { useSystems } from "../systems.ts";
-import { startPolymarket, usePolymarket } from "./exchange/polymarket.ts";
-import { startEmail, useEmail } from "./email/email.ts";
-import { startGreen, useGreen } from "./green/league.ts";
+import { startPolymarket, usePolymarket } from "../../../../rooms/exchange/data/polymarket.ts";
+import { startEmail, useEmail } from "../../../../rooms/relay/data/email.ts";
+import { startGreen, useGreen } from "../../../../rooms/green/data/league.ts";
 import { roomPulses, type RoomPulse } from "./roomPulse.ts";
-import { startInvoices, useInvoices } from "./spire/invoices.ts";
+import { startInvoices, useInvoices } from "../../../../rooms/spire/data/invoices.ts";
 
 /** How far back the day's strip on Today reaches, so the knots never empty out just after midnight. */
 export const DAY_STRIP_MS = 14 * 3_600_000;

@@ -1,6 +1,6 @@
 import { applyEvents, emptyState, type Agent, type AgentEvent, type AgentEventBody } from "@ceo/core";
 import { describe, expect, it } from "vitest";
-import { RC } from "../desk/wvCanvas.ts";
+import { RC } from "@ceo/engine/sigils/wvCanvas.ts";
 import { addPulse, MAX_PULSES, weaveBus } from "./bus.ts";
 import { derive } from "./live.ts";
 

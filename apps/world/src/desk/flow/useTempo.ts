@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { RoomId } from "../../chronicle.ts";
 import { routeOf, type Route } from "../../route.ts";
 import { pulseReader } from "./pulse.ts";
-import { legendOf, NEUTRAL, tempoOf, type Tempo } from "./tempo.ts";
+import { legendOf, NEUTRAL, tempoOf, type Tempo } from "@ceo/engine/sigils/tempo.ts";
 
 /** The Desk page a route shows, as the room whose activity moves its lines; Today, the Lattice and the Desk-only rooms (the Annex, #618; the Haven, #616) have none. */
 export function roomOfRoute(route: Route): RoomId | null {

@@ -2,13 +2,13 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { HistoryEntry, RoomId } from "../../../apps/world/src/chronicle.ts";
 import { CREW, type Change, type FoundryData } from "../../../apps/world/src/foundry.ts";
 import { useSystems, type LinkState } from "../../../apps/world/src/systems.ts";
-import { DayStory } from "../../../apps/world/src/desk/DayStory.tsx";
+import { DayStory } from "../../archive/web/DayStory.tsx";
 import { DESK_ROOMS, type DeskData } from "../../../apps/world/src/desk/deskData.ts";
 import { ideaTitle } from "../../../apps/world/src/desk/IdeaCard.tsx";
-import { Private } from "../../../apps/world/src/desk/Private.tsx";
+import { Private } from "@ceo/engine/web/Private.tsx";
 import { link } from "../../../apps/world/src/desk/nav.ts";
 import { ROOM_META } from "../../../apps/world/src/desk/roomPulse.ts";
-import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion } from "../../../apps/world/src/desk/wvCanvas.ts";
+import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**
  * Today's "Not worth knowing now" (TodayMore.tsx loads it on demand; #336, #363): what's warm as two small thread

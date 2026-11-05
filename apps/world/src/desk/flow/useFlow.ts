@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { RoomId } from "../../chronicle.ts";
-import { reducedMotion, useViz } from "../wvCanvas.ts";
-import { makeFlowField, type FlowField, type FlowLayoutFn, type FlowOpts } from "./field.ts";
+import { reducedMotion, useViz } from "@ceo/engine/sigils/wvCanvas.ts";
+import { makeFlowField, type FlowField, type FlowLayoutFn, type FlowOpts } from "@ceo/engine/sigils/field.ts";
 import { useTempo } from "./useTempo.ts";
 
 export interface UseFlowOpts extends FlowOpts {

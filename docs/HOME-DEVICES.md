@@ -53,7 +53,7 @@ or tap and sends it once, with Cancel and Send now while it waits.
   run (#814): `{ state: "idle" }` when it isn't out, else `{ map }` (rooms, walls, path, robot, dock), decoded from
   `get_map_v1` ([`roborockMap.ts`](../api/_haven/devices/roborockMap.ts)). It is the home's floor plan: read on request
   while the Hall is open and the vacuum is out (every 4 s), never stored or logged. The Hall draws it
-  ([`LiveRun.tsx`](../apps/world/src/desk/haven/LiveRun.tsx)) and shows nothing when there is no run.
+  ([`LiveRun.tsx`](../rooms/haven/web/LiveRun.tsx)) and shows nothing when there is no run.
 - Hey Skippy on the phone ([`api/_haven/classify.ts`](../api/_haven/classify.ts)) turns "vacuum the kitchen",
   "vacuum, go home", "pause the vacuum", "feed the cat", "feed the cat 2 portions", "give the cat wet food", "next
   bowl", "switch the wet feeder to tray 2", "what's in the wet feeder", "open the wet food tray", "close the wet feeder", "clean the kitchen on
@@ -297,7 +297,7 @@ before King Soopers replaced MealMe.
 
 ## The meal planner
 
-The Kitchen page is the meal planner (#678, [`MealPlanner.tsx`](../apps/world/src/desk/haven/MealPlanner.tsx)) in four
+The Kitchen page is the meal planner (#678, [`MealPlanner.tsx`](../rooms/haven/web/MealPlanner.tsx)) in four
 steps (#721): **Plan** (the week as a list on the left, each day's dinner and lunch with its protein ring against the
 goal, at least 200 g; nothing open at first, then the meal picked opens on the right with its swaps: backups, Not for
 me, "Try something new?", the night's switches for HelloFresh, for two and in the cart; Finalize the week), **Customize**
@@ -356,8 +356,8 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   there (`addLunches`: new quick lunches, the lunch days, and a lunch plan when the week has none), leaving the
   dinners and every edit alone, with Undo; a second run changes nothing. Counts back.
 - **Cook mode (#705).** "Cook mode" in a night's drawer (not on a HelloFresh night) opens the dinner full screen, one
-  step at a time in big type ([`CookMode.tsx`](../apps/world/src/desk/haven/CookMode.tsx), built by `cookOf` in
-  [`cook.ts`](../apps/world/src/desk/haven/cook.ts) from `slotDish`, so it is the night as customized). A step that
+  step at a time in big type ([`CookMode.tsx`](../rooms/haven/web/CookMode.tsx), built by `cookOf` in
+  [`cook.ts`](../rooms/haven/web/cook.ts) from `slotDish`, so it is the night as customized). A step that
   names a swapped part names the new one, marked in gold; a step for a part left out (No carb, No side) says to skip
   it. Beside it (a panel behind "Ingredients" on a phone): the parts tonight, how many portions go in the pan
   (`portionsOf`: for two, a lunch left over), the heat, and the amounts for all of them. Next and Back are wide
@@ -402,7 +402,7 @@ the private store, untouched, but nothing requests or shows them. The Gym's card
 entries of [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (by yuhonas, released under the Unlicense,
 public domain), trimmed to the ones the Gym can use and vendored with their two photographed frames under
 `apps/world/public/gym/exercises/` (index.json, `<id>/0.jpg`, `<id>/1.jpg`, resized to 440 px), matched to the plan's
-names in [`gymRef.ts`](../apps/world/src/desk/haven/gymRef.ts). One entry's steps (side bridge) are the Desk's own,
+names in [`gymRef.ts`](../rooms/haven/web/gymRef.ts). One entry's steps (side bridge) are the Desk's own,
 marked `stepsBy: "desk"`; "Watch a demo" opens a YouTube search, never an embed.
 
 - **Where.** The private container `haven-meals` in the storage account (`stceobesgu7fnckib2`; infra/resources.bicep,

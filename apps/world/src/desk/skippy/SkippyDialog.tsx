@@ -4,14 +4,14 @@ import { runAction } from "./actions.ts";
 import { AnswerCard } from "./AnswerCard.tsx";
 import { handedName } from "./asked.ts";
 import { canSpeak, stopSpeaking, useSkippy, type ActionState, type Confirm, type SkippyAction, type Turn } from "./chat.ts";
-import { useHide } from "../hide.ts";
-import { Private } from "../Private.tsx";
+import { useHide } from "@ceo/engine/web/hide.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
 import { SkippyComposer } from "./SkippyChat.tsx";
 import { SKIPPY_PORTRAIT } from "./SkippyAvatar.tsx";
 import { SkippyLine, TalkUsage } from "./SkippyLine.tsx";
 import { texting } from "./rooms.ts";
 import { useTalk } from "./talk.ts";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { stripTags } from "../hologram/tags.ts";
 import "./skippy.css";
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Private } from "../Private.tsx";
+import { Private } from "@ceo/engine/web/Private.tsx";
 
 /**
  * What Skippy keeps of Nikita (#646), behind the passkey: the core card he reads every turn, the facts he can look

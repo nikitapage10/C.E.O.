@@ -1,5 +1,5 @@
 import { BOOKIE_WORLD_QUIPS, fillQuip } from "@ceo/simulator";
-import { sayNumber } from "../../../apps/world/src/desk/green/league.ts";
+import { sayNumber } from "../../green/data/league.ts";
 import { moveTone, pct, type PmWorld, type PmWorldKind } from "./polymarket.ts";
 
 /**

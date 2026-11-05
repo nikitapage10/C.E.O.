@@ -3,9 +3,9 @@ import { loadLattice, NAV_ORDER, type Route, type RoomRoute } from "../route.ts"
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { link } from "./nav.ts";
 import { pageName } from "./roomPages.ts";
-import { DeskSignIn } from "./SignIn.tsx";
-import { useDeskAuth } from "./signin.ts";
-import { useHide } from "./hide.ts";
+import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { useHide } from "@ceo/engine/web/hide.ts";
 import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
 
 /**

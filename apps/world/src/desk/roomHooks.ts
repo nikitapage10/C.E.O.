@@ -3,14 +3,14 @@ import { useChronicle, type RoomId } from "../chronicle.ts";
 import { useFoundry } from "../foundry.ts";
 import { useSystems } from "../systems.ts";
 import { useDesk } from "./deskData.ts";
-import { useEmail } from "./email/email.ts";
-import { usePolymarket } from "./exchange/polymarket.ts";
+import { useEmail } from "../../../../rooms/relay/data/email.ts";
+import { usePolymarket } from "../../../../rooms/exchange/data/polymarket.ts";
 import { setPulseReader } from "./flow/pulse.ts";
-import { useGreen } from "./green/league.ts";
-import { useNow } from "./motion.tsx";
+import { useGreen } from "../../../../rooms/green/data/league.ts";
+import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { roomPulses, type RoomPulse } from "./roomPulse.ts";
 import { addPageSource, setTexting, type Texting } from "./skippy/rooms.ts";
-import { useInvoices } from "./spire/invoices.ts";
+import { useInvoices } from "../../../../rooms/spire/data/invoices.ts";
 
 /**
  * Where the rooms plug into the Desk's shared kits (#617, step 3). The kits (flow, Skippy) read no room's data and
@@ -54,20 +54,20 @@ export function useRoomPulse(room: RoomId | null): RoomPulse | null {
 
 /* ── Skippy's page block (skippy/page.ts): each live room's own lines, the Green's start/sit calls leading ── */
 
-addPageSource({ room: "green", first: true, lines: () => import("./green/skippy.ts").then((m) => m.pageLines()) });
-addPageSource({ room: "exchange", lines: () => import("./exchange/skippy.ts").then((m) => m.pageLines()) });
+addPageSource({ room: "green", first: true, lines: () => import("../../../../rooms/green/skippy.ts").then((m) => m.pageLines()) });
+addPageSource({ room: "exchange", lines: () => import("../../../../rooms/exchange/skippy.ts").then((m) => m.pageLines()) });
 
 /* ── Texting from Skippy's chat and calls (#536): the Relay's; its card loads with the first text ── */
 
 const loadCard = () =>
-  import("./texts/ComposeCard.tsx").then((m) => {
+  import("../../../../rooms/relay/web/ComposeCard.tsx").then((m) => {
     TEXTING.Card = m.ComposeCard;
   });
 
 const TEXTING: Texting = {
   Card: null,
-  start: (who, gist) => Promise.all([import("./texts/compose.ts"), loadCard()]).then(([m]) => m.useCompose.getState().start(who, gist, "chat")),
-  talkTools: () => Promise.all([import("./texts/talkTools.ts"), loadCard()]).then(([m]) => m),
+  start: (who, gist) => Promise.all([import("../../../../rooms/relay/data/compose.ts"), loadCard()]).then(([m]) => m.useCompose.getState().start(who, gist, "chat")),
+  talkTools: () => Promise.all([import("../../../../rooms/relay/data/talkTools.ts"), loadCard()]).then(([m]) => m),
 };
 setTexting(TEXTING);
 

@@ -4,7 +4,7 @@ import { countdown, nextRuns } from "../../../apps/world/src/desk/crewRuns.ts";
 import { FOUNDRY_THREAD, formatWait } from "../../../apps/world/src/desk/deskData.ts";
 import { RC, samplePath, useFlow, type FlowLayoutFn, type FlowLine, type PathSpec, type Pt } from "../../../apps/world/src/desk/flow/index.ts";
 import { ideaTitle } from "../../../apps/world/src/desk/IdeaCard.tsx";
-import { BAD, clamp, HOT, mixRgb, OK, RUN, WHITE } from "../../../apps/world/src/desk/wvCanvas.ts";
+import { BAD, clamp, HOT, mixRgb, OK, RUN, WHITE } from "@ceo/engine/sigils/wvCanvas.ts";
 import { leftWords, MILESTONES, progressWords, sourceWords, stepWords, type Progress } from "../data/progress.ts";
 import { forgeEvents, forgeLanes, GATE_U, LANES, queueOf, shipWords, snapshot, STAGE_U, STAGE_WORDS, type Lane, type Stage } from "../data/forge.ts";
 

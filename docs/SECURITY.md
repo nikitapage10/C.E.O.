@@ -162,7 +162,7 @@ device already has a passkey. From then on:
    device out and lets a device enrol with the new key.)
 
 The Desk says this before locking (the confirm box) and under **Site lock** while it's locked (`RECOVERY` in
-`apps/world/src/desk/SitePassword.tsx`), so the only way to need the break glass is to lose every passkey and the
+`packages/engine/src/web/SitePassword.tsx`), so the only way to need the break glass is to lose every passkey and the
 Desk key, and that is said on screen. If the Desk key isn't set on the server there are no passkeys at all, and the
 login page says signing in isn't set up.
 

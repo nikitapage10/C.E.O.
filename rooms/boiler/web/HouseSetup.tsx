@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { googleAction, loadGoogle, problemSay, useHome, VENDOR_NAME, type HavenGoogle } from "../../../apps/world/src/desk/homeDevices.ts";
-import { Private } from "../../../apps/world/src/desk/Private.tsx";
-import { CONNECT_NOTE, groceryAction, GROCERY_NOTE, isKrogerSignIn, loadGroceries, type GAction, type Groceries } from "../../../apps/world/src/desk/haven/groceries.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { CONNECT_NOTE, groceryAction, GROCERY_NOTE, isKrogerSignIn, loadGroceries, type GAction, type Groceries } from "../../haven/web/groceries.ts";
 
 /**
  * The house's connections (#637, #632), set up from Boiler Room > Controls (#647; Nikita, 05:53Z: connection setup

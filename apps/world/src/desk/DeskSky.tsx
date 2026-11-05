@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { clamp, RC, useViz, WHITE, type VizSpec } from "./wvCanvas.ts";
+import { clamp, RC, useViz, WHITE, type VizSpec } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**
  * The sky behind every Desk page (the approved Weave, 81-sky-fx.js): a fine dust drifting on a slow flow field, mostly

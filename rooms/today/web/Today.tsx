@@ -4,7 +4,7 @@ import { ideaCounts, openIdeas, useFoundry } from "../../../apps/world/src/found
 import { useSetup } from "../../../apps/world/src/desk/IdeaCard.tsx";
 import { useSetupStatus } from "../../../apps/world/src/desk/SetupCard.tsx";
 import { readTicked, remaining, SETUP_LIST } from "../../../apps/world/src/desk/setupList.ts";
-import { startEmail, useEmail } from "../../../apps/world/src/desk/email/email.ts";
+import { startEmail, useEmail } from "../../relay/data/email.ts";
 import { Icon } from "./todayIcons.tsx";
 import { fires, TodayNow } from "./TodayNow.tsx";
 import { DAY_STRIP_MS, usePulses } from "../../../apps/world/src/desk/usePulses.ts";

@@ -1,10 +1,10 @@
 import type { HistoryEntry, RoomId, WorldFeed } from "../chronicle.ts";
 import { CREW, crewOf, openIdeas, shippedToday, type FoundryData } from "../foundry.ts";
 import type { Link, LinkState } from "../systems.ts";
-import type { GreenBoard, GreenStatus } from "./green/league.ts";
+import type { GreenBoard, GreenStatus } from "../../../../rooms/green/data/league.ts";
 import { submindOf } from "../../../../packages/simulator/src/subminds.ts";
-import type { InvoiceStatus } from "./spire/invoices.ts";
-import type { EmailStatus } from "./email/email.ts";
+import type { InvoiceStatus } from "../../../../rooms/spire/data/invoices.ts";
+import type { EmailStatus } from "../../../../rooms/relay/data/email.ts";
 
 /**
  * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): ten threads, one per room, each in its submind's
@@ -99,7 +99,7 @@ export interface PulseInput {
   world: WorldFeed | null;
   /** The Exchange's public odds (#253), once Polymarket's board has answered: how many markets, and the busiest. */
   odds?: { markets: number; lead: { question: string; prob: number } | null } | null;
-  /** The Green's league board (desk/green/league.ts), once it has been asked for; left out, the Green stays simulated. */
+  /** The Green's league board (rooms/green/data/league.ts), once it has been asked for; left out, the Green stays simulated. */
   green?: { status: GreenStatus; board: GreenBoard | null };
   /** The email agent's public counts (#263, live since #322), once the Azure copy has answered; left out, Relay waits on the Mac. */
   email?: EmailStatus | null;

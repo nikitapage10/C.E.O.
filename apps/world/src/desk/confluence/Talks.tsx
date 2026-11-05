@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { RoomId } from "../../chronicle.ts";
-import { Private } from "../Private.tsx";
+import { Private } from "@ceo/engine/web/Private.tsx";
 import { stripTags } from "../hologram/tags.ts";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { handedName, useAsked, whenAsked, type AskedRoom } from "../skippy/asked.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { FEED_ROOMS, useRoomFeed, type FeedRoom } from "../skippy/roomFeed.ts";

@@ -8,7 +8,7 @@ import { CEILING, LEARN_CEILING, MemorySpendStore, relayBudget, SPEND_PATH, type
 import { cleanTrait, LEARN_SYSTEM, learnRequest, readLearn, readLearnInput, readVoice } from "./voice.ts";
 import { COMPOSE_SYSTEM, composeRequest, DRAFT_MODEL, draftRequest, readComposeInput, readDraft, readSort, SORT_MODEL, sortRequest, type ClaudeBody } from "./models.ts";
 import { askRuled, cleanWho, maskHandle, matchContacts } from "./compose.ts";
-import { GET, HUB_PATH, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, resendable, shownReason, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
+import { GET, HUB_GET_VIEWS, HUB_PATH, HUB_POST_VIEWS, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, resendable, shownReason, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { cleanPng, emailPhotoHash, macPhotoKey, normalHandle, photoEmailKey, photoIdOf, PHOTO_MAX_BYTES, readPhotoList } from "./photos.ts";
 import { BlobRelayStore, MemoryRelayStore, PRIVATE_PATH, readPrivate, relaySealKey } from "./store.ts";
@@ -803,6 +803,26 @@ describe("the site gate lets the hub through on its token alone", () => {
     }
     expect(decide(at("/api/relay-pair", "POST"), c)).toEqual({ allow: true, why: "relay-pair" });
     expect(decide(at("/api/relay-hub?view=unpair", "POST", token), c)).toEqual({ allow: true, why: "relay-hub" });
+  });
+
+  it("opens the contact photo calls (#891: shut at the gate, every photo got a 401 and none reached the Desk)", async () => {
+    const c = await gateCtx();
+    const { token } = mintPairing(DESK)!;
+    for (const [path, method] of [["/api/relay-hub?view=photo", "POST"], ["/api/relay-hub?view=photos", "POST"], ["/api/relay-hub?view=photo-key", "GET"]] as const) {
+      expect(decide(at(path, method, token), c), `${method} ${path}`).toEqual({ allow: true, why: "relay-hub" });
+      expect(decide(at(path, method), c).allow, `${method} ${path} without a token`).toBe(false);
+      expect(decide(at(path, method, mintPairing("another desk key, also made up")!.token), c).allow, `${method} ${path} another key`).toBe(false);
+    }
+    for (const [path, method] of [["/api/relay-hub?view=photo", "GET"], ["/api/relay-hub?view=photos", "GET"], ["/api/relay-hub?view=photo-key", "POST"], ["/api/relay-hub?view=photos&x=1", "POST"]] as const) {
+      expect(decide(at(path, method, token), c).allow, `${method} ${path}`).toBe(false);
+    }
+  });
+
+  it("opens every view the route serves the hub, so the gate and the route can't drift apart again", async () => {
+    const c = await gateCtx();
+    const { token } = mintPairing(DESK)!;
+    for (const v of HUB_POST_VIEWS) expect(decide(at(`/api/relay-hub?view=${v}`, "POST", token), c), `POST ${v}`).toEqual({ allow: true, why: "relay-hub" });
+    for (const v of HUB_GET_VIEWS) expect(decide(at(`/api/relay-hub?view=${v}`, "GET", token), c), `GET ${v}`).toEqual({ allow: true, why: "relay-hub" });
   });
 
   it("opens the public counts, GET /api/relay?view=status, and nothing else of /api/relay", async () => {

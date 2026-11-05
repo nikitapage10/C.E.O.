@@ -10,7 +10,7 @@ import type { Logger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
 import { photoIdOf } from "../../../api/_relay/photos.ts";
 import { closingReply, onlyAcks } from "../../../api/_email/intentWords.ts";
-import { syncPhotos, type Resize } from "./photos.ts";
+import { statusOf, syncPhotos, type Resize } from "./photos.ts";
 import { settleByRule } from "./rules.ts";
 import type { Site } from "./site.ts";
 import { MAX_OLDER_ROWS, newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
@@ -935,15 +935,27 @@ export class Engine {
   /** Contact photos (#642, ./photos.ts): once a day and at start, only with the Mac's photo key. Counts in the log only. */
   async syncPhotos(): Promise<void> {
     if (!this.d.photoKey || !this.d.resize) return;
+    // Marked as running (#891), so `relay check` can say a sync is under way: sips over a few hundred pictures takes time.
+    this.change((s) => {
+      s.photosRun = this.d.now();
+    });
     try {
       const got = await syncPhotos({ bb: this.d.bb, site: this.d.site, key: this.d.photoKey, resize: this.d.resize }, this.d.store.load().photos);
       this.change((s) => {
         s.photos = got.photos;
         s.photosAt = this.d.now();
+        s.photosRun = null;
+        s.photosFail = got.failed ? { at: this.d.now(), status: got.status, failed: got.failed } : null;
       });
-      this.d.log.log("photos synced", { count: got.count });
+      this.d.log.log("photos synced", { count: got.count, failed: got.failed, unreadable: got.unreadable, ...(got.failed && { status: got.status }) });
     } catch (e) {
-      this.d.log.error("photos failed", e);
+      // The HTTP status (a number) says which refusal it was (#891); never the error's words.
+      const status = statusOf(e);
+      this.change((s) => {
+        s.photosRun = null;
+        s.photosFail = { at: this.d.now(), status, failed: 0 };
+      });
+      this.d.log.error("photos failed", e, { status });
     }
   }
 

@@ -410,7 +410,9 @@ sealed list holds. The public site still gets counts only.
   BlueBubbles' chat list until an empty one (it used to stop at the first short page).
 - **On the Mac only (#870).** `relay check` prints counts: contacts, contacts with a photo and photos synced, chats
   BlueBubbles returned (one-to-one and groups), how many its last messages make owed, and how many the hub counts
-  owed and set aside. `relay why <name or number>` prints, for each one-to-one chat of the matching contacts, the
+  owed and set aside; since #891 also whether a photo sync is running or how the last one failed (minutes ago, the
+  site's HTTP status, how many photos it didn't take), and the hub log's `photos synced` and `photos failed` lines
+  carry the same numbers. `relay why <name or number>` prints, for each one-to-one chat of the matching contacts, the
   verdict by the hub's own rules (owed, answered, group, set aside by a rule and which kind, closing intent, older
   than the window, nothing to answer, not in BlueBubbles), the dates of their last text and Nikita's, the count of
   unanswered attachments and the state file's row. Names and masked numbers go to the Terminal only; no message text

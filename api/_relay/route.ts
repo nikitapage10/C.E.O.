@@ -260,9 +260,13 @@ async function photoAnswer(url: URL, deps: RelayRouteDeps): Promise<Response> {
   }
 }
 
+/** The views the hub may call; the site gate (api/_site/gate.ts, HUB_POSTS and HUB_GETS) must open each one (#891). */
+export const HUB_POST_VIEWS: readonly string[] = ["texts", "results", "sort", "draft", "learn", "unpair", "photo", "photos"];
+export const HUB_GET_VIEWS: readonly string[] = ["skip", "requests", "photo-key"];
+
 async function hubGet(request: Request, url: URL, deps: RelayRouteDeps): Promise<Response> {
   const view = url.searchParams.get("view");
-  if ([...url.searchParams.keys()].length !== 1 || (view !== "skip" && view !== "requests" && view !== "photo-key")) return json({ error: "bad-request" }, 400);
+  if ([...url.searchParams.keys()].length !== 1 || !HUB_GET_VIEWS.includes(view ?? "")) return json({ error: "bad-request" }, 400);
   if (!(await hubOf(request, deps)) || !deps.store) return json({ error: "unauthorized" }, 401);
   if (view === "skip") return json({ ok: true, terms: deps.skipTerms });
   if (view === "photo-key") return deps.photoKey ? json({ ok: true, key: deps.photoKey.toString("base64url") }) : json({ error: "not-set-up" }, 503);
@@ -532,7 +536,7 @@ async function pairHub(request: Request, deps: RelayRouteDeps): Promise<Response
 async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promise<Response> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
   const view = url.searchParams.get("view");
-  if ([...url.searchParams.keys()].length > 1 || (url.search && !["texts", "results", "sort", "draft", "learn", "unpair", "photo", "photos"].includes(view ?? ""))) return json({ error: "bad-request" }, 400);
+  if ([...url.searchParams.keys()].length > 1 || (url.search && !HUB_POST_VIEWS.includes(view ?? ""))) return json({ error: "bad-request" }, 400);
   if (!(await hubOf(request, deps)) || !deps.store) return json({ error: "unauthorized" }, 401);
   const store = deps.store;
   const raw = await request.text().catch(() => "");

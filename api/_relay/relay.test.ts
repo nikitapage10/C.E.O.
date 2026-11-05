@@ -267,11 +267,12 @@ describe("the hub's token", () => {
     expect(readTextsView(view([item({ since: NOW - 31 * 24 * HOUR })]), NOW)?.items).toEqual([]);
   });
 
-  it("keeps a shown text a week at most, even on an item still owed, and checks who sent each (#758)", () => {
+  it("keeps a shown text as long as its owed window (#803, was a week), and checks who sent each (#758)", () => {
     const at = (days: number) => NOW - days * 24 * HOUR;
-    const one = readTextsView(view([item({ since: at(10), messages: [{ text: "old one", at: at(9) }, { text: "new one", at: at(1) }] })]), NOW)!;
-    expect(one.items[0]!.messages?.map((m) => m.text)).toEqual(["new one"]);
-    const gone = readTextsView(view([item({ since: at(10), messages: [{ text: "old one", at: at(9) }] })]), NOW)!;
+    // A backlog thread from three weeks ago shows its texts, not only its gist.
+    const one = readTextsView(view([item({ since: at(25), messages: [{ text: "old one", at: at(31) }, { text: "three weeks", at: at(22) }, { text: "new one", at: at(1) }] })]), NOW)!;
+    expect(one.items[0]!.messages?.map((m) => m.text)).toEqual(["three weeks", "new one"]);
+    const gone = readTextsView(view([item({ since: at(25), messages: [{ text: "old one", at: at(31) }] })]), NOW)!;
     expect(gone.items[0]!.messages).toBeUndefined();
     // A one-to-one item names no sender; a group's lines each must.
     expect(readTextsView(view([item({ messages: [{ text: "hi", at: NOW, from: "Riley Test" }] })]), NOW)).toBeNull();

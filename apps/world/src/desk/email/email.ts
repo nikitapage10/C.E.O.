@@ -156,7 +156,7 @@ interface EmailStore {
   unrule: (rule: string) => Promise<boolean>;
   learnStyle: () => Promise<Answer<StyleProfile>>;
   /** Sends the draft on screen as an in-thread reply. Only after Nikita's yes and the undo window; the server checks it is still that draft. */
-  send: (id: string, draft: string) => Promise<Answer<number>>;
+  send: (id: string, draft: string, own?: boolean) => Promise<Answer<number>>;
 }
 
 /** POST one action and read its answer; refreshes after. */
@@ -298,8 +298,8 @@ export const useEmail = create<EmailStore>((set, get) => ({
     void get().refresh();
     return got;
   },
-  send: async (id, draft) => {
-    const got = await act({ action: "send", id, draft }, (g) => (g.ok === true && typeof g.sentAt === "number" ? g.sentAt : null));
+  send: async (id, draft, own = false) => {
+    const got = await act({ action: "send", id, draft, ...(own && { own: true }) }, (g) => (g.ok === true && typeof g.sentAt === "number" ? g.sentAt : null));
     if (got.ok) {
       const view = get().view;
       if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, done: true, sentAt: got.value } : i)) } });

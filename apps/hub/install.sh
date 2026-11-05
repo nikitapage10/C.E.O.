@@ -58,6 +58,19 @@ has_item() { security find-generic-password -s "$SERVICE" -a "$1" >/dev/null 2>&
 running() { launchctl print "gui/$UID_NOW/$LABEL" >/dev/null 2>&1; }
 listening() { nc -z 127.0.0.1 7420 >/dev/null 2>&1; }
 
+# (Re)loads the LaunchAgent (#803). A rerun's old agent must be fully unloaded first: a bootstrap while launchd still
+# holds it fails with "Bootstrap failed: 5: Input/output error". So: bootout, wait up to 10 s for it to go, bootstrap;
+# on a failure (error 5 when the unload lagged), bootout once more, wait, and try one last time.
+start_agent() {
+  launchctl bootout "gui/$UID_NOW/$LABEL" >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do running || break; sleep 1; done
+  launchctl bootstrap "gui/$UID_NOW" "$PLIST" 2>/dev/null && return 0
+  launchctl bootout "gui/$UID_NOW/$LABEL" >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5; do running || break; sleep 1; done
+  sleep 1
+  launchctl bootstrap "gui/$UID_NOW" "$PLIST" || fail "launchd wouldn't load the hub. Run the installer again, or log out and back in."
+}
+
 site_status() { curl -fsS --max-time 15 "$SITE/api/relay?view=status" 2>/dev/null || true; }
 
 # BlueBubbles must not be reachable from the network: it listens on 127.0.0.1 only, or the macOS firewall blocks
@@ -203,8 +216,7 @@ install_relay() {
 </plist>
 PLIST
   chmod 600 "$PLIST"
-  launchctl bootout "gui/$UID_NOW/$LABEL" >/dev/null 2>&1 || true
-  launchctl bootstrap "gui/$UID_NOW" "$PLIST"
+  start_agent
   for _ in 1 2 3 4 5 6 7 8 9 10; do listening && break; sleep 1; done
   listening || fail "the hub didn't start. Its log is in ~/Library/Logs/CEO Relay."
   say "  ok"

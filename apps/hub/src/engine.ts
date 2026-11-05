@@ -14,7 +14,7 @@ import { syncPhotos, type Resize } from "./photos.ts";
 import { settleByRule } from "./rules.ts";
 import type { Site } from "./site.ts";
 import { MAX_OLDER_ROWS, newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
-import { MAX_OLDER, OWED_WINDOW_MS, SHOWN_KEEP_MS, type OlderItem } from "../../../api/_relay/texts.ts";
+import { MAX_ITEMS, MAX_OLDER, OWED_WINDOW_MS, SHOWN_KEEP_MS, type OlderItem } from "../../../api/_relay/texts.ts";
 import { readLearn, type DraftVoice, type Relation, type Voice } from "../../../api/_relay/voice.ts";
 import { sortBacklog, verdictOf } from "./backlog.ts";
 import { chatPerson, handleKey, LEARN_MIN, LEARN_WINDOW_MS, sampleSent, voiceStats, type Said } from "./learn.ts";
@@ -70,8 +70,9 @@ export const POLL_PAGES = 10;
 /** The backlog reads chats 1,000 a page (BlueBubbles' most), 10 pages at most. */
 export const CHAT_PAGE = 1_000;
 export const CHAT_PAGES = 10;
-/** The most chats whose newest real message the backlog reads one by one (a reaction or a photo was last). */
-export const CHECK_MAX = 40;
+/** The most chats whose newest real message the backlog reads one by one (a reaction or a photo was last). #803: 40 left
+ * many recent chats (a tapback last is common) out of the list altogether; each is one local BlueBubbles read. */
+export const CHECK_MAX = 200;
 /** The learn pass reads the year 1,000 messages a page, 80 pages at most. */
 export const LEARN_PAGE = 1_000;
 export const LEARN_PAGES = 80;
@@ -215,8 +216,11 @@ export class Engine {
   private async contactList(): Promise<Contact[]> {
     if (this.d.now() - this.contactsAt > 60 * 60_000) {
       try {
-        this.contacts = await this.d.bb.contacts();
-        this.contactsAt = this.d.now();
+        const got = await this.d.bb.contacts();
+        // An empty answer (BlueBubbles still starting, or Contacts not yet allowed) is asked again next time, not kept
+        // for an hour: every name would read "Unknown" meanwhile (#803).
+        if (got.length || !this.contacts.length) this.contacts = got;
+        if (got.length) this.contactsAt = this.d.now();
       } catch (e) {
         this.d.log.error("error", e);
       }
@@ -605,9 +609,13 @@ export class Engine {
     const photos = this.d.store.load().photos;
     const out: Shown[] = [];
     let used = 0;
-    for (const m of [...msgs].filter((x) => x.text.trim()).reverse()) {
+    // Control and format characters (a zero-width space, a direction mark) are stripped first, as the site does, and a
+    // text left empty is skipped (#803): the site refused a whole list over one such text.
+    const clean = (t: string) => t.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")).trim();
+    for (const m of [...msgs].filter((x) => clean(x.text)).reverse()) {
       if (out.length >= SHOWN_MESSAGES || used >= SHOWN_CHARS) break;
-      const text = m.text.trim().slice(0, SHOWN_CHARS - used);
+      const text = clean(m.text).slice(0, SHOWN_CHARS - used).trim();
+      if (!text) break;
       used += text.length;
       const contact = group ? this.contactOf(m.handle) : undefined;
       const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
@@ -623,7 +631,9 @@ export class Engine {
   private async fillShown(): Promise<void> {
     const s = this.d.store.load();
     const want = s.threads.filter((t) => !this.shown.has(t.id) && (t.state === "owed" || t.state === "later" || (t.group && t.summary)));
-    for (const t of want.slice(0, 10)) {
+    // Every listed thread at once (#803: 10 a report left most of a 50-chat backlog without its texts for the better
+    // part of an hour after each restart). Local BlueBubbles reads, no model.
+    for (const t of want.slice(0, MAX_ITEMS)) {
       const msgs = await this.recent(t.chat, 25);
       if (!msgs) return;
       const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
@@ -677,7 +687,7 @@ export class Engine {
     }
     const sorted = sortBacklog(chats, now, this.skipTerms, contactOf);
     // A reaction, a system item or a photo was last: the newest real message in that chat decides.
-    for (const c of sorted.check.slice(0, CHECK_MAX)) {
+    for (const c of [...sorted.check].sort((a, b) => b.lastAt - a.lastAt).slice(0, CHECK_MAX)) {
       const msgs = await this.recent(c.chat, 25);
       if (!msgs?.length) continue;
       const last = msgs[msgs.length - 1]!;
@@ -686,7 +696,8 @@ export class Engine {
       else if (v === "older") sorted.older.push({ chat: c.chat, handle: last.handle || c.handle, at: last.at, unread: last.read !== true });
       else if (v === "settled") sorted.settled++;
     }
-    sorted.owed.sort((a, b) => a.at - b.at);
+    // Newest first (#803): Dialtone sorts the newest ones first, so the top of the Desk gets its gists soonest.
+    sorted.owed.sort((a, b) => b.at - a.at);
     sorted.older.sort((a, b) => b.at - a.at);
     let added = 0;
     this.change((s) => {
@@ -694,6 +705,9 @@ export class Engine {
         const t = s.threads.find((x) => x.chat === e.chat);
         if (t && (t.state === "owed" || t.state === "later")) {
           t.unread = e.unread;
+          // No gist (#803: a model error or the budget stop dropped it from the queue, and nothing queued it
+          // again): it showed "No gist yet" for good. Each scan, and so each hub start, queues it once more.
+          if (!t.gist) this.queue.add(t.id);
           continue;
         }
         // Relay answered, settled or dismissed it after this message: it stays as it is.
@@ -1206,15 +1220,19 @@ export class Engine {
     const now = this.d.now();
     const owedState = (t: Thread) => t.state === "owed" || t.state === "later";
     const shownNow = (id: string) => (this.shown.get(id) ?? []).filter((m) => now - m.at < SHOWN_KEEP_MS);
-    // Owed ones within the 30-day window (#758), oldest first; then the groups' summaries from the last week.
+    // Owed ones within the 30-day window (#758), newest first (#803: oldest first, the cap cut the newest ones off the
+    // list); then the groups' summaries from the last week. The Desk orders them itself.
     const items: TextItem[] = s.threads
       .filter((t) => t.state !== "replied" && (t.state !== "settled" || (t.group && t.summary)) && now - t.since < (owedState(t) ? OWED_WINDOW_MS : THREAD_KEEP_MS))
-      .sort((a, b) => Number(owedState(b)) - Number(owedState(a)) || (owedState(a) ? a.since - b.since : b.lastIn - a.lastIn))
-      .slice(0, 60)
+      .sort((a, b) => Number(owedState(b)) - Number(owedState(a)) || b.lastIn - a.lastIn)
+      .slice(0, MAX_ITEMS)
       .map((t) => {
         const handle = t.chat.split(";").pop() ?? "";
         const contact = t.group ? undefined : this.contactOf(handle);
-        const name = t.group ? this.groupNames.get(t.chat) || "Group chat" : contact?.names[0] || "Unknown sender";
+        // Someone not in the contacts (#803: the 30-day backlog brings in many) is told apart by the number's last 4
+        // digits or a masked address, as a new-text card shows them; never the handle itself.
+        const mask = t.group || contact ? null : maskHandle(handle);
+        const name = t.group ? this.groupNames.get(t.chat) || "Group chat" : contact?.names[0] || (mask ? `Unknown (${mask})` : "Unknown sender");
         // The contact's photo id (#642), only when that photo is on the site: an opaque id, never the handle.
         const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
         return {

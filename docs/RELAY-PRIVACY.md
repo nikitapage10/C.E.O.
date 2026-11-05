@@ -68,7 +68,7 @@ The parts:
 | Logs | Event kinds, counts, error classes | `~/Library/Logs/CEO Relay/`, mode 0600 | 14 days, one file a day |
 | Mac secrets | The BlueBubbles password, the hub token, the send key, the local key (the `relay` command's key to the hub) | The login Keychain, service "CEO Relay" | Until the wipe |
 | The site's public status | The latest `RelayStatus`: counts, states, times | Azure blob `relay/status.json` (private container, served by a function) | The latest only |
-| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries; since #758 the shown texts, unread marks, the older unanswered names and the learned voice: traits, tones and numbers, never a quote), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask, and for each one the Mac refused or failed a reason code from a closed list (#767, `REASONS` in `api/_relay/texts.ts`) | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push; owed items 30 days, settled ones 7, each shown text 7 days at most. Requests: a day after they end |
+| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries; since #758 the shown texts, unread marks, the older unanswered names and the learned voice: traits, tones and numbers, never a quote), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask, and for each one the Mac refused or failed a reason code from a closed list (#767, `REASONS` in `api/_relay/texts.ts`) | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push; owed items 30 days, settled ones 7, each shown text 30 days at most (#803; was 7). Requests: a day after they end |
 | The pairing | The pairing's id and the SHA-256 of the hub's token; an open pair code's SHA-256 | Azure blobs `relay/hub.json`, `relay/pair.json` | Until Unpair; a code 10 minutes |
 | The spend ledger | Per month: calls, tokens, dollars | Azure blob `relay/spend.json` | A year |
 | Anthropic's copy | What one call sent and got back | Anthropic | Anthropic's API retention (below); never used for training |
@@ -150,7 +150,7 @@ The hub makes only these calls, all outbound to `https://ceo.nikita.page`, all w
 | Call | What goes | Checked by |
 | --- | --- | --- |
 | `POST /api/relay-hub` | The counts (`RelayStatus`) | `parseRelayStatus`, 4 KB, the allowlist below; kept whole or not at all |
-| `POST /api/relay-hub?view=texts` | The who's-waiting list (`TextsView`): per thread its Relay id, name, channel, group or not, state, sort, since, later-until, gist, draft, summary, and since #758 unread, photo id and the shown texts (each its text, time, and in a group the sender's name and photo id); the older unanswered (a count, and up to 40 Relay ids, names, times, unread, photo ids); when the backlog last ran; the learned voice (traits, tones, numbers, never a quote); and the new-text cards (#536): id, state, name, mask, channel, text, choices | `readTextsView` (`api/_relay/texts.ts`): a closed allowlist with length caps; one bad item refuses the list. A card's mask must be `ending 0123` or `r•••@e•••.com` exactly, so no whole number or address can ride on it. Shown texts: 5 at most, 1,000 characters in all, a sender only in a group, each dropped a week after it came. 512 KB |
+| `POST /api/relay-hub?view=texts` | The who's-waiting list (`TextsView`): per thread its Relay id, name, channel, group or not, state, sort, since, later-until, gist, draft, summary, and since #758 unread, photo id and the shown texts (each its text, time, and in a group the sender's name and photo id); the older unanswered (a count, and up to 40 Relay ids, names, times, unread, photo ids); when the backlog last ran; the learned voice (traits, tones, numbers, never a quote); and the new-text cards (#536): id, state, name, mask, channel, text, choices | `readTextsView` (`api/_relay/texts.ts`): a closed allowlist with length caps; one bad item refuses the list (a shown text that is only invisible characters is left out instead, #803). A card's mask must be `ending 0123` or `r•••@e•••.com` exactly, so no whole number or address can ride on it. Shown texts: 5 at most, 1,000 characters in all, a sender only in a group, each dropped 30 days after it came (#803). 100 items, 1 MB |
 | `POST /api/relay-hub?view=sort` and `?view=draft` | One placeholdered snippet, or a new text's placeholdered ask (#536) | Above |
 | `POST /api/relay-hub?view=learn` (#758) | The labelled, placeholdered sample of Nikita's own sent texts | `readLearnInput` (`api/_relay/voice.ts`): closed shape, the caps above, 1 MB; the rules run again on the site and drop any text they match |
 | `GET /api/relay-hub?view=requests` | Nothing; it gets the Desk's waiting requests | The send path, below |
@@ -163,7 +163,7 @@ The gist and summary are the models' own words about the thread, and the draft i
 held a message body; now it holds an owed thread's shown texts (below), and nothing else of a message. It never holds a phone number, email address or Messages chat id either; a new-text card shows only the last
 4 digits of the number or the address masked to its first letters (#536), which is a change from #535's rule of no
 number at all, made so Nikita can check who a text goes to before they send it. A name is the contact's name as
-Nikita's contacts have it, "Unknown sender", or a group's name.
+Nikita's contacts have it, "Unknown sender" (since #803 an owed one-to-one chat with someone not in the contacts reads "Unknown (ending 0123)" or "Unknown (r•••@e•••.com)", the same mask a new-text card shows), or a group's name.
 
 **The pairing.** The Desk makes a one-time code only with this device's send unlock (below), since a paired Mac can
 push the list and poll for sends, and never while a Mac is paired (Unpair first). The code is 8 characters from a 32-letter alphabet, good 10 minutes and 5 wrong tries;
@@ -361,11 +361,11 @@ sealed list holds. The public site still gets counts only.
   10 at most). A chat whose last message is someone else's and came within **30 days** is owed, oldest first. Every
   rule runs on it as on a new message (money and legal, the skip list, codes, short codes, promos, closing intent), and
   a match settles it with no model call. Where the last message alone can't settle it, the hub reads that chat's
-  recent messages (40 chats at most per scan). Owed ones go through Dialtone and Blasto as usual, so the first scan
-  spends from the $10 cap; 50 at most are taken in, the rest are counted as older. Older unanswered chats (past 30
-  days) are display only: the Desk shows "N older unanswered" and, on "show them", their names and when. They get no
-  model call, no gist and no shown text, and the hub forgets the snapshot after 7 days or the next scan. Groups are
-  never part of the backlog.
+  recent messages (200 chats at most per scan, the newest first; #803, was 40). Owed ones go through Dialtone and Blasto as usual, so the first scan
+  spends from the $10 cap; 80 at most are taken in (#803, was 50), the rest are counted as older. Older unanswered
+  chats (30 to 60 days) are display only: the Desk shows "N older unanswered" and, on "show them", their names and when. They get no
+  model call, no gist and no shown text, and the hub forgets the snapshot after 7 days or the next scan. A chat past
+  60 days is left out entirely, neither named nor counted (#803). Groups are never part of the backlog.
 - **Unread.** BlueBubbles serialises each message's `dateRead` (from `chat.db`, no Private API needed). The hub keeps
   only "unread or not" for an owed thread, the Desk marks the row, and the public status counts it. Read state never
   hides or settles anything.
@@ -498,7 +498,7 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
 | Logs | When Relay was busy | No content by rule and by test |
 | The Keychain items | With the hub token and send key: the right to push a list, poll requests and spend on the model calls up to the cap (not to make send requests); with the local key: the `relay` command's pause, resume and report; with the BlueBubbles password: BlueBubbles itself | The hub token never expires on its own: it works until Unpair or `relay wipe`. The $10 cap; send requests are made only on the Desk |
 | BlueBubbles | Everything in Messages, and sending as Nikita | Local only, no tunnel, its own password |
-| The site's sealed list | Names, gists, drafts and the requests' text, and (#758) the last few unanswered texts of each owed thread from the last week and the learned style traits, for whoever holds both the Azure store and `GMAIL_TOKEN_KEY` | Sealed; shown texts 7 days, 5 per thread, never from a thread a rule matches (no money, legal, codes or skip list); no numbers outside what someone typed in a shown text |
+| The site's sealed list | Names, gists, drafts and the requests' text, and (#758) the last few unanswered texts of each owed thread from the last 30 days (#803) and the learned style traits, for whoever holds both the Azure store and `GMAIL_TOKEN_KEY` | Sealed; shown texts 30 days, 5 per thread, never from a thread a rule matches (no money, legal, codes or skip list); no numbers outside what someone typed in a shown text |
 | A Desk session | The list, and with this device's unlock, send requests for drafts already on it, for 72 hours | Passkey sign-in; the unlock is per device and per passkey; one thread, one draft, 10 minutes; Lock and Unpair |
 | Anthropic's copy | The trimmed, placeholdered text of recent calls | No known names or numbers; not used for training |
 | The site's public status | Counts: how many replies are owed, how fast Nikita answers | Public by design; nothing more to take |

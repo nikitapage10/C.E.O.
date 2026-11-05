@@ -38,4 +38,12 @@ describe("staticwebapp.config.json matches vercel.json (#214)", () => {
     }
     for (const path of ["/api/*", "/assets/*", "/models/*"]) expect(swa.navigationFallback.exclude).toContain(path);
   });
+
+  it("opens the Relay page on a refresh, while /relay/ still serves the hub's installer files (#803)", () => {
+    // dist/relay/ is a real folder (the installer), so /relay itself needs its own rewrite, and only the installer's
+    // files are kept out of the fallback.
+    for (const route of ["/relay", "/relay/"]) expect(swa.routes.find((r) => r.route === route)?.rewrite).toBe("/index.html");
+    expect(swa.navigationFallback.exclude).not.toContain("/relay/*");
+    expect(swa.navigationFallback.exclude).toContain("/relay/*.{sh,mjs,sha256}");
+  });
 });

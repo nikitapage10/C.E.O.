@@ -28,8 +28,12 @@ export const TEXT_KEEP_MS = 7 * 24 * 60 * 60_000;
  * within 30 days. An owed item stays on the list this long; a settled one (a group's summary) TEXT_KEEP_MS.
  */
 export const OWED_WINDOW_MS = 30 * 24 * 60 * 60_000;
-/** The longest one of the Desk's shown texts (#758) is kept on the site, whatever the item's own window. */
-export const SHOWN_KEEP_MS = TEXT_KEEP_MS;
+/**
+ * The longest one of the Desk's shown texts (#758) is kept on the site, whatever the item's own window: the owed window
+ * (#803). At 7 days, every backlog text older than a week was dropped on the Mac before it was sent, so an owed thread
+ * from the 30-day backlog showed only its gist, never the texts themselves.
+ */
+export const SHOWN_KEEP_MS = OWED_WINDOW_MS;
 
 /** Items with every shown text older than SHOWN_KEEP_MS dropped (an item whose texts all aged out shows its gist). */
 export function freshItems(items: readonly TextItem[], now: number): TextItem[] {
@@ -40,9 +44,25 @@ export function freshItems(items: readonly TextItem[], now: number): TextItem[] 
     return fresh.length ? { ...rest, messages: fresh } : rest;
   });
 }
+/**
+ * How far back an "older unanswered" chat still counts (#803, Nikita 2026-11-05): owed within 30 days, the older fold
+ * from 30 to 60 days, and past 60 days nothing at all, neither named nor counted: those were let go on purpose.
+ */
+export const OLDER_WINDOW_MS = 60 * 24 * 60 * 60_000;
+
+/**
+ * The older fold within OLDER_WINDOW_MS (#803). The hub names its newest MAX_OLDER, newest first, so once one named
+ * chat is past the window every chat after it is too, and the count is exactly the named ones still inside. A hub
+ * from before #803 counted everything; with all its named ones still inside, its count stands (it can't be told).
+ */
+export function olderWithin(older: { count: number; items: OlderItem[] }, now: number): { count: number; items: OlderItem[] } {
+  const items = older.items.filter((i) => now - i.since < OLDER_WINDOW_MS);
+  return { count: items.length < older.items.length ? items.length : older.count, items };
+}
+
 /** The most "older unanswered" chats the list names (the count can be larger). */
 export const MAX_OLDER = 40;
-export const MAX_ITEMS = 60;
+export const MAX_ITEMS = 100;
 export const NAME_MAX = 80;
 export const GIST_MAX = 160;
 export const DRAFT_MAX = 600;
@@ -104,7 +124,10 @@ export function readShown(v: unknown): ShownText[] | null {
   for (const m of v as Record<string, unknown>[]) {
     if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo"])) return null;
     const text = str(m.text, SHOWN_CHARS);
-    if (!text?.trim() || !isTime(m.at)) return null;
+    if (text === null || !isTime(m.at)) return null;
+    // A text that is only invisible characters (a zero-width space, a lone joiner) is left out, not the whole list
+    // (#803: one such text refused the hub's every push, and the Desk kept an old list without the texts).
+    if (!text.trim()) continue;
     used += text.length;
     if (used > SHOWN_CHARS) return null;
     let from: string | null = null;
@@ -260,7 +283,7 @@ export function readTextItem(v: unknown): TextItem | null {
   if (o.messages !== undefined && !messages) return null;
   // A one-to-one item's texts are only someone else's, with no sender line; a group's each name their sender.
   if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined))) return null;
-  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages && { messages }) };
+  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }) };
 }
 
 /** One older unanswered chat (#758), rebuilt from the allowlist; null for anything else. */
@@ -334,8 +357,9 @@ export function readTextsView(v: unknown, now: number): TextsView | null {
     if (read.some((c) => c === null)) return null;
     cards = (read as TextCard[]).filter((c) => now - c.at < CARD_KEEP_MS);
   }
-  const older = o.older === undefined ? { count: 0, items: [] } : readOlder(o.older);
-  if (!older) return null;
+  const read = o.older === undefined ? { count: 0, items: [] } : readOlder(o.older);
+  if (!read) return null;
+  const older = olderWithin(read, now);
   if (o.scannedAt !== undefined && o.scannedAt !== null && !isTime(o.scannedAt)) return null;
   const voice = o.voice === undefined || o.voice === null ? null : readVoice(o.voice);
   if (o.voice !== undefined && o.voice !== null && !voice) return null;

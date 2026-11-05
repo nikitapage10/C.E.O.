@@ -10,12 +10,14 @@
   "routes": [
     { "route": "/sw.js", "headers": { "Cache-Control": "no-cache" } },
     { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } },
+    { "route": "/relay", "rewrite": "/index.html" },
+    { "route": "/relay/", "rewrite": "/index.html" },
     { "route": "/relay/*", "headers": { "Cache-Control": "no-cache" } },
     { "route": "/hey-skippy/hello.mp3", "rewrite": "/api/hey-skippy" }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/relay/*", "/assets/*", "/models/*", "/desk/*", "/gym/*", "/tide/*", "/*.{js,css,json,map,png,webp,jpg,svg,ico,glb,wasm,webmanifest,woff,woff2,txt}"]
+    "exclude": ["/api/*", "/relay/*.{sh,mjs,sha256}", "/assets/*", "/models/*", "/desk/*", "/gym/*", "/tide/*", "/*.{js,css,json,map,png,webp,jpg,svg,ico,glb,wasm,webmanifest,woff,woff2,txt}"]
   },
   "mimeTypes": {
     ".glb": "model/gltf-binary",

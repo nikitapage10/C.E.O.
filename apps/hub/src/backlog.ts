@@ -1,4 +1,4 @@
-import { OWED_WINDOW_MS } from "../../../api/_relay/texts.ts";
+import { OLDER_WINDOW_MS, OWED_WINDOW_MS } from "../../../api/_relay/texts.ts";
 import { onlyAcks } from "../../../api/_email/intentWords.ts";
 import type { ChatInfo, Contact } from "./bluebubbles.ts";
 import { settleByRule } from "./rules.ts";
@@ -9,7 +9,8 @@ import { settleByRule } from "./rules.ts";
  *
  *   owed     the last message is someone else's and came within OWED_WINDOW_MS (30 days): it joins the owed list
  *            and goes to Dialtone and Blasto like a new text (every rule runs again there, and closing intent).
- *   older    the same, but older: folded into one "N older unanswered" count; the Desk can show who, never more.
+ *   older    the same, 30 to 60 days old: folded into one "N older unanswered" count; the Desk can show who, never
+ *            more. Past 60 days (OLDER_WINDOW_MS, #803) a chat is left out entirely, neither named nor counted.
  *   settled  a rule matches the last message (money and legal, codes, short codes, promos, the skip list), or, for an
  *            older chat, it is only an acknowledgement ("ok", "thanks").
  *   check    the last item is a reaction, a system item or has no text: the engine reads that chat's latest messages
@@ -38,7 +39,7 @@ export interface BacklogSort {
 }
 
 /** The most chats the backlog marks owed at once; past it, the oldest within the window are counted with the older ones. */
-export const BACKLOG_MAX = 50;
+export const BACKLOG_MAX = 80;
 
 export type Verdict = "owed" | "older" | "settled" | "check" | "answered" | "group" | "empty";
 
@@ -53,6 +54,8 @@ export function verdictOf(c: ChatInfo, now: number, skipTerms: readonly string[]
   const handle = m.handle || c.handle;
   if (settleByRule({ handle, names: contactOf(handle)?.names ?? [], text: m.text }, skipTerms)) return "settled";
   if (now - m.at < OWED_WINDOW_MS) return "owed";
+  // Past 60 days (#803): let go on purpose, neither named nor counted.
+  if (now - m.at >= OLDER_WINDOW_MS) return "empty";
   // No model reads an older chat, so its closing intent is judged here: an "ok" or a "thanks" owes nothing.
   return onlyAcks([m.text]) ? "settled" : "older";
 }

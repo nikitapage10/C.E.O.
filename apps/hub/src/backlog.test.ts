@@ -53,10 +53,15 @@ describe("the backlog classifier", () => {
   });
 
   it("judges an older chat's closing intent without a model: an acknowledgement owes nothing", () => {
-    expect(verdictOf(chat(A, msg("thanks!", NOW - 60 * DAY)), NOW, [], contactOf)).toBe("settled");
-    expect(verdictOf(chat(A, msg("ok", NOW - 60 * DAY)), NOW, [], contactOf)).toBe("settled");
+    expect(verdictOf(chat(A, msg("thanks!", NOW - 45 * DAY)), NOW, [], contactOf)).toBe("settled");
+    expect(verdictOf(chat(A, msg("ok", NOW - 45 * DAY)), NOW, [], contactOf)).toBe("settled");
     // Within the window an acknowledgement still goes on, where Nikita's own last reply and Dialtone decide.
     expect(verdictOf(chat(A, msg("thanks!", NOW - 2 * DAY)), NOW, [], contactOf)).toBe("owed");
+  });
+
+  it("folds 30 to 60 days as older and leaves out anything past 60 days (#803)", () => {
+    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 59 * DAY)), NOW, [], contactOf)).toBe("older");
+    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 61 * DAY)), NOW, [], contactOf)).toBe("empty");
   });
 
   it("reads a chat again when a reaction, a system item or a photo was last", () => {
@@ -73,7 +78,7 @@ describe("the backlog classifier", () => {
     const many = Array.from({ length: BACKLOG_MAX + 5 }, (_, i) => chat(`+1555555${String(1000 + i)}`, msg("hi there", NOW - (i + 1) * 60 * 60_000, false, `+1555555${String(1000 + i)}`)));
     const capped = sortBacklog(many, NOW, [], contactOf);
     expect(capped.owed).toHaveLength(BACKLOG_MAX);
-    // The newest 50 stay owed; the 5 oldest within the window join the older ones.
+    // The newest BACKLOG_MAX stay owed; the 5 oldest within the window join the older ones.
     expect(capped.older).toHaveLength(5);
     expect(Math.min(...capped.owed.map((e) => e.at))).toBeGreaterThan(Math.max(...capped.older.map((e) => e.at)));
   });
@@ -220,6 +225,30 @@ describe("the engine's backlog scan", () => {
     expect(h.site.sorts).toHaveLength(1);
     expect(h.site.drafts).toHaveLength(1);
     expect(JSON.stringify([h.site.sorts, h.site.drafts])).not.toMatch(/Avery|Blake|555/);
+  });
+
+  it("queues an owed chat without a gist again on the next scan, shows its texts, and tells a stranger apart by 4 digits (#803)", async () => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    seed(h);
+    const stranger = "+15555550199";
+    const theirs = [msg("hey, is the bike still for sale?", NOW - 20 * DAY, false, stranger), msg("​", NOW - 20 * DAY + 1, false, stranger)];
+    h.bb.byChat.set(chatOf(stranger), theirs);
+    h.bb.chatsList.push(chat(stranger, theirs[0]!));
+    await h.engine.backlog();
+    // The sort never ran (the model was down, say): the next scan queues it again instead of leaving "No gist" for good.
+    expect(h.engine.pending()).toBeGreaterThan(0);
+    while (h.engine.pending()) await h.engine.work().catch(() => undefined);
+    h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => (t.chat === chatOf(stranger) ? { ...t, gist: "" } : t)) });
+    await h.engine.backlog();
+    expect(h.engine.pending()).toBe(1);
+    await h.engine.report(true);
+    const view = readTextsView(h.engine.texts(), NOW)!;
+    const item = view.items.find((i) => i.name.startsWith("Unknown"))!;
+    expect(item.name).toBe("Unknown (ending 0199)");
+    // Twenty days old, its words still show (a week was the old limit); the invisible one is left out.
+    expect(item.messages?.map((m) => m.text)).toEqual(["hey, is the bike still for sale?"]);
+    expect(JSON.stringify(view)).not.toMatch(/\+1555|5555550199/);
   });
 
   it("shows a read chat as owed too, counts unread and older in the status, and names older ones in the sealed list only", async () => {

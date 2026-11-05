@@ -53,6 +53,7 @@ ask() { local a; read -r -p "$1 " a < "$TTY" || a=""; printf '%s' "$a"; }
 ask_secret() { local a; read -rs -p "$1 " a < "$TTY" || a=""; printf '\n' >&2; printf '%s' "$a"; }
 
 hub() { "$NODE" "$HUB" "$@"; }
+has_item() { security find-generic-password -s "$SERVICE" -a "$1" >/dev/null 2>&1; }
 
 running() { launchctl print "gui/$UID_NOW/$LABEL" >/dev/null 2>&1; }
 listening() { nc -z 127.0.0.1 7420 >/dev/null 2>&1; }
@@ -78,7 +79,7 @@ bb_how() {
 # The `relay` command, written from this script's own functions, so it is exactly the script that was checked.
 write_command() {
   printf '#!/bin/bash\n# The relay command, written by the CEO Relay installer (#535).\nset -euo pipefail\numask 077\n'
-  declare -f relay_settings say step fail ask ask_secret hub running listening site_status bb_addresses bb_safe bb_how install_relay pause_relay resume_relay status_relay verify_relay wipe_relay write_command main
+  declare -f relay_settings say step fail ask ask_secret hub has_item running listening site_status bb_addresses bb_safe bb_how install_relay pause_relay resume_relay status_relay verify_relay wipe_relay write_command main
   printf 'main "$@"\n'
 }
 
@@ -125,10 +126,15 @@ install_relay() {
   say "  ok"
 
   step "3/6  Your BlueBubbles password (into the Keychain)"
-  say "  Type the server password you set in BlueBubbles (typing is hidden), twice."
-  until security add-generic-password -U -s "$SERVICE" -a bluebubbles-password -w < "$TTY" && hub check; do
-    [ "$(ask "  Try the password again? [Y/n]")" = "n" ] && fail "BlueBubbles didn't answer. Open BlueBubbles, check it's running with the local connection, then paste the install line again."
-  done
+  # Run again on a Mac that has it (#749): the password already in the Keychain is kept when BlueBubbles takes it.
+  if has_item bluebubbles-password && hub check; then
+    say "  already in the Keychain, and BlueBubbles answers with it"
+  else
+    say "  Type the server password you set in BlueBubbles (typing is hidden), twice."
+    until security add-generic-password -U -s "$SERVICE" -a bluebubbles-password -w < "$TTY" && hub check; do
+      [ "$(ask "  Try the password again? [Y/n]")" = "n" ] && fail "BlueBubbles didn't answer. Open BlueBubbles, check it's running with the local connection, then paste the install line again."
+    done
+  fi
   hub init >/dev/null
   if ! bb_safe; then
     bb_how
@@ -136,14 +142,21 @@ install_relay() {
   fi
 
   step "4/6  Pair with the Desk"
-  say "  On the Desk: Relay → Texts → Pair a Mac. It shows an 8-character code for 10 minutes."
-  until CODE="$(ask_secret "  Pair code (typing is hidden):")" && printf '%s' "$CODE" | hub pair; do
-    [ "$(ask "  Try another code? [Y/n]")" = "n" ] && fail "not paired. Paste the install line again when you have a code."
-  done
-  unset CODE
+  # Already paired (the install run again, #749): the hub token and send key stay, and nothing is asked.
+  if has_item hub-token && has_item send-key; then
+    say "  already paired (to pair again: relay wipe, then paste the install line)"
+  else
+    say "  On the Desk: Relay → Texts → Pair a Mac. It shows an 8-character code for 10 minutes."
+    until CODE="$(ask_secret "  Pair code (typing is hidden):")" && printf '%s' "$CODE" | hub pair; do
+      [ "$(ask "  Try another code? [Y/n]")" = "n" ] && fail "not paired. Paste the install line again when you have a code."
+    done
+    unset CODE
+  fi
 
-  step "5/6  BlueBubbles' webhook"
-  hub webhook
+  step "5/6  New texts"
+  # The hub reads new messages from BlueBubbles' local API itself (#749): no webhook, nothing to set in BlueBubbles.
+  # This only removes a webhook an earlier install left, and never stops the install.
+  hub unhook || true
 
   step "6/6  Start at login"
   cat > "$PLIST" <<PLIST
@@ -192,7 +205,7 @@ resume_relay() {
 
 status_relay() {
   if running; then say "Hub: running"; else say "Hub: not running"; fi
-  if listening; then say "Listening on 127.0.0.1:7420 (BlueBubbles' webhook only)"; fi
+  if listening; then say "Listening on 127.0.0.1:7420 (the relay command only; new texts are polled from BlueBubbles)"; fi
   if bb_safe; then say "BlueBubbles: closed to the network"; else
     local rc=$?
     if [ "$rc" = 2 ]; then say "BlueBubbles: not running"; else say "BlueBubbles: WARNING, open to the network"; bb_how; fi

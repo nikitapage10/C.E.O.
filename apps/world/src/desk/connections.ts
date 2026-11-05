@@ -369,10 +369,10 @@ export const CONNECTIONS: Connection[] = [
     room: "relay",
     at: [{ system: "relay", part: "bluebubbles" }],
     serves: "iMessage and SMS, on the MacBook",
-    kinds: ["Webhook", "REST API"],
+    kinds: ["REST API"],
     status: "live",
-    how: "BlueBubbles Server on the MacBook sends the hub a webhook for each new message on 127.0.0.1, and the hub calls its local REST API to read a thread's last few messages into memory for one sort or draft, and to send a reply. It sends only when your signed Send request from the Desk checks out on the Mac.",
-    auth: "BlueBubbles' own server password, kept in the Mac's login Keychain; the webhook carries the hub's local key. Both stay on the Mac.",
+    how: "The hub polls BlueBubbles Server's local REST API on the MacBook (127.0.0.1) every 5 seconds for new messages, and calls it to read a thread's last few messages into memory for one sort or draft, and to send a reply. It sends only when your signed Send request from the Desk checks out on the Mac.",
+    auth: "BlueBubbles' own server password, kept in the Mac's login Keychain. It stays on the Mac.",
     when: "On every message in, and every reply you send.",
   },
   {

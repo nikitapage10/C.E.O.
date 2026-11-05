@@ -224,6 +224,33 @@ export const SENATORS: Record<string, Senator> = {
 /** A Skippy's personality: its own, or the Chair's for a seat the table doesn't know yet. */
 export const senatorOf = (id: string): Senator => SENATORS[id] ?? SENATORS.kernel!;
 
+/**
+ * Each Skippy's register in the chamber (#856), in semitones from the Chair's. Nikita, 2026-11-05: "the Skippy voice should
+ * be the same voice for all the Skippies, which is the central voice. However, it should be a different tone and
+ * inclination, maybe a different timbre or octave." Every member speaks in Skippy's own voice (ELEVENLABS_VOICE_ID); the
+ * browser plays its line this far up or down (voice.ts), and the line is made at a pace that comes out at the member's
+ * own once shifted (api/_skippy/rotundavoice.ts). No two alike.
+ */
+export const VOICE_PITCH: Record<string, number> = {
+  kernel: 0, // the central voice
+  foundry: -2.5, // gravel from the shop floor
+  spire: -1, // smooth, a touch of baritone gravitas
+  exchange: 2, // tight and nervous
+  green: 3, // up in the booth, already shouting
+  relay: 4, // the highest and quickest, gossip at full tilt
+  archive: -1.5, // the reading-room murmur
+  breakroom: 2.5, // bright, mid-laugh
+  boiler: -4, // the lowest in the chamber, from the bottom of the pipes
+  workshop: 1.5, // breathy, on the verge of a masterpiece
+  studio: 1, // the auteur's tenor
+  haven: -2, // the steward's warm, even keel
+  annex: 0.5, // level, on the headset
+};
+/** A member's register: its semitones, or the Chair's for a seat the table doesn't know. */
+export const pitchOf = (id: string): number => VOICE_PITCH[id] ?? 0;
+/** The playback rate that lifts or lowers a line by its member's semitones (pitch and pace move together). */
+export const rateOf = (id: string): number => 2 ** (pitchOf(id) / 12);
+
 /** How `watcher` takes `speaker` having the floor; nothing while it speaks itself. */
 export function reactionTo(watcher: string, speaker: string | null): Reaction | null {
   if (!speaker || watcher === speaker) return null;

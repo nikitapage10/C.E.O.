@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FACES } from "../hologram/persona.ts";
 import { POSES } from "../hologram/rig.ts";
 import { SUBMIND_TITLE } from "./rite.ts";
-import { gestureAt, reactionTo, senatePoses, senatorOf, SENATORS } from "./senators.ts";
+import { gestureAt, pitchOf, rateOf, reactionTo, senatePoses, senatorOf, SENATORS, VOICE_PITCH } from "./senators.ts";
 
 const IDS = Object.keys(SUBMIND_TITLE);
 
@@ -65,5 +65,17 @@ describe("every Skippy in the Senate is its own self (#775)", () => {
     expect(seen.size).toBeGreaterThan(1);
     expect(gestureAt(s, -1)).toBe(s.speak.poses[0]);
     expect(senatorOf("nobody").id).toBe("kernel");
+  });
+
+  it("one voice, thirteen registers (#856): the Chair at the centre, every member its own pitch within four semitones", () => {
+    expect(Object.keys(VOICE_PITCH).sort()).toEqual([...IDS].sort());
+    expect(pitchOf("kernel")).toBe(0);
+    expect(new Set(IDS.map(pitchOf)).size).toBe(IDS.length);
+    for (const id of IDS) expect(Math.abs(pitchOf(id)), id).toBeLessThanOrEqual(4);
+    expect(pitchOf("boiler")).toBeLessThan(pitchOf("archive"));
+    expect(pitchOf("relay")).toBeGreaterThan(pitchOf("exchange"));
+    expect(rateOf("kernel")).toBe(1);
+    expect(rateOf("relay")).toBeCloseTo(2 ** (4 / 12));
+    expect(pitchOf("nobody")).toBe(0);
   });
 });

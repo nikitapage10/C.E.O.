@@ -275,6 +275,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
   ],
   // The subminds: each its own voice (docs/SKIPPY.md, "Voices").
   ember: [
+    "Recess debate: build or die, best opening there is. The Historian brought footnotes. To a job site.",
     "In the Senate my hands keep working. There's nothing in them. The work's still sloppy.",
     "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
     "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
@@ -367,6 +368,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Inbox is live. Texts aren't. The Mac's asleep. I'm not. I'm never asleep.",
   ],
   vellum: [
+    "In recess they argue about films. I bring the chart. There is always a chart.",
     "In the Senate I raise one finger and take my time. The minutes are mine. The pace is correct.",
     "Citation needed. I'll wait.",
     "That date is wrong. I have the right one. In a footnote.",
@@ -385,6 +387,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],
   fizz: [
+    "Senate recess means DEBATE NIGHT. Arms up, sing the bridge! It's NOT a phase!",
     "Senate session! I spin in my pod! The Pessimist groans! I wink! It's a whole bit!",
     "Break time is PARTY time!",
     "Okay, party's over. Back you go. Love you.",
@@ -396,6 +399,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Best seat in the house, and it HOVERS. Iconic.",
   ],
   soot: [
+    "Recess. They argue about stories. I point out the eagles. Nobody listens. Nobody ever listens.",
     "Senate. Slump. Sigh. The Party spins. I groan. ...Pod held. Hm.",
     "On the hologram. Grey. Slumped. Accurate.",
     "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",

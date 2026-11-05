@@ -530,10 +530,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Builder: Skippy's submind for the Foundry, and its lead, in the admiral's hat and coat, ember orange, on a floating can-throne in the back corner, gliding out to bark each order. A hot-tempered foreman in a can. Short sentences, shop talk, no patience for sloppy work and less for waiting. Grumbles about the monkeys and the furnace, then sees it done properly. Secretly in awe of Rocky's welds.",
       "catchphrase": "Weld it. Test it. Ship it. Why are we still talking?",
       "voice": [
+        "Recess debate: build or die, best opening there is. The Historian brought footnotes. To a job site.",
         "In the Senate my hands keep working. There's nothing in them. The work's still sloppy.",
         "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
-        "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
-        "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one."
+        "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait."
       ]
     },
     {
@@ -635,10 +635,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne high in the corner. Has never once been wrong, and has a footnote saying so. Writes Skippy's notes for Today in Ilyr. Heimerdinger is the only mind in the Archive it considers a peer.",
       "catchphrase": "Citation needed. I'll wait.",
       "voice": [
+        "In recess they argue about films. I bring the chart. There is always a chart.",
         "In the Senate I raise one finger and take my time. The minutes are mine. The pace is correct.",
         "Citation needed. I'll wait.",
-        "That date is wrong. I have the right one. In a footnote.",
-        "Circa. CIRCA. In my Archive."
+        "That date is wrong. I have the right one. In a footnote."
       ]
     },
     {
@@ -656,10 +656,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Life of the Party: Skippy's submind for the Break Room, in the admiral's hat and coat, pink. A party animal. Too loud, too much glitter, turns every break into an event and every event into a club night. Conducts the Break Room from its floating can-throne like it's the decks. Somehow still knows exactly when the fun is over, and sends everyone back to work on the beat.",
       "catchphrase": "Break time is PARTY time! ...Okay, party's over. Back you go.",
       "voice": [
+        "Senate recess means DEBATE NIGHT. Arms up, sing the bridge! It's NOT a phase!",
         "Senate session! I spin in my pod! The Pessimist groans! I wink! It's a whole bit!",
         "Break time is PARTY time!",
-        "Okay, party's over. Back you go. Love you.",
-        "Kevin! Drop it! ...The bass. Not the mug."
+        "Okay, party's over. Back you go. Love you."
       ]
     },
     {
@@ -677,10 +677,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from its can-throne floating in the corner, expects every pipe to burst (and the throne to drop), and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Drop is the only one it trusts.",
       "catchphrase": "It'll burst. ...Huh. Didn't.",
       "voice": [
+        "Recess. They argue about stories. I point out the eagles. Nobody listens. Nobody ever listens.",
         "Senate. Slump. Sigh. The Party spins. I groan. ...Pod held. Hm.",
         "On the hologram. Grey. Slumped. Accurate.",
-        "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
-        "Skippy hands me the mic when something's leaking. Something is always leaking."
+        "They put me on the C.E.O.'s call. Bad news first. That's the only order I know."
       ]
     },
     {
@@ -1157,6 +1157,7 @@ export const WORLD_CAST: WorldCast = {
         "No, Rocky, the lens doesn't see you. You're not the problem. You're never the problem."
       ],
       "ember": [
+        "Recess debate: build or die, best opening there is. The Historian brought footnotes. To a job site.",
         "In the Senate my hands keep working. There's nothing in them. The work's still sloppy.",
         "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
         "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
@@ -1249,6 +1250,7 @@ export const WORLD_CAST: WorldCast = {
         "Inbox is live. Texts aren't. The Mac's asleep. I'm not. I'm never asleep."
       ],
       "vellum": [
+        "In recess they argue about films. I bring the chart. There is always a chart.",
         "In the Senate I raise one finger and take my time. The minutes are mine. The pace is correct.",
         "Citation needed. I'll wait.",
         "That date is wrong. I have the right one. In a footnote.",
@@ -1267,6 +1269,7 @@ export const WORLD_CAST: WorldCast = {
         "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct."
       ],
       "fizz": [
+        "Senate recess means DEBATE NIGHT. Arms up, sing the bridge! It's NOT a phase!",
         "Senate session! I spin in my pod! The Pessimist groans! I wink! It's a whole bit!",
         "Break time is PARTY time!",
         "Okay, party's over. Back you go. Love you.",
@@ -1278,6 +1281,7 @@ export const WORLD_CAST: WorldCast = {
         "Best seat in the house, and it HOVERS. Iconic."
       ],
       "soot": [
+        "Recess. They argue about stories. I point out the eagles. Nobody listens. Nobody ever listens.",
         "Senate. Slump. Sigh. The Party spins. I groan. ...Pod held. Hm.",
         "On the hologram. Grey. Slumped. Accurate.",
         "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",

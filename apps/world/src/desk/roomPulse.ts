@@ -36,7 +36,8 @@ export interface RoomPulse {
   short: string;
   /**
    * What drives the room's motion (#262), counts only, for the small legend by the lines: "14 runs today · 2 PRs open",
-   * "6 hours written today", "nothing connected". Never a name, an amount or a message.
+   * "6 hours written today", "nothing connected". Never a person's name, an amount or a message; a down link's public
+   * label ("Mac hub down") is allowed, since it names a system.
    */
   drive: string;
   /** The submind's report, in its own voice: one or two short sentences, numbers from real data. */
@@ -118,6 +119,26 @@ function worldToday(world: WorldFeed | null, dayStart: number): HistoryEntry[] {
   return (world?.recent ?? []).filter((e) => Date.parse(e.at) >= dayStart);
 }
 
+/**
+ * The down links by their public labels, in the Desk's own order. The MacBook's state is mirrored from the hub's
+ * (desk/texts/texts.ts), so when both are down they are one thing: the Mac hub.
+ */
+export function downNames(links: readonly Pick<Link, "id" | "label" | "state">[]): { id: string; name: string }[] {
+  const down = links.filter((l) => l.state === "down");
+  const mac = down.some((l) => l.id === "hub") && down.some((l) => l.id === "mac");
+  return down.filter((l) => !(mac && l.id === "mac")).map((l) => ({ id: l.id, name: mac && l.id === "hub" ? "Mac hub" : l.label }));
+}
+
+/** "Gmail", "Mac hub and Gmail", "Mac hub +2 more" (long: "Mac hub and 2 others"). */
+export function namesPhrase(names: readonly string[], form: "short" | "long" = "short"): string {
+  if (names.length <= 2) return names.join(" and ");
+  const rest = names.length - 1;
+  return form === "short" ? `${names[0]} +${rest} more` : `${names[0]} and ${rest} others`;
+}
+
+/** The Boiler Room's Controls, focused on one link's "Needs you" card (ControlsPage reads the #link- hash). */
+export const boilerHref = (id: string) => `/boiler/controls#link-${id}`;
+
 export function roomPulses(input: PulseInput): RoomPulse[] {
   const { now, dayStart, foundry, links, hub, owed, world, odds } = input;
   const since = input.since ?? dayStart;
@@ -125,7 +146,7 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
   const recent = worldToday(world, since);
   const scenesIn = (room: RoomId) => recent.filter((e) => e.scenes.some((s) => s.room === room)).map((e) => Date.parse(e.at));
 
-  const pulse = (id: RoomId, p: Omit<RoomPulse, "id" | "name" | "colour" | "submind" | "href">): RoomPulse => ({ id, ...ROOM_META[id], ...p });
+  const pulse = (id: RoomId, p: Omit<RoomPulse, "id" | "name" | "colour" | "submind" | "href"> & { href?: string }): RoomPulse => ({ id, ...ROOM_META[id], ...p });
   const out: RoomPulse[] = [];
 
   // The Foundry: GitHub's issues and the changelog.
@@ -207,25 +228,29 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
     );
   }
 
-  // The Boiler Room: every link the Desk watches.
+  // The Boiler Room: every link the Desk watches. A down link is named by its public label, and the room opens on
+  // Controls at that link's "Needs you" card (Nikita, 2026-11-05: "it says one link down... what link?").
   {
     const known = links.filter((l) => l.state !== "off");
     const up = known.filter((l) => l.state === "ok").length;
     const down = known.filter((l) => l.state === "down").length;
     const slow = known.filter((l) => l.state === "slow").length;
     const off = links.length - known.length;
+    const named = downNames(links);
+    const which = namesPhrase(named.map((d) => d.name));
     out.push(
       pulse("boiler", {
         real: true,
         state: down ? "down" : known.length ? "steady" : "waiting",
         activity: clamp(0.15 + up * 0.05),
-        drive: known.length ? `${up} of ${n(links.length, "link")} up${down ? ` · ${down} down` : ""}` : "nothing connected",
-        status: down ? `${n(down, "link")} down` : slow ? `${n(slow, "link")} slow` : `${up} of ${links.length} links up`,
-        short: down ? `${down} down` : slow ? `${slow} slow` : known.length ? "steady" : "waiting",
+        drive: known.length ? `${up} of ${n(links.length, "link")} up${down ? ` · ${which} down` : ""}` : "nothing connected",
+        status: down ? (named.length === 1 ? `${which} is down` : `${which} down`) : slow ? `${n(slow, "link")} slow` : `${up} of ${links.length} links up`,
+        short: down ? `${which} down` : slow ? `${slow} slow` : known.length ? "steady" : "waiting",
         report: down
-          ? `${n(down, "link")} down. I said this would happen. I take no pleasure in it.`
+          ? `${namesPhrase(named.map((d) => d.name), "long")} ${named.length === 1 ? "is" : "are"} down. I said this would happen. I take no pleasure in it.`
           : `${up} links up${slow ? `, ${slow} slow` : ""}${off ? `, ${off} not connected yet` : ""}. Nothing's burst. Yet.`,
         events: [],
+        ...(named[0] && { href: boilerHref(named[0].id) }),
       }),
     );
   }

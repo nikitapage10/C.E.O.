@@ -12,5 +12,14 @@ export function roomLink(href: string) {
       navigateTo(href);
     };
   }
+  // A page inside a room, or a spot on it (/boiler/controls#link-hub): open that address, keeping any flags.
+  if (/^\/[^/#?]+[/#]/.test(href)) {
+    return (e: React.MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const [path, hash = ""] = href.split("#");
+      navigateTo(`${path}${path!.includes("?") ? "" : window.location.search}${hash ? `#${hash}` : ""}`);
+    };
+  }
   return link(route);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Crate, OpenPr, PullTiming } from "../../foundry.ts";
-import type { Trail } from "../../usage.ts";
+import type { Crate, OpenPr, PullTiming } from "../../../apps/world/src/foundry.ts";
+import type { Trail } from "../../../apps/world/src/usage.ts";
 import { assignedTimes, leftWords, progressMap, progressOf, progressWords, readNote, reached, stepPct, stepTimes, stepWords, type StepTimes } from "./progress.ts";
 
 /** Build progress on the jobs in flight (#488): step N of seven real milestones, and time left from measured steps. */

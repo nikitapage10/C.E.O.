@@ -534,7 +534,7 @@ change has a Pictures step before its Shipped step, every time.
 Every job in flight on the Desk's Foundry shows how far along it is and roughly how long is left: seven hairline
 segments under its title and "57% · about 12 min left" (Nikita, 2026-10-27: "right now he's building the hologram,
 and it's going to take about…"). Both come from real milestones, never from a guess
-(`apps/world/src/desk/foundry/progress.ts`):
+(`rooms/foundry/data/progress.ts`):
 
 - **The percent is step N of 7**, each at a fixed share: assigned (14%), branch pushed (29%), pull request open
   (43%), checks running (57%), checks green (71%), merged (86%), deployed (100%). Which one a job has reached comes from

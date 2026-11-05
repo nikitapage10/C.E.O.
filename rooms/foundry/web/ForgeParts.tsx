@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
-import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, recentWork, sparesAwake, type Crate, type CrewId, type FoundryData } from "../../foundry.ts";
-import { countdown, nextRuns, runTime } from "../crewRuns.ts";
-import { FOUNDRY_THREAD } from "../deskData.ts";
-import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "../IdeaCard.tsx";
-import { usePictureLinks } from "../ideaImages.ts";
-import { ROOM_META, ROOM_ORDER } from "../roomPulse.ts";
-import { DeskSignIn } from "../SignIn.tsx";
-import { describeRun, useVisualQa } from "../visualqa/feed.ts";
-import { isBuild } from "./forge.ts";
-import { progressWords, type Progress } from "./progress.ts";
+import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, recentWork, sparesAwake, type Crate, type CrewId, type FoundryData } from "../../../apps/world/src/foundry.ts";
+import { countdown, nextRuns, runTime } from "../../../apps/world/src/desk/crewRuns.ts";
+import { FOUNDRY_THREAD } from "../../../apps/world/src/desk/deskData.ts";
+import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "../../../apps/world/src/desk/IdeaCard.tsx";
+import { usePictureLinks } from "../../../apps/world/src/desk/ideaImages.ts";
+import { ROOM_META, ROOM_ORDER } from "../../../apps/world/src/desk/roomPulse.ts";
+import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
+import { describeRun, useVisualQa } from "../../../apps/world/src/desk/visualqa/feed.ts";
+import { isBuild } from "../data/forge.ts";
+import { progressWords, type Progress } from "../data/progress.ts";
 
 /**
  * The Foundry below its stage (#432), in the flow kit's type: the ideas on the bench as cards with their pictures

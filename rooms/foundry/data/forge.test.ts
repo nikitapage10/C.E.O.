@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseOpenPrs, type Change, type Crate, type OpenPr } from "../../foundry.ts";
+import { parseOpenPrs, type Change, type Crate, type OpenPr } from "../../../apps/world/src/foundry.ts";
 import { forgeEvents, forgeLanes, LANES, prFor, queueOf, shipWords, snapshot, stageOf, STAGE_U, GATE_U } from "./forge.ts";
 
 /** The Foundry's pipeline (#432): which jobs get a lane, where each stands, and what changed between two reads. */

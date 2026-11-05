@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { nextUpkeep } from "../foundry.ts";
-import { ideaAge } from "./IdeaCard.tsx";
+import { nextUpkeep } from "../../../apps/world/src/foundry.ts";
+import { ideaAge } from "../../../apps/world/src/desk/IdeaCard.tsx";
 import { ideaTitle, nextIdeas } from "./FoundryPage.tsx";
 
 describe("the Foundry's clock", () => {

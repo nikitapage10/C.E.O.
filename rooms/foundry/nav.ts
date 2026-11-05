@@ -4,5 +4,5 @@
  */
 export const nav = {
   name: "Foundry",
-  page: () => import("../../apps/world/src/desk/FoundryPage.tsx").then((m) => ({ default: m.FoundryPage })),
+  page: () => import("./web/FoundryPage.tsx").then((m) => ({ default: m.FoundryPage })),
 };

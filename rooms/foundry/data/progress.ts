@@ -1,5 +1,5 @@
-import type { Crate, OpenPr, PullTiming } from "../../foundry.ts";
-import type { Trail } from "../../usage.ts";
+import type { Crate, OpenPr, PullTiming } from "../../../apps/world/src/foundry.ts";
+import type { Trail } from "../../../apps/world/src/usage.ts";
 import type { Stage } from "./forge.ts";
 
 /**

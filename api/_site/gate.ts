@@ -24,6 +24,8 @@
  *                                             submind's thread (#312), checked here too and again in api/skippy.ts
  *        any request + x-ceo-site-bypass: <SITE_BYPASS_TOKEN>   the live watch (it reads site-bypass-token from the
  *                                             Key Vault, #313; Vercel's copy also served the public-mode seed)
+ *        GET /api/haven-plan, /api/haven-meals, /api/haven-photos + x-ceo-builder-key: <BUILDER_READ_KEY>   the Builder reading
+ *                                             the Haven's private files (#800, api/_site/builderkey.ts): GET or HEAD only
  *        GET <a room read> + x-ceo-room-key: <SUBMIND_LOG_TOKEN>    a submind thread reading its room's data
  *        POST /api/room-feed + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting a room event
  *        POST /api/setup-asks + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting or closing a setup ask (#324)
@@ -66,6 +68,7 @@ import { readCookie } from "../_desk/session.js";
 import { LOGIN_CSP, loginPage } from "./page.js";
 import { SITE_COOKIE, renewedSite, sessionFits, siteCookie, siteSessionOf } from "./session.js";
 import { roomKeyPass } from "./roomkeys.js";
+import { builderReads } from "./builderkey.js";
 import { TOOL_HEADER, toolTokenSigned } from "../_skippy/voicetoken.js";
 import { hubTokenPair } from "../_relay/tokens.js";
 import { audioIdOf, KEY_SHAPE, phoneKeyOf } from "../_haven/links.js";
@@ -85,7 +88,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "phone-key" | "phone-audio" | "greeting" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "builder-read" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "phone-key" | "phone-audio" | "greeting" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -215,6 +218,7 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (isPingsScan(request, pathname, env)) return { allow: true, why: "pings-secret" };
   if (isSkippyAnswer(request, pathname, env)) return { allow: true, why: "submind-token" };
   if (hasBypass(request, env)) return { allow: true, why: "bypass" };
+  if (builderReads(request, env)) return { allow: true, why: "builder-read" };
   if (isVoiceTool(request, pathname, env, ctx.now)) return { allow: true, why: "voice-tool" };
   if (isRelayHub(request, url, env)) return { allow: true, why: "relay-hub" };
   if (request.method === "POST" && pathname === "/api/relay-pair" && url.search === "") return { allow: true, why: "relay-pair" };

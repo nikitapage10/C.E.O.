@@ -350,7 +350,8 @@ describe("the engine", () => {
     expect(v.items[0]!.messages?.map((m) => m.text)).toEqual(["Riley here. Can Jordan Sample come Saturday? My number is +1 555 555 0177"]);
     expect(v.items[0]!.messages?.[0]?.from).toBeUndefined();
     const rest = JSON.stringify({ ...v, items: v.items.map(({ messages: _m, ...i }) => i) });
-    expect(rest).not.toMatch(/Can Jordan Sample come|555|Running late|iMessage;-;/);
+    // The phone number as written, not a bare "555": ids and timestamps in the view can contain those digits by chance.
+    expect(rest).not.toMatch(/Can Jordan Sample come|555 555 0177|Running late|iMessage;-;/);
   });
 
   it("logs only kinds and numbers over a whole day", async () => {

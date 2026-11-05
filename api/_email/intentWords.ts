@@ -1,6 +1,6 @@
 /**
  * The Relay's free first look at what Nikita says (#642): the phrases that need no model at all. Pure, no node
- * imports, so the Desk (apps/world/src/desk/relay/thread.ts) and the server (./intent.ts) read the same words.
+ * imports, so the Desk (rooms/relay/data/thread.ts) and the server (./intent.ts) read the same words.
  *
  *   closingOf     "already did it", "sent it", "done", "handled", "no worries", "taken care of": the item is done.
  *                 No draft, no question back.

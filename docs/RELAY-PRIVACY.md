@@ -247,7 +247,7 @@ the Mac: when Nikita's own message is the newest in Messages the thread closes (
 
 ### The Desk's Texts panel and the send path
 
-The Relay page's Texts panel (`apps/world/src/desk/texts`) reads `GET /api/relay` with a passkey session: the counts,
+The Relay page's Texts panel (`rooms/relay/web`, `rooms/relay/data`) reads `GET /api/relay` with a passkey session: the counts,
 the pairing, the sealed list and the requests. It never talks to the Mac.
 
 **The send path** (`api/_relay/route.ts`, then `act` in `apps/hub/src/engine.ts`):
@@ -337,7 +337,7 @@ never on a public surface, and nothing sends without their confirmation of the e
    whole-line yes ("send", "send it", "yes, send it", "ok send", "go ahead and send", "send it now"; never a line
    with a "?", "to", "instead", "myself" or "I'll" in it, so "Did you send it?" or "Send it to Sam instead" never
    count), said after Skippy was handed that very version to read and within 2 minutes of it, with the send itself
-   within 2 minutes of the yes (`saidSend`, `confirmed` in `apps/world/src/desk/texts/compose.ts`). Only the card the
+   within 2 minutes of the yes (`saidSend`, `confirmed` in `rooms/relay/data/compose.ts`). Only the card the
    call is on takes it. Or after their tap. An edit (`edit_text`) is a new version: read again, asked again. A locked
    device says so and waits for the passkey.
 
@@ -560,7 +560,7 @@ Run by `npm test`:
   `apps/hub/src/hub.test.ts` (the contact is found on the Mac without guessing; the snippet holds no name or number;
   the card shows the last 4 digits only; money, legal, codes and the skip list get no call; a card sends once, through
   `act`, with the text on screen; a resend after it went is refused; no log line names anything),
-  `apps/world/src/desk/texts/compose.test.ts` (a spoken send counts only from Nikita's own words for the version
+  `rooms/relay/data/compose.test.ts` (a spoken send counts only from Nikita's own words for the version
   they heard read; an edit asks again; the unlock is needed), `api/skippy.test.ts` (the text action, never logged, the rules
   in the chat) and `api/_skippy/voicetools.test.ts` (the texting tools run in the browser and only Skippy has them).
 - **The backlog, the full text and the voice (#758)**: `apps/hub/src/backlog.test.ts` (the 30-day window, owed

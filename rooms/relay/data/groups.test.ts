@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TextItem } from "../texts/texts.ts";
+import type { TextItem } from "./texts.ts";
 import { flip, GROUP_MAX_AGE_MS, GROUP_REPLY_MAX, groupsOf, lastHeard, replyOf, swipeOf, SWIPE_PX } from "./groups.ts";
 
 /* The group flipper (#805). Every group, member and text here is made up. */

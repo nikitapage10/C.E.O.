@@ -440,7 +440,7 @@ answer. But if it's something a little bit more specific to our room, then it ta
   dollar figure, and only to the call that asked.
 - **Texting on the call (#536).** Skippy alone carries five ElevenLabs *client* tools, `draft_text`, `pick_contact`,
   `edit_text`, `send_text` and `cancel_text` (`TEXT_TOOLS` in `api/_skippy/voicecrew.ts`), which run in Nikita's
-  browser (`apps/world/src/desk/texts/talkTools.ts`), so a send uses that device's passkey unlock and Relay's ordinary
+  browser (`rooms/relay/data/talkTools.ts`), so a send uses that device's passkey unlock and Relay's ordinary
   send request. He reads the recipient and the exact text aloud and waits for "send" or a tap; the browser checks
   Nikita's own transcript before it sends, whatever the agent asks: a whole-line yes, said within 2 minutes of the
   read, never a question or a "send it to …" (docs/RELAY-PRIVACY.md, "Texts Skippy writes"). Skippy's agent and every

@@ -12,7 +12,7 @@
  *                Blasto's advice), never from the mail or the text itself
  *   unclear      one short question back
  *
- * Nothing here sends, and no answer can make anything send: the Desk's gate (apps/world/src/desk/relay/thread.ts) only
+ * Nothing here sends, and no answer can make anything send: the Desk's gate (rooms/relay/data/thread.ts) only
  * sends on Nikita's yes to a draft on screen. The utterance is untrusted data like a mail: fenced, never followed, and
  * the answer is read back in code against the closed shape. Texts get reply, disposition and question only.
  *

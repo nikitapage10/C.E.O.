@@ -75,7 +75,7 @@ plugging in adds nothing to the first load.
 | --- | --- | --- |
 | Flow (`desk/flow`) | Its pulse, for the tempo of its page's lines (`useRoomPulse`, from the stores the Desk keeps) | `setPulseReader` (`desk/flow/pulse.ts`) |
 | Skippy's page block (`desk/skippy/page.ts`) | Its lines for his quick take: the Green's start/sit calls (`rooms/green/skippy.ts`, leading every block) and the Exchange's odds (`rooms/exchange/skippy.ts`) | `addPageSource` (`desk/skippy/rooms.ts`) |
-| Skippy's texting (#536) | The Relay's compose card and call tools (`desk/texts/`) | `setTexting` (`desk/skippy/rooms.ts`) |
+| Skippy's texting (#536) | The Relay's compose card and call tools (`rooms/relay/data/`) | `setTexting` (`desk/skippy/rooms.ts`) |
 
 As a room moves into `rooms/<id>/`, its part moves with it (its `skippy.ts`) and is offered through its manifest.
 
@@ -133,7 +133,7 @@ This replaces the older rule that every page comes back to Today's language.
   bent the submind's way, `actions` show as up to three buttons under it), or `null` to let the submind answer (the
   default: Desk Skippy's chat as the submind, `POST /api/skippy-room`). It does its work through its own room's
   endpoints, under their auth and caps, and loads only when the room is first spoken to. Relay is the first (#642):
-  its handler hands the words to the Thread on screen (`apps/world/src/desk/relay/bridge.ts`), which reads them as a
+  its handler hands the words to the Thread on screen (`rooms/relay/data/bridge.ts`), which reads them as a
   command or through the intent layer (one Haiku call, `api/_email/intent.ts`) and answers in the Messenger's voice.
   To run one of the rooms' tools a handler calls `tool(name, input)` from the utterance (the same registry and server
   checks as Desk Skippy's agent, `POST /api/skippy-act`); a tool that sends, spends or deletes comes back as
@@ -165,7 +165,10 @@ parts, sheets and tests (moved from `desk/haven` unchanged); the Boiler Room's h
 the old `desk/haven/groceries.ts`, which re-exports it. The Exchange followed (step 8): `web/Exchange.tsx` with its
 floor, boards and `exchange.css`, the odds and positions stores and their helpers in `data/` (the Lattice's boards and
 the Desk's Systems read them through the old `desk/exchange/*.ts`, which re-export them), and its odds lines for Skippy
-in `skippy.ts`. Every other
+in `skippy.ts`. The Relay followed (step 9): the Thread and its queue, the email and texts sections and the compose card in
+`web/`, with their sheets; the email and texts stores, the Thread's logic, the compose store and Skippy's call tools in
+`data/`, with their tests (moved unchanged; the Desk's Today, Systems and pulses, the Boiler Room's controls and the
+Lattice's Relay read them through the old `desk/email/*` and `desk/texts/*`, which re-export them). Every other
 room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyEmailStatus } from "../../../../../api/_email/status.ts";
+import { emptyEmailStatus } from "../../../api/_email/status.ts";
 import { emailLine, linkOf, readItem, readView } from "./email.ts";
 
 const NOW = Date.UTC(2026, 9, 22, 18);
@@ -37,7 +37,7 @@ describe("the signed-in read failing", () => {
   it("says why instead of reading forever, and clears once it reads", async () => {
     const { vi } = await import("vitest");
     const { useEmail } = await import("./email.ts");
-    const { useDeskAuth } = await import("../signin.ts");
+    const { useDeskAuth } = await import("@ceo/engine/web/signin.ts");
     useDeskAuth.setState({ auth: { ...useDeskAuth.getState().auth, status: "in" } } as never);
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
     vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("view=status") ? json({ ok: true, status: live }) : json({ error: "store" }, 502))));

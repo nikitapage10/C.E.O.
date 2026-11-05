@@ -757,6 +757,111 @@
     0 0 26px rgba(10, 124, 255, 0.35);
   margin-bottom: 10px;
 }
+
+/* #803: an entry is all right of the line (who, then their words); the left is the queue's wave */
+.cx-entry .cx-body {
+  grid-column: 2;
+}
+.cx-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.cx-head .cx-face {
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  flex: none;
+}
+.cx-head .cx-init {
+  font-size: 60px;
+  margin: 0;
+  min-width: 40px;
+  text-align: center;
+}
+.cx-id {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.cx-youlab {
+  margin: 0 0 8px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.cx-youlab .cx-lab.is-you {
+  color: var(--cx-hi);
+}
+.cx-gist .cx-lab {
+  margin-right: 6px;
+  font-size: 8.5px;
+  color: var(--cx-faint);
+}
+
+/* your own words (#803): sent exactly as typed */
+.cx-own textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 3.2em;
+  background: rgba(134, 182, 255, 0.04);
+  border: 0;
+  border-left: 2px solid var(--cx-blue);
+  border-radius: 0 6px 6px 0;
+  color: var(--cx-you);
+  font: 300 22px/1.4 var(--cx-sans);
+  letter-spacing: -0.01em;
+  padding: 10px 14px;
+}
+.cx-own textarea::placeholder {
+  color: var(--cx-faint);
+}
+.cx-own textarea:focus {
+  outline: none;
+  background: rgba(134, 182, 255, 0.07);
+}
+.cx-own .cx-ask {
+  margin-top: 14px;
+}
+
+/* the order (#803): one small segmented toggle sitting on the line */
+.cx-order {
+  position: absolute;
+  left: var(--spine);
+  top: 64px;
+  transform: translateX(-50%);
+  z-index: 34;
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--cx-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--cx-line),
+    0 0 0 6px var(--cx-bg);
+}
+.cx .cx-order button {
+  font: 500 9.5px/1 var(--cx-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cx-mute);
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition:
+    color 0.2s var(--cx-e),
+    background-color 0.2s var(--cx-e);
+}
+.cx .cx-order button:hover {
+  color: var(--cx-ink);
+}
+.cx .cx-order button[aria-checked="true"] {
+  color: #fff;
+  background: rgba(10, 124, 255, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(134, 182, 255, 0.5);
+}
 .cx-adv {
   margin: 18px 0 0;
   max-width: 34em;
@@ -954,6 +1059,42 @@
     width: 40px;
     height: 40px;
     margin: 0;
+  }
+  /* #803: the order toggle, then the queue's flat wave, above the entry */
+  .cx-stage {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+  .cx-order {
+    position: static;
+    grid-row: 2;
+    justify-self: start;
+    transform: none;
+    margin: 10px 0 0 calc(var(--spine) + var(--gut));
+    box-shadow: inset 0 0 0 1px var(--cx-line);
+  }
+  .cx-pages {
+    grid-row: 4;
+  }
+  .cx-dock {
+    grid-row: 5;
+  }
+  .cx-entry .cx-body {
+    grid-column: auto;
+  }
+  .cx-head {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .cx-head .cx-face {
+    width: 40px;
+    height: 40px;
+  }
+  .cx-head .cx-init {
+    font-size: 40px;
+    min-width: 28px;
+  }
+  .cx-own textarea {
+    font-size: 18px;
   }
   .cx-adv {
     font-size: 14px;

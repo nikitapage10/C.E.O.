@@ -289,6 +289,17 @@ describe("sending the draft on screen", () => {
     expect(g.sent).toHaveLength(0);
   });
 
+  it("sends Nikita's own typed words exactly as typed, once, with no draft and no model (#803)", async () => {
+    const { post, g } = await sendSetup();
+    const typed = "Sorry, can't make it Saturday — next time!";
+    expect((await post({ action: "send", id: NEWS.id, draft: typed, own: "yes" })).status).toBe(400);
+    expect(await post({ action: "send", id: ITEM.id, draft: typed, own: true })).toEqual({ status: 200, body: { ok: true, sentAt: NOW } });
+    const body = g.text(0).split("\r\n\r\n")[1]!;
+    expect(Buffer.from(body.replace(/\r\n/g, ""), "base64").toString("utf8")).toBe(typed);
+    expect((await post({ action: "send", id: ITEM.id, draft: typed, own: true })).status).toBe(404);
+    expect(g.sent).toHaveLength(1);
+  });
+
   it("needs the send grant; read-only falls back to Copy and Open in Gmail", async () => {
     const { post, g, view } = await sendSetup({ send: false });
     expect((await view()).canSend).toBe(false);

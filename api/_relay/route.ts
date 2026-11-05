@@ -83,7 +83,7 @@ import { learnRequest, readLearn, readLearnInput } from "./voice.js";
 import { liveClaude } from "./claude.js";
 import { claudeProvider, DRAFT_MODEL, readComposeInput, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
 import { pickRelayStore, update, type PrivateState, type RelayStore, type RequestEntry } from "./store.js";
-import { DICTATED_MAX, freshItems, MAX_CARDS, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
+import { DICTATED_MAX, freshItems, MAX_CARDS, olderWithin, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
 import { askRuled, cleanGist, cleanWho } from "./compose.js";
 import { privateParts } from "../_privacy.js";
 import { cleanPng, emptyPhotoIndex, MAX_PHOTOS, PHOTO_ID, photoEmailKey, readPhotoIndex, readPhotoList } from "./photos.js";
@@ -98,8 +98,8 @@ export const UNLOCK_COOKIE = "__Host-ceo-relay-unlock";
 export const STEPUP_S = 120;
 /** A taken request with no result this long after it ended shows as failed. */
 export const RESULT_GRACE_MS = 5 * 60_000;
-/** The most a hub's texts list may be (bytes): 60 items with 5 shown texts each (#758), drafts, cards and the older names. */
-export const MAX_TEXTS_BYTES = 512 * 1024;
+/** The most a hub's texts list may be (bytes): 100 items (#803) with 5 shown texts each (#758), drafts, cards and the older names. */
+export const MAX_TEXTS_BYTES = 1024 * 1024;
 /** The most a learn sample may be (bytes): 1,000 texts of 200 characters, emoji and all. */
 export const MAX_LEARN_BYTES = 1024 * 1024;
 
@@ -242,7 +242,7 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
         unlockedUntil: await unlockedUntil(request, deps.desk.deskKey, signed.passkey.id, deps.now),
         texts: hub ? freshItems(priv.texts?.items ?? [], deps.now) : [],
         cards: hub ? (priv.texts?.cards ?? []) : [],
-        older: hub ? (priv.texts?.older ?? { count: 0, items: [] }) : { count: 0, items: [] },
+        older: hub ? olderWithin(priv.texts?.older ?? { count: 0, items: [] }, deps.now) : { count: 0, items: [] },
         scannedAt: hub ? (priv.texts?.scannedAt ?? null) : null,
         voice: hub ? (priv.texts?.voice ?? null) : null,
         textsAt: hub ? (priv.texts?.at ?? null) : null,

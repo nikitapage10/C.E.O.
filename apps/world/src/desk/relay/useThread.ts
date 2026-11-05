@@ -3,7 +3,18 @@ import { useHide } from "../hide.ts";
 import { useDeskAuth } from "../signin.ts";
 import { startEmail, useEmail } from "../email/email.ts";
 import { startTexts, useTexts } from "../texts/texts.ts";
-import { allowed, commandOf, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Phase } from "./thread.ts";
+import { allowed, commandOf, isOrder, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Order, type Phase } from "./thread.ts";
+
+/** The order toggle on the line (#803), remembered on this device only. */
+const ORDER_KEY = "relay.order";
+function readOrder(): Order {
+  try {
+    const v = window.localStorage.getItem(ORDER_KEY);
+    return isOrder(v) ? v : "newest";
+  } catch {
+    return "newest";
+  }
+}
 
 const firstOf = (who: string) => who.trim().split(/\s+/)[0] || who;
 
@@ -105,6 +116,15 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const signedIn = auth === "in";
 
   const [skipped, setSkipped] = useState<string[]>([]);
+  const [order, setOrderState] = useState<Order>(readOrder);
+  const setOrder = useCallback((o: Order) => {
+    setOrderState(o);
+    try {
+      window.localStorage.setItem(ORDER_KEY, o);
+    } catch {
+      /* private window: the order lasts this visit */
+    }
+  }, []);
   /** Texts whose ready draft Nikita opened with Reply (#642): until then the draft stays folded. */
   const [revealed, setRevealed] = useState<string[]>([]);
   /** The intent layer is reading a line about this exchange. */
@@ -125,7 +145,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
 
   const hidden = useHide((s) => s.on);
   const canSend = emailView?.canSend === true;
-  const all = useMemo(() => (signedIn && (emailView || textsView) ? queueOf(emailView?.items, textsView?.paired ? textsView.items : [], skipped, canSend) : null), [signedIn, emailView, textsView, skipped, canSend]);
+  const all = useMemo(() => (signedIn && (emailView || textsView) ? queueOf(emailView?.items, textsView?.paired ? textsView.items : [], skipped, canSend, order) : null), [signedIn, emailView, textsView, skipped, canSend, order]);
   const queue = useMemo(
     () =>
       (all
@@ -172,6 +192,43 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
     [],
   );
 
+  /**
+   * The send itself, after a yes or a tap on Send: it waits out UNDO_MS, then goes to the line. `own` (#803): words
+   * Nikita typed himself, sent exactly as typed (an email with no draft behind it; a text bound like any send).
+   */
+  const sendNow = useCallback((x: Exchange, text: string, own: boolean) => {
+    const at = Date.now();
+    const key = x.key;
+    const who = x.who;
+    setPending(key);
+    setNotice({ kind: "undo", text: `Sending to ${who}`, until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
+    undo.current.start(key, () => {
+      setPending(null);
+      setGone((g) => [...g, key]);
+      setSentHere((n) => n + 1);
+      const went = (ok: boolean, why?: string) => {
+        if (ok) {
+          setNotice({ kind: "sent", text: `Sent to ${who}`, at: Date.now() });
+          setSentList((l) => [{ key, who, at: Date.now() }, ...l].slice(0, 12));
+        } else {
+          setGone((g) => g.filter((k) => k !== key));
+          setSentHere((n) => n - 1);
+          setNotice({ kind: "warn", text: why ?? "That didn't go through.", at: Date.now() });
+        }
+      };
+      if (x.line === "text")
+        void useTexts
+          .getState()
+          .ask({ action: "send", thread: x.id, draftAt: x.draftAt, text })
+          .then((ok) => went(ok, useTexts.getState().error ?? undefined));
+      else
+        void useEmail
+          .getState()
+          .send(x.id, text, own)
+          .then((got) => went(got.ok, got.ok ? undefined : errorText(got.error)));
+    });
+  }, []);
+
   const say = useCallback(
     (cmd: Command, words = ""): boolean => {
       // Undo reaches the waiting send wherever the codex has scrolled since; else the waiting done or skip.
@@ -202,37 +259,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
             setNotice({ kind: "warn", text: "Sending is locked on this device.", act: { label: "Unlock", run: () => void useTexts.getState().unlock() }, at });
             return true;
           }
-          const draft = ex.draft!;
-          const key = ex.key;
-          const x = ex;
-          setPending(key);
-          const who = ex.who;
-          setNotice({ kind: "undo", text: `Sending to ${who}`, until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
-          undo.current.start(key, () => {
-            setPending(null);
-            setGone((g) => [...g, key]);
-            setSentHere((n) => n + 1);
-            const went = (ok: boolean, why?: string) => {
-              if (ok) {
-                setNotice({ kind: "sent", text: `Sent to ${who}`, at: Date.now() });
-                setSentList((l) => [{ key, who, at: Date.now() }, ...l].slice(0, 12));
-              } else {
-                setGone((g) => g.filter((k) => k !== key));
-                setSentHere((n) => n - 1);
-                setNotice({ kind: "warn", text: why ?? "That didn't go through.", at: Date.now() });
-              }
-            };
-            if (x.line === "text")
-              void useTexts
-                .getState()
-                .ask({ action: "send", thread: x.id, draftAt: x.draftAt, text: draft })
-                .then((ok) => went(ok, useTexts.getState().error ?? undefined));
-            else
-              void useEmail
-                .getState()
-                .send(x.id, draft)
-                .then((got) => went(got.ok, got.ok ? undefined : errorText(got.error)));
-          });
+          sendNow(ex, ex.draft!, false);
           return true;
         }
         case "no":
@@ -346,9 +373,28 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
           return false;
       }
     },
-    [ex, phase, queue, unlocked, hidden],
+    [ex, phase, queue, unlocked, hidden, sendNow],
   );
   const sayRef = useRef(say);
+
+  /**
+   * Nikita's own typed reply (#803), sent exactly as typed when he taps Send: no rewrite, no voice pass, no model.
+   * Only on the exchange in focus, while it waits on him, never masked by Hide; a text still needs this device's
+   * unlock. Rewriting into his voice is only for Blasto's drafts and for what he says aloud (offered as a draft).
+   */
+  const sendOwn = useCallback(
+    (text: string): boolean => {
+      const words = text.replace(/\r\n?/g, "\n").trim();
+      if (!ex || !words || words.length > 2_000 || hidden || !ex.sendable || (phase !== "incoming" && phase !== "ask")) return false;
+      if (ex.line === "text" && !unlocked) {
+        setNotice({ kind: "warn", text: "Sending is locked on this device.", act: { label: "Unlock", run: () => void useTexts.getState().unlock() }, at: Date.now() });
+        return false;
+      }
+      sendNow(ex, words, true);
+      return true;
+    },
+    [ex, hidden, phase, unlocked, sendNow],
+  );
   sayRef.current = say;
 
   const exRef = useRef(ex);
@@ -435,5 +481,5 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   }, []);
 
   const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere);
-  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, pick: setCurrent, drafting, pending, sentList, reading };
+  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick: setCurrent, drafting, pending, sentList, reading };
 }

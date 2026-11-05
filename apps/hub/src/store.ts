@@ -64,6 +64,11 @@ export interface Thread {
    * queue after a send, and only Done (or a rule) settles it; his own message read back from Messages doesn't close it.
    */
   sentHere?: number;
+  /**
+   * When Nikita marked it Done on the Desk (#914): every text up to then was seen and dismissed, so neither a scan
+   * (whose view of their latest text can be fresher than `lastIn`) nor the sweep brings it back; only a newer text does.
+   */
+  doneAt?: number;
 }
 
 /** An older unanswered chat (#758): last message someone else's, past the 30-day window. A snapshot from the last scan. */
@@ -210,6 +215,7 @@ function readThread(v: unknown): Thread | null {
     ...(o.kept === true && { kept: true as const }),
     ...(n(o.rechecked) !== null && { rechecked: o.rechecked as number }),
     ...(n(o.sentHere) !== null && { sentHere: o.sentHere as number }),
+    ...(n(o.doneAt) !== null && { doneAt: o.doneAt as number }),
   };
 }
 

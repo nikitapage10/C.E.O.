@@ -3,17 +3,55 @@ import { useHide } from "@ceo/engine/web/hide.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { startEmail, useEmail } from "./email.ts";
 import { startTexts, useTexts } from "./texts.ts";
-import { allowed, commandOf, isOrder, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Order, type Phase } from "./thread.ts";
+import { allowed, commandOf, doneHere, isOrder, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Order, type Phase } from "./thread.ts";
 
-/** The order toggle on the line (#803), remembered on this device only. */
-const ORDER_KEY = "relay.order";
+/**
+ * The order (#803), remembered on this device only. Longest waiting first by default since #904 (Nikita: "default
+ * order = longest waiting first"); a new key, so the new default reaches a device that had picked one before.
+ */
+const ORDER_KEY = "relay.order.v2";
 function readOrder(): Order {
   try {
     const v = window.localStorage.getItem(ORDER_KEY);
-    return isOrder(v) ? v : "newest";
+    return isOrder(v) ? v : "oldest";
   } catch {
-    return "newest";
+    return "oldest";
   }
+}
+
+/**
+ * A Done or skip waiting out its Undo window, noted on this device (#914): a reload or a closed tab inside the window
+ * would otherwise lose it, and the thread came back. The next open of Relay sends it. Only the Relay ids, never text.
+ */
+const HELD_KEY = "relay.held";
+interface HeldNote {
+  key: string;
+  line: "email" | "text";
+  id: string;
+  cmd: "done" | "skip";
+}
+function writeHeld(n: HeldNote | null): void {
+  try {
+    if (n) window.localStorage.setItem(HELD_KEY, JSON.stringify(n));
+    else window.localStorage.removeItem(HELD_KEY);
+  } catch {
+    /* private window: the Undo window lasts this visit */
+  }
+}
+function readHeld(): HeldNote | null {
+  try {
+    const o = JSON.parse(window.localStorage.getItem(HELD_KEY) ?? "null") as Partial<HeldNote> | null;
+    if (!o || typeof o.key !== "string" || typeof o.id !== "string" || (o.line !== "email" && o.line !== "text") || (o.cmd !== "done" && o.cmd !== "skip")) return null;
+    return { key: o.key, line: o.line, id: o.id, cmd: o.cmd };
+  } catch {
+    return null;
+  }
+}
+/** The Done or skip itself: email marks it done (or skipped), a text's Done goes to the Mac. */
+function fireHeld(n: HeldNote): void {
+  writeHeld(null);
+  if (n.line === "email") void (n.cmd === "skip" ? useEmail.getState().skip(n.id) : useEmail.getState().done(n.id));
+  else void useTexts.getState().ask({ action: "done", thread: n.id });
 }
 
 const firstOf = (who: string) => who.trim().split(/\s+/)[0] || who;
@@ -146,17 +184,19 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const hidden = useHide((s) => s.on);
   const canSend = emailView?.canSend === true;
   const all = useMemo(() => (signedIn && (emailView || textsView) ? queueOf(emailView?.items, textsView?.paired ? textsView.items : [], skipped, canSend, order) : null), [signedIn, emailView, textsView, skipped, canSend, order]);
+  /** Done here and not yet settled on the Mac (#914): off the line across reloads. */
+  const doneOnSite = useMemo(() => doneHere(textsView?.items, textsView?.requests), [textsView]);
   const queue = useMemo(
     () =>
       (all
         ? all
-            .filter((x) => !gone.includes(x.key))
+            .filter((x) => !gone.includes(x.key) && !(x.line === "text" && doneOnSite.has(x.id)))
             .map((x) => (declined[x.key] !== undefined && declined[x.key] === x.draft ? { ...x, draft: null } : x))
             .map((x) => (!x.said && saidHere[x.key] && x.draft ? { ...x, said: saidHere[x.key]! } : x))
             // A text's ready draft folds until Reply (#642), unless it was written from Nikita's own words.
             .map((x) => (x.line === "text" && x.draft && !revealed.includes(x.key) && !saidHere[x.key] ? { ...x, draft: null, ready: true, hint: x.draft } : x))
         : null),
-    [all, gone, declined, saidHere, revealed],
+    [all, gone, declined, saidHere, revealed, doneOnSite],
   );
   const ex = useMemo(() => (queue ? (queue.find((x) => x.key === current) ?? queue.find((x) => !x.settled) ?? queue[0] ?? null) : null), [queue, current]);
   useEffect(() => setCurrent(ex?.key ?? null), [ex?.key]);
@@ -184,13 +224,21 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const undo = useRef(undoable());
   /** Done and skip wait out their own Undo window (#642), apart from a send's. */
   const held = useRef(undoable());
-  useEffect(
-    () => () => {
-      undo.current.flush();
-      held.current.flush();
-    },
-    [],
-  );
+  useEffect(() => {
+    // A Done (or skip) still in its Undo window when the page reloaded or closed goes now (#914): it was meant, and
+    // only Undo takes it back. It was noted on this device when pressed; the next open of Relay sends it.
+    const left = readHeld();
+    if (left) {
+      setGone((g) => (g.includes(left.key) ? g : [...g, left.key]));
+      fireHeld(left);
+    }
+    const sends = undo.current;
+    const holds = held.current;
+    return () => {
+      sends.flush();
+      holds.flush();
+    };
+  }, []);
 
   /**
    * The send itself, after a yes or a tap on Send: it waits out UNDO_MS, then goes to the line. `own` (#803): words
@@ -242,6 +290,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
         }
         const h = held.current.undo();
         if (!h) return false;
+        writeHeld(null);
         setGone((g) => g.filter((x) => x !== h));
         setNotice({ kind: "info", text: "Back on your list.", at: Date.now() });
         return true;
@@ -275,10 +324,9 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
           const x = ex;
           next();
           setGone((g) => [...g, x.key]);
-          held.current.start(x.key, () => {
-            if (x.line === "email") void (cmd === "skip" ? useEmail.getState().skip(x.id) : useEmail.getState().done(x.id));
-            else void useTexts.getState().ask({ action: "done", thread: x.id });
-          });
+          const note: HeldNote = { key: x.key, line: x.line, id: x.id, cmd };
+          held.current.start(x.key, () => fireHeld(note));
+          writeHeld(note);
           setNotice({ kind: "undo", text: sayFor(cmd, x), until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
           return true;
         }

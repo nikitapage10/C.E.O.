@@ -8,8 +8,8 @@ import "./queue.css";
  * Relay's queue on the line (#803, reshaped in #869). Nikita, 2026-11-05: "all the little, like the C, the U, the D,
  * and F should all be on the line... if I put my mouse over those little circles or even on the text on the left-hand
  * side, it kind of like magnifies in this like blurry light magnification kind of way... like the glass in the new
- * Apple stuff". Every owed thread's circle sits on the line in the queue's order, its name and gist a small label left
- * of it; the pointer (or the scroll, with nothing hovering) is a magnifier: the nearest row largest
+ * Apple stuff". Every owed thread's circle sits on the line in the queue's order, its first name and wait (#904) a small label left
+ * of it (a face, a first name and the wait since #904); the pointer (or the scroll, with nothing hovering) is a magnifier: the nearest row largest
  * and its neighbours scaled along a bell curve, as a dock does. Scrolling the codex moves the rows up the line; the
  * ones scrolled past close up toward the top and fade, but stay. A tap on one puts it in focus and opens its composer.
  * On a phone the line lies flat above the entry; a drag along it magnifies, and letting go there opens that one.
@@ -34,6 +34,9 @@ export function useMedia(q: string): boolean {
   }, [q]);
   return on;
 }
+
+/** The line says each thing once (#904): a face, a first name and how long they've waited; the card has the rest. */
+const firstName = (who: string) => who.trim().split(/\s+/)[0] || who;
 
 /** The circle's radius on the line, px, before magnifying. */
 const R = 10;
@@ -261,10 +264,9 @@ export function RelayQueue({ queue, cur, now, hidden, goTo, navRef, pagesRef, na
                 <Face r={r} hidden={hidden} />
                 <span className="rq-words" aria-hidden="true">
                   <span className="rq-top">
-                    <Private as="b">{r.who}</Private>
+                    <Private as="b">{firstName(r.who)}</Private>
                     <em>{r.age}</em>
                   </span>
-                  {r.gist && <Private className="rq-gist">{r.gist}</Private>}
                 </span>
               </button>
             </li>

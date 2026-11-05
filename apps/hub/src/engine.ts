@@ -1,10 +1,10 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readRelayStatus, RELAY_STATUS_VERSION, type RelayStatus } from "@ceo/core";
 import { CAPS, readDraft, readSort, within, type Line, type StyleProfile } from "../../../api/_relay/models.ts";
-import { CARD_KEEP_MS, readTextRequest, type RequestResult, type TextCard, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
+import { CARD_KEEP_MS, readTextRequest, REASONS, RID, type Reason, type RequestResult, type TextCard, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
 import { maskHandle, matchContacts } from "../../../api/_relay/compose.ts";
 import { requestSigned } from "../../../api/_relay/tokens.ts";
-import { channelOf, type BlueBubbles, type Contact, type Inbound, type Message } from "./bluebubbles.ts";
+import { BlueBubblesError, channelOf, sendReason, type BlueBubbles, type Contact, type Inbound, type Message } from "./bluebubbles.ts";
 import type { HubConfig } from "./config.ts";
 import type { Logger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
@@ -41,6 +41,9 @@ import { newThreadId, type Card, type CardTarget, type Day, type RelayState, typ
 export const OVERDUE_MS = 24 * 60 * 60_000;
 /** How long the engine waits after the latest message before it sorts, so a burst of texts is one call. */
 export const SETTLE_MS = 20_000;
+
+/** What became of one request: a result, with a reason code for a refusal or a failure (#767). */
+type Outcome = RequestResult | { result: RequestResult; reason: Reason };
 export const THREAD_KEEP_MS = 7 * 24 * 60 * 60_000;
 export const DRAFT_KEEP_MS = 7 * 24 * 60 * 60_000;
 export const SUMMARY_KEEP_MS = 48 * 60 * 60_000;
@@ -542,31 +545,47 @@ export class Engine {
     } catch (e) {
       return this.d.log.error("error", e);
     }
-    const results: { rid: string; result: RequestResult }[] = [];
+    const results: { rid: string; result: RequestResult; reason?: Reason }[] = [];
     for (const r of raw) {
       const req = readTextRequest(r);
-      if (!req) continue;
-      results.push({ rid: req.rid, result: await this.actOne(req) });
+      if (!req) {
+        // One this hub can't read (a site newer than the hub): said so, never left "Sending…" until it times out.
+        const rid = (r as { rid?: unknown } | null)?.rid;
+        if (typeof rid === "string" && RID.test(rid)) results.push({ rid, result: "refused", reason: this.why("unreadable") });
+        continue;
+      }
+      let out: Outcome;
+      try {
+        out = await this.actOne(req);
+      } catch (e) {
+        // It may have got as far as BlueBubbles, so it reads as "may have sent", with the reason.
+        this.d.log.error("error", e);
+        out = { result: "failed", reason: "hub-error" };
+      }
+      results.push(typeof out === "string" ? { rid: req.rid, result: out } : { rid: req.rid, ...out });
     }
     if (results.length) await this.d.site.results(results).catch((e) => this.d.log.error("error", e));
   }
 
+  /** A reason code, logged as its number on the closed list (the log takes numbers only). */
+  private why(reason: Reason): Reason {
+    this.d.log.log("request refused", { reason: REASONS.indexOf(reason) });
+    return reason;
+  }
+
   /** One request. Exported through `act` only; the only place in the hub that sends. */
-  private async actOne(req: NonNullable<ReturnType<typeof readTextRequest>>): Promise<RequestResult> {
+  private async actOne(req: NonNullable<ReturnType<typeof readTextRequest>>): Promise<Outcome> {
     const now = this.d.now();
     const state = this.d.store.load();
-    const refuse = () => {
-      this.d.log.log("request refused");
-      return "refused" as const;
-    };
-    if (!requestSigned(this.d.sendKey, req, req.sig)) return refuse();
-    if (req.until <= now || req.created > now + 60_000) return refuse();
-    if (state.seen.some((e) => e.rid === req.rid)) return refuse();
+    const refuse = (reason: Reason) => ({ result: "refused" as const, reason: this.why(reason) });
+    if (!requestSigned(this.d.sendKey, req, req.sig)) return refuse("signature");
+    if (req.until <= now || req.created > now + 60_000) return refuse("expired");
+    if (state.seen.some((e) => e.rid === req.rid)) return refuse("replay");
     // Spent before it acts: a request seen once is never acted on again, whatever happens next.
     this.change((s) => {
       s.seen.push({ rid: req.rid, at: now });
     });
-    if (state.paused) return refuse();
+    if (state.paused) return refuse("paused");
     if (req.kind === "compose") return this.compose(req, state);
     const t = state.threads.find((x) => x.id === req.thread);
     // A card Skippy asked for (#536): its send is checked and sent right here too, and "done" dismisses it.
@@ -578,26 +597,28 @@ export class Engine {
       });
       return "done";
     }
-    if (!t) return refuse();
+    if (!t) return refuse("gone");
     if (req.kind === "send") {
-      if (t.group || (t.state !== "owed" && t.state !== "later") || req.draftAt !== (t.draft?.at ?? 0) || !req.text.trim() || req.text.length > 2_000) return refuse();
+      if (t.group || (t.state !== "owed" && t.state !== "later")) return refuse("not-owed");
+      if (!req.text.trim() || req.text.length > 2_000) return refuse("bad-text");
+      // Bound to what Nikita saw (#767): the request carries the text he tapped Send on, signed. A draft Blasto
+      // replaced since (a restyle, a draft that landed while he typed his own) doesn't stop it; a message from them
+      // newer than what he saw does. Nothing came in after the draft on screen (or, with no draft, after the tap).
+      if (req.draftAt !== (t.draft?.at ?? 0) && t.lastIn > (req.draftAt || req.created)) return refuse("new-message");
       // Already answered (an earlier send that timed out but went, or a reply from the phone the webhook missed):
       // BlueBubbles shows a message of Nikita's newer than the last one in. Never send twice.
       const latest = await this.d.bb.messages(t.chat, 5).catch(() => null);
-      if (!latest) return refuse();
+      if (!latest) return refuse("messages-down");
       const answered = latest.filter((m) => m.fromMe).reduce((a, m) => Math.max(a, m.at), 0);
       if (answered > t.lastIn) {
         this.change((s) => {
           const x = s.threads.find((y) => y.id === t.id);
           if (x) this.replied(s, x, answered);
         });
-        return refuse();
+        return refuse("answered");
       }
-      const ok = await this.d.bb.send(t.chat, req.text, `relay-${randomUUID()}`).catch(() => false);
-      if (!ok) {
-        this.d.log.log("send failed");
-        return "failed";
-      }
+      const failed = await this.sendVia(t.chat, req.text);
+      if (failed) return failed;
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
         if (x) this.replied(s, x, this.d.now());
@@ -622,7 +643,7 @@ export class Engine {
       return "done";
     }
     // restyle: Nikita's dictated words, for Blasto, on the next round of work.
-    if (t.group || (t.state !== "owed" && t.state !== "later")) return refuse();
+    if (t.group || (t.state !== "owed" && t.state !== "later")) return refuse("not-owed");
     this.restyles.set(t.id, req.text);
     this.queue.add(t.id);
     return "done";
@@ -650,7 +671,7 @@ export class Engine {
    * with the contact's names and handle (the skip list, money and legal, codes) and over every past text used as a
    * style example; a match is an "off" card, with no model call. Blasto then writes it from the placeholdered ask.
    */
-  private async compose(req: NonNullable<ReturnType<typeof readTextRequest>>, state: RelayState): Promise<RequestResult> {
+  private async compose(req: NonNullable<ReturnType<typeof readTextRequest>>, state: RelayState): Promise<Outcome> {
     const who = req.who ?? "";
     const now = this.d.now();
     const contacts = await this.contactList();
@@ -664,17 +685,11 @@ export class Engine {
     if (who.startsWith("pick:")) {
       // One of the choices this Mac offered on that card: its own id, never a handle from the Desk.
       const choice = existing?.state === "choices" ? existing.choices.find((c) => c.pick === who.slice(5)) : undefined;
-      if (!choice) {
-        this.d.log.log("request refused");
-        return "refused";
-      }
+      if (!choice) return { result: "refused", reason: this.why("gone") };
       target = choice;
       name = choice.name;
     } else {
-      if (existing) {
-        this.d.log.log("request refused");
-        return "refused";
-      }
+      if (existing) return { result: "refused", reason: this.why("replay") };
       const found = matchContacts(contacts, who);
       const options = found.flatMap((c) => onePerNumber(c.handles.map(chatHandle)).filter((h) => maskHandle(h)).map((h) => ({ name: (c.names[0] ?? who).slice(0, 80), handle: h })));
       if (!options.length) {
@@ -724,25 +739,25 @@ export class Engine {
       used += x.length;
     }
     const intent = ph.swap(req.text).slice(0, CAPS.composeChars).trim();
-    if (!intent) return "refused";
+    if (!intent) return { result: "refused", reason: this.why("bad-text") };
     let got: Awaited<ReturnType<Site["compose"]>>;
     try {
       got = await this.d.site.compose({ intent, examples, profile: profileOf(mine.slice(-CAPS.styleExamples)) });
     } catch (e) {
       this.d.log.error("model error", e);
       this.linkModels = "down";
-      return "failed";
+      return { result: "failed", reason: "model" };
     }
     if ("paused" in got) {
       this.budgetStop();
-      return "failed";
+      return { result: "failed", reason: "model" };
     }
     this.linkModels = "up";
     this.d.log.log("model call", { compose: 1 });
     const answer = readDraft(got.answer);
     if (!answer) {
       this.d.log.log("draft refused");
-      return "failed";
+      return { result: "failed", reason: "model" };
     }
     const at = this.d.now();
     put({ id: req.thread, state: "ready", name, target, choices: [], draft: { text: ph.restore(answer.draft).slice(0, 600), at }, at });
@@ -751,18 +766,17 @@ export class Engine {
   }
 
   /** A card's send (#536): the card's own recipient, the very text version on screen, and never twice. */
-  private async sendCard(req: NonNullable<ReturnType<typeof readTextRequest>>, card: Card): Promise<RequestResult> {
-    const refuse = () => {
-      this.d.log.log("request refused");
-      return "refused" as const;
-    };
-    if (card.state !== "ready" || !card.target || !card.draft || req.draftAt !== card.draft.at || !req.text.trim() || req.text.length > 2_000) return refuse();
+  private async sendCard(req: NonNullable<ReturnType<typeof readTextRequest>>, card: Card): Promise<Outcome> {
+    const refuse = (reason: Reason) => ({ result: "refused" as const, reason: this.why(reason) });
+    if (card.state !== "ready" || !card.target || !card.draft) return refuse(card.state === "sent" ? "answered" : "gone");
+    if (req.draftAt !== card.draft.at) return refuse("changed");
+    if (!req.text.trim() || req.text.length > 2_000) return refuse("bad-text");
     const target = card.target;
     // Messages shows Nikita texted them since the card was made: this very text (a send that timed out but went) marks
     // the card sent; anything else means the card is behind the chat, so it says so and sends nothing. A chat this card
     // starts has no messages yet.
     const latest = await this.d.bb.messages(target.chat, 10).catch(() => (target.fresh ? [] : null));
-    if (!latest) return refuse();
+    if (!latest) return refuse("messages-down");
     const mine = latest.filter((m) => m.fromMe && m.at >= card.at);
     if (mine.length) {
       const went = mine.some((m) => m.text.trim() === req.text.trim());
@@ -770,19 +784,35 @@ export class Engine {
         const c = s.cards.find((x) => x.id === card.id);
         if (c) Object.assign(c, { state: went ? "sent" : "moved", draft: null });
       });
-      return refuse();
+      return refuse("answered");
     }
-    const ok = await this.d.bb.send(target.chat, req.text, `relay-${randomUUID()}`).catch(() => false);
-    if (!ok) {
-      this.d.log.log("send failed");
-      return "failed";
-    }
+    const failed = await this.sendVia(target.chat, req.text);
+    if (failed) return failed;
     this.change((s) => {
       const c = s.cards.find((x) => x.id === card.id);
       if (c) Object.assign(c, { state: "sent", draft: null });
     });
     this.d.log.log("sent", { card: 1 });
     return "sent";
+  }
+
+  /**
+   * The one BlueBubbles send (#767): null when it went, else "failed" with why (a timeout may still have sent; the
+   * Desk says so). The log gets the reason's number and BlueBubbles' HTTP status, never its words.
+   */
+  private async sendVia(chat: string, text: string): Promise<{ result: "failed"; reason: Reason } | null> {
+    let reason: Reason | null = null;
+    let status = 0;
+    try {
+      if (!(await this.d.bb.send(chat, text, `relay-${randomUUID()}`))) reason = "bb-refused";
+    } catch (e) {
+      reason = sendReason(e);
+      status = e instanceof BlueBubblesError ? e.status : 0;
+    }
+    if (!reason) return null;
+    this.d.log.log("send failed", { reason: REASONS.indexOf(reason), status });
+    if (reason === "mac-permission") this.d.log.log("mac permission");
+    return { result: "failed", reason };
   }
 
   /** The hourly sweep (and at start-up): every kind of row ends by its deadline (docs/RELAY-PRIVACY.md, "Retention"). */

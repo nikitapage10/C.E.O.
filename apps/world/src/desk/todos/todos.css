@@ -61,3 +61,7 @@
   .desk .td-mic.is-on{animation:none}
   .desk .td-tb{animation:none}
 }
+/* A floor item handed to Skippy (api/_today/floor.ts): where the hand-off stands. */
+.desk .td-handed{margin:6px 14px 0;font-family:var(--td-sans);font-size:12px;line-height:1.4;color:var(--wv-soft);overflow-wrap:anywhere}
+.desk .td-handed b{font-weight:600;color:var(--wv-hot)}
+.desk .td-handed[data-state="builder"] b{color:var(--wv-ok)}

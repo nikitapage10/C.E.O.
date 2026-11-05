@@ -14,10 +14,12 @@ import "./roomLoader.css";
  *   - A page that is ready in the same commit it mounts in (its code already fetched, nothing to wait for) is never
  *     covered at all: no delay for its own sake.
  *   - A page opened before shows its sigil later (only a longer wait shows more than the veil) and fades faster.
- *   - Nothing is covered for longer than CAP_MS (4 s), whether the page signals or not.
+ *   - Nothing is covered for longer than `cap` (CAP_MS, 4 s, unless the host gives a room with a 3D scene longer),
+ *     whether the page signals or not.
  *   - With reduced motion the sigil is a still and the cover simply fades.
  *
- * The cover sits over the page (not the bar, Ask Skippy or the room mic), and takes no clicks.
+ * The cover sits over the page (not the bar, Ask Skippy or the room mic), and takes no clicks. A room the Desk keeps
+ * mounted out of sight (#759) passes `shown={false}`: it keeps counting towards ready, and shows no cover.
  */
 
 /** Rooms that have been ready once this visit. */
@@ -28,7 +30,7 @@ type Phase = "cover" | "leave" | "gone";
 /** The Desk's gold, as on the C.E.O. mark's core. */
 const GOLD = "232,207,156";
 
-export function RoomLoader({ room, name, accent, children }: { room: string; name: string; accent: string; children: ReactNode }) {
+export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, children }: { room: string; name: string; accent: string; shown?: boolean; cap?: number; children: ReactNode }) {
   const [revisit] = useState(() => SEEN.has(room));
   const [reduced] = useState(reducedMotion);
   const [phase, setPhase] = useState<Phase>("cover");
@@ -56,17 +58,17 @@ export function RoomLoader({ room, name, accent, children }: { room: string; nam
 
   useEffect(() => {
     if (phase === "cover") {
-      const cap = window.setTimeout(() => {
+      const timer = window.setTimeout(() => {
         SEEN.add(room);
         setPhase((p) => (p === "cover" ? "leave" : p));
-      }, CAP_MS);
-      return () => window.clearTimeout(cap);
+      }, cap);
+      return () => window.clearTimeout(timer);
     }
     if (phase === "leave") {
       const t = window.setTimeout(() => setPhase("gone"), fade + 80);
       return () => window.clearTimeout(t);
     }
-  }, [phase, fade, room]);
+  }, [phase, fade, room, cap]);
 
   const sigil = sigilOf(room);
   const style = { "--rl-accent": `var(${accent})`, "--rl-fade": `${fade}ms`, "--rl-delay": revisit ? "240ms" : "70ms" } as CSSProperties;
@@ -74,7 +76,7 @@ export function RoomLoader({ room, name, accent, children }: { room: string; nam
   return (
     <RoomReadyContext.Provider value={gate}>
       {children}
-      {phase !== "gone" && (
+      {shown && phase !== "gone" && (
         <div className="room-loader" data-phase={phase} role="status" aria-label={`Opening ${name}`} style={style}>
           <div className="room-loader__mark" aria-hidden="true">
             {reduced ? <SigilStill sigil={sigil} /> : <Swarm sigil={sigil} leaving={phase === "leave"} />}

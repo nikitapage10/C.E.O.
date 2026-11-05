@@ -17,7 +17,7 @@ import { readRelayStatus, type RelayStatus } from "../../packages/core/src/relay
 import { BlobPreconditionError, pickBlob, type BlobBackend } from "../_blob.js";
 import { MIN_TOKEN_KEY, seal, unseal } from "../_email/seal.js";
 import { readPhotoIndex } from "./photos.js";
-import { readTextRequest, readTextsView, REQUEST_STATES, type RequestState, type TextRequest, type TextsView } from "./texts.js";
+import { readReason, readTextRequest, readTextsView, REQUEST_STATES, type Reason, type RequestState, type TextRequest, type TextsView } from "./texts.js";
 
 export const STATUS_PATH = "relay/status.json";
 export const HUB_PATH = "relay/hub.json";
@@ -51,6 +51,8 @@ export interface RequestEntry {
   takenAt: number | null;
   /** When the hub reported back. */
   doneAt: number | null;
+  /** Why the hub refused or failed it (#767): a code from REASONS, never content. Left out otherwise. */
+  reason?: Reason;
 }
 
 export interface PrivateState {
@@ -114,7 +116,8 @@ export function readPrivate(v: unknown, now: number): PrivateState {
     const req = readTextRequest(e?.req);
     if (!req || !(REQUEST_STATES as readonly string[]).includes(e.state as string)) continue;
     if (now - req.until > REQUEST_KEEP_MS) continue;
-    requests.push({ req, state: e.state as RequestState, takenAt: num(e.takenAt), doneAt: num(e.doneAt) });
+    const reason = readReason(e.reason);
+    requests.push({ req, state: e.state as RequestState, takenAt: num(e.takenAt), doneAt: num(e.doneAt), ...(reason && { reason }) });
   }
   return { texts: o.texts ? readTextsView(o.texts, now) : null, requests: requests.slice(-200) };
 }

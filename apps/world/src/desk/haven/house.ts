@@ -13,6 +13,7 @@ import { CatBrain, navGrid, type CatSignals } from "./catBrain.ts";
 import { furnish } from "./furnish.ts";
 import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
+import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
 
 /**
  * The Haven's house in 3D (#616): a generic renderer for whatever floor plan the private store holds. Nikita's round-6
@@ -278,6 +279,8 @@ export class House {
   private catBrain: CatBrain | null = null;
   private cat: HouseCat | null = null;
   private gone = false;
+  /** WASD to look around (#776): a pan over the plan, Q/E to turn. */
+  private wasd!: WasdPan;
 
   constructor(
     private host: HTMLElement,
@@ -329,6 +332,8 @@ export class House {
       this.seeds[i] = s / 2147483647;
     }
     this.walls = wallsOf(this.plan);
+    this.wasd = wasdPan({ el: host, reduce: opts.reduce, enabled: () => !this.backdrop, bounds: () => ({ kind: "box", x0: this.wx(0), x1: this.wx(this.plan.w), z0: this.wz(0), z1: this.wz(this.plan.h) }), origin: () => [this.cam.tx, this.cam.tz], forward: () => [-Math.sin(this.cam.th), -Math.cos(this.cam.th)], rotate: (d) => ((this.tween = null), (this.cam.th += d), (this.lastUser = performance.now())) });
+    this.disposers.push(() => this.wasd.dispose());
     this.build();
     this.startCat();
     this.bind();
@@ -1160,9 +1165,9 @@ export class House {
   private apply() {
     const c = this.cam;
     this.camera.aspect = this.W / this.H;
-    const sp = Math.sin(c.ph), cp = Math.cos(c.ph);
-    this.camera.position.set(c.tx + c.r * sp * Math.sin(c.th), c.r * cp, c.tz + c.r * sp * Math.cos(c.th));
-    this.camera.lookAt(c.tx, c.ly ?? 0, c.tz);
+    const sp = Math.sin(c.ph), cp = Math.cos(c.ph), tx = c.tx + (this.wasd?.x ?? 0), tz = c.tz + (this.wasd?.z ?? 0);
+    this.camera.position.set(tx + c.r * sp * Math.sin(c.th), c.r * cp, tz + c.r * sp * Math.cos(c.th));
+    this.camera.lookAt(tx, c.ly ?? 0, tz);
     // The fitted view's offset, so the house sits in its box whatever the perspective does to it.
     this.camera.setViewOffset(this.W, this.H, this.pan[0], this.pan[1], this.W, this.H);
     this.camera.updateProjectionMatrix();
@@ -1355,6 +1360,7 @@ export class House {
     this.focusId = null;
     this.lastUser = performance.now();
     this.setAway(false);
+    this.wasd.home();
     this.go(this.home, 450);
   }
 
@@ -1406,6 +1412,10 @@ export class House {
       if (f >= 1) this.tween = null;
     } else if (!this.opts.reduce && (this.backdrop || (!this.focusId && now - this.lastUser > 4000))) {
       this.cam.th += (this.backdrop ? 0.03 : 0.012 * Math.sin((now - this.t0) / 7000)) * dt;
+      this.apply();
+    }
+    if (this.wasd.step(dt)) {
+      this.lastUser = now;
       this.apply();
     }
     // The lamps ease to their rooms' levels.

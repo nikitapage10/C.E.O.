@@ -62,7 +62,7 @@ The parts:
 | Logs | Event kinds, counts, error classes | `~/Library/Logs/CEO Relay/`, mode 0600 | 14 days, one file a day |
 | Mac secrets | The BlueBubbles password, the hub token, the send key, the local key (the `relay` command's key to the hub) | The login Keychain, service "CEO Relay" | Until the wipe |
 | The site's public status | The latest `RelayStatus`: counts, states, times | Azure blob `relay/status.json` (private container, served by a function) | The latest only |
-| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push, items 7 days at most. Requests: a day after they end |
+| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask, and for each one the Mac refused or failed a reason code from a closed list (#767, `REASONS` in `api/_relay/texts.ts`) | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push, items 7 days at most. Requests: a day after they end |
 | The pairing | The pairing's id and the SHA-256 of the hub's token; an open pair code's SHA-256 | Azure blobs `relay/hub.json`, `relay/pair.json` | Until Unpair; a code 10 minutes |
 | The spend ledger | Per month: calls, tokens, dollars | Azure blob `relay/spend.json` | A year |
 | Anthropic's copy | What one call sent and got back | Anthropic | Anthropic's API retention (below); never used for training |
@@ -139,7 +139,7 @@ The hub makes only these calls, all outbound to `https://ceo.nikita.page`, all w
 | `POST /api/relay-hub?view=texts` | The who's-waiting list (`TextsView`): per thread its Relay id, name, channel, group or not, state, sort, since, later-until, gist, draft, summary; and the new-text cards (#536): id, state, name, mask, channel, text, choices | `readTextsView` (`api/_relay/texts.ts`): a closed allowlist with length caps; one bad item refuses the list. A card's mask must be `ending 0123` or `r•••@e•••.com` exactly, so no whole number or address can ride on it. 128 KB |
 | `POST /api/relay-hub?view=sort` and `?view=draft` | One placeholdered snippet, or a new text's placeholdered ask (#536) | Above |
 | `GET /api/relay-hub?view=requests` | Nothing; it gets the Desk's waiting requests | The send path, below |
-| `POST /api/relay-hub?view=results` | Per request it took: its id and `sent`, `done`, `failed` or `refused` | Taken requests only |
+| `POST /api/relay-hub?view=results` | Per request it took: its id and `sent`, `done`, `failed` or `refused`, and for a refusal or failure a reason code from a closed list (#767), never words | Taken requests only |
 | `GET /api/relay-hub?view=skip` | Nothing; it gets the skip list's terms | |
 | `POST /api/relay-hub?view=unpair` | Nothing; the wipe (`relay wipe`): the site forgets this pairing, the list and the requests | |
 | `POST /api/relay-pair` | Once, at install: the pair code | Below |
@@ -247,11 +247,18 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
    time per thread.
 3. **The hub polls** every 15 seconds. Each waiting, unexpired request is handed out once and marked taken in the same
    conditional write, so a second poll never gets it. The hub checks the signature, the 10 minutes, that it has never
-   seen the id (it records the id before acting), and the thread and draft again on its own list. Only then does it
+   seen the id (it records the id before acting), and the thread again on its own list: still owed, one-to-one. The
+   request carries the text Nikita tapped Send on, signed; if Blasto's draft changed since (a restyle, or a draft that
+   landed while he typed his own), that text still goes, unless a message from them came in after the draft he saw
+   (or, with no draft, after the tap), which refuses it (#767). Only then does it
    asks BlueBubbles for the thread's latest messages: a reply of Nikita's newer than the last message in means it was
    already answered (a send that timed out but went, or a reply from the phone), and it refuses. Only then does it
-   send through BlueBubbles, and it reports `sent` or `failed`. Anything else is `refused`. `act` is the only code in
-   the hub that sends.
+   send through BlueBubbles, and it reports `sent` or `failed`. Anything else is `refused`. Every refusal and failure
+   carries a reason code from a closed list (#767: the key, too late, a new message, already answered, BlueBubbles
+   down or timed out, macOS not letting BlueBubbles control Messages…), and every request the hub took gets a result,
+   one it can't read or one that errors included. The Desk shows "Not sent: …" in words for the code, with Resend
+   where another try can help. The code lives on the sealed request only, never in the public status, and the hub's
+   log holds it as a number. `act` is the only code in the hub that sends.
 4. **Not taken in 10 minutes** (the Mac was offline): the request is `expired`, never sent late. The Desk says "Not
    sent, Mac was offline" with **Resend**, which makes a new request (steps 2 and 3 again, the unlock still needed). A
    `failed` send (BlueBubbles didn't confirm it, or the hub never answered within 5 minutes of the end) says "Not
@@ -391,7 +398,10 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
 ## Access
 
 - **No Full Disk Access for Relay.** The hub reads Messages only through BlueBubbles' local API, so it never opens
-  `chat.db` and needs no special permission. BlueBubbles needs Full Disk Access (and Accessibility to send) for itself.
+  `chat.db` and needs no special permission. BlueBubbles needs Full Disk Access (and Accessibility to send) for itself,
+  and, since it sends with AppleScript (its Private API stays off), Automation access to Messages: System Settings >
+  Privacy & Security > Automation > BlueBubbles > Messages (#767). macOS asks the first time it sends; until it is
+  allowed, a send fails with the reason `mac-permission`, which the Desk and `relay status` name.
 - **The hub listens on `127.0.0.1:7420` only**, never `0.0.0.0`, and only for the `relay` command's own control
   calls, which need the local key (a random value in the Keychain). New messages come from polling BlueBubbles'
   local API, so nothing, BlueBubbles included, calls into the hub (#749). The listener refuses any request with an `Origin` header, so a web

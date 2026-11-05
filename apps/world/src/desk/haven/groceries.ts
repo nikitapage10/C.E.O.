@@ -34,14 +34,35 @@ export interface GStore {
   zip: string;
 }
 
+export type Verdict = "covered" | "short" | "over" | "wrong" | "unsure";
+
+/** A pick's quantity check (#761): how many cover the list line, and whether it's short, way over or the wrong thing. */
+export interface GReview {
+  productId: string;
+  qty: number;
+  verdict: Verdict;
+  reason: string;
+  /** A better match among the pick's others, by product id. */
+  better: string | null;
+  by: "ai" | "rules";
+}
+
 export interface GLine {
   id: string;
   name: string;
   key: string;
-  pick: { product: GProduct | null; alts: GProduct[]; chosen: boolean; skip: boolean; at: string; term: string } | null;
+  pick: { product: GProduct | null; alts: GProduct[]; chosen: boolean; skip: boolean; at: string; term: string; review: GReview | null } | null;
   /** This pick already went to the King Soopers cart from here (#737): a send skips it. */
   inCart: boolean;
+  /** How many go in the cart (#761): his own count, else the check's, else one. */
+  qty: number;
+  /** The plan changed since it was finalized and no longer asks for this line (#761). */
+  stale: boolean;
 }
+
+/** The most of one product the stepper allows (api/_haven/kroger/review.ts QTY_MAX). */
+export const QTY_MAX = 24;
+const VERDICT_SET: Verdict[] = ["covered", "short", "over", "wrong", "unsure"];
 
 export interface Groceries {
   ready: boolean;
@@ -55,6 +76,8 @@ export interface Groceries {
   total: number;
   count: number;
   sent: { at: string; items: number; ok: boolean } | null;
+  /** The plan changed since it was finalized (#761): weeks changed, matches that no longer fit, lines not on the list yet. */
+  plan: { changed: number; stale: number; fresh: number };
 }
 
 const PATH = "/api/haven/kroger";
@@ -83,6 +106,15 @@ function product(v: unknown): GProduct | null {
   return { productId, description: s(p.description, 120), brand: s(p.brand, 60), size: s(p.size, 40), price, promo: cents(p.promo), stock: p.stock === "high" || p.stock === "low" || p.stock === "out" ? p.stock : null, image: krogerImage(p.image), aisle: s(p.aisle, 40) || null, categories: (Array.isArray(p.categories) ? p.categories : []).slice(0, 3).map((c) => s(c, 40)).filter(Boolean) };
 }
 
+function review(v: unknown): GReview | null {
+  const r = o(v);
+  const qty = cents(r.qty);
+  const verdict = VERDICT_SET.find((x) => x === r.verdict);
+  const productId = s(r.productId, 32);
+  if (!productId || qty === null || qty < 1 || qty > QTY_MAX || !verdict) return null;
+  return { productId, qty, verdict, reason: s(r.reason, 80), better: typeof r.better === "string" ? s(r.better, 32) || null : null, by: r.by === "ai" ? "ai" : "rules" };
+}
+
 function store(v: unknown): GStore | null {
   const x = o(v);
   const id = s(x.id, 32);
@@ -105,19 +137,30 @@ export function readGroceries(v: unknown): Groceries | null {
     lines: b.lines.slice(0, 100).map((raw): GLine => {
       const l = o(raw);
       const p = l.pick ? o(l.pick) : null;
+      const qty = cents(l.qty);
       return {
         id: s(l.id, 32),
         name: s(l.name, 60),
         key: s(l.key, 60),
-        pick: p ? { product: p.product ? product(p.product) : null, alts: (Array.isArray(p.alts) ? p.alts : []).map(product).filter((x): x is GProduct => x !== null).slice(0, 8), chosen: p.chosen === true, skip: p.skip === true, at: s(p.at, 32), term: s(p.term, 60) } : null,
+        pick: p
+          ? { product: p.product ? product(p.product) : null, alts: (Array.isArray(p.alts) ? p.alts : []).map(product).filter((x): x is GProduct => x !== null).slice(0, 8), chosen: p.chosen === true, skip: p.skip === true, at: s(p.at, 32), term: s(p.term, 60), review: p.review ? review(p.review) : null }
+          : null,
         inCart: l.inCart === true,
+        qty: qty !== null && qty >= 1 && qty <= QTY_MAX ? qty : 1,
+        stale: l.stale === true,
       };
     }),
     total: cents(b.total) ?? 0,
     count: cents(b.count) ?? 0,
     sent: typeof sent.at === "string" && typeof sent.ok === "boolean" ? { at: s(sent.at, 32), items: cents(sent.items) ?? 0, ok: sent.ok } : null,
+    plan: { changed: cents(o(b.plan).changed) ?? 0, stale: cents(o(b.plan).stale) ?? 0, fresh: cents(o(b.plan).fresh) ?? 0 },
   };
 }
+
+/** A pick's check, only while the pick is still the product it checked (#761). */
+export const reviewOf = (l: GLine): GReview | null => (l.pick?.review && l.pick.product && l.pick.review.productId === l.pick.product.productId ? l.pick.review : null);
+/** The badge a check earns, or null when it's covered. */
+export const VERDICT_BADGE: Record<Verdict, string | null> = { covered: null, short: "short", over: "way over", wrong: "wrong product", unsure: "check size" };
 
 /** How much one pick costs now (the sale price when there is one). */
 export const costOf = (p: GProduct) => p.promo ?? p.price;
@@ -153,7 +196,10 @@ export type GAction =
   | { action: "skip"; key: string; skip: boolean }
   | { action: "connect" }
   | { action: "disconnect" }
-  | { action: "send"; picks: { key: string; productId: string }[] };
+  | { action: "review" }
+  | { action: "qty"; key: string; qty: number }
+  | { action: "clear-list" }
+  | { action: "send"; picks: { key: string; productId: string; qty: number }[] };
 
 export interface GReply {
   ok: boolean;
@@ -168,6 +214,9 @@ export interface GReply {
   /** Matched by this Match call, and how many still wait for the next (#737). */
   matched: number;
   left: number;
+  /** A review's (#761): by the model or the rules, and what the call cost in dollars. */
+  by: "ai" | "rules" | null;
+  usd: number;
 }
 
 /**
@@ -226,11 +275,21 @@ export async function groceryAction(body: GAction, f: typeof fetch = fetch): Pro
       already: cents(got.already) ?? 0,
       matched: cents(got.matched) ?? 0,
       left: cents(got.left) ?? 0,
+      by: got.by === "ai" || got.by === "rules" ? got.by : null,
+      usd: typeof got.usd === "number" && Number.isFinite(got.usd) && got.usd >= 0 ? got.usd : 0,
     };
   } catch {
-    return { ok: false, status: 0, error: "failed", view: null, url: null, items: 0, already: 0, matched: 0, left: 0 };
+    return { ok: false, status: 0, error: "failed", view: null, url: null, items: 0, already: 0, matched: 0, left: 0, by: null, usd: 0 };
   }
 }
+
+/**
+ * The Shopping card's Clear list (#761) tells the meal planner, which reopens the week (Finalize opens again) and goes
+ * back to Plan. A listener per mounted planner; the returned function stops listening.
+ */
+const cleared = new Set<() => void>();
+export const onListCleared = (fn: () => void): (() => void) => (cleared.add(fn), () => void cleared.delete(fn));
+export const listCleared = () => cleared.forEach((fn) => fn());
 
 /** Only Kroger's own sign-in page, and the King Soopers cart, are ever opened. */
 export const isKrogerSignIn = (url: string) => /^https:\/\/api\.kroger\.com\/v1\/connect\/oauth2\/authorize\?/.test(url);

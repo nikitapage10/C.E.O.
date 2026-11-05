@@ -209,8 +209,14 @@
   background: rgba(14, 13, 18, 0.7);
   overflow-x: auto;
 }
+/* At the top of the page above the house, and stuck under the Desk's nav while scrolling (desktop and phone). */
 [data-room="haven"] .hv-tabs {
-  margin: 0 auto 32px;
+  position: sticky;
+  top: calc(var(--hv-navh, 60px) + 8px);
+  z-index: 30;
+  margin: 8px auto 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 [data-room="haven"] .hv-tab {
   flex: none;
@@ -2760,6 +2766,95 @@
 [data-room="haven"] .hv-clear.is-armed {
   border-color: var(--hv-warn);
   color: var(--hv-warn);
+}
+/* The two-tap Clear (#761): "Clear? Yes No" on the page itself. */
+[data-room="haven"] .hv-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--hv-warn);
+  font: 500 13px var(--hv-text);
+}
+[data-room="haven"] .hv-confirm .is-yes {
+  border-color: var(--hv-warn);
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-clearRow .hv-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+/* A pick's count and its quantity check (#761). */
+[data-room="haven"] .hv-gQty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 6px 0 0 28px;
+  font-size: 12px;
+}
+[data-room="haven"] .hv-step {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+}
+[data-room="haven"] .hv-step button {
+  width: 32px;
+  height: 28px;
+  border: 0;
+  background: none;
+  color: var(--hv-ink);
+  font: 600 15px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-step button:disabled {
+  color: var(--hv-faint);
+  cursor: default;
+}
+[data-room="haven"] .hv-step b {
+  min-width: 30px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-gWhy {
+  color: var(--hv-mute);
+  min-width: 0;
+}
+[data-room="haven"] .hv-gFlag {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(240, 180, 90, 0.14);
+  color: var(--hv-warn);
+  font: 500 11px var(--hv-text);
+}
+[data-room="haven"] .hv-gFlag.is-wrong,
+[data-room="haven"] .hv-gFlag.is-short {
+  background: rgba(240, 120, 110, 0.16);
+}
+[data-room="haven"] .hv-gItem .hv-gFlag {
+  margin-left: 6px;
+}
+[data-room="haven"] .hv-gBetter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0 28px;
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-gCheck {
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-stale {
+  border-left: 2px solid var(--hv-warn);
+  padding-left: 8px;
+}
+[data-room="haven"] .hv-gLines > li.is-stale .hv-gPick {
+  opacity: 0.6;
 }
 [data-room="haven"] .hv-shopProg {
   font-variant-numeric: tabular-nums;

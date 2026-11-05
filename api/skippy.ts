@@ -70,6 +70,7 @@ import { AGENT_CEILING_USD, BlobChatLedger, CHAT_MAX_TOKENS, KERNEL_LEDGER_PATH,
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
 import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
+import { FLOOR_REPLY, floorQuestion, readFloor } from "./_today/floor.js";
 import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, handoffTo, isLogRoom, isNeeds, isNeedsFilter, type FollowFrom, isTurnId, needsName, turnId, type LogRoom, type Needs, type RoomLog } from "./_skippy/log.js";
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
@@ -453,9 +454,42 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   } catch {
     return json({ error: "bad-request" }, 400);
   }
+  // A yes to an item on Today's floor (api/_today/floor.ts): straight to Skippy, the Magnificent, no model.
+  if (body && typeof body === "object" && "floor" in body) return floorTurn(body, deps, store, passkey);
   const said = readChat(body);
   if (!said) return json({ error: "bad-request" }, 400);
   return skippyTurn(said, deps, store, passkey, "desk");
+}
+
+/**
+ * POST { floor, message }: Nikita approved an item on Today's floor ("go ahead and fix this" on a Repair). The ask is
+ * built from the item's own safe words and Nikita's, put through the privacy check and the chat's pace, and kept in the
+ * `kernel` log handed to Skippy, the Magnificent, exactly as a chat hand-off is (his always-on responder and his
+ * thread's watcher take it from there). No model runs here, so it costs nothing. 200 { reply, room, needs, turn }.
+ */
+async function floorTurn(body: unknown, deps: ChatDeps, store: AuthStore, passkey: string): Promise<Response> {
+  const got = readFloor(body);
+  if (!got) return json({ error: "bad-request" }, 400);
+  const question = floorQuestion(got.item, got.said);
+  const held = [...new Set(privateParts(question))];
+  if (held.length) return json({ error: "private", held: held.map((k) => PRIVATE_LABEL[k]) }, 422);
+  const tag = chatTag(passkey, await deskKeyFor(deps.deskKey, "client"));
+  const limits = await store.limits();
+  const wait = chatWait(limits, tag, deps.now);
+  if (wait > 0) {
+    const s = Math.ceil(wait / 1000);
+    return json({ error: "slow-down", wait: s }, 429, { "Retry-After": String(s) });
+  }
+  await store.saveLimits(countChat(limits, tag, deps.now));
+  if (!deps.log) return json({ error: "not-set-up" }, 503);
+  const at = new Date(deps.now).toISOString();
+  const id = turnId(at, question);
+  try {
+    await deps.log.add({ id, at, question, answer: FLOOR_REPLY, room: "kernel", model: "floor", needs: "skippy" }, deps.now);
+  } catch {
+    return json({ error: "model" }, 502);
+  }
+  return json({ reply: FLOOR_REPLY, actions: [], room: "kernel", needs: "skippy", turn: id });
 }
 
 /** Where Nikita is talking from: the Desk's chat, the iPhone's "Skippy" shortcut (#627), or a room's mic (#638). */

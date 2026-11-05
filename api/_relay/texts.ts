@@ -248,3 +248,61 @@ export function readTextRequest(v: unknown): TextRequest | null {
 /** What a hub reports back about a request it took. */
 export const RESULTS = ["sent", "done", "failed", "refused"] as const;
 export type RequestResult = (typeof RESULTS)[number];
+
+/**
+ * Why the hub refused or failed a request (#767): a short code from this closed list, never a message, a name or a
+ * number. The hub reports it with the result, the site keeps it on the sealed request, and the passkey Desk shows its
+ * words ("Not sent: …") with Resend where another try can help. The public status never carries one.
+ *
+ *   signature      the send key didn't check out (the Mac was paired again since)
+ *   expired        past its 10 minutes when the Mac read it, or the Mac's clock is off
+ *   replay         the Mac had already seen that request
+ *   paused         the hub is paused
+ *   gone           the thread or card isn't on the Mac's list any more
+ *   not-owed       the thread isn't waiting on a reply any more, or it's a group
+ *   new-message    they texted again after the draft on screen
+ *   changed        the card's text changed since it was shown
+ *   answered       Messages already shows a reply from Nikita
+ *   messages-down  the Mac couldn't read the chat from BlueBubbles, so it didn't risk a double send
+ *   bad-text       the text was empty or too long
+ *   bb-timeout     BlueBubbles didn't answer in time: it may have sent, or macOS is waiting on the Mac for a permission click
+ *   bb-down        BlueBubbles wasn't reachable on the Mac
+ *   bb-auth        BlueBubbles refused the hub's password
+ *   mac-permission macOS didn't let BlueBubbles control Messages (its AppleScript send needs Automation access)
+ *   bb-refused     BlueBubbles answered with an error
+ *   model          Blasto couldn't write it (models down or out of budget)
+ *   unreadable     the hub couldn't read the request (a hub older than the site)
+ *   hub-error      the hub hit an error while acting on it
+ *   no-answer      the Mac took it but never reported back (site side, 5 minutes after it ended)
+ */
+export const REASONS = ["signature", "expired", "replay", "paused", "gone", "not-owed", "new-message", "changed", "answered", "messages-down", "bad-text", "bb-timeout", "bb-down", "bb-auth", "mac-permission", "bb-refused", "model", "unreadable", "hub-error", "no-answer"] as const;
+export type Reason = (typeof REASONS)[number];
+
+export const readReason = (v: unknown): Reason | undefined => ((REASONS as readonly string[]).includes(v as string) ? (v as Reason) : undefined);
+
+/** A reason in the Desk's words, after "Not sent: ". */
+export const REASON_WORDS: Record<Reason, string> = {
+  signature: "the Mac couldn't check this request's key. Pair the Mac again",
+  expired: "it reached the Mac too late (or the Mac's clock is off)",
+  replay: "the Mac had already handled this request",
+  paused: "Relay is paused on the Mac",
+  gone: "that conversation isn't on the Mac's list any more",
+  "not-owed": "that conversation isn't waiting on a reply any more",
+  "new-message": "they texted again after this draft. Read the new message, then send again",
+  changed: "the text changed since it was shown",
+  answered: "Messages already shows your reply",
+  "messages-down": "the Mac couldn't read the chat from BlueBubbles, so it didn't risk sending twice",
+  "bad-text": "the text was empty or too long",
+  "bb-timeout": "BlueBubbles didn't confirm it in time. It may have sent: check Messages before you resend. If the Mac is asking to let BlueBubbles control Messages, click Allow there",
+  "bb-down": "BlueBubbles isn't running on the Mac",
+  "bb-auth": "BlueBubbles refused the hub's password",
+  "mac-permission": "the Mac needs permission for Messages. Allow BlueBubbles to control Messages: System Settings > Privacy & Security > Automation",
+  "bb-refused": "BlueBubbles couldn't send it",
+  model: "Blasto couldn't write it just now",
+  unreadable: "the hub on the Mac is out of date. Run the installer again",
+  "hub-error": "the hub hit an error. It may have sent: check Messages before you resend",
+  "no-answer": "the Mac took it but never answered. It may have sent: check Messages before you resend",
+};
+
+/** The reasons another try can fix; the rest need a look first (a new message, a reply already sent). */
+export const RESENDABLE: readonly Reason[] = ["expired", "paused", "messages-down", "bb-timeout", "bb-down", "bb-auth", "mac-permission", "bb-refused", "hub-error", "no-answer"];

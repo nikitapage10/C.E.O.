@@ -79,3 +79,13 @@ describe("what an intent changes", () => {
     expect(openTodos(s, NOW).map((t) => t.id)).toEqual(["todo-due01", "todo-late1", "todo-none1"]);
   });
 });
+
+describe("an item handed to Skippy from the floor", () => {
+  it("keeps the hand-off's turn on the item's mark, through later words, and only a turn id", () => {
+    const s = keepState({ marks: [{ ref: "down-boiler", updated: ISO(NOW), handed: "0123456789abcdef" }, { ref: "q12", updated: ISO(NOW), handed: "not-a-turn" }] }, NOW);
+    expect(s.marks.find((m) => m.ref === "down-boiler")?.handed).toBe("0123456789abcdef");
+    expect(s.marks.find((m) => m.ref === "q12")).not.toHaveProperty("handed");
+    const noted = mergeState(s, changesFor(s, { type: "held", ref: "down-boiler", text: "" }, { kind: "note", text: "Asked Skippy" }, NOW + 1), NOW + 1);
+    expect(noted.marks.find((m) => m.ref === "down-boiler")).toMatchObject({ handed: "0123456789abcdef", notes: ["Asked Skippy"] });
+  });
+});

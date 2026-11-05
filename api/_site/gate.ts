@@ -35,7 +35,8 @@
  *                                             environment alone; api/_skippy/toolroute.ts checks it is kept and live
  *                                             (#281, api/_site/roomkeys.ts: each key opens only its own exact
  *                                             method, path and query; the handlers check the key again)
- *        POST /api/relay-hub (?view=texts|results|sort|draft|unpair), or GET ?view=skip|requests, + Authorization: Bearer
+ *        POST /api/relay-hub (?view=texts|results|sort|draft|learn|unpair|photo|photos), or GET ?view=skip|requests|photo-key,
+ *                                             + Authorization: Bearer
  *                                             <a hub token>   Relay's Mac hub
  *                                             (#535): signed by this Desk key (api/_relay/tokens.ts), checked here with
  *                                             the environment alone; api/_relay/route.ts checks it is the pairing on record
@@ -156,10 +157,17 @@ function isVoiceTool(request: Request, pathname: string, env: Env, now: number):
   return toolTokenSigned(request.headers.get(TOOL_HEADER), env.FOUNDRY_DESK_KEY ?? "", now);
 }
 
+/**
+ * The views the Mac hub may call on /api/relay-hub. The contact photos (#642: `photo`, `photos`, GET `photo-key`) were
+ * missing here until #891, so on a locked site every photo call got the gate's 401 and no photo ever reached the Desk.
+ */
+export const HUB_POSTS: readonly string[] = ["", "?view=texts", "?view=results", "?view=sort", "?view=draft", "?view=unpair", "?view=learn", "?view=photo", "?view=photos"];
+export const HUB_GETS: readonly string[] = ["?view=skip", "?view=requests", "?view=photo-key"];
+
 /** Relay's Mac hub (#535): its own calls on /api/relay-hub, with a hub token this Desk key signed. */
 function isRelayHub(request: Request, url: URL, env: Env): boolean {
   if (url.pathname !== "/api/relay-hub") return false;
-  const ok = request.method === "POST" ? ["", "?view=texts", "?view=results", "?view=sort", "?view=draft", "?view=unpair", "?view=learn"].includes(url.search) : request.method === "GET" && ["?view=skip", "?view=requests"].includes(url.search);
+  const ok = request.method === "POST" ? HUB_POSTS.includes(url.search) : request.method === "GET" && HUB_GETS.includes(url.search);
   if (!ok) return false;
   const auth = request.headers.get("authorization") ?? "";
   return auth.startsWith("Bearer ") && hubTokenPair(auth.slice(7).trim(), env.FOUNDRY_DESK_KEY ?? "") !== null;

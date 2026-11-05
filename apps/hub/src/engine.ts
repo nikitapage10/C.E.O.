@@ -1,7 +1,7 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { readRelayStatus, RELAY_STATUS_VERSION, type RelayStatus } from "@ceo/core";
 import { CAPS, readDraft, readSort, within, type Line, type StyleProfile } from "../../../api/_relay/models.ts";
-import { CARD_KEEP_MS, readTextRequest, REASONS, RID, type Reason, type RequestResult, type TextCard, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
+import { CARD_KEEP_MS, readTapback, readTextRequest, REASONS, RID, type Reason, type TapbackState, type RequestResult, type TextCard, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
 import { maskHandle, matchContacts } from "../../../api/_relay/compose.ts";
 import { requestSigned } from "../../../api/_relay/tokens.ts";
 import { BlueBubblesError, channelOf, mediaOnly, sendReason, type BlueBubbles, type Contact, type Inbound, type Message } from "./bluebubbles.ts";
@@ -10,7 +10,7 @@ import type { Logger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
 import { photoIdOf } from "../../../api/_relay/photos.ts";
 import { closingReply, onlyAcks } from "../../../api/_email/intentWords.ts";
-import { syncPhotos, type Resize } from "./photos.ts";
+import { statusOf, syncPhotos, type Resize } from "./photos.ts";
 import { settleByRule } from "./rules.ts";
 import type { Site } from "./site.ts";
 import { MAX_OLDER_ROWS, newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
@@ -33,7 +33,8 @@ import { chatPerson, handleKey, LEARN_MIN, LEARN_WINDOW_MS, sampleSent, voiceSta
  *   out    the counts (RelayStatus) and the who's-waiting list (names, gists, drafts) go to the site; no message body.
  *   act    the Desk's requests, polled from the site. A send goes out through BlueBubbles only when its signature,
  *          its 10 minutes, its single use and its thread and draft all check out here (`act`). Nothing else in the hub
- *          calls `bb.send`.
+ *          calls `bb.send`. A tapback (#888) is the same: signed, 10 minutes, once, on a line the Desk was shown, whose
+ *          message guid only this Mac knows (`lines`); only `act` calls `bb.react`, and it settles nothing.
  *   card   a new text Skippy asked for (#536, a "compose" request): the contact found here, on the Mac, by name (the
  *          choices when it fits several, never a guess), the rules run over the ask and every past text used as a
  *          style example, Blasto writes it from the placeholdered ask, and the card (name, last 4 digits or a masked
@@ -224,6 +225,13 @@ export class Engine {
    * sealed list and leaves it when the thread closes.
    */
   private shown = new Map<string, Shown[]>();
+  /**
+   * Each shown line's opaque ref to its message guid (#888), per thread: memory only, for a tapback. The Desk sees the
+   * ref; the guid never leaves the Mac, and is never stored or logged.
+   */
+  private lines = new Map<string, Map<string, string>>();
+  /** Whether BlueBubbles' Private API (with its helper) is on, for tapbacks (#888); null until checked. */
+  private tapbackState: TapbackState | null = null;
   private learning = false;
   private dirty = true;
 
@@ -537,7 +545,7 @@ export class Engine {
     // skip-listed member keeps the whole group away from the model (and drops any summary it had).
     if (since.some((m) => !m.fromMe && settleByRule({ handle: m.handle, names: this.contactOf(m.handle)?.names ?? [], text: m.text }, this.skipTerms) !== null)) {
       // Nor does its text reach the Desk (#758).
-      this.shown.delete(t.id);
+      this.forget(t.id);
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
         if (x) Object.assign(x, { summary: null, state: "settled", why: "group" });
@@ -552,7 +560,7 @@ export class Engine {
       CAPS.groupChars,
     );
     // The messages themselves, for Nikita's own eyes on the Desk (#758): real text, each with its sender's name and photo.
-    this.shown.set(t.id, this.shownOf(since.filter((m) => !m.fromMe), true));
+    this.shown.set(t.id, this.shownOf(since.filter((m) => !m.fromMe), true, t.id));
     const got = await this.d.site.sort({ group: true, lines });
     if ("paused" in got) return this.budgetStop();
     const answer = readSort(got.answer, true);
@@ -618,7 +626,7 @@ export class Engine {
     const seen = msgs.slice(earliest);
     const ruled = seen.map((m) => settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms)).find((w) => w !== null);
     if (ruled) {
-      this.shown.delete(t.id);
+      this.forget(t.id);
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
         if (x) Object.assign(x, { state: "settled", why: ruled, draft: null, gist: "", laterUntil: null });
@@ -628,7 +636,7 @@ export class Engine {
     }
     // Clean of every rule: the recent turns, both sides (#870: Nikita's own lines marked `me`), go to Nikita's sealed
     // list for the Desk (#758). Display only; the same window the rules just passed.
-    this.shown.set(t.id, this.shownOf(seen, false));
+    this.shown.set(t.id, this.shownOf(seen, false, t.id));
     // Only photos and files, no words (#870): owed, with no model call (there is nothing for one to read). The gist is
     // the hub's own words, so the thread isn't queued again every round.
     if (unanswered.every(mediaOnly)) {
@@ -736,9 +744,10 @@ export class Engine {
    * The Desk's copy of the texts (#758): the newest SHOWN_MESSAGES with words, SHOWN_CHARS in all, oldest first. In a
    * group each carries its sender's name and, when the site has it, their photo's opaque id.
    */
-  private shownOf(msgs: Message[], group: boolean): Shown[] {
+  private shownOf(msgs: Message[], group: boolean, thread: string): Shown[] {
     const photos = this.d.store.load().photos;
     const out: Shown[] = [];
+    const refs = new Map<string, string>();
     let used = 0;
     // Control and format characters (a zero-width space, a direction mark) are stripped first, as the site does, and a
     // text left empty is skipped (#803): the site refused a whole list over one such text.
@@ -752,9 +761,39 @@ export class Engine {
       used += text.length;
       const contact = group ? this.contactOf(m.handle) : undefined;
       const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
-      out.unshift({ text, at: Math.max(Date.UTC(2026, 0, 1), Math.floor(m.at)), ...(group && { from: (contact?.names[0] || "Unknown sender").slice(0, 80) }), ...(photo && photos[photo] && { photo }), ...(media && { media: true as const }), ...(!group && m.fromMe && { me: true as const }) });
+      // Their line's tapback ref (#888): opaque, from the guid under the send key; the guid stays here, in `lines`.
+      const ref = !m.fromMe && m.guid ? this.refOf(thread, m.guid) : "";
+      if (ref && !refs.has(ref)) refs.set(ref, m.guid!);
+      out.unshift({ text, at: Math.max(Date.UTC(2026, 0, 1), Math.floor(m.at)), ...(group && { from: (contact?.names[0] || "Unknown sender").slice(0, 80) }), ...(photo && photos[photo] && { photo }), ...(media && { media: true as const }), ...(!group && m.fromMe && { me: true as const }), ...(ref && refs.get(ref) === m.guid && { ref }) });
     }
+    this.lines.set(thread, refs);
     return out;
+  }
+
+  /** A line's ref (#888): 8 hex of an HMAC under the send key over the thread and the message guid. Stable across restarts. */
+  private refOf(thread: string, guid: string): string {
+    return createHmac("sha256", this.d.sendKey).update(`tapback-ref|${thread}|${guid}`).digest("hex").slice(0, 8);
+  }
+
+  /** A thread's shown lines and their refs, dropped together. */
+  private forget(id: string) {
+    this.shown.delete(id);
+    this.lines.delete(id);
+  }
+
+  /**
+   * Whether tapbacks can go (#888): BlueBubbles' Private API with its helper. Asked at start and every few minutes;
+   * an answer that can't be read leaves the last one standing.
+   */
+  async checkTapbacks(): Promise<void> {
+    const on = await this.d.bb.privateApi().catch(() => null);
+    if (on === null) return;
+    const next: TapbackState = on ? "on" : "off";
+    if (next !== this.tapbackState) {
+      this.tapbackState = next;
+      this.dirty = true;
+      this.d.log.log("tapbacks", { on: on ? 1 : 0 });
+    }
   }
 
   /**
@@ -774,7 +813,7 @@ export class Engine {
       const run = t.group ? msgs.slice(lastMine + 1).filter((m) => !m.fromMe) : msgs.slice(Math.max(0, lastMine - (CAPS.draftEarlier - 1)));
       const handle = t.chat.split(";").pop() ?? "";
       const ruled = run.some((m) => settleByRule({ handle: t.group ? m.handle : m.handle || handle, names: this.contactOf(t.group ? m.handle : m.handle || handle)?.names ?? [], text: m.text }, this.skipTerms) !== null);
-      this.shown.set(t.id, ruled ? [] : this.shownOf(run, t.group));
+      this.shown.set(t.id, ruled ? [] : this.shownOf(run, t.group, t.id));
     }
   }
 
@@ -938,15 +977,27 @@ export class Engine {
   /** Contact photos (#642, ./photos.ts): once a day and at start, only with the Mac's photo key. Counts in the log only. */
   async syncPhotos(): Promise<void> {
     if (!this.d.photoKey || !this.d.resize) return;
+    // Marked as running (#891), so `relay check` can say a sync is under way: sips over a few hundred pictures takes time.
+    this.change((s) => {
+      s.photosRun = this.d.now();
+    });
     try {
       const got = await syncPhotos({ bb: this.d.bb, site: this.d.site, key: this.d.photoKey, resize: this.d.resize }, this.d.store.load().photos);
       this.change((s) => {
         s.photos = got.photos;
         s.photosAt = this.d.now();
+        s.photosRun = null;
+        s.photosFail = got.failed ? { at: this.d.now(), status: got.status, failed: got.failed } : null;
       });
-      this.d.log.log("photos synced", { count: got.count });
+      this.d.log.log("photos synced", { count: got.count, failed: got.failed, unreadable: got.unreadable, ...(got.failed && { status: got.status }) });
     } catch (e) {
-      this.d.log.error("photos failed", e);
+      // The HTTP status (a number) says which refusal it was (#891); never the error's words.
+      const status = statusOf(e);
+      this.change((s) => {
+        s.photosRun = null;
+        s.photosFail = { at: this.d.now(), status, failed: 0 };
+      });
+      this.d.log.error("photos failed", e, { status });
     }
   }
 
@@ -1023,6 +1074,7 @@ export class Engine {
       return "done";
     }
     if (!t) return refuse("gone");
+    if (req.kind === "react") return this.react(req, t);
     if (req.kind === "send") {
       // A group (#805) takes only Nikita's own typed words (it never has a draft), and only while the Desk lists it:
       // owed, or settled with its summary. A rule match clears the summary, so a ruled group never takes a send.
@@ -1208,6 +1260,38 @@ export class Engine {
     return "done";
   }
 
+  /**
+   * A tapback (#888): one of the six, on one of their lines the Desk was shown for a listed thread, by its ref. The guid
+   * comes from this Mac's own memory (`lines`), never from the request. It goes through BlueBubbles' react route (the
+   * Private API); it settles nothing and counts as no reply. Signature, 10 minutes and single use were checked in `actOne`.
+   */
+  private async react(req: NonNullable<ReturnType<typeof readTextRequest>>, t: Thread): Promise<Outcome> {
+    const refuse = (reason: Reason) => ({ result: "refused" as const, reason: this.why(reason) });
+    const listed = t.state === "owed" || t.state === "later" || (t.group && t.state === "settled" && t.summary !== null);
+    if (!listed || req.draftAt !== 0) return refuse("not-owed");
+    const tb = readTapback(req.text);
+    if (!tb) return refuse("bad-text");
+    if (this.tapbackState === "off") return refuse("tapbacks-off");
+    const shown = this.shown.get(t.id) ?? [];
+    const guid = shown.some((m) => m.ref === tb.ref && !m.me) ? this.lines.get(t.id)?.get(tb.ref) : undefined;
+    if (!guid) return refuse("no-line");
+    try {
+      if (!(await this.d.bb.react(t.chat, guid, tb.tapback))) return { result: "failed", reason: "bb-refused" };
+    } catch (e) {
+      // The Private API off (or its helper gone) since the last check: said so, and the Desk's buttons give way.
+      if (e instanceof BlueBubblesError && e.kind === "http" && /private api|helper/i.test(e.detail)) {
+        this.tapbackState = "off";
+        this.dirty = true;
+        return refuse("tapbacks-off");
+      }
+      const reason = sendReason(e);
+      this.d.log.log("tapback failed", { reason: REASONS.indexOf(reason), status: e instanceof BlueBubblesError ? e.status : 0 });
+      return { result: "failed", reason };
+    }
+    this.d.log.log("tapback sent");
+    return "sent";
+  }
+
   /** A card's send (#536): the card's own recipient, the very text version on screen, and never twice. */
   private async sendCard(req: NonNullable<ReturnType<typeof readTextRequest>>, card: Card): Promise<Outcome> {
     const refuse = (reason: Reason) => ({ result: "refused" as const, reason: this.why(reason) });
@@ -1299,7 +1383,7 @@ export class Engine {
       s.sweptAt = now;
       // The Desk's copies (#758) go with their threads.
       const listed = new Set(s.threads.filter((t) => t.state === "owed" || t.state === "later" || (t.group && t.summary)).map((t) => t.id));
-      for (const id of [...this.shown.keys()]) if (!listed.has(id)) this.shown.delete(id);
+      for (const id of [...this.shown.keys()]) if (!listed.has(id)) this.forget(id);
     });
     this.d.log.log("sweep");
   }
@@ -1464,7 +1548,7 @@ export class Engine {
         ];
       })
       .filter((c) => c.state !== "choices" || c.choices.length > 0);
-    return { v: 1, at: now, items, cards, older: { count: Math.max(olderItems.length, s.olderCount), items: olderItems }, scannedAt: s.scannedAt === null ? null : Math.max(Date.UTC(2026, 0, 1), Math.floor(s.scannedAt)), voice: s.voice, aside };
+    return { v: 1, at: now, items, cards, older: { count: Math.max(olderItems.length, s.olderCount), items: olderItems }, scannedAt: s.scannedAt === null ? null : Math.max(Date.UTC(2026, 0, 1), Math.floor(s.scannedAt)), voice: s.voice, aside, ...(this.tapbackState && { tapbacks: this.tapbackState }) };
   }
 
   /** Sends the status and the list when something changed (or `force`). */

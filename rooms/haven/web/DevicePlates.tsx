@@ -95,7 +95,8 @@ export function WetTray({ front }: { front: 1 | 2 | 3 | null }) {
   );
 }
 
-export function WetStage({ d }: { d: DeviceReading | null }) {
+/** The wet feeder's render, with its tray from above over the corner unless `tray` is false (the pop-up gives the tray its own place, #894). */
+export function WetStage({ d, tray = true }: { d: DeviceReading | null; tray?: boolean }) {
   const id = useSvgId();
   const open = !!d && d.online && d.state === "lid open";
   return (
@@ -113,7 +114,7 @@ export function WetStage({ d }: { d: DeviceReading | null }) {
           </svg>
         )}
       </Photo>
-      {d && (
+      {d && tray && (
         <div className="hv-plTrayAt">
           <WetTray front={frontBowl(d)} />
         </div>

@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
 import { CARD_KEEP_MS, OWED_WINDOW_MS, readTextsView, type Reason, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
-import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
+import { mintPairing, REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, ChatInfo, Contact, ContactPhoto, Message, Polled } from "./bluebubbles.ts";
 import type { LearnInput } from "../../../api/_relay/voice.ts";
 import { BlueBubblesError, contactHandles, readContact, readPolled } from "./bluebubbles.ts";
@@ -15,6 +15,15 @@ import { settleByRule } from "./rules.ts";
 import { handler, listen } from "./server.ts";
 import type { Site } from "./site.ts";
 import { memoryStore } from "./store.ts";
+import { createHash } from "node:crypto";
+import { MemoryAuthStore } from "../../../api/_desk/store.ts";
+import { photoEmailKey, readPhotoIndex } from "../../../api/_relay/photos.ts";
+import { GET as routeGET, POST as routePOST, type RelayRouteDeps } from "../../../api/_relay/route.ts";
+import { MemoryRelayStore } from "../../../api/_relay/store.ts";
+import { decide } from "../../../api/_site/gate.ts";
+import { siteKeys, stateOf } from "../../../api/_site/state.ts";
+import { photoSyncLine, statusOf } from "./photos.ts";
+import { siteClient } from "./site.ts";
 
 /**
  * The Mac hub (#535, docs/RELAY-PRIVACY.md): placeholders, rules, the only send path (`act`), the logs, the local
@@ -52,6 +61,12 @@ class FakeBB implements BlueBubbles {
   }
   /** Contact pictures (#642): made-up bytes. */
   pictures: ContactPhoto[] = [];
+  async react(): Promise<boolean> {
+    return true;
+  }
+  async privateApi(): Promise<boolean | null> {
+    return true;
+  }
   async contactPhotos() {
     return this.pictures;
   }
@@ -842,7 +857,7 @@ describe("new messages, polled from BlueBubbles (#749)", () => {
 
   it("reads BlueBubbles' message query rows: a message with its chat, a reaction as no message", () => {
     const row = { guid: "g1", dateCreated: NOW, text: "hi", isFromMe: false, handle: { address: HANDLE }, chats: [{ guid: CHAT, displayName: "" }] };
-    expect(readPolled(row)).toEqual({ guid: "g1", at: NOW, inbound: { chat: CHAT, group: false, groupName: "", message: { text: "hi", fromMe: false, at: NOW, handle: HANDLE, read: false } } });
+    expect(readPolled(row)).toEqual({ guid: "g1", at: NOW, inbound: { chat: CHAT, group: false, groupName: "", message: { text: "hi", fromMe: false, at: NOW, handle: HANDLE, read: false, guid: "g1" } } });
     expect(readPolled({ ...row, dateRead: NOW + 60_000 })?.inbound?.message.read).toBe(true);
     expect(readPolled({ ...row, associatedMessageGuid: "p:0/x" })?.inbound).toBeNull();
     expect(readPolled({ ...row, guid: undefined })).toBeNull();
@@ -940,6 +955,93 @@ describe("contact photos (#642)", () => {
     h.bb.pictures = [{ handles: [HANDLE], image: new Uint8Array(10) }];
     await h.engine.syncPhotos();
     expect(h.site.uploaded).toHaveLength(0);
+  });
+});
+
+describe("contact photos: failures counted, the status kept (#891)", () => {
+  const withPhotos = (n = 3) => {
+    const h = setup();
+    const engine = new Engine({ store: h.store, bb: h.bb, site: h.site, log: h.log, config: DEFAULT_CONFIG, sendKey: KEY, now: h.now, offsetAt: UTC, photoKey: Buffer.alloc(32, 9), resize: async (img) => (img[0] === 0 ? null : tinyPng()) });
+    h.bb.pictures = Array.from({ length: n }, (_, i) => ({ handles: [`+1555555${String(1000 + i)}`], image: new Uint8Array(50).fill(i + 1) }));
+    return { ...h, engine };
+  };
+  const lines = (h: { log: { lines: string[] } }) => h.log.lines.map((l) => JSON.parse(l) as Record<string, unknown>);
+
+  it("counts photos the site refused and logs the last status as a number, with nothing about who", async () => {
+    const h = withPhotos(3);
+    h.bb.pictures.push({ handles: ["+15555559999"], image: new Uint8Array(50) });
+    let calls = 0;
+    h.site.photo = async (id: string, png: Uint8Array) => {
+      calls += 1;
+      if (calls === 2) throw Object.assign(new Error("site"), { name: "HttpError", status: 413 });
+      h.site.uploaded.push({ id, png });
+      return true;
+    };
+    await h.engine.syncPhotos();
+    const synced = lines(h).find((l) => l.kind === "photos synced")!;
+    expect(synced).toMatchObject({ count: 2, failed: 1, unreadable: 1, status: 413 });
+    expect(h.store.load().photosFail).toMatchObject({ status: 413, failed: 1 });
+    expect(h.store.load().photosRun).toBeNull();
+    expect(photoSyncLine(h.store.load(), h.now() + 120_000)).toBe("Relay: the last photo sync, 2 minutes ago, sent the list but 1 photos weren't taken (the site answered 413).");
+    expect(h.log.lines.join("\n")).not.toMatch(/5555|Riley/);
+  });
+
+  it("logs the list call's HTTP status on photos failed, and keeps it for relay check", async () => {
+    const h = withPhotos(2);
+    h.site.photos = async () => {
+      throw Object.assign(new Error("site"), { name: "HttpError", status: 401 });
+    };
+    await h.engine.syncPhotos();
+    expect(lines(h).find((l) => l.kind === "photos failed")).toMatchObject({ error: "HttpError", status: 401 });
+    expect(h.store.load().photosFail).toMatchObject({ status: 401, failed: 0 });
+    expect(photoSyncLine(h.store.load(), h.now())).toBe("Relay: the last photo sync failed 0 minutes ago (the site answered 401).");
+    // A clean sync clears it.
+    h.site.photos = async (keep: string[]) => keep;
+    await h.engine.syncPhotos();
+    expect(h.store.load().photosFail).toBeNull();
+    expect(photoSyncLine(h.store.load(), h.now())).toBeNull();
+  });
+
+  it("says a sync is running while it runs", async () => {
+    const h = withPhotos(1);
+    let seen: string | null = null;
+    h.site.photos = async (keep: string[]) => {
+      seen = photoSyncLine(h.store.load(), h.now() + 180_000);
+      return keep;
+    };
+    await h.engine.syncPhotos();
+    expect(seen).toBe("Relay: a photo sync started 3 minutes ago and hasn't finished (it shrinks each picture first).");
+    expect(h.store.load().photosRun).toBeNull();
+    expect(statusOf(Object.assign(new Error("x"), { status: 502 }))).toBe(502);
+    expect(statusOf(new TypeError("fetch failed"))).toBe(0);
+    expect(statusOf({ status: "401" })).toBe(0);
+  });
+
+  it("reaches the Desk through a locked site's gate and the real route (#891: the gate refused every photo call)", async () => {
+    const DESK = "a made-up desk key for the photo test";
+    const pairing = mintPairing(DESK)!;
+    const relay = new MemoryRelayStore(() => NOW);
+    relay.hubRec = { pairId: pairing.pairId, tokenHash: createHash("sha256").update(pairing.token).digest("hex"), pairedAt: NOW, lastSeen: null };
+    const deps: RelayRouteDeps = { desk: { deskKey: DESK, store: new MemoryAuthStore(), now: NOW }, store: relay, spend: null, claude: null, budget: 0, skipTerms: [], ping: async () => 0, now: NOW, photoKey: photoEmailKey("e".repeat(43)) };
+    const gate = { state: stateOf({ v: 1, passkey: true, locked: "2026-10-22T00:00:00.000Z", sv: "version-one" }, {}), keys: (await siteKeys({ FOUNDRY_DESK_KEY: DESK }))!, env: { FOUNDRY_DESK_KEY: DESK }, now: NOW };
+    const statuses: number[] = [];
+    const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
+      const req = new Request(input, init);
+      const d = decide(req, gate);
+      const res = !d.allow ? d.response : req.method === "GET" ? await routeGET(req, deps) : await routePOST(req, deps);
+      statuses.push(res.status);
+      return res;
+    }) as typeof fetch;
+    const site = siteClient(pairing.token, fetcher, "https://ceo.test");
+    const h = setup();
+    const engine = new Engine({ store: h.store, bb: h.bb, site, log: h.log, config: DEFAULT_CONFIG, sendKey: KEY, now: h.now, offsetAt: UTC, photoKey: Buffer.alloc(32, 9), resize: async () => tinyPng() });
+    h.bb.pictures = Array.from({ length: 217 }, (_, i) => ({ handles: [`+1555556${String(1000 + i)}`, ...(i % 3 ? [] : [`made.up.${i}@example.org`])], image: new Uint8Array(50).fill(1) }));
+    await engine.syncPhotos();
+    expect(statuses.every((s) => s === 200), `statuses ${[...new Set(statuses)].join(",")}`).toBe(true);
+    expect(lines(h).find((l) => l.kind === "photos synced")).toMatchObject({ count: 217, failed: 0 });
+    expect(Object.keys(h.store.load().photos)).toHaveLength(217);
+    expect(relay.photos.size).toBe(217);
+    expect(Object.keys(readPhotoIndex(await relay.photoIndex()).emails)).toHaveLength(73);
   });
 });
 

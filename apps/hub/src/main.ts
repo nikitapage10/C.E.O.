@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { emptyRelayStatus } from "@ceo/core";
-import { blueBubbles, checkBlueBubbles, CONTACTS_HINT, describeFailure, failure, redact, removeOldWebhooks } from "./bluebubbles.ts";
+import { blueBubbles, checkBlueBubbles, CONTACTS_HINT, TAPBACKS_HINT, describeFailure, failure, redact, removeOldWebhooks } from "./bluebubbles.ts";
 import { HOST, KEYCHAIN_ITEMS, pathsFor, PORT, readConfig, SITE } from "./config.ts";
 import { CHAT_PAGE, CHAT_PAGES, Engine, POLL_MS } from "./engine.ts";
 import { allChats, sortBacklog } from "./backlog.ts";
@@ -13,7 +13,7 @@ import { listen } from "./server.ts";
 import { siteClient } from "./site.ts";
 import { fileStore } from "./store.ts";
 import { macPhotoKey } from "../../../api/_relay/photos.ts";
-import { sipsResize } from "./photos.ts";
+import { photoSyncLine, sipsResize } from "./photos.ts";
 
 /**
  * The hub's one file on the Mac (built into relay-hub.mjs, served by the site at /relay/relay-hub.mjs). Its commands,
@@ -79,6 +79,8 @@ async function serve(): Promise<void> {
   engine.sweep();
   await engine.refreshSkipTerms(true);
   await engine.checkMessages();
+  // Tapbacks (#888) need BlueBubbles' Private API: asked now and with every closing check.
+  await engine.checkTapbacks();
   engine.setHub(engine.status()?.hub === "paused" ? "paused" : "listening");
   await engine.report(true);
   void engine.syncPhotos().then(() => engine.report(true));
@@ -118,7 +120,7 @@ async function serve(): Promise<void> {
     }
   };
   setInterval(() => void round(), 15_000);
-  setInterval(() => void engine.checkMessages().then(() => engine.recheck()).then(() => engine.report(true)), 5 * 60_000);
+  setInterval(() => void engine.checkMessages().then(() => engine.checkTapbacks()).then(() => engine.recheck()).then(() => engine.report(true)), 5 * 60_000);
   setInterval(() => void engine.syncPhotos().then(() => engine.report(true)), 24 * 60 * 60_000);
   setInterval(() => void engine.backlog().then(() => engine.report(true)), 24 * 60 * 60_000);
   setInterval(() => {
@@ -186,11 +188,16 @@ async function main(argv: string[]): Promise<void> {
       const bb = blueBubbles(password);
       const contacts = await bb.contacts().catch(() => null);
       if (contacts) out(contacts.length ? `Relay: BlueBubbles can read ${contacts.length} contacts.` : `Relay: ${CONTACTS_HINT}`);
+      // Tapbacks (#888): BlueBubbles' Private API with its helper in Messages. A state only.
+      const privateApi = await bb.privateApi();
+      out(privateApi ? "Relay: BlueBubbles' Private API is on, so tapbacks can go from the Desk." : privateApi === false ? `Relay: ${TAPBACKS_HINT}` : "Relay: BlueBubbles didn't say whether its Private API is on.");
       const state = fileStore(pathsFor().state).load();
       // Contact photos (#870): how many BlueBubbles gives, and how many the site holds. Counts only.
       const photos = await bb.contactPhotos().catch(() => null);
       const synced = Object.keys(state.photos).length;
       out(photos ? `Relay: ${photos.length} contacts have a photo, ${synced} synced to the Desk.` : `Relay: BlueBubbles didn't give the contact photos in time; ${synced} synced to the Desk.`);
+      const sync = photoSyncLine(state, Date.now());
+      if (sync) out(sync);
       // The chats (#870): how many BlueBubbles returned, how many its last messages make owed, and how many the hub lists.
       const chats = await allChats(bb, CHAT_PAGE, CHAT_PAGES).catch(() => null);
       const owed = state.threads.filter((t) => t.state === "owed" || t.state === "later").length;

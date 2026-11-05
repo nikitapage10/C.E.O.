@@ -1657,6 +1657,14 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       },
     },
   });
+  // A hidden tab gets no frames, but the session goes on (#898): Nikita can switch windows and still hear the
+  // Senate. The browser runs this at most once a second in the background; it moves only the session's clock.
+  let bgAt = performance.now();
+  const bg = window.setInterval(() => {
+    const now = performance.now();
+    if (document.visibilityState === "hidden" && visible) clock.t += Math.min(2, Math.max(0, (now - bgAt) / 1000));
+    bgAt = now;
+  }, 1000);
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
     if (!visible || document.visibilityState === "hidden") {
@@ -1845,6 +1853,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       token++;
       voice?.stop();
       cancelAnimationFrame(raf);
+      window.clearInterval(bg);
       pan.dispose();
       window.clearTimeout(chairTimer);
       ro?.disconnect();

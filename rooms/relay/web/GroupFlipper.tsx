@@ -3,6 +3,7 @@ import { Private } from "@ceo/engine/web/Private.tsx";
 import { useTexts, type TextItem } from "../data/texts.ts";
 import { flip, GROUP_REPLY_MAX, replyOf, swipeOf } from "../data/groups.ts";
 import { Said } from "./Said.tsx";
+import { EmojiPicker, Tapbacks } from "./Tapbacks.tsx";
 import { undoable, UNDO_MS } from "../data/thread.ts";
 import "./groups.css";
 
@@ -35,6 +36,7 @@ export function GroupFlipper({ groups, hidden, unlocked, open }: { groups: TextI
   const [tick, setTick] = useState(() => Date.now());
   const undo = useRef(undoable());
   const scroller = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
   const down = useRef<{ x: number; y: number } | null>(null);
 
   const found = groups.findIndex((g) => g.id === cur);
@@ -155,6 +157,7 @@ export function GroupFlipper({ groups, hidden, unlocked, open }: { groups: TextI
           </p>
         )}
         {g.messages?.length ? <Said messages={g.messages} hidden={hidden} /> : <p className="cx-quiet">Only the summary for this one.</p>}
+        <Tapbacks thread={g.id} messages={g.messages} hidden={hidden} />
       </div>
       <form
         className="cx-own cx-gf-reply"
@@ -168,6 +171,7 @@ export function GroupFlipper({ groups, hidden, unlocked, open }: { groups: TextI
         </label>
         <textarea
           id={`cx-gf-${g.id}`}
+          ref={box}
           value={typed[g.id] ?? ""}
           onChange={(e) => {
             const v = e.target.value;
@@ -188,6 +192,7 @@ export function GroupFlipper({ groups, hidden, unlocked, open }: { groups: TextI
               Send as typed
             </button>
           )}
+          <EmojiPicker box={box} value={typed[g.id] ?? ""} set={(v) => setTyped((t) => ({ ...t, [g.id]: v }))} />
           <span className="cx-gf-status" role="status" aria-live="polite">
             {sending ? (
               <>

@@ -190,6 +190,48 @@ export interface ShownText {
   media?: true;
   /** Nikita's own line (#870), in a one-to-one thread's recent turns: no `from`. */
   me?: true;
+  /**
+   * The line's opaque id for a tapback (#888): 8 hex the hub makes from the message on the Mac, never its guid or text.
+   * Only on their lines (never `me`); the Mac alone maps it back to the message. Left out by a hub from before #888.
+   */
+  ref?: string;
+}
+
+/* ── Tapbacks (#888) ── */
+
+/**
+ * iMessage's six tapbacks, by BlueBubbles' own names for them (`/api/v1/message/react`, MessageInterface.possibleReactions):
+ * heart, thumbs up, thumbs down, haha, !! and ?. A tapback is a send like any other (Nikita's tap, signed, single-use,
+ * 10 minutes), aimed at one of their shown lines by its `ref`. It never settles the thread.
+ */
+export const TAPBACKS = ["love", "like", "dislike", "laugh", "emphasize", "question"] as const;
+export type Tapback = (typeof TAPBACKS)[number];
+/** Each tapback as the Desk draws it, and its name for a screen reader. */
+export const TAPBACK_FACE: Record<Tapback, { icon: string; label: string }> = {
+  love: { icon: "\u2764\uFE0F", label: "Heart" },
+  like: { icon: "\u{1F44D}", label: "Thumbs up" },
+  dislike: { icon: "\u{1F44E}", label: "Thumbs down" },
+  laugh: { icon: "\u{1F602}", label: "Haha" },
+  emphasize: { icon: "\u203C\uFE0F", label: "Exclamation" },
+  question: { icon: "\u2753", label: "Question" },
+};
+/**
+ * What to do when the Mac says tapbacks are off (#888): BlueBubbles' Private API (its helper inside Messages) does them.
+ * The Desk and `relay check` on the Mac say the same words.
+ */
+export const TAPBACKS_HINT =
+  "Tapbacks need BlueBubbles' Private API. On the Mac, open BlueBubbles > Settings > Private API, turn it on and follow its setup (it asks to turn off System Integrity Protection), then restart BlueBubbles. Texts send either way.";
+/** A line's ref: 8 hex. */
+export const LINE_REF = /^[0-9a-f]{8}$/;
+/** Whether tapbacks can go from the Mac (#888): BlueBubbles' Private API and its helper are on, or not. A state only. */
+export type TapbackState = "on" | "off";
+
+/** A tapback request's text: which tapback, on which line ("love:1a2b3c4d"). Never the message's words. */
+export const tapbackText = (t: Tapback, ref: string) => `${t}:${ref}`;
+/** A tapback request's text read back; null for anything else. */
+export function readTapback(text: string): { tapback: Tapback; ref: string } | null {
+  const m = /^([a-z]+):([0-9a-f]{8})$/.exec(text);
+  return m && (TAPBACKS as readonly string[]).includes(m[1]!) ? { tapback: m[1] as Tapback, ref: m[2]! } : null;
 }
 
 export const MAX_SHOWN = 5;
@@ -203,11 +245,13 @@ export function readShown(v: unknown): ShownText[] | null {
   const out: ShownText[] = [];
   let used = 0;
   for (const m of v as Record<string, unknown>[]) {
-    if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo", "media", "me"])) return null;
+    if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo", "media", "me", "ref"])) return null;
     const text = str(m.text, SHOWN_CHARS);
     if (text === null || !isTime(m.at)) return null;
     if (m.media !== undefined && (m.media !== true || text !== MEDIA_TEXT)) return null;
     if (m.me !== undefined && (m.me !== true || m.from !== undefined || m.photo !== undefined)) return null;
+    // A tapback's line id (#888): 8 hex, never on Nikita's own line, once per list.
+    if (m.ref !== undefined && (typeof m.ref !== "string" || !LINE_REF.test(m.ref) || m.me !== undefined || out.some((x) => x.ref === m.ref))) return null;
     // A text that is only invisible characters (a zero-width space, a lone joiner) is left out, not the whole list
     // (#803: one such text refused the hub's every push, and the Desk kept an old list without the texts).
     if (!text.trim()) continue;
@@ -219,7 +263,7 @@ export function readShown(v: unknown): ShownText[] | null {
       if (!from?.trim() || from.includes("\n")) return null;
     }
     if (m.photo !== undefined && (typeof m.photo !== "string" || !/^[0-9a-f]{32}$/.test(m.photo))) return null;
-    out.push({ text, at: m.at, ...(from !== null && { from }), ...(typeof m.photo === "string" && { photo: m.photo }), ...(m.media === true && { media: true as const }), ...(m.me === true && { me: true as const }) });
+    out.push({ text, at: m.at, ...(from !== null && { from }), ...(typeof m.photo === "string" && { photo: m.photo }), ...(m.media === true && { media: true as const }), ...(m.me === true && { me: true as const }), ...(typeof m.ref === "string" && { ref: m.ref }) });
   }
   return out;
 }
@@ -253,6 +297,8 @@ export interface TextsView {
   voice?: Voice | null;
   /** One-to-one threads Relay set aside within the owed window (#870), newest first; left out by an older hub. */
   aside?: AsideItem[];
+  /** Whether tapbacks can go from the Mac (#888): BlueBubbles' Private API on or off. Left out until the hub has checked. */
+  tapbacks?: TapbackState;
 }
 
 /* ── New texts Skippy asks for (#536) ── */
@@ -305,7 +351,7 @@ export interface TextCard {
  * "rescan" and "learn" (#758) ask the hub to read every chat again, or to learn Nikita's voice from their sent texts:
  * chores, not about one thread, so they name a fresh random id and carry no text. Neither can send.
  */
-export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back"] as const;
+export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back", "react"] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** A request's state as the Desk sees it. "expired": never taken (the Mac was offline); Resend makes a new one. */
@@ -456,7 +502,7 @@ export function itemLive(i: Pick<TextItem, "state" | "since" | "last">, now: num
 /** The list, checked whole: one bad item refuses it (a hub that sends something extra has a bug). */
 export function readTextsView(v: unknown, now: number): TextsView | null {
   const o = v as Record<string, unknown> | null;
-  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["v", "at", "items", "cards", "older", "scannedAt", "voice", "aside"]) || o.v !== 1 || !isTime(o.at) || !Array.isArray(o.items) || o.items.length > MAX_ITEMS) return null;
+  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["v", "at", "items", "cards", "older", "scannedAt", "voice", "aside", "tapbacks"]) || o.v !== 1 || !isTime(o.at) || !Array.isArray(o.items) || o.items.length > MAX_ITEMS) return null;
   const items = o.items.map(readTextItem);
   if (items.some((i) => i === null)) return null;
   let cards: TextCard[] = [];
@@ -479,8 +525,9 @@ export function readTextsView(v: unknown, now: number): TextsView | null {
     if (got.some((a) => a === null)) return null;
     aside = (got as AsideItem[]).filter((a) => now - a.since < OWED_WINDOW_MS);
   }
+  if (o.tapbacks !== undefined && o.tapbacks !== "on" && o.tapbacks !== "off") return null;
   const kept = freshItems((items as TextItem[]).filter((i) => itemLive(i, now)), now);
-  return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice, aside };
+  return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice, aside, ...((o.tapbacks === "on" || o.tapbacks === "off") && { tapbacks: o.tapbacks }) };
 }
 
 const REQ_KEYS = ["rid", "kind", "thread", "draftAt", "text", "who", "created", "until", "sig"] as const;
@@ -496,6 +543,8 @@ export function readTextRequest(v: unknown): TextRequest | null {
   if (text === null || ((o.kind === "send" || o.kind === "restyle" || o.kind === "compose") && !text.trim())) return null;
   if ((o.kind === "later" || o.kind === "done" || o.kind === "rescan" || o.kind === "learn" || o.kind === "back") && text !== "") return null;
   if (o.kind === "back" && o.draftAt !== 0) return null;
+  // A tapback (#888): which one and on which line, nothing else; bound to no draft.
+  if (o.kind === "react" && (o.draftAt !== 0 || !readTapback(text))) return null;
   if ((o.kind === "rescan" || o.kind === "learn") && o.draftAt !== 0) return null;
   // Only a compose names who, and it must.
   if (o.kind === "compose") {
@@ -536,8 +585,10 @@ export type RequestResult = (typeof RESULTS)[number];
  *   unreadable     the hub couldn't read the request (a hub older than the site)
  *   hub-error      the hub hit an error while acting on it
  *   no-answer      the Mac took it but never reported back (site side, 5 minutes after it ended)
+ *   tapbacks-off   a tapback (#888), and BlueBubbles' Private API (or its helper) is off on the Mac
+ *   no-line        a tapback's line isn't among the Mac's shown lines any more (the list moved on, or the hub restarted)
  */
-export const REASONS = ["signature", "expired", "replay", "paused", "gone", "not-owed", "new-message", "changed", "answered", "messages-down", "bad-text", "bb-timeout", "bb-down", "bb-auth", "mac-permission", "bb-refused", "model", "unreadable", "hub-error", "no-answer"] as const;
+export const REASONS = ["signature", "expired", "replay", "paused", "gone", "not-owed", "new-message", "changed", "answered", "messages-down", "bad-text", "bb-timeout", "bb-down", "bb-auth", "mac-permission", "bb-refused", "model", "unreadable", "hub-error", "no-answer", "tapbacks-off", "no-line"] as const;
 export type Reason = (typeof REASONS)[number];
 
 export const readReason = (v: unknown): Reason | undefined => ((REASONS as readonly string[]).includes(v as string) ? (v as Reason) : undefined);
@@ -564,6 +615,8 @@ export const REASON_WORDS: Record<Reason, string> = {
   unreadable: "the hub on the Mac is out of date. Run the installer again",
   "hub-error": "the hub hit an error. It may have sent: check Messages before you resend",
   "no-answer": "the Mac took it but never answered. It may have sent: check Messages before you resend",
+  "tapbacks-off": "tapbacks need BlueBubbles' Private API. Turn it on in BlueBubbles' settings on the Mac",
+  "no-line": "that message isn't on the Mac's list any more. Wait for the list to refresh, then try again",
 };
 
 /** The reasons another try can fix; the rest need a look first (a new message, a reply already sent). */

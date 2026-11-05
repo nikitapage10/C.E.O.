@@ -8,7 +8,7 @@ import { CEILING, LEARN_CEILING, MemorySpendStore, relayBudget, SPEND_PATH, type
 import { cleanTrait, LEARN_SYSTEM, learnRequest, readLearn, readLearnInput, readVoice } from "./voice.ts";
 import { COMPOSE_SYSTEM, composeRequest, DRAFT_MODEL, draftRequest, readComposeInput, readDraft, readSort, SORT_MODEL, sortRequest, type ClaudeBody } from "./models.ts";
 import { askRuled, cleanWho, maskHandle, matchContacts } from "./compose.ts";
-import { GET, HUB_PATH, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, resendable, shownReason, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
+import { GET, HUB_GET_VIEWS, HUB_PATH, HUB_POST_VIEWS, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, resendable, shownReason, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { cleanPng, emailPhotoHash, macPhotoKey, normalHandle, photoEmailKey, photoIdOf, PHOTO_MAX_BYTES, readPhotoList } from "./photos.ts";
 import { BlobRelayStore, MemoryRelayStore, PRIVATE_PATH, readPrivate, relaySealKey } from "./store.ts";
@@ -805,6 +805,26 @@ describe("the site gate lets the hub through on its token alone", () => {
     expect(decide(at("/api/relay-hub?view=unpair", "POST", token), c)).toEqual({ allow: true, why: "relay-hub" });
   });
 
+  it("opens the contact photo calls (#891: shut at the gate, every photo got a 401 and none reached the Desk)", async () => {
+    const c = await gateCtx();
+    const { token } = mintPairing(DESK)!;
+    for (const [path, method] of [["/api/relay-hub?view=photo", "POST"], ["/api/relay-hub?view=photos", "POST"], ["/api/relay-hub?view=photo-key", "GET"]] as const) {
+      expect(decide(at(path, method, token), c), `${method} ${path}`).toEqual({ allow: true, why: "relay-hub" });
+      expect(decide(at(path, method), c).allow, `${method} ${path} without a token`).toBe(false);
+      expect(decide(at(path, method, mintPairing("another desk key, also made up")!.token), c).allow, `${method} ${path} another key`).toBe(false);
+    }
+    for (const [path, method] of [["/api/relay-hub?view=photo", "GET"], ["/api/relay-hub?view=photos", "GET"], ["/api/relay-hub?view=photo-key", "POST"], ["/api/relay-hub?view=photos&x=1", "POST"]] as const) {
+      expect(decide(at(path, method, token), c).allow, `${method} ${path}`).toBe(false);
+    }
+  });
+
+  it("opens every view the route serves the hub, so the gate and the route can't drift apart again", async () => {
+    const c = await gateCtx();
+    const { token } = mintPairing(DESK)!;
+    for (const v of HUB_POST_VIEWS) expect(decide(at(`/api/relay-hub?view=${v}`, "POST", token), c), `POST ${v}`).toEqual({ allow: true, why: "relay-hub" });
+    for (const v of HUB_GET_VIEWS) expect(decide(at(`/api/relay-hub?view=${v}`, "GET", token), c), `GET ${v}`).toEqual({ allow: true, why: "relay-hub" });
+  });
+
   it("opens the public counts, GET /api/relay?view=status, and nothing else of /api/relay", async () => {
     const c = await gateCtx();
     expect(decide(at("/api/relay?view=status", "GET"), c)).toEqual({ allow: true, why: "relay-status" });
@@ -1074,5 +1094,77 @@ describe("the backlog's Rescan and the learn chore (#758)", () => {
     expect((await d.hub("POST", "?view=texts", { ...view(), older: { count: 1, items: [{ ...older.items[0], name: "Sam", phone: "+15555550123" }] } })).status).toBe(422);
     expect(readVoice({ ...voice, traits: ['"hey"'] })?.traits).toEqual([]);
     expect(readTextsView({ ...view(), older: { count: 0, items: older.items } }, NOW)).toBeNull();
+  });
+});
+
+describe("tapbacks (#888): a send request on one of their lines, by its opaque ref", () => {
+  const REF_A = "a1a1a1a1";
+  const REF_B = "b2b2b2b2";
+  const ME = "c3c3c3c3";
+  const lines = () => [
+    { text: "Is the plan still on?", at: NOW - 3 * 60_000, ref: REF_A },
+    { text: "Yes, see you there", at: NOW - 2 * 60_000, me: true as const },
+    { text: "Great, bringing snacks", at: NOW - 60_000, ref: REF_B },
+  ];
+  const withLines = (tapbacks?: "on" | "off"): TextsView => ({ ...view([item({ messages: lines() })]), ...(tapbacks && { tapbacks }) });
+  const live = async (tapbacks: "on" | "off" = "on") => {
+    const d = await ready();
+    expect((await d.hub("POST", "?view=texts", withLines(tapbacks))).status).toBe(200);
+    return d;
+  };
+  const react = (d: Desk, over: Record<string, unknown> = {}) => d.post({ action: "react", thread: THREAD, ref: REF_B, tapback: "love", ...over });
+
+  it("goes round trip: unlock first, one signed single-use request naming only the tapback and the ref", async () => {
+    const d = await live();
+    expect((await react(d)).status).toBe(401);
+    await d.unlock();
+    const res = await react(d);
+    expect(res.status).toBe(200);
+    const { rid, until } = (await res.json()) as { rid: string; until: number };
+    expect(until).toBe(NOW + REQUEST_MS);
+    const [req, ...more] = await d.requests();
+    expect(more).toEqual([]);
+    expect(req).toMatchObject({ rid, kind: "react", thread: THREAD, draftAt: 0, text: `love:${REF_B}` });
+    expect(readTextRequest(req)).not.toBeNull();
+    const key = Buffer.from(d.hubSendKey, "base64url");
+    expect(requestSigned(key, req!, req!.sig)).toBe(true);
+    expect(requestSigned(key, { ...req!, text: `laugh:${REF_B}` }, req!.sig)).toBe(false);
+    expect(requestSigned(key, { ...req!, text: `love:${REF_A}` }, req!.sig)).toBe(false);
+    // Handed out once: a second poll never gets it again.
+    expect(await d.requests()).toEqual([]);
+    const listed = (await d.listed()) as Awaited<ReturnType<Desk["listed"]>> & { requests: { text: string }[]; tapbacks: string | null };
+    expect(listed.requests[0]).toMatchObject({ kind: "react", text: `love:${REF_B}`, state: "taken" });
+    expect(listed.tapbacks).toBe("on");
+  });
+
+  it("goes only on their shown lines, one of the six, one at a time per thread", async () => {
+    const d = await live();
+    await d.unlock();
+    expect(((await (await react(d, { ref: ME })).json()) as { error: string }).error).toBe("no-line");
+    expect(((await (await react(d, { ref: "zzzz" })).json()) as { error: string }).error).toBe("no-line");
+    expect((await react(d, { tapback: "wow" })).status).toBe(400);
+    expect((await react(d, { thread: "fedcba9876543210" })).status).toBe(409);
+    expect((await react(d, { ref: REF_A, tapback: "question" })).status).toBe(200);
+    expect(((await (await react(d)).json()) as { error: string }).error).toBe("busy");
+  });
+
+  it("isn't made while the Mac says the Private API is off, and the Desk is told so", async () => {
+    const d = await live("off");
+    await d.unlock();
+    expect(((await (await react(d)).json()) as { error: string }).error).toBe("tapbacks-off");
+    expect(await d.requests()).toEqual([]);
+    expect(((await d.listed()) as unknown as { tapbacks: string }).tapbacks).toBe("off");
+  });
+
+  it("reads back by hand: a ref only on their lines, once each; a tapback's text only the tapback and the ref", () => {
+    expect(readTextsView(withLines("on"), NOW)?.items[0]?.messages?.map((m) => m.ref)).toEqual([REF_A, undefined, REF_B]);
+    expect(readTextsView({ ...withLines(), items: [item({ messages: [{ text: "Mine", at: NOW - 1, me: true, ref: ME } as never] })] }, NOW)).toBeNull();
+    expect(readTextsView({ ...withLines(), items: [item({ messages: [{ text: "One", at: NOW - 2, ref: REF_A }, { text: "Two", at: NOW - 1, ref: REF_A }] })] }, NOW)).toBeNull();
+    expect(readTextsView({ ...withLines(), tapbacks: "maybe" as never }, NOW)).toBeNull();
+    const base = { rid: "e".repeat(24), kind: "react", thread: THREAD, draftAt: 0, created: NOW, until: NOW + REQUEST_MS, sig: "x" };
+    expect(readTextRequest({ ...base, text: `love:${REF_A}` })).not.toBeNull();
+    expect(readTextRequest({ ...base, text: "Great, bringing snacks" })).toBeNull();
+    expect(readTextRequest({ ...base, text: `wow:${REF_A}` })).toBeNull();
+    expect(readTextRequest({ ...base, text: `love:${REF_A}`, draftAt: DRAFT_AT })).toBeNull();
   });
 });

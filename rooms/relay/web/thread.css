@@ -1491,3 +1491,122 @@
     transition: none;
   }
 }
+
+/* #888: tapbacks under their words, small and quiet; the message stays the hero */
+.cx-tb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 12px;
+  font: 400 12px/1.4 var(--cx-sans);
+  color: var(--cx-mute);
+}
+.cx-tbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.cx-tbwhich {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.cx .cx-tbstep {
+  color: var(--cx-mute);
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 1;
+}
+.cx .cx-tbstep:disabled {
+  opacity: 0.3;
+}
+.cx-tbset {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px var(--cx-line);
+}
+.cx .cx-tbbtn {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.72;
+  transition:
+    opacity 0.15s var(--cx-e),
+    background-color 0.15s var(--cx-e),
+    transform 0.15s var(--cx-e);
+}
+.cx .cx-tbbtn:hover:not(:disabled),
+.cx .cx-tbbtn:focus-visible {
+  opacity: 1;
+  background: rgba(134, 182, 255, 0.12);
+  transform: scale(1.08);
+}
+.cx .cx-tbbtn:disabled {
+  opacity: 0.35;
+}
+.cx .cx-tbbtn[data-sent] {
+  opacity: 1;
+  background: rgba(10, 124, 255, 0.28);
+}
+.cx-tbstate {
+  color: var(--cx-soft);
+}
+.cx-tbnote {
+  margin: 12px 0 0;
+  font: 400 12px/1.45 var(--cx-sans);
+  color: var(--cx-faint);
+  max-width: 520px;
+}
+
+/* #888: the composer's emoji, a small button and a compact grid above it */
+.cx-emo {
+  position: relative;
+  display: inline-flex;
+}
+.cx .cx-emobtn {
+  font-size: 15px !important;
+  opacity: 0.8;
+}
+.cx-emogrid {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(9, 30px);
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #0d1020;
+  box-shadow:
+    inset 0 0 0 1px var(--cx-line),
+    0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.cx .cx-emogrid button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 17px;
+  line-height: 1;
+}
+.cx .cx-emogrid button:hover,
+.cx .cx-emogrid button:focus-visible {
+  background: rgba(134, 182, 255, 0.14);
+}
+@media (max-width: 420px) {
+  .cx-emogrid {
+    grid-template-columns: repeat(6, 30px);
+  }
+}

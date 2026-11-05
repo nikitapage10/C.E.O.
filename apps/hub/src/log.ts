@@ -26,6 +26,10 @@ export const LOG_KINDS = [
   "draft refused",
   "sent",
   "send failed",
+  // A tapback (#888): sent, failed (with the reason's number), or the Private API's state changed (on: 1 or 0).
+  "tapback sent",
+  "tapback failed",
+  "tapbacks",
   // macOS kept BlueBubbles from controlling Messages (#767): `relay status` looks for this line.
   "mac permission",
   "later",

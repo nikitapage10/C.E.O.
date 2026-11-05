@@ -49,21 +49,54 @@ export interface PhotoSyncDeps {
   resize: Resize;
 }
 
-/** One sync. Returns what the state's `photos` should be now (the ids the site holds, with the hash sent), and a count. */
-export async function syncPhotos(d: PhotoSyncDeps, sent: RelayState["photos"]): Promise<{ photos: RelayState["photos"]; count: number }> {
+/** The HTTP status a site call failed with (./site.ts, httpError), or 0 when it wasn't an HTTP answer. A number only. */
+export function statusOf(e: unknown): number {
+  const s = e && typeof e === "object" && "status" in e ? (e as { status: unknown }).status : 0;
+  return typeof s === "number" && Number.isInteger(s) && s >= 100 && s <= 599 ? s : 0;
+}
+
+export interface PhotoSyncResult {
+  /** What the state's `photos` should be now: the ids the site holds, with the hash sent. */
+  photos: RelayState["photos"];
+  /** How many the site holds. */
+  count: number;
+  /** Photos the site didn't take (#891), and the HTTP status of the last such refusal (0: none, or not HTTP). */
+  failed: number;
+  status: number;
+  /** Pictures that couldn't be shrunk or cleaned (left out, never sent). */
+  unreadable: number;
+}
+
+/** One sync. Throws when the closing list call fails (its HttpError carries the status); a photo's failure is counted. */
+export async function syncPhotos(d: PhotoSyncDeps, sent: RelayState["photos"]): Promise<PhotoSyncResult> {
   const contacts = await d.bb.contactPhotos();
   const emailKey = await d.site.photoKey();
   const next: RelayState["photos"] = {};
   const emails: [string, string][] = [];
+  let failed = 0;
+  let status = 0;
+  let unreadable = 0;
   for (const c of contacts) {
     if (Object.keys(next).length >= MAX_PHOTOS) break;
     const id = photoIdOf(d.key, c.handles);
     if (!id || next[id]) continue;
     const small = await d.resize(c.image);
     const png = small ? cleanPng(small) : null;
-    if (!png) continue;
+    if (!png) {
+      unreadable += 1;
+      continue;
+    }
     const hash = sha256(png);
-    if (sent[id] !== hash && !(await d.site.photo(id, png).catch(() => false))) continue;
+    if (sent[id] !== hash) {
+      const ok = await d.site.photo(id, png).catch((e: unknown) => {
+        status = statusOf(e) || status;
+        return false;
+      });
+      if (!ok) {
+        failed += 1;
+        continue;
+      }
+    }
     next[id] = hash;
     if (emailKey)
       for (const h of c.handles) {
@@ -74,5 +107,19 @@ export async function syncPhotos(d: PhotoSyncDeps, sent: RelayState["photos"]): 
   const have = new Set(await d.site.photos(Object.keys(next), emails));
   const photos: RelayState["photos"] = {};
   for (const [id, hash] of Object.entries(next)) if (have.has(id)) photos[id] = hash;
-  return { photos, count: Object.keys(photos).length };
+  return { photos, count: Object.keys(photos).length, failed, status, unreadable };
+}
+
+const minutesAgo = (at: number, now: number) => Math.max(0, Math.round((now - at) / 60_000));
+
+/**
+ * `relay check`'s word on the photo sync (#891): running, or what went wrong last time. Times, counts and an HTTP status
+ * only. Null when the last sync was clean, or none has run.
+ */
+export function photoSyncLine(state: Pick<RelayState, "photosAt" | "photosRun" | "photosFail">, now: number): string | null {
+  if (state.photosRun !== null && state.photosRun >= (state.photosAt ?? 0)) return `Relay: a photo sync started ${minutesAgo(state.photosRun, now)} minutes ago and hasn't finished (it shrinks each picture first).`;
+  const f = state.photosFail;
+  if (!f) return null;
+  const why = f.status ? `the site answered ${f.status}` : "the site didn't answer";
+  return f.failed ? `Relay: the last photo sync, ${minutesAgo(f.at, now)} minutes ago, sent the list but ${f.failed} photos weren't taken (${why}).` : `Relay: the last photo sync failed ${minutesAgo(f.at, now)} minutes ago (${why}).`;
 }

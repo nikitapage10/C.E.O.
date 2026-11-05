@@ -372,3 +372,89 @@ describe("Only King Soopers in the store picker", () => {
     expect(rows.map((r) => r.id)).toEqual(["62000001"]);
   });
 });
+
+describe("The cart's quantity check (#761)", () => {
+  const sized = (id: string, description: string, regular: number, size: string) => {
+    const p = kp(id, id, description, regular);
+    return { ...p, items: [{ ...p.items[0]!, size }] };
+  };
+  PRODUCTS.garlic = [sized("0002222000001", "Fresh Garlic", 0.79, "1 ct"), sized("0002222000002", "Garlic 3 Count", 1.99, "3 ct")];
+  PRODUCTS.panko = [sized("0002222000003", "Panko Snack Cup", 1.29, "1 oz"), sized("0002222000004", "Panko Bread Crumbs", 2.49, "8 oz")];
+
+  async function matchedSetup(over: Partial<KrogerDeps> = {}) {
+    const s = await setup(over);
+    await new KitchenList(s.blob).add(["garlic 30 cloves", "panko, 1 cup"], NOW, "meals");
+    await s.vault.write("kroger", { refresh: "test-refresh-kroger", connectedAt: NOW });
+    const call = async (body: unknown) => (await krogerPost(post(body, { Cookie: s.cookie }), s.deps).then((r) => r.json())) as Got & { by?: string; usd?: number; cleared?: number };
+    await call({ action: "set-zip", zip: ZIP });
+    await call({ action: "find-stores" });
+    await call({ action: "pick-store", id: "62000001" });
+    const matched = await call({ action: "match" });
+    return { ...s, call, matched };
+  }
+  const lineOf = (v: Got, key: string) => v.lines.find((l) => l.key === key)!;
+
+  it("gives each match the rules' count at once, then the model's review for the lot, and sends those quantities", async () => {
+    const asked: string[] = [];
+    const spent: number[] = [];
+    const { call, matched, f, lines } = await matchedSetup({
+      review: {
+        ask: async (_system, user) => {
+          asked.push(user);
+          return {
+            answer: {
+              items: [
+                { i: 0, qty: 3, reason: "1 head ≈ 10 cloves", verdict: "covered", better: -1 },
+                { i: 1, qty: 1, reason: "a snack cup isn't panko", verdict: "wrong", better: 0 },
+              ],
+            },
+            usage: { input_tokens: 600, output_tokens: 120 },
+          };
+        },
+        budget: { fits: async () => true, add: async (_u, usd) => void spent.push(usd) },
+      },
+    });
+    // Matched: the rules already say three heads for 30 cloves.
+    expect(lineOf(matched, "garlic 30 clov")).toMatchObject({ qty: 3, pick: { review: { by: "rules", verdict: "covered" } } });
+    expect(matched.total).toBe(79 * 3 + 129);
+
+    const reviewed = await call({ action: "review" });
+    expect(reviewed).toMatchObject({ ok: true, by: "ai" });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain("garlic 30 cloves");
+    expect(asked[0]).not.toMatch(/0002222|62000001|price|Test Town/);
+    expect(spent[0]).toBeCloseTo(0.00012, 6);
+    expect(lineOf(reviewed, "panko, 1 cup")).toMatchObject({ qty: 1, pick: { review: { verdict: "wrong", better: "0002222000004", by: "ai" } } });
+
+    // His own count over the check's; then the send adds those quantities.
+    expect((await call({ action: "qty", key: "garlic 30 clov", qty: 0 })).error).toBe("bad-request");
+    const four = await call({ action: "qty", key: "garlic 30 clov", qty: 4 });
+    expect(lineOf(four, "garlic 30 clov").qty).toBe(4);
+    const sent = await call({ action: "send", picks: four.lines.map((l) => ({ key: l.key, productId: l.pick!.product!.productId, qty: l.qty })) });
+    expect(sent).toMatchObject({ ok: true, items: 2 });
+    const put = f.calls.find((c) => c.init.method === "PUT")!;
+    expect(JSON.parse(String(put.init.body))).toEqual({ items: [{ upc: "0002222000001", quantity: 4 }, { upc: "0002222000003", quantity: 1 }] });
+    // The log has counts and the cost, never an item.
+    expect(lines.join("\n")).toMatch(/reviewed 2 picks by ai, 1 flagged, \$0\.000120/);
+    expect(lines.join("\n")).not.toMatch(/garlic|panko/i);
+
+    // Swapping to the better pick checks the new product at once, and drops his old count.
+    const swapped = await call({ action: "choose", key: "panko, 1 cup", productId: "0002222000004" });
+    expect(lineOf(swapped, "panko, 1 cup")).toMatchObject({ qty: 1, pick: { review: { productId: "0002222000004", by: "rules" } } });
+  });
+
+  it("uses the rules when the model isn't there", async () => {
+    const { call } = await matchedSetup();
+    const r = await call({ action: "review" });
+    expect(r).toMatchObject({ ok: true, by: "rules", usd: 0 });
+    expect(lineOf(r, "garlic 30 clov").qty).toBe(3);
+  });
+
+  it("Clear list empties the list and every match", async () => {
+    const { call, blob } = await matchedSetup();
+    const r = await call({ action: "clear-list" });
+    expect(r).toMatchObject({ ok: true, cleared: 2, lines: [] });
+    expect(await new KitchenList(blob).items(NOW)).toEqual([]);
+    expect((await readKroger(blob)).picks).toEqual({});
+  });
+});

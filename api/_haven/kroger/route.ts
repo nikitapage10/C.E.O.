@@ -24,9 +24,15 @@
  *          { action: "skip", key, skip }                 leaves an item out of the send, or puts it back
  *          { action: "connect" } → { url }               Connect King Soopers: Kroger's sign-in, and a state cookie
  *          { action: "disconnect" }                      forgets the cart grant
- *          { action: "send", picks: [{ key, productId }] }   adds exactly these picks to the cart, each still the
- *                                                        current pick, then → { url }: the King Soopers cart. A pick
- *                                                        already sent from here isn't added again (#737)
+ *          { action: "review" }                          the quantity check (#761, ./review.ts): every matched pick
+ *                                                        against its list line, one Claude Haiku call for the lot
+ *                                                        (Skippy's month) or the unit-math rules → { by, usd }
+ *          { action: "qty", key, qty }                   Nikita's own count for one pick (the −/+), 1 to QTY_MAX
+ *          { action: "clear-list" }                      clears the Kitchen list and every match (#761, Clear list)
+ *          { action: "send", picks: [{ key, productId, qty? }] }   adds exactly these picks to the cart, each still the
+ *                                                        current pick, in the reviewed quantity (or `qty`), then →
+ *                                                        { url }: the King Soopers cart. A pick already sent from
+ *                                                        here isn't added again (#737)
  *   GET  /api/haven/kroger-callback      where Kroger sends the browser back; then to /boiler/controls?kroger=<result>
  *
  * Calls are few by design: a store search only on a tap, a product search only for an item without a fresh pick, never
@@ -45,8 +51,10 @@ import type { VendorState } from "../devices/home.js";
 import type { HomeVault } from "../devices/vault.js";
 import { PHONE_KEY_HEADER } from "../links.js";
 import { KitchenList, sameKey, type ListItem } from "../list.js";
+import { MealsStore, plannedLines } from "../meals.js";
 import { addToCart, appToken, authUrl, cartToken, CART_URL, costOf, exchangeCode, findStores, forgetKrogerTokens, KrogerRefusedError, line, redirectFor, searchProducts, termOf, broaderTerm, type KrogerClient, type Product } from "./api.js";
 import { rankProducts } from "./rank.js";
+import { QTY_MAX, qtyOf, reviewPicks, rulesReview, type ReviewAsk, type ReviewBudget, type ReviewInput } from "./review.js";
 import { ALTS_MAX, changeKroger, readKroger, ZIP, type KrogerState, type ItemPick } from "./store.js";
 
 export const STATE_COOKIE = "__Host-ceo-haven-kroger";
@@ -76,6 +84,8 @@ export interface KrogerDeps {
   fetch: Fetch;
   now: number;
   log: (line: string) => void;
+  /** The quantity check's model call and Skippy's month (#761); without them the rules decide. */
+  review?: { ask: ReviewAsk | null; budget: ReviewBudget | null };
 }
 
 function json(body: unknown, status = 200): Response {
@@ -132,14 +142,30 @@ const openLines = (items: ListItem[]) => {
 
 const counts = (p: ItemPick | undefined): p is ItemPick & { product: Product } => Boolean(p?.product && !p.skip && p.product.stock !== "out");
 
+/** What the meal planner wants on the list (#761, api/_haven/meals.ts plannedLines); nothing when it can't be read. */
+export type Plan = ReturnType<typeof plannedLines>;
+const NO_PLAN: Plan = { keep: new Set(), changed: 0, fresh: [] };
+const planOf = async (blob: BlobBackend): Promise<Plan> => plannedLines(await new MealsStore(blob).read().catch(() => null));
+
 /** What the signed-in Kitchen page shows. */
-export function viewOf(state: KrogerState, items: ListItem[], client: KrogerClient | null, grant: StoredKroger | null) {
+export function viewOf(state: KrogerState, items: ListItem[], client: KrogerClient | null, grant: StoredKroger | null, plan: Plan = NO_PLAN) {
   const lines = openLines(items).map((i) => {
     const key = sameKey(i.name),
       pick = state.picks[key] ?? null;
-    return { id: i.id, name: i.name, key, pick, inCart: Boolean(pick?.product && state.inCart[key]?.productId === pick.product.productId) };
+    return {
+      id: i.id,
+      name: i.name,
+      key,
+      pick,
+      inCart: Boolean(pick?.product && state.inCart[key]?.productId === pick.product.productId),
+      /** How many go in the cart (#761): his own count, else the check's, else one. */
+      qty: pick ? qtyOf(pick) : 1,
+      /** The plan changed since it was finalized and no longer asks for this line (#761): its match no longer fits. */
+      stale: Boolean(plan.changed && pick && i.source === "meals" && !plan.keep.has(key)),
+    };
   });
   const going = lines.filter((l) => counts(l.pick ?? undefined));
+  const open = new Set(lines.map((l) => l.key));
   return {
     ready: Boolean(client),
     state: linkState(client, state, grant),
@@ -149,9 +175,11 @@ export function viewOf(state: KrogerState, items: ListItem[], client: KrogerClie
     found: state.found,
     store: state.store,
     lines,
-    total: going.reduce((n, l) => n + costOf(l.pick!.product!), 0),
+    total: going.reduce((n, l) => n + costOf(l.pick!.product!) * l.qty, 0),
     count: going.length,
     sent: state.sent,
+    /** The plan changed since it was finalized (#761): weeks changed, matches that no longer fit, lines not on the list yet. */
+    plan: { changed: plan.changed, stale: lines.filter((l) => l.stale).length, fresh: plan.changed ? new Set(plan.fresh.map(sameKey).filter((k) => !open.has(k))).size : 0 },
   };
 }
 
@@ -180,8 +208,8 @@ export async function krogerGet(request: Request, deps: KrogerDeps): Promise<Res
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   if (!deps.blob) return withCookie(json({ error: "not-set-up" }, 503), signed);
-  const [state, grant, items] = await Promise.all([readKroger(deps.blob), grantOf(deps), new KitchenList(deps.blob).items(deps.now)]);
-  return withCookie(json(viewOf(state, items, deps.client, grant)), signed);
+  const [state, grant, items, plan] = await Promise.all([readKroger(deps.blob), grantOf(deps), new KitchenList(deps.blob).items(deps.now), planOf(deps.blob)]);
+  return withCookie(json(viewOf(state, items, deps.client, grant, plan)), signed);
 }
 
 /** Notes how the last Kroger call went (Systems' live or down). */
@@ -195,7 +223,7 @@ export type SendResult = { result: "sent"; items: number; already: number } | { 
  * left out, or nothing goes ("changed"). The Kitchen's Send button and Skippy's meals_cart (after Nikita's Yes tap) both
  * come here.
  */
-export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "client" | "fetch" | "now" | "log">, asked: { key: string; productId: string }[]): Promise<SendResult> {
+export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "client" | "fetch" | "now" | "log">, asked: { key: string; productId: string; qty?: number }[]): Promise<SendResult> {
   const { blob, vault, client, now } = deps;
   if (!blob || !vault || !client) return { result: "not-set-up" };
   const grant = await grantOf(deps);
@@ -206,7 +234,8 @@ export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "clien
   const [cur, items] = await Promise.all([readKroger(blob), new KitchenList(blob).items(now)]);
   const open = new Set(openLines(items).map((i) => sameKey(i.name)));
   // Exactly what the Desk showed: each one still on the list, still the current pick, in stock, not left out.
-  const upcs: string[] = [];
+  // By UPC, the quantity to add (#761): the count asked for, else the reviewed one; two lines on one product add up.
+  const upcs = new Map<string, number>();
   const fresh: { key: string; productId: string }[] = [];
   let already = 0;
   for (const a of asked) {
@@ -218,13 +247,14 @@ export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "clien
       continue;
     }
     fresh.push(a);
-    if (!upcs.includes(p.product.upc)) upcs.push(p.product.upc);
+    const n = typeof a.qty === "number" && Number.isInteger(a.qty) && a.qty >= 1 && a.qty <= QTY_MAX ? a.qty : qtyOf(p);
+    upcs.set(p.product.upc, Math.min(QTY_MAX, (upcs.get(p.product.upc) ?? 0) + n));
   }
-  if (!upcs.length) return { result: "sent", items: 0, already };
+  if (!upcs.size) return { result: "sent", items: 0, already };
   const add = async (refresh: string) => {
     const t = await cartToken(deps.fetch, client, refresh, now);
     if (t.refresh !== refresh) await vault.write("kroger", { ...grant, refresh: t.refresh } satisfies StoredKroger);
-    await addToCart(deps.fetch, t.token, upcs.map((upc) => ({ upc, quantity: 1 })));
+    await addToCart(deps.fetch, t.token, [...upcs].map(([upc, quantity]) => ({ upc, quantity })));
     return t.refresh;
   };
   let result: "sent" | "refused" | "vendor" = "vendor";
@@ -249,19 +279,20 @@ export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "clien
   await changeKroger(blob, (c) => {
     const inCart = { ...c.inCart };
     if (result === "sent") for (const a of fresh) inCart[a.key] = { productId: a.productId, at: stamp };
-    return { next: { ...c, inCart, sent: { at: stamp, items: upcs.length, ok: result === "sent" }, last: { at: stamp, ok: result === "sent" } }, result: undefined };
+    return { next: { ...c, inCart, sent: { at: stamp, items: upcs.size, ok: result === "sent" }, last: { at: stamp, ok: result === "sent" } }, result: undefined };
   }).catch(() => undefined);
-  deps.log(`kroger: send ${result === "vendor" ? "failed" : result} (${upcs.length} items${already ? `, ${already} already in the cart` : ""})`);
-  return result === "sent" ? { result, items: upcs.length, already } : { result };
+  const units = [...upcs.values()].reduce((a, b) => a + b, 0);
+  deps.log(`kroger: send ${result === "vendor" ? "failed" : result} (${upcs.size} items, ${units} units${already ? `, ${already} already in the cart` : ""})`);
+  return result === "sent" ? { result, items: upcs.size, already } : { result };
 }
 
 /** What a send would add right now, as the Kitchen shows it: the matched, in-stock picks not left out, and the open items still unmatched. */
-export async function cartNow(deps: Pick<KrogerDeps, "blob" | "vault" | "client" | "now">): Promise<{ picks: { key: string; productId: string }[]; unmatched: number; connected: boolean; store: boolean } | null> {
+export async function cartNow(deps: Pick<KrogerDeps, "blob" | "vault" | "client" | "now">): Promise<{ picks: { key: string; productId: string; qty: number }[]; unmatched: number; connected: boolean; store: boolean } | null> {
   if (!deps.blob || !deps.client) return null;
   const [state, grant, items] = await Promise.all([readKroger(deps.blob), grantOf(deps), new KitchenList(deps.blob).items(deps.now)]);
   const lines = openLines(items).map((i) => ({ key: sameKey(i.name), pick: state.picks[sameKey(i.name)] }));
   return {
-    picks: lines.filter((l) => counts(l.pick)).map((l) => ({ key: l.key, productId: l.pick!.product!.productId })),
+    picks: lines.filter((l) => counts(l.pick)).map((l) => ({ key: l.key, productId: l.pick!.product!.productId, qty: qtyOf(l.pick!) })),
     unmatched: lines.filter((l) => !l.pick?.product && !l.pick?.skip).length,
     connected: Boolean(grant && !grant.refused),
     store: Boolean(state.store),
@@ -282,8 +313,8 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
   const now = deps.now;
   const stamp = new Date(now).toISOString();
   const view = async () => {
-    const [state, grant, items] = await Promise.all([readKroger(blob), grantOf(deps), new KitchenList(blob).items(now)]);
-    return viewOf(state, items, deps.client, grant);
+    const [state, grant, items, plan] = await Promise.all([readKroger(blob), grantOf(deps), new KitchenList(blob).items(now), planOf(blob)]);
+    return viewOf(state, items, deps.client, grant, plan);
   };
 
   if (body.action === "set-zip") {
@@ -308,6 +339,7 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
 
   if (body.action === "choose" || body.action === "skip") {
     const key = line(body.key, 60);
+    const items = body.action === "choose" ? await new KitchenList(blob).items(now) : [];
     const productId = typeof body.productId === "string" ? body.productId : "";
     if (!key || (body.action === "skip" && typeof body.skip !== "boolean")) return reply({ error: "bad-request" }, 400);
     const ok = await changeKroger(blob, (cur) => {
@@ -320,11 +352,56 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
         if (!to) return { next: null, result: false };
         // The old pick joins the others, so a swap can be swapped back.
         const alts = [...(pick.product && pick.product.productId !== to.productId ? [pick.product] : []), ...pick.alts.filter((p) => p.productId !== to.productId)].slice(0, ALTS_MAX);
-        next = { ...pick, product: to, alts, chosen: true, skip: false };
+        // A new product gets the rules' count at once (#761); Re-check asks the model again.
+        const name = items.find((i) => sameKey(i.name) === key)?.name ?? pick.term;
+        next = { ...pick, product: to, alts, chosen: true, skip: false, qty: null, review: rulesReview({ key, name, product: to, alts: [] }, stamp) };
       }
       return { next: { ...cur, picks: { ...cur.picks, [key]: next } }, result: true };
     });
     return ok ? reply({ ok: true, ...(await view()) }) : reply({ error: "not-found" }, 404);
+  }
+
+  if (body.action === "qty") {
+    const key = line(body.key, 60);
+    const n = body.qty;
+    if (!key || typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > QTY_MAX) return reply({ error: "bad-request" }, 400);
+    const ok = await changeKroger(blob, (cur) => {
+      const pick = cur.picks[key];
+      if (!pick?.product) return { next: null, result: false };
+      return { next: { ...cur, picks: { ...cur.picks, [key]: { ...pick, qty: { productId: pick.product.productId, n } } } }, result: true };
+    });
+    return ok ? reply({ ok: true, ...(await view()) }) : reply({ error: "not-found" }, 404);
+  }
+
+  if (body.action === "review") {
+    // Every matched pick that would go, against its list line (#761): one model call for the lot, or the rules.
+    const [cur, items] = await Promise.all([readKroger(blob), new KitchenList(blob).items(now)]);
+    const inputs: ReviewInput[] = openLines(items)
+      .map((i) => ({ i, pick: cur.picks[sameKey(i.name)] }))
+      .filter((x): x is { i: ListItem; pick: ItemPick & { product: Product } } => counts(x.pick))
+      .map(({ i, pick }) => ({ key: sameKey(i.name), name: i.name, product: pick.product, alts: pick.alts.filter((a) => a.stock !== "out") }));
+    if (!inputs.length) return reply({ ok: true, by: "rules", usd: 0, reviewed: 0, ...(await view()) });
+    const got = await reviewPicks(inputs, { ask: deps.review?.ask ?? null, budget: deps.review?.budget ?? null, now });
+    await changeKroger(blob, (c) => {
+      const picks = { ...c.picks };
+      for (const [k, r] of Object.entries(got.reviews)) {
+        const pick = picks[k];
+        // Only while the pick is still the product it checked; a re-check drops his own count for the new suggestion.
+        if (pick?.product?.productId === r.productId) picks[k] = { ...pick, review: r, qty: null };
+      }
+      return { next: { ...c, picks }, result: undefined };
+    });
+    const flagged = Object.values(got.reviews).filter((r) => r.verdict !== "covered").length;
+    deps.log(`kroger: reviewed ${inputs.length} picks by ${got.by}${got.why ? ` (${got.why})` : ""}, ${flagged} flagged, $${got.usd.toFixed(6)}`);
+    return reply({ ok: true, by: got.by, why: got.why, usd: got.usd, reviewed: inputs.length, ...(await view()) });
+  }
+
+  if (body.action === "clear-list") {
+    // Clear list (#761): the Kitchen list and every match. The King Soopers cart itself can't be emptied from here.
+    const gone = await new KitchenList(blob).clearAll(now);
+    await changeKroger(blob, (c) => ({ next: { ...c, picks: {}, inCart: {} }, result: undefined }));
+    deps.log(`kroger: list cleared (${gone} items) with the matches`);
+    return reply({ ok: true, cleared: gone, ...(await view()) });
   }
 
   if (body.action === "disconnect") {
@@ -404,7 +481,9 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
             found = rankProducts(wider, await searchProducts(deps.fetch, token, wider, store.id, ALTS_MAX + 1));
           }
           const [best = null, ...rest] = found;
-          made[key] = { term: used, at: stamp, product: best, alts: rest.slice(0, ALTS_MAX), chosen: false, skip: was?.skip ?? false };
+          const alts = rest.slice(0, ALTS_MAX);
+          // The rules' count at once (#761); the Kitchen asks for the model's review once every item is matched.
+          made[key] = { term: used, at: stamp, product: best, alts, chosen: false, skip: was?.skip ?? false, review: best ? rulesReview({ key, name: i.name, product: best, alts }, stamp) : null };
         } catch {
           failed++;
         }
@@ -464,7 +543,7 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
   if (body.action === "send") {
     const asked = (Array.isArray(body.picks) ? body.picks : []).slice(0, SEND_MAX + 1).map((p) => {
       const o = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
-      return { key: line(o.key, 60), productId: typeof o.productId === "string" ? o.productId : "" };
+      return { key: line(o.key, 60), productId: typeof o.productId === "string" ? o.productId : "", ...(typeof o.qty === "number" && { qty: o.qty }) };
     });
     const got = await sendPicks(deps, asked);
     if (got.result === "sent") return reply({ ok: true, items: got.items, already: got.already, url: CART_URL, ...(await view()) });

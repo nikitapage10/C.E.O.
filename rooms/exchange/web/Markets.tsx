@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { money, move, moveTone, pct, PIN_ERROR, PM_WATCH_MAX, usePolymarket, type PmMarket } from "./polymarket.ts";
+import { money, move, moveTone, pct, PIN_ERROR, PM_WATCH_MAX, usePolymarket, type PmMarket } from "../data/polymarket.ts";
 import { Spark } from "./viz.tsx";
 
 /**

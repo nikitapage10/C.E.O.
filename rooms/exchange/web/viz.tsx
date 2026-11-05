@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { sparkPath } from "./polymarket.ts";
+import { sparkPath } from "../data/polymarket.ts";
 
 /**
  * The Exchange's own small data marks (#367), drawn as plain SVG so the page carries no chart library: a day's price

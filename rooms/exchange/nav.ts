@@ -4,5 +4,5 @@
  */
 export const nav = {
   name: "Exchange",
-  page: () => import("../../apps/world/src/desk/rooms/Exchange.tsx").then((m) => ({ default: m.Exchange })),
+  page: () => import("./web/Exchange.tsx").then((m) => ({ default: m.Exchange })),
 };

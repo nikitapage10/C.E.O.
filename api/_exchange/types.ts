@@ -1,6 +1,6 @@
 /**
  * What the Exchange's Polymarket board reads (#240): public market data only, trimmed to the fields the board shows.
- * Shared by the function (api/_exchange/route.ts) and the Desk (apps/world/src/desk/exchange/polymarket.ts).
+ * Shared by the function (api/_exchange/route.ts) and the Desk (rooms/exchange/data/polymarket.ts).
  *
  * Underscore folder: Vercel never serves it as a function.
  */

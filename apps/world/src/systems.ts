@@ -8,8 +8,8 @@ import { create } from "zustand";
  * Relay's texts links come from the hub on the MacBook, through its public counts (desk/texts/texts.ts, #535).
  * Gmail's comes from the email agent on the Azure copy (desk/email/email.ts, #263).
  * The Foundry's come from GitHub (see foundry.ts). The world clock comes from the living Lattice's hourly step
- * (worldClock.ts). Polymarket's odds come from the Exchange's board (desk/exchange/polymarket.ts, #240), read while a
- * Desk page that shows them is open; Sleeper and FantasyPros from the Green's league board (desk/green/league.ts, #252);
+ * (worldClock.ts). Polymarket's odds come from the Exchange's board (rooms/exchange/data/polymarket.ts, #240), read
+ * while a Desk page that shows them is open; Sleeper and FantasyPros from the Green's league board (desk/green/league.ts, #252);
  * PayPal from the Spire's invoices on the Azure copy (desk/spire/invoices.ts, #279).
  * `?demo` (or `?boiler=demo`) cycles them through every state, to preview the Boiler Room's gags.
  */

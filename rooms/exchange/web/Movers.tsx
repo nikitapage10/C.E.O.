@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { asideBadge, asideLine, byMove, KIND_LABEL, shortName } from "./asides.ts";
-import { move, moveTone, pct, usePolymarket } from "./polymarket.ts";
+import { asideBadge, asideLine, byMove, KIND_LABEL, shortName } from "../data/asides.ts";
+import { move, moveTone, pct, usePolymarket } from "../data/polymarket.ts";
 import { DayArea } from "./viz.tsx";
 
 /**

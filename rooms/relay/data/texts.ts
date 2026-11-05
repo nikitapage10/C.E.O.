@@ -27,7 +27,7 @@ export type TextsLoad = "idle" | "off" | "live" | "failed";
 
 export interface TextRequestView {
   rid: string;
-  kind: "send" | "later" | "done" | "restyle" | "compose" | "rescan" | "learn" | "back";
+  kind: "send" | "later" | "done" | "restyle" | "compose" | "rescan" | "learn" | "back" | "react";
   thread: string;
   text: string;
   created: number;
@@ -55,6 +55,8 @@ export interface TextsPrivate {
   voice: Voice | null;
   /** One-to-one threads Relay set aside (#870): who, when, why from a closed list. No text. */
   aside?: AsideItem[];
+  /** Whether tapbacks can go from the Mac (#888): BlueBubbles' Private API on or off; null before the hub has said. */
+  tapbacks?: "on" | "off" | null;
   requests: TextRequestView[];
   spend: { usd: number; budget: number };
 }
@@ -69,7 +71,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
   if (!st.ok || !Array.isArray(o.texts) || !Array.isArray(o.requests)) return null;
   const spend = o.spend as Record<string, unknown> | null;
   const requests: TextRequestView[] = (o.requests as Record<string, unknown>[]).flatMap((r) =>
-    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
+    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back", "react"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
       ? [{ rid: r.rid, kind: r.kind as TextRequestView["kind"], thread: r.thread, text: typeof r.text === "string" ? r.text.slice(0, 2_000) : "", created: r.created, until: r.until, state: r.state as RequestState, ...(readReason(r.reason) && { reason: readReason(r.reason) }) }]
       : [],
   );
@@ -87,6 +89,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
     scannedAt: isNum(o.scannedAt) ? o.scannedAt : null,
     voice: o.voice ? readVoice(o.voice) : null,
     aside: (Array.isArray(o.aside) ? (o.aside as unknown[]) : []).map(readAsideItem).filter((a): a is AsideItem => a !== null),
+    tapbacks: o.tapbacks === "on" || o.tapbacks === "off" ? o.tapbacks : null,
     requests,
     spend: { usd: isNum(spend?.usd) ? spend.usd : 0, budget: isNum(spend?.budget) ? spend.budget : 10 },
   };
@@ -164,6 +167,8 @@ const ERRORS: Record<string, string> = {
   paired: "A Mac is already paired. Unpair it first to pair another.",
   "off-limits": "Relay keeps that one from Blasto (money, legal, a code or the skip list). Text it yourself.",
   private: "That has a number, address or key in it. Say it another way.",
+  "no-line": "That message isn't on the list any more. Try the newest one.",
+  "tapbacks-off": "Tapbacks need BlueBubbles' Private API on the Mac.",
 };
 
 /** What the site said about a request, in the Desk's words. */

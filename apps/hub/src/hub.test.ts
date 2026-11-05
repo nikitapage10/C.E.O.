@@ -61,6 +61,12 @@ class FakeBB implements BlueBubbles {
   }
   /** Contact pictures (#642): made-up bytes. */
   pictures: ContactPhoto[] = [];
+  async react(): Promise<boolean> {
+    return true;
+  }
+  async privateApi(): Promise<boolean | null> {
+    return true;
+  }
   async contactPhotos() {
     return this.pictures;
   }
@@ -851,7 +857,7 @@ describe("new messages, polled from BlueBubbles (#749)", () => {
 
   it("reads BlueBubbles' message query rows: a message with its chat, a reaction as no message", () => {
     const row = { guid: "g1", dateCreated: NOW, text: "hi", isFromMe: false, handle: { address: HANDLE }, chats: [{ guid: CHAT, displayName: "" }] };
-    expect(readPolled(row)).toEqual({ guid: "g1", at: NOW, inbound: { chat: CHAT, group: false, groupName: "", message: { text: "hi", fromMe: false, at: NOW, handle: HANDLE, read: false } } });
+    expect(readPolled(row)).toEqual({ guid: "g1", at: NOW, inbound: { chat: CHAT, group: false, groupName: "", message: { text: "hi", fromMe: false, at: NOW, handle: HANDLE, read: false, guid: "g1" } } });
     expect(readPolled({ ...row, dateRead: NOW + 60_000 })?.inbound?.message.read).toBe(true);
     expect(readPolled({ ...row, associatedMessageGuid: "p:0/x" })?.inbound).toBeNull();
     expect(readPolled({ ...row, guid: undefined })).toBeNull();

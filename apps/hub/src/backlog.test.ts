@@ -85,7 +85,7 @@ describe("the backlog classifier", () => {
 
   it("reads BlueBubbles' chat query rows: the other person from participants, the last message's read time", () => {
     const row = { guid: chatOf(A), style: 45, displayName: "", participants: [{ address: A }], lastMessage: { guid: "m1", text: "hey", isFromMe: false, dateCreated: NOW - DAY, dateRead: null, handle: null, itemType: 0 } };
-    expect(readChat(row)).toEqual({ chat: chatOf(A), group: false, name: "", handle: A, last: { text: "hey", fromMe: false, at: NOW - DAY, handle: A, read: false }, lastAt: NOW - DAY });
+    expect(readChat(row)).toEqual({ chat: chatOf(A), group: false, name: "", handle: A, last: { text: "hey", fromMe: false, at: NOW - DAY, handle: A, read: false, guid: "m1" }, lastAt: NOW - DAY });
     expect(readChat({ ...row, lastMessage: { ...row.lastMessage, dateRead: NOW } })?.last?.read).toBe(true);
     expect(readChat({ ...row, lastMessage: { ...row.lastMessage, associatedMessageGuid: "p:0/x" } })?.last).toBeNull();
     expect(readChat({ ...row, guid: "iMessage;+;chat99", style: 43, displayName: "Climbing" })).toMatchObject({ group: true, name: "Climbing", handle: "" });
@@ -112,6 +112,12 @@ class FakeBB implements BlueBubbles {
   }
   async chats() {
     return [];
+  }
+  async react(): Promise<boolean> {
+    return true;
+  }
+  async privateApi(): Promise<boolean | null> {
+    return true;
   }
   async contactPhotos() {
     return [];

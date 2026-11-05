@@ -14,6 +14,7 @@ import { GroupFlipper } from "./GroupFlipper.tsx";
 import { groupsOf } from "../data/groups.ts";
 import { RelayQueue, useMedia } from "./RelayQueue.tsx";
 import { Said } from "./Said.tsx";
+import { EmojiPicker, Tapbacks } from "./Tapbacks.tsx";
 import { SetAside } from "./SetAside.tsx";
 import { ghost, ghosted, quill, rise, SigilStage, sink } from "@ceo/engine/sigils/sigils.ts";
 import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGistLine, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "../data/thread.ts";
@@ -320,6 +321,7 @@ function Own({ x, t, start, close, autoFocus, launch, children }: { x: Exchange;
             Send
           </button>
         )}
+        <EmojiPicker box={ref} value={text} set={setText} />
         {typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
           <button type="button" className="cx-opt cx-mic" data-on={hearing || undefined} aria-pressed={hearing} onClick={() => void mic()} title={hearing ? "Stop dictating" : "Dictate into the box"}>
             {hearing ? "Stop" : "Mic"}
@@ -399,6 +401,8 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
               <>
                 {/* Their own words (#758), the hero (#869): oldest first, the newest last and largest; no gist. */}
                 <Said messages={x.messages} hidden={hidden} />
+                {/* Tapbacks (#888): small, under their words, on the card in focus. */}
+                {focus && x.line === "text" && <Tapbacks thread={x.id} messages={x.messages} hidden={hidden} />}
               </>
             ) : (
               <p className="cx-msg">

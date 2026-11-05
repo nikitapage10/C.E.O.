@@ -239,7 +239,7 @@ export function KrogerSetup() {
         ) : (
           <button type="button" disabled={busy} onClick={() => void run({ action: "connect" })}>{v.refused ? "Reconnect King Soopers" : "Connect King Soopers"}</button>
         )}
-        <a href="/haven?open=kitchen">Picks and send on the Haven Kitchen →</a>
+        <a href="/haven/kitchen">Picks and send on the Haven Kitchen →</a>
       </p>
       {note ? <small role="status">{note}</small> : null}
     </div>

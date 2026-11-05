@@ -1,5 +1,5 @@
-import type { DeviceReading, PetMeal } from "../../../apps/desk/src/homeDevices.ts";
-import { amount, BOWL_WORD, clock, due, duration, nextOf, noPlanSay, ounces, shapeSay, statusWord, trayBowls } from "../../../apps/desk/src/petDay.ts";
+import type { DeviceReading, PetMeal } from "@ceo/desk/homeDevices.ts";
+import { amount, BOWL_WORD, clock, due, duration, nextOf, noPlanSay, ounces, shapeSay, statusWord, trayBowls } from "@ceo/desk/petDay.ts";
 import "./petday.css";
 
 /**

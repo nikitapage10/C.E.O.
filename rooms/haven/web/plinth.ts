@@ -1,4 +1,4 @@
-import { THERMO_MAX_F, THERMO_MIN_F, type DeviceKind, type DeviceReading, type ThermoMode, type Vendor, type VendorState } from "../../../apps/desk/src/homeDevices.ts";
+import { THERMO_MAX_F, THERMO_MIN_F, type DeviceKind, type DeviceReading, type ThermoMode, type Vendor, type VendorState } from "@ceo/desk/homeDevices.ts";
 import type { Climate } from "./data.ts";
 import type { HavenPlan, Kind, Spot, Tab } from "./data.ts";
 

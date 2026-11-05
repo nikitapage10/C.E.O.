@@ -3,7 +3,7 @@ import { hourLabel, type DayPage, type HistoryEntry, type RoomId } from "../../.
 import { weekDaysOf } from "../../../api/_world/weeks.ts";
 import { mountainHour, threadDensity, threadPath, threadRate, threadsOf, type DayThreads } from "../data/archiveThreads.ts";
 import { hoursOf, ROOM_NAME, shortDay } from "./ChronicleWeave.tsx";
-import { polyOf, RC, useFlow, type FlowLayoutFn, type FlowLine } from "../../../apps/desk/src/flow/index.ts";
+import { polyOf, RC, useFlow, type FlowLayoutFn, type FlowLine } from "@ceo/desk/flow/index.ts";
 import { mixRgb } from "@ceo/engine/sigils/wvCanvas.ts";
 
 export { mountainHour };

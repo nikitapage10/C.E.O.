@@ -1,4 +1,4 @@
-import type { DeviceReading } from "../../../apps/desk/src/homeDevices.ts";
+import type { DeviceReading } from "@ceo/desk/homeDevices.ts";
 import { readPlan, type HavenPlan, type PlanRoom, type Spot, type Tab } from "../../../api/_haven/planShape.ts";
 
 export type { HavenPlan, PlanRoom, PlanDevice, PlanItem, Spot, Tab, Kind, Floor, Rect, Seg } from "../../../api/_haven/planShape.ts";

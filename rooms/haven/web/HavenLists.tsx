@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { onWrote, touchesLists } from "../../../apps/desk/src/skippy/wrote.ts";
-import { addOn, clearDoneOn, loadCounts, loadLists, removeOn, tickOn, undoRemoveOn, type KitchenItem, type ListCount, type ListId, type ListView } from "../../../apps/desk/src/haven.ts";
+import { onWrote, touchesLists } from "@ceo/desk/skippy/wrote.ts";
+import { addOn, clearDoneOn, loadCounts, loadLists, removeOn, tickOn, undoRemoveOn, type KitchenItem, type ListCount, type ListId, type ListView } from "@ceo/desk/haven.ts";
 import "./lists.css";
 
 /**

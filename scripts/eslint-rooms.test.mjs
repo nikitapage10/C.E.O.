@@ -74,3 +74,23 @@ tester.run("ceo/desk-package", rooms.rules["desk-package"], {
     { filename: deskFile, code: `import { x } from "@ceo/world/src/route.ts";`, errors: [{ messageId: "world" }] },
   ],
 });
+
+// ceo/desk-entry: outside apps/desk, the Desk only through @ceo/desk.
+const mainFile = join(ROOT, "apps/world/src/main.tsx");
+const roomFile = join(ROOT, "rooms/today/web/Today.tsx");
+const from = (file, path) => relative(dirname(file), join(ROOT, path)).split(sep).join("/");
+
+tester.run("ceo/desk-entry", rooms.rules["desk-entry"], {
+  valid: [
+    { filename: mainFile, code: `import { Desk } from "@ceo/desk";` },
+    { filename: roomFile, code: `import { x } from "@ceo/desk/deskData.ts";` },
+    { filename: mainFile, code: `import { x } from "./route.ts";` },
+    // The Desk's own files import each other by relative path.
+    { filename: deskFile, code: `import { x } from "../Desk.tsx";` },
+  ],
+  invalid: [
+    { filename: mainFile, code: `import { Desk } from "${from(mainFile, "apps/desk/src/Desk.tsx")}";`, errors: [{ messageId: "entry" }] },
+    { filename: roomFile, code: `import { x } from "${from(roomFile, "apps/desk/src/deskData.ts")}";`, errors: [{ messageId: "entry" }] },
+    { filename: roomFile, code: `const m = import("${from(roomFile, "apps/desk/src/flow/index.ts")}");`, errors: [{ messageId: "entry" }] },
+  ],
+});

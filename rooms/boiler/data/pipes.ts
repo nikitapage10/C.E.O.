@@ -1,7 +1,7 @@
 import type { LinkState } from "../../../apps/world/src/systems.ts";
-import type { VisualQaRun } from "../../../apps/desk/src/visualqa/feed.ts";
-import { LATE_MIN, type JobRow } from "../../../apps/desk/src/jobs.ts";
-import { problemSay, type Vendor, type VendorProblem } from "../../../apps/desk/src/homeDevices.ts";
+import type { VisualQaRun } from "@ceo/desk/visualqa/feed.ts";
+import { LATE_MIN, type JobRow } from "@ceo/desk/jobs.ts";
+import { problemSay, type Vendor, type VendorProblem } from "@ceo/desk/homeDevices.ts";
 import type { GNode, GState } from "./systemsGraph.ts";
 
 /**

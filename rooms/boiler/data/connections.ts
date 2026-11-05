@@ -1,4 +1,4 @@
-import type { DeskRoom } from "../../../apps/desk/src/deskData.ts";
+import type { DeskRoom } from "@ceo/desk/deskData.ts";
 
 /**
  * How C.E.O.'s notable connections work: what kind each one is (a REST API, an MCP server, a CLI, a scheduled job…),

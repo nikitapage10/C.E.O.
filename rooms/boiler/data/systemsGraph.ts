@@ -1,7 +1,7 @@
 import type { WorldFeed } from "../../../apps/world/src/chronicle.ts";
 import type { LinkState } from "../../../apps/world/src/systems.ts";
 import { CONNECTIONS } from "./connections.ts";
-import type { GraphEdge, GraphNode } from "../../../apps/desk/src/foundryGraph.ts";
+import type { GraphEdge, GraphNode } from "@ceo/desk/foundryGraph.ts";
 
 /**
  * The whole system as threads, for the Weave's Systems page (desk-concepts round five, 85-graph.js): every part and

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { Connection } from "../data/connections.ts";
-import { RC, useFlow, type FlowLayoutFn, type FlowLine, type Pt } from "../../../apps/desk/src/flow/index.ts";
-import { PlanWatch } from "../../../apps/desk/src/skippy/PlanWatch.tsx";
-import { roomLink } from "../../../apps/desk/src/hero/roomLink.ts";
-import { ROOM_META } from "../../../apps/desk/src/roomPulse.ts";
+import { RC, useFlow, type FlowLayoutFn, type FlowLine, type Pt } from "@ceo/desk/flow/index.ts";
+import { PlanWatch } from "@ceo/desk/skippy/PlanWatch.tsx";
+import { roomLink } from "@ceo/desk/hero/roomLink.ts";
+import { ROOM_META } from "@ceo/desk/roomPulse.ts";
 import type { Fitting, GState, PipeRow } from "../data/systemsGraph.ts";
 import { BAD } from "@ceo/engine/sigils/wvCanvas.ts";
 import { connectionFor, fittingsOf, pipeState, pressureOf, roomConnections } from "../data/pressure.ts";

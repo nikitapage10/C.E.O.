@@ -1,16 +1,18 @@
 import type { PetMode } from "../../pets/types.ts";
 import { centreOf, roomAt, type HavenPlan, type Seg } from "./data.ts";
+import { KIND_STYLE } from "./style.ts";
 
 /*
  * Myshka in the Haven's house (#729): where he goes and what he does there, without three.js (house.ts draws him,
  * myshkaHouse.ts poses him). He walks the plan's floor on a coarse grid that keeps clear of the walls and goes
- * through the doors, never into the Gym out back. A feed sends him to the feeders, a Litter-Robot cycle to the
+ * through the doors, never into the Gym out back, and around the furniture and the pets' devices, never through
+ * them (#747). A feed sends him to the feeders, a Litter-Robot cycle to the
  * litter corner to watch, and the rest of the time he wanders, sits, washes, and loafs a long while in the Living
  * room or the Studio. Under reduced motion he loafs and stays put.
  */
 
 /** Plan units a cell; the grid gets coarser on a big plan so it never passes MAX_CELLS. */
-export const CELL = 20;
+export const CELL = 10;
 const MAX_CELLS = 20_000;
 /** How far from a wall his path keeps, in plan units. */
 export const CLEAR = 14;
@@ -19,7 +21,36 @@ export const PACE = 32;
 /** A feed counts this long after it happens. */
 export const FED_MS = 20 * 60_000;
 /** Rooms he loafs in. */
-export const LOAF_ROOMS = /\b(living|studio)\b/i;
+export const LOAF_ROOMS = /\b(living|studio|study)\b/i;
+/** How far round the furniture and the devices his path keeps, in plan units (at least half a cell, see navGrid). */
+export const MARGIN = 8;
+
+/** [x0, y0, x1, y1] in plan units. */
+export type Box = [number, number, number, number];
+
+/** How big a device stands on the floor, half its width: the feeders and the fountain, the Litter-Robot. */
+const DEVICE_HALF: Partial<Record<string, number>> = { "dry-feeder": 14, "wet-feeder": 14, fountain: 12, litter: 26 };
+
+/**
+ * What he can't walk through (#747): every piece of furniture standing on the floor (not a rug or a mat, not what
+ * hangs on a wall or stands on a counter, not a pet bed he lies on) and the pets' devices, as boxes.
+ */
+export function footprints(plan: HavenPlan): Box[] {
+  const out: Box[] = [];
+  for (const it of plan.items) {
+    const st = KIND_STYLE[it.k];
+    if (st.height <= 2 || st.lift >= 20 || it.k === "petbed") continue;
+    out.push(it.round ? [it.x - it.w / 2, it.y - it.w / 2, it.x + it.w / 2, it.y + it.w / 2] : [it.x, it.y, it.x + it.w, it.y + it.h]);
+  }
+  for (const d of plan.devices) {
+    const h = DEVICE_HALF[d.kind];
+    if (h && d.lift < 20) out.push([d.x - h, d.y - h, d.x + h, d.y + h]);
+  }
+  return out;
+}
+
+/** Whether a point is inside a box grown by `m` on every side. */
+export const inBox = (x: number, y: number, b: Box, m = 0) => x > b[0] - m && x < b[2] + m && y > b[1] - m && y < b[3] + m;
 
 export interface NavGrid {
   cell: number;
@@ -38,17 +69,23 @@ const segDist = (x: number, y: number, s: Seg) => {
   return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
 };
 
-/** The floor he can walk: cells inside the home's rooms (not a detached block) and clear of every wall. */
+/**
+ * The floor he can walk: cells inside the home's rooms (not a detached block), clear of every wall, and clear of the
+ * furniture and the devices by a margin of at least half a cell, so no point of an open cell (and so of any leg he
+ * walks, see `clear`) is ever inside one.
+ */
 export function navGrid(plan: HavenPlan, walls: Seg[]): NavGrid {
   let cell = CELL;
   while (Math.ceil(plan.w / cell) * Math.ceil(plan.h / cell) > MAX_CELLS) cell *= 1.5;
   const cols = Math.ceil(plan.w / cell), rows = Math.ceil(plan.h / cell);
   const open = new Uint8Array(cols * rows);
+  const boxes = footprints(plan), m = Math.max(MARGIN, cell / 2 + 1);
   for (let r = 0; r < rows; r++)
     for (let c = 0; c < cols; c++) {
       const x = (c + 0.5) * cell, y = (r + 0.5) * cell;
       const room = roomAt(plan, x, y);
       if (!room || room.detached) continue;
+      if (boxes.some((b) => inBox(x, y, b, m))) continue;
       if (walls.every((s) => segDist(x, y, s) > CLEAR)) open[r * cols + c] = 1;
     }
   return { cell, cols, rows, open };
@@ -128,7 +165,7 @@ export interface CatSpots {
   feeders: Pt[];
   /** A step back from the litter box, where he watches it. */
   litter: Pt | null;
-  /** Where he loafs: a pet bed or cat tree in the Living room or the Studio, else those rooms' middles. */
+  /** Where he loafs: by a pet bed or a cat tree anywhere, or a sofa in the Living room or the Studio; else those rooms' middles. */
   loaf: Pt[];
   /** Anywhere he can stand, for a wander. */
   floor: number[];
@@ -151,8 +188,18 @@ export function spotsOf(plan: HavenPlan, g: NavGrid): CatSpots {
     litter = snap(box.x + ((cx - box.x) / d) * 45, box.y + ((cy - box.y) / d) * 45);
   }
   const rooms = plan.rooms.filter((r) => !r.detached && LOAF_ROOMS.test(r.name));
-  const beds = plan.items.filter((i) => (i.k === "petbed" || i.k === "cattree") && rooms.some((r) => roomAt(plan, i.x, i.y)?.id === r.id));
-  let loaf = beds.map((i) => snap(i.round ? i.x : i.x + i.w / 2, i.round ? i.y : i.y + i.h / 2)).filter((p): p is Pt => p !== null);
+  const home = (x: number, y: number) => {
+    const r = roomAt(plan, x, y);
+    return r && !r.detached ? r : null;
+  };
+  const mid = (i: (typeof plan.items)[number]): Pt => (i.round ? [i.x, i.y] : [i.x + i.w / 2, i.y + i.h / 2]);
+  // His loaf spots (#747): the cat beds and cat trees wherever they are, the sofas in the rooms he loafs in; he
+  // settles on the free floor nearest each.
+  const beds = plan.items.filter((i) => {
+    const r = home(...mid(i));
+    return r && (i.k === "petbed" || i.k === "cattree" || (i.k === "sofa" && rooms.some((x) => x.id === r.id)));
+  });
+  let loaf = beds.map((i) => snap(...mid(i))).filter((p): p is Pt => p !== null);
   if (!loaf.length) loaf = rooms.map((r) => snap(...centreOf(r))).filter((p): p is Pt => p !== null);
   const floor: number[] = [];
   for (let i = 0; i < g.open.length; i++) if (g.open[i]) floor.push(i);

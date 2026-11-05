@@ -9,6 +9,7 @@ import { GymTab } from "./GymTab.tsx";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
 import { Plinth } from "./Plinth.tsx";
+import { WallEditor } from "./WallEditor.tsx";
 import { gaugesOf, type GaugeId } from "./plinth.ts";
 import { moodOf, useClimateQueue } from "./climateQueue.ts";
 import type { House, ThreadState } from "./house.ts";
@@ -356,6 +357,12 @@ export function Haven() {
         </div>
 
       </section>
+
+      {signedIn && thePlan && (
+        <div className="hv-wallsRow">
+          <WallEditor plan={thePlan} onSaved={(p) => setPlan({ state: "ready", plan: p })} />
+        </div>
+      )}
 
       {signedIn && (
         <nav className="hv-tabs" aria-label="Haven rooms">

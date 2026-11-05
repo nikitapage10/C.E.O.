@@ -97,8 +97,15 @@ describe("the Pessimist's line", () => {
   });
 
   it("names a job that didn't turn up", () => {
-    const rows = jobRows(all({ "desk-pings.yml": { created_at: "2026-10-22T08:04:00Z" } }), now);
-    expect(pessimistLine(rows)).toBe("Desk pings didn't turn up when it was due.");
+    const rows = jobRows(all({ "world-step.yml": { created_at: "2026-10-22T08:07:00Z" } }), now);
+    expect(pessimistLine(rows)).toBe("World step didn't turn up when it was due.");
+  });
+
+  it("reads Desk pings by its newest run of any event, quiet only after half a day (#866)", () => {
+    // GitHub drops most of its hourly crons; the pings run on every Foundry label change, so a gap of hours is normal.
+    const pings = (at: string) => jobRows(all({ "desk-pings.yml": { created_at: at } }), now).find((r) => r.file === "desk-pings.yml")!;
+    expect(pings("2026-10-22T08:04:00Z")).toMatchObject({ state: "pass", lateMin: null, missed: false });
+    expect(pings("2026-10-21T22:00:00Z")).toMatchObject({ missed: true });
   });
 
   it("can't see anything without the feed", () => {
@@ -112,6 +119,12 @@ describe("the feed's side of the board", () => {
     expect(trimmed).toEqual({ ...run(), run_started_at: null });
     expect(trimRun({ workflow_runs: [] })).toBeNull();
     expect(trimRun(null)).toBeNull();
+  });
+
+  it("passes over runs a newer one cancelled, or that had nothing to do (#866)", () => {
+    const list = { workflow_runs: [run({ conclusion: "cancelled" }), run({ conclusion: "skipped" }), run({ created_at: "2026-10-22T09:00:00Z" })] };
+    expect(trimRun(list)).toMatchObject({ conclusion: "success", created_at: "2026-10-22T09:00:00Z" });
+    expect(trimRun({ workflow_runs: [run({ conclusion: "cancelled" })] })).toMatchObject({ conclusion: "cancelled" });
   });
 
   it("reads the push workflows' runs on main, and they trigger on push to main", () => {

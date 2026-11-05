@@ -100,9 +100,9 @@ export interface NowInput {
   /**
    * The Senate Rotunda (#740): what needs him is the docket, one card per item along the foot of the chamber, each a
    * duty, a decision or a repair that plays on the floor; his own to-dos sit under the chamber under "still left", with
-   * the add line and `aside` (the Lists) beside them.
+   * the add line beside them.
    */
-  rotunda?: { name: string; bench: string[]; chamber: (c: ChamberLink) => ReactNode; aside?: ReactNode };
+  rotunda?: { name: string; bench: string[]; chamber: (c: ChamberLink) => ReactNode };
 }
 
 /** What the chamber (Rotunda.tsx) and the docket share: the items, which one is on the floor, and the stamps. */
@@ -587,7 +587,6 @@ export function TodayNow(p: NowInput) {
             {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, need.length + i, "○"))}</ol>}
             <TodoCapture />
           </div>
-          {R.aside}
         </div>
       </section>
     );

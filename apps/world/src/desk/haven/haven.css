@@ -209,8 +209,14 @@
   background: rgba(14, 13, 18, 0.7);
   overflow-x: auto;
 }
+/* At the top of the page above the house, and stuck under the Desk's nav while scrolling (desktop and phone). */
 [data-room="haven"] .hv-tabs {
-  margin: 0 auto 32px;
+  position: sticky;
+  top: calc(var(--hv-navh, 60px) + 8px);
+  z-index: 30;
+  margin: 8px auto 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 [data-room="haven"] .hv-tab {
   flex: none;

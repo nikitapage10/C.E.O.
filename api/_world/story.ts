@@ -148,10 +148,16 @@ export interface StoryMonth {
   voiceUsd?: number;
   voiceSecs?: number;
   voiceCalls?: number;
+  /**
+   * Today's Senate Rotunda read aloud (#755, api/_skippy/rotundavoice.ts): its dollars (also counted in `elevenUsd`)
+   * and characters, held to its own share of the one cap (ROTUNDA_SHARE_USD). Cached lines are free and never counted.
+   */
+  rotundaUsd?: number;
+  rotundaChars?: number;
 }
 export type StorySpend = Record<string, StoryMonth>;
 
-const EMPTY: Required<StoryMonth> = { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0, elevenChars: 0, elevenCalls: 0, voiceUsd: 0, voiceSecs: 0, voiceCalls: 0 };
+const EMPTY: Required<StoryMonth> = { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0, elevenChars: 0, elevenCalls: 0, voiceUsd: 0, voiceSecs: 0, voiceCalls: 0, rotundaUsd: 0, rotundaChars: 0 };
 export const storyMonth = (spend: StorySpend, now: number): Required<StoryMonth> => ({ ...EMPTY, ...spend[monthOf(now)] });
 
 /** Whether one more story, at its longest, still fits in the month's ElevenLabs budget. */
@@ -173,6 +179,8 @@ export function addStorySpend(spend: StorySpend, now: number, add: Partial<Story
     voiceUsd: cur.voiceUsd + (add.voiceUsd ?? 0),
     voiceSecs: cur.voiceSecs + (add.voiceSecs ?? 0),
     voiceCalls: cur.voiceCalls + (add.voiceCalls ?? 0),
+    rotundaUsd: cur.rotundaUsd + (add.rotundaUsd ?? 0),
+    rotundaChars: cur.rotundaChars + (add.rotundaChars ?? 0),
   };
   const all = { ...spend, [month]: next };
   return Object.fromEntries(Object.keys(all).sort().slice(-6).map((k) => [k, all[k]!]));

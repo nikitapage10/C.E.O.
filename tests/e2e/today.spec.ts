@@ -219,6 +219,43 @@ test("reduced motion: the chamber holds near still and the page still works", as
   expect(errors).toEqual([]);
 });
 
+test("the sound: off by default, on with a tap, remembered, and every line asked for in its member's voice", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await stub(page, true);
+  // ElevenLabs is "capped" here: no audio comes back, so the chamber falls back to reading pace without a sound.
+  const asked: { room?: string; speak?: string; as?: string }[] = [];
+  await page.route(`${BASE}/api/skippy-room`, (r) => {
+    const body = JSON.parse(r.request().postData() ?? "{}") as { room?: string; speak?: string; as?: string };
+    asked.push(body);
+    return r.fulfill({ json: { say: body.speak, kind: "spoken" } });
+  });
+  await page.goto(BASE + "/");
+  const sound = page.getByRole("button", { name: /Sound (on|off)/ });
+  await expect(sound).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".rt-stage")).toHaveAttribute("data-gl", "on", { timeout: 90_000 });
+  await page.waitForTimeout(3_000);
+  expect(asked).toEqual([]);
+  await sound.click();
+  await expect(sound).toHaveAttribute("aria-pressed", "true");
+  await expect(sound.locator(".rt-sound-lv")).toBeVisible();
+  await expect.poll(() => asked.length, { timeout: 60_000 }).toBeGreaterThan(0);
+  for (const a of asked) {
+    expect(a.room).toBe("today");
+    expect(a.as).toMatch(/^(kernel|foundry|relay|exchange|green|spire|archive|boiler|breakroom|workshop|studio|annex|haven)$/);
+    expect(a.speak).not.toMatch(/Book the vet|Oat milk/);
+  }
+  // Without audio the session still runs, at reading pace.
+  await expect(page.locator(".rt-chair")).toContainText(/Item i|The chair recognizes|put to you|a duty/, { timeout: 60_000 });
+  // A fresh visit on the same device remembers the choice.
+  await page.goto("about:blank");
+  await page.goto(BASE + "/");
+  await expect(page.getByRole("button", { name: /Sound (on|off)/ })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /Sound (on|off)/ }).click();
+  await expect(page.getByRole("button", { name: /Sound (on|off)/ })).toHaveAttribute("aria-pressed", "false");
+  expect(errors).toEqual([]);
+});
+
 test("on a phone the docket sits under the chamber, with no sideways scroll", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await stub(page, true);

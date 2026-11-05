@@ -164,7 +164,8 @@ interface TextsStore {
 }
 
 const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includes("json");
-const post = (body: object) => fetch(PATH, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "same-origin", cache: "no-store", body: JSON.stringify(body) });
+// keepalive (#914): a Done made just before a reload or a closed tab still reaches the site.
+const post = (body: object) => fetch(PATH, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "same-origin", cache: "no-store", keepalive: true, body: JSON.stringify(body) });
 
 const ERRORS: Record<string, string> = {
   locked: "Sending is locked on this device. Unlock it with your passkey first.",

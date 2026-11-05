@@ -942,7 +942,8 @@ export class Engine {
         // list, Nikita's own "done" and a reply of his stay as they are.
         const revisit = t && t.state === "settled" && (t.why === "no-reply" || t.why === "closing") && (t.rechecked ?? 0) < e.at && (t.repliedAt ?? 0) < e.at;
         // Relay answered, settled or dismissed it after this message: it stays as it is.
-        if (t && !revisit && Math.max(t.lastIn, t.repliedAt ?? 0, t.sortedAt ?? 0) >= e.at) continue;
+        // Nikita's own Done (#914) holds against every text up to when he pressed it.
+        if (t && !revisit && Math.max(t.lastIn, t.repliedAt ?? 0, t.sortedAt ?? 0, t.doneAt ?? 0) >= e.at) continue;
         if (t) Object.assign(t, { state: "owed", why: null, since: Math.min(t.since, e.at), lastIn: Math.max(t.lastIn, e.at), sort: null, gist: "", draft: null, laterUntil: null, unread: e.unread, ...(revisit && { rechecked: e.at }) });
         else s.threads.push({ id: newThreadId(), chat: e.chat, group: this.groupOf(e.chat), state: "owed", why: null, since: e.at, lastIn: e.at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null, unread: e.unread });
         this.queue.add(s.threads.find((x) => x.chat === e.chat)!.id);
@@ -1172,7 +1173,8 @@ export class Engine {
     if (req.kind === "done") {
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
-        if (x) Object.assign(x, { state: "settled", why: "done", draft: null, laterUntil: null, kept: undefined, sentHere: undefined });
+        // #914: Done holds against everything up to now (a scan reads their latest text fresher than lastIn can be).
+        if (x) Object.assign(x, { state: "settled", why: "done", draft: null, laterUntil: null, kept: undefined, sentHere: undefined, doneAt: now });
       });
       return "done";
     }
@@ -1182,7 +1184,7 @@ export class Engine {
       if (t.group || t.state !== "settled" || !(t.why === "no-reply" || t.why === "closing" || t.why === "done")) return refuse("not-owed");
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
-        if (x) Object.assign(x, { state: "owed", why: null, sort: null, gist: "", draft: null, laterUntil: null, kept: true });
+        if (x) Object.assign(x, { state: "owed", why: null, sort: null, gist: "", draft: null, laterUntil: null, kept: true, doneAt: undefined });
       });
       this.waits.delete(t.id);
       this.retryAt.delete(t.id);
@@ -1423,7 +1425,7 @@ export class Engine {
       // answered, by date), so a Rescan doesn't bring back what Nikita dismissed; a group's row goes after a week.
       // Rows hold no text.
       const keep = (t: Thread) => (t.group ? THREAD_KEEP_MS : OWED_WINDOW_MS);
-      s.threads = s.threads.filter((t) => ((t.state === "owed" || t.state === "later") && now - t.lastIn <= OWED_WINDOW_MS) || (t.state !== "owed" && t.state !== "later" && now - Math.max(t.repliedAt ?? 0, t.lastIn) < keep(t)));
+      s.threads = s.threads.filter((t) => ((t.state === "owed" || t.state === "later") && now - t.lastIn <= OWED_WINDOW_MS) || (t.state !== "owed" && t.state !== "later" && now - Math.max(t.repliedAt ?? 0, t.lastIn, t.doneAt ?? 0) < keep(t)));
       s.older = s.older.slice(0, MAX_OLDER_ROWS);
       const today = midnightOf(now, this.offsetAt);
       // The streak: each day that ended with nobody left past their window adds one; a day that didn't resets it.

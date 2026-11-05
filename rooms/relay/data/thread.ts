@@ -103,7 +103,7 @@ export function fromText(i: TextItem): Exchange {
 }
 
 /**
- * How the queue is ordered (#803, the toggle on the line): newest first (the default), oldest first, or priority
+ * How the queue is ordered (#803; the menu by the count since #904): oldest first (the page's default since #904), newest first, or priority
  * (Dialtone's "reply sooner" ones first, then the longest waiting, the order before #803).
  */
 export type Order = "newest" | "oldest" | "priority";
@@ -226,7 +226,7 @@ export function offered(phase: Phase, ex: Exchange | null): Command[] {
   return all.filter((c) => allowed(c, phase, ex));
 }
 
-/** Keys: Y yes, N no, R reply (draft it), D done, L later, S skip, Z undo. */
+/** Keys: Y yes, N no, R reply (draft it), D done, L later, S skip, Z undo. On the page (#904) W and S move and A is Later first. */
 export function keyCommand(key: string): Command | null {
   const k = key.toLowerCase();
   return k === "y" ? "yes" : k === "n" ? "no" : k === "s" ? "skip" : k === "z" ? "undo" : k === "l" ? "later" : k === "d" ? "done" : k === "r" ? "draft" : null;
@@ -313,6 +313,22 @@ export function metricsOf(email: EmailStatus | null, texts: RelayStatus | null, 
 }
 
 /** The latest request on a thread. */
+/**
+ * Texts Nikita marked Done that the Mac hasn't settled yet (#914, Nikita: "when I click done … and refresh the page, it
+ * shouldn't come back up"): the thread's latest Done or Bring back is a Done the site still holds (waiting, taken or
+ * done), made after their latest text. The line leaves them out across reloads until the Mac's next list drops them;
+ * a newer text from them, a Bring back, or a Done the Mac never took (expired, failed, refused) shows them again.
+ */
+export function doneHere(items: readonly Pick<TextItem, "id" | "since" | "last">[] | undefined, requests: readonly Pick<TextRequestView, "kind" | "thread" | "state" | "created">[] | undefined): Set<string> {
+  const out = new Set<string>();
+  if (!items?.length || !requests?.length) return out;
+  for (const i of items) {
+    const r = requests.filter((q) => q.thread === i.id && (q.kind === "done" || q.kind === "back")).sort((a, b) => b.created - a.created)[0];
+    if (r?.kind === "done" && (r.state === "waiting" || r.state === "taken" || r.state === "done") && r.created >= Math.max(i.since, i.last ?? 0)) out.add(i.id);
+  }
+  return out;
+}
+
 export const lastRequest = (requests: TextRequestView[] | undefined, thread: string) => (requests ?? []).filter((r) => r.thread === thread).sort((a, b) => b.created - a.created)[0];
 
 /** "4 min", "1 h", "2 d". */

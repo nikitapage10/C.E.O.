@@ -199,7 +199,7 @@ describe("a small chat of several is a regular chat (#916)", () => {
       ["Blake Sample", null],
     ]);
     // On the Desk's Relay line, sendable, with its texts.
-    const line = queueOf([], view!.items, "newest").find((e) => e.id === t.id);
+    const line = queueOf([], view!.items, [], true).find((e) => e.id === t.id);
     expect(line).toMatchObject({ who: "Avery, Blake, Casey", sendable: true });
     expect(line?.messages?.length).toBe(3);
   });
@@ -242,7 +242,7 @@ describe("6 or more other people stay a group (#916)", () => {
     expect(h.site.drafts).toHaveLength(0);
     const view = readTextsView(h.site.views.at(-1), h.now())!;
     expect(view.items.find((i) => i.id === t.id)).toMatchObject({ group: true, name: "Group chat" });
-    expect(queueOf([], view.items, "newest").some((e) => e.id === t.id)).toBe(false);
+    expect(queueOf([], view.items, [], true).some((e) => e.id === t.id)).toBe(false);
   });
 
   it("a chat that was a group under the old line becomes a regular chat once its size is known", async () => {

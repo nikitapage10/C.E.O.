@@ -181,7 +181,7 @@ function setLink(status: EmailStatus | null, canSend = false) {
 }
 
 async function post(body: object): Promise<Response> {
-  return fetch(PATH, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "same-origin", cache: "no-store", body: JSON.stringify(body) });
+  return fetch(PATH, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "same-origin", cache: "no-store", keepalive: true, body: JSON.stringify(body) });
 }
 
 export const useEmail = create<EmailStore>((set, get) => ({

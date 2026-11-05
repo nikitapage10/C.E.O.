@@ -12,7 +12,7 @@ import type { GymGeo } from "./gymKit.ts";
 
 export const HOME_MODELS = new Set<Kind>([
   "counter", "range", "fridge", "island", "tv", "sofa", "cattree", "lamp", "shower", "tub", "wc", "vanity",
-  "towelbar", "litterbox", "coatrack", "tunnel", "greenhouse", "bowls", "sideboard", "upper", "dj",
+  "towelbar", "litterbox", "coatrack", "tunnel", "greenhouse", "bowls", "sideboard", "upper", "dj", "art",
 ]);
 
 export interface HomeMats {
@@ -30,6 +30,81 @@ export interface HomeMats {
   dark: THREE.MeshStandardMaterial;
   grey: THREE.MeshStandardMaterial;
   leaf: THREE.MeshStandardMaterial;
+  /** The canvases' picture (#764): black-and-white trees and mountains, drawn here, no image file. */
+  art: THREE.MeshStandardMaterial;
+}
+
+/**
+ * One black-and-white picture of trees and mountains (#764), drawn on a canvas: a pale sky, three ranges of peaks
+ * fading into mist, snow on the far ones, and a dark line of pines along the bottom. Seeded, so it is the same each time.
+ */
+export function drawArt(c: HTMLCanvasElement) {
+  const W = (c.width = 1000), H = (c.height = 600);
+  const x = c.getContext("2d");
+  if (!x) return;
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const sky = x.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, "#f4f4f2");
+  sky.addColorStop(0.55, "#d9d9d6");
+  sky.addColorStop(1, "#bdbdba");
+  x.fillStyle = sky;
+  x.fillRect(0, 0, W, H);
+  const range = (base: number, amp: number, step: number, tone: string, snow: boolean) => {
+    const pts: [number, number][] = [];
+    for (let px = -step; px <= W + step; px += step * (0.6 + rnd() * 0.8)) pts.push([px, base - amp * (0.35 + rnd() * 0.65)]);
+    x.beginPath();
+    x.moveTo(-step, H);
+    for (const [px, py] of pts) x.lineTo(px, py);
+    x.lineTo(W + step, H);
+    x.closePath();
+    x.fillStyle = tone;
+    x.fill();
+    if (snow)
+      for (const [px, py] of pts)
+        if (py < base - amp * 0.6) {
+          x.beginPath();
+          x.moveTo(px, py);
+          x.lineTo(px - 18, py + 26);
+          x.lineTo(px - 4, py + 20);
+          x.lineTo(px + 6, py + 30);
+          x.lineTo(px + 20, py + 24);
+          x.closePath();
+          x.fillStyle = "rgba(250,250,248,0.9)";
+          x.fill();
+        }
+    const mist = x.createLinearGradient(0, base - 30, 0, base + 60);
+    mist.addColorStop(0, "rgba(235,235,232,0)");
+    mist.addColorStop(1, "rgba(235,235,232,0.55)");
+    x.fillStyle = mist;
+    x.fillRect(0, base - 30, W, 90);
+  };
+  range(300, 210, 90, "#9a9a98", true);
+  range(380, 150, 70, "#6c6c6b", true);
+  range(460, 110, 55, "#3e3e3e", false);
+  // The pines: stacked triangles on a dark bank.
+  x.fillStyle = "#121212";
+  x.fillRect(0, 540, W, 60);
+  for (let px = -10; px < W + 20; px += 14 + rnd() * 22) {
+    const h = 70 + rnd() * 120, w = h * (0.28 + rnd() * 0.08), base = 548 + rnd() * 20;
+    x.fillStyle = rnd() > 0.5 ? "#0c0c0c" : "#1c1c1c";
+    for (let k = 0; k < 4; k++) {
+      const top = base - h + (k * h) / 5, bot = base - h + ((k + 1.6) * h) / 5, ww = w * (0.45 + k * 0.2);
+      x.beginPath();
+      x.moveTo(px, top);
+      x.lineTo(px - ww / 2, bot);
+      x.lineTo(px + ww / 2, bot);
+      x.closePath();
+      x.fill();
+    }
+    x.fillRect(px - 1.5, base - 6, 3, 10);
+  }
+  // A fine grain, like a print.
+  for (let i = 0; i < 9000; i++) {
+    const v = Math.floor(rnd() * 255);
+    x.fillStyle = `rgba(${v},${v},${v},0.05)`;
+    x.fillRect(rnd() * W, rnd() * H, 1.4, 1.4);
+  }
 }
 
 export function homeMats(): HomeMats {
@@ -49,10 +124,24 @@ export function homeMats(): HomeMats {
     dark: m({ color: 0x050506, roughness: 0.6 }),
     grey: m({ color: 0x8a8d92, roughness: 0.6 }),
     leaf: m({ color: 0x3f8f52, roughness: 0.7, emissive: 0x7dff9a, emissiveIntensity: 0.15 }),
+    art: artMat(),
   };
 }
 
+function artMat(): THREE.MeshStandardMaterial {
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, emissive: 0xffffff, emissiveIntensity: 0.12 });
+  if (typeof document === "undefined") return mat;
+  const c = document.createElement("canvas");
+  drawArt(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  mat.map = tex;
+  mat.emissiveMap = tex;
+  return mat;
+}
+
 export function disposeHomeMats(m: HomeMats) {
+  m.art.map?.dispose();
   for (const v of Object.values(m)) v.dispose();
 }
 
@@ -250,6 +339,26 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       }
       b(M.dark, L * 0.16, 0.05, D * 0.8, 0, top + 0.04, 0);
       b(M.green, L * 0.9, 0.006, 0.006, 0, top + 0.012, -D / 2 - 0.004);
+      return g;
+    }
+    case "art": {
+      // Five tall gallery-wrapped canvases side by side, the one picture split across them: white edges, the picture
+      // on the faces (local -Z, into the room). The plane is turned to face the room, so the picture's left is +X.
+      const n = 5, gap = Math.min(0.06, L * 0.03), pw = (L - gap * (n - 1)) / n, dep = Math.max(0.025, Math.min(D, 0.04));
+      const planes: THREE.BufferGeometry[] = [];
+      for (let i = 0; i < n; i++) {
+        const cx = -L / 2 + pw / 2 + i * (pw + gap);
+        b(M.white, pw, H, dep, cx, lift + H / 2, D / 2 - dep / 2);
+        const geo = new THREE.PlaneGeometry(pw, H);
+        const j = n - 1 - i, uv = geo.attributes.uv as THREE.BufferAttribute;
+        for (let v = 0; v < uv.count; v++) uv.setX(v, (j + uv.getX(v)) / n);
+        planes.push(geo);
+        const face = new THREE.Mesh(geo, M.art);
+        face.rotation.y = Math.PI;
+        face.position.set(cx, lift + H / 2, D / 2 - dep - 0.002);
+        g.add(face);
+      }
+      g.userData.dispose = () => planes.forEach((p) => p.dispose());
       return g;
     }
     case "sideboard": {

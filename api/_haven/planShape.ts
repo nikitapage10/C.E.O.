@@ -32,6 +32,8 @@ export const KINDS = [
   // #747: a sideboard with an espresso machine on it, a tub chair, a small plant greenhouse, a coat rack, a plain litter
   // box, a towel bar, raised double bowls and a ceiling projector.
   "sideboard", "espresso", "tubchair", "greenhouse", "coatrack", "litterbox", "towelbar", "bowls", "projector",
+  // #764: wall art, a run of tall canvases side by side making one picture.
+  "art",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 

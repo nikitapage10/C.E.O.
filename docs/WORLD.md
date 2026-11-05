@@ -153,7 +153,7 @@ through the day. `api/_world/story.ts`.
   line (two lines at most, the full text in Signals) with a Read button until you read it, other announcements showing
   after it; once read, that step's line doesn't pin again (`apps/world/src/kernel/catchup.ts`). The latest
   hour's conversations and builders' remarks play out as speech bubbles, speakers facing each other.
-- **The Desk's Chronicle** (`/chronicle`, `apps/world/src/desk/Chronicle.tsx`): the hours since you were last here,
+- **The Desk's Chronicle** (`/chronicle`, `rooms/archive/web/Chronicle.tsx`): the hours since you were last here,
   then a page per day (newest first) with the day in Ilyr, each hour's summary, real events, scenes, remarks and
   relationship changes, and how everyone stands now.
 - **Today**: "In Ilyr" under While you were away, with a link to the Chronicle.

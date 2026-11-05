@@ -1,4 +1,4 @@
-import type { HistoryEntry, RoomId } from "../chronicle.ts";
+import type { HistoryEntry, RoomId } from "../../../apps/world/src/chronicle.ts";
 
 /**
  * The Archive's threads (#431): the week's Book of Hours as particle lines. Each day is a row of twenty-four hours, and

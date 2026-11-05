@@ -4,5 +4,5 @@
  */
 export const nav = {
   name: "Archive",
-  page: () => import("../../apps/world/src/desk/Archive.tsx").then((m) => ({ default: m.Archive })),
+  page: () => import("./web/Archive.tsx").then((m) => ({ default: m.Archive })),
 };

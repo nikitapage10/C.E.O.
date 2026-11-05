@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HistoryEntry, RoomId } from "../chronicle.ts";
+import type { HistoryEntry, RoomId } from "../../../apps/world/src/chronicle.ts";
 import { threadDensity, threadPath, threadRate, threadsOf } from "./archiveThreads.ts";
 
 const entry = (step: number, hour: number, scenes: [RoomId, number][]): HistoryEntry & { hour: number } =>

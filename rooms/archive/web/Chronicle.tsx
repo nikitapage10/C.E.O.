@@ -2,16 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { mountainHour, ThreadedWeek, type Reading } from "./ChronicleHours.tsx";
 import { TideFolio } from "./ChronicleTide.tsx";
 import { ShipWeeksFolio } from "./ShipWeeks.tsx";
-import { RC } from "./flow/index.ts";
-import { chronicleDay, dayTitle, hourLabel, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
-import { previousWeek, weekDaysOf, weekStartOf } from "../../../../api/_world/weeks.ts";
+import { RC } from "../../../apps/world/src/desk/flow/index.ts";
+import { chronicleDay, dayTitle, hourLabel, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../../../apps/world/src/chronicle.ts";
+import { previousWeek, weekDaysOf, weekStartOf } from "../../../api/_world/weeks.ts";
 import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, Kin, ROOM_NAME, Shelf, shortDay, WeekTold } from "./ChronicleWeave.tsx";
 import { DayStory } from "./DayStory.tsx";
-import { formatWait } from "./deskData.ts";
-import { link } from "./nav.ts";
-import { PORTRAITS } from "./portraits.ts";
-import { useWidth } from "./motion.tsx";
-import { Avatar } from "./ui.tsx";
+import { formatWait } from "../../../apps/world/src/desk/deskData.ts";
+import { link } from "../../../apps/world/src/desk/nav.ts";
+import { PORTRAITS } from "../../../apps/world/src/desk/portraits.ts";
+import { useWidth } from "../../../apps/world/src/desk/motion.tsx";
+import { Avatar } from "../../../apps/world/src/desk/ui.tsx";
 
 /**
  * The Archive (#225; redesigned in #366): the Chronicle of Ilyr. Every hour the world takes a step and the Historian

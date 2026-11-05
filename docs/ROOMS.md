@@ -8,8 +8,9 @@ tests and lint enforce it. The site keeps one address and one deploy.
 
 The rooms are moving in over 14 steps (the plan is on #617). Step 1 added the engine's skeleton, a manifest for each of
 the ten rooms, the contract test and the lint boundaries; nothing imports the manifests yet. Step 2 moved the shared
-kits into the engine (below). Until a room's own step lands, its code stays where it is in `apps/world/src/desk` and
-`api/`.
+kits into the engine (below). Step 3 turned the backwards imports round: the shared kits no longer import rooms, and
+the rooms plug into them instead (below, "Rooms plug in"). Until a room's own step lands, its code stays where it is in
+`apps/world/src/desk` and `api/`.
 
 ## What the engine holds
 
@@ -26,8 +27,23 @@ kits into the engine (below). Until a room's own step lands, its code stays wher
 Import a file by its subpath and name, e.g. `@ceo/engine/sigils/wvCanvas.ts`: the files carry their own CSS and fonts,
 so there is no barrel that would pull them all in. The old Desk paths re-export the engine's files unchanged (same
 names, same behaviour) until step 14, so existing imports keep working. `desk/flow/index.ts` (with `useFlow`) and
-`desk/flow/useTempo.ts` stay in the Desk until step 3, because the tempo still reads room data. The engine imports no
-Desk routes: the Desk hands its router to the pings with `setPingOpener` (in `desk/pings.ts`).
+`desk/flow/useTempo.ts` stay in the Desk until the route moves into the engine, since the tempo reads the page's
+route. The engine imports no Desk routes: the Desk hands its router to the pings with `setPingOpener` (in
+`desk/pings.ts`).
+
+### Rooms plug in
+
+A shared kit never imports a room or reads its data (step 3). A room offers its part, and the Desk plugs it in once,
+as it starts, in `desk/roomHooks.ts` (Desk.tsx imports it first). Anything a kit needs only sometimes loads lazily, so
+plugging in adds nothing to the first load.
+
+| Kit | What a room offers | Plugged in with |
+| --- | --- | --- |
+| Flow (`desk/flow`) | Its pulse, for the tempo of its page's lines (`useRoomPulse`, from the stores the Desk keeps) | `setPulseReader` (`desk/flow/pulse.ts`) |
+| Skippy's page block (`desk/skippy/page.ts`) | Its lines for his quick take: the Green's start/sit calls (`desk/green/skippy.ts`, leading every block) and the Exchange's odds (`desk/exchange/skippy.ts`) | `addPageSource` (`desk/skippy/rooms.ts`) |
+| Skippy's texting (#536) | The Relay's compose card and call tools (`desk/texts/`) | `setTexting` (`desk/skippy/rooms.ts`) |
+
+As a room moves into `rooms/<id>/`, its part moves with it (its `skippy.ts`) and is offered through its manifest.
 
 ## The contract
 
@@ -148,5 +164,6 @@ room data in it.
   contract test is the one exception, to load the manifests); room web code reaches lore only through
   `@ceo/engine/lore`; no `process.env` in `rooms/*/api`.
 - **Warnings** in `apps/world/src/desk/**`: a room's folder importing another room's, or a shared kit (flow, skippy,
-  confluence, hologram, hero) importing a room. The baseline at step 1 is 15 warnings; they go as the rooms move, and
-  become errors at step 14.
+  confluence, hologram, hero) importing a room. The baseline at step 1 was 15 warnings (18 by step 3, as rooms grew).
+  Step 3 cleared every kit's; the 6 left are rooms importing rooms (the Boiler Room's controls and pipes, the
+  Exchange's asides), which go as those rooms move. They become errors at step 14.

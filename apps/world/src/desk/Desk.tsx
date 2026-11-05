@@ -1,3 +1,4 @@
+import "./roomHooks.ts";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { startFoundry } from "../foundry.ts";
 import { warmLattice } from "../latticeWarm.ts";

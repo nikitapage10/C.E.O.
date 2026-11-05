@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { callIsLive } from "./liveCall.ts";
 import type { AskedCard, AskedRoom } from "./asked.ts";
 import type { Pending } from "./handoff.ts";
+import { texting } from "./rooms.ts";
 import { announceWrote, readWrote } from "./wrote.ts";
 
 /**
@@ -315,10 +316,10 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     const history = historyFor(get().turns);
     set((s) => ({ busy: true, turns: [...s.turns, { id: nextId++, who: "nikita" as const, text: message }].slice(-KEEP_TURNS) }));
     const rt = await loadRoundTrip().catch(() => null);
-    const got = await askSkippy(message, history, doFetch, rt?.pageNow() ?? "");
-    // A text to draft (#536): its card starts at once (drafting can't send anything) and sits under the reply.
+    const got = await askSkippy(message, history, doFetch, (await rt?.pageNow()) ?? "");
+    // A text to draft (#536): its card starts at once (drafting can't send anything) and sits under the reply. Texting is the Relay's, plugged in by the Desk (rooms.ts).
     const asked = got.ok ? got.actions.find((a) => a.kind === "text") : undefined;
-    const compose = asked?.kind === "text" ? await import("../texts/compose.ts").then((m) => m.useCompose.getState().start(asked.who, asked.text, "chat")).catch(() => undefined) : undefined;
+    const compose = asked?.kind === "text" ? await texting()?.start(asked.who, asked.text).catch(() => undefined) : undefined;
     const turn: Turn = got.ok
       ? {
           id: nextId++,

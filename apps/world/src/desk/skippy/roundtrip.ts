@@ -1,9 +1,8 @@
-import { usePolymarket } from "../exchange/polymarket.ts";
-import { useGreen } from "../green/league.ts";
 import { useSystems } from "../../systems.ts";
 import { ASK_ERROR, speak, useSkippy, type Turn } from "./chat.ts";
 import { WAIT_MAX_MS, gaveUpText, lookForAnswer, pollEvery } from "./handoff.ts";
 import { pageContext } from "./page.ts";
+import { pageSources } from "./rooms.ts";
 
 /**
  * The chat's side of a hand-off's round trip (#341), loaded on its own the first time the chat opens or its box is
@@ -13,10 +12,11 @@ import { pageContext } from "./page.ts";
 
 export { WAIT_ROOMS, pendingText } from "./handoff.ts";
 
-/** The page's data for Skippy's quick take (page.ts): from what the Desk already loaded, no extra reads. */
-export function pageNow(): string {
+/** The page's data for Skippy's quick take (page.ts): from what the Desk already loaded, no extra reads. A room whose lines can't be read leaves them out. */
+export async function pageNow(): Promise<string> {
   try {
-    return pageContext({ path: typeof window === "undefined" ? "/" : window.location.pathname, green: useGreen.getState().board, exchange: usePolymarket.getState().board, links: useSystems.getState().links });
+    const rooms = await Promise.all(pageSources().map(async ({ room, first, lines }) => ({ room, first, lines: await lines().catch((): string[] => []) })));
+    return pageContext({ path: typeof window === "undefined" ? "/" : window.location.pathname, rooms, links: useSystems.getState().links });
   } catch {
     return "";
   }

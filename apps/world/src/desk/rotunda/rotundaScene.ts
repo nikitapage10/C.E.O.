@@ -141,6 +141,8 @@ interface Pod {
 }
 interface Spot {
   l: SpotLight;
+  /** Its visible beam: a soft cone from the light down onto the Skippy it follows. */
+  beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
   on: number;
   to: number;
   pod: Pod | null;
@@ -497,12 +499,20 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // The floor's places: u for a duty, r for a report, a/b/c for advocates, d beside a contested advocate.
   const SPOT = { u: new Vector3(-2.3, 2.4, 2.8), r: new Vector3(2.4, 2.9, 2.4), a: new Vector3(-3.0, 2.7, 2.0), b: new Vector3(3.0, 2.7, 2.0), c: new Vector3(0, 4.7, -1.7), d: new Vector3(-4.7, 3.7, 0.2) };
   type SpotId = keyof typeof SPOT;
+  // A unit cone, narrow at the light, wide at the floor, pivoting from its top so it can be pointed and stretched.
+  const beamG = keep(new CylinderGeometry(0.12, 0.85, 1, 32, 1, true));
+  beamG.translate(0, -0.5, 0);
   const lightPool: Spot[] = [0, 1, 2, 3].map(() => {
     const l = new SpotLight(0xffffff, 0, 12, 0.3, 0.6, 1.3);
     l.visible = false;
     scene.add(l, l.target);
-    return { l, on: 0, to: 0, pod: null };
+    const beam = new Mesh(beamG, keep(new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide })));
+    beam.visible = false;
+    scene.add(beam);
+    return { l, beam, on: 0, to: 0, pod: null };
   });
+  const beamDir = new Vector3();
+  const beamUp = new Vector3(0, -1, 0);
 
   // ---- sizing and the camera --------------------------------------------------------------------------------------
   const phone = () => host.clientWidth < PHONE_W;
@@ -1160,8 +1170,19 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         }
       }
       L.on = L.pod ? L.on : 0;
-      L.l.intensity = L.on * 60;
+      L.l.intensity = L.on * 90;
       L.l.visible = L.on > 0.005;
+      L.beam.visible = L.l.visible;
+      if (L.beam.visible && L.pod) {
+        // The beam runs from the light to just under the pod, in the light's colour.
+        beamDir.set(L.pod.g.position.x, L.pod.g.position.y - 0.4, L.pod.g.position.z).sub(L.l.position);
+        const len = beamDir.length();
+        L.beam.position.copy(L.l.position);
+        L.beam.quaternion.setFromUnitVectors(beamUp, beamDir.divideScalar(len));
+        L.beam.scale.set(1, len, 1);
+        L.beam.material.color.copy(L.l.color);
+        L.beam.material.opacity = 0.075 * L.on;
+      }
     }
     crowdU.t.value = T;
     crowdU.vote.value += (voteTo - crowdU.vote.value) * k * 0.5;

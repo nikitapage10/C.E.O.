@@ -89,6 +89,9 @@ async function stub(page: Page, broken: boolean) {
 }
 
 async function noSideScroll(page: Page) {
+  // The page as it reads once its loader (#752) has faded: the loader is a fixed cover whose motes gather from outside
+  // its mark, so its own boxes overflow while it is up, without ever scrolling the page (rooms/boiler since #842).
+  await expect(page.locator(".room-loader")).toHaveCount(0);
   const wide = await page.evaluate(() => {
     const els = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".desk, .desk *")];
     return els.filter((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== "auto" && getComputedStyle(e).overflowX !== "scroll" && getComputedStyle(e).overflowX !== "hidden").map((e) => e.className).slice(0, 3);

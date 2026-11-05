@@ -445,7 +445,9 @@ test("the queue on the wave (#803): what comes next left of the line, a tap jump
   await page.goto(`${BASE}/relay`);
   const wave = page.getByRole("navigation", { name: "Up next" });
   await expect(wave.locator(".rq-item[data-cur]")).toContainText("Sam Test");
-  await wave.getByRole("button", { name: /Next: Jordan Test/ }).click();
+  // The rows drift on the wave every frame, so Playwright's pointer click never finds the row "stable" and waits out
+  // the test; the tap is sent to the row itself instead (#844).
+  await wave.getByRole("button", { name: /Next: Jordan Test/ }).dispatchEvent("click");
   await expect(focused(page)).toContainText("Jordan Test");
   await expect(wave.locator(".rq-item[data-cur]")).toContainText("Jordan Test");
   // Oldest first puts Priya's mail at the top; the one in focus stays in focus.

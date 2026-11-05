@@ -81,7 +81,8 @@
 .desk .rt-mur.on{opacity:.34}
 
 /* ---------- the sound (#755): off by default; on, a small level moves while someone speaks ---------- */
-.desk .rt-sound{position:absolute;z-index:5;right:22px;bottom:24px;display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 10px;border:1px solid rgba(201,168,92,.3);border-radius:16px;background:rgba(9,10,15,.78);color:var(--rt-mute);font:600 10.5px var(--rt-sans);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;transition:color .2s,border-color .2s,background .2s;-webkit-tap-highlight-color:transparent}
+/* Above Ask Skippy (bottom right, 56 px tall at 18 px), never under it: the pill test found it hidden there at 1440 wide (#844). */
+.desk .rt-sound{position:absolute;z-index:5;right:22px;bottom:96px;display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 10px;border:1px solid rgba(201,168,92,.3);border-radius:16px;background:rgba(9,10,15,.78);color:var(--rt-mute);font:600 10.5px var(--rt-sans);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;transition:color .2s,border-color .2s,background .2s;-webkit-tap-highlight-color:transparent}
 .desk .rt-sound:hover{color:var(--rt-soft);border-color:rgba(201,168,92,.5)}
 .desk .rt-sound:focus-visible{outline:1px solid var(--rt-gold);outline-offset:3px}
 .desk .rt-sound.is-on{color:var(--rt-gold);border-color:rgba(227,201,141,.55);background:rgba(20,18,12,.85)}

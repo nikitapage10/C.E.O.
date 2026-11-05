@@ -467,7 +467,7 @@ real; "nothing shipped" is only for a tick where every rung comes up empty, and 
 
 - **security and compliance first:** the most pressing open item on the Desk's Security and Compliance pages (risks
   R1–R6 and the open OWASP LLM, NIST AI RMF and SAIF gaps in [THREAT-MODEL.md](THREAT-MODEL.md), or a failing scan).
-  A small, safe fix ships as upkeep, with the threat model and `apps/world/src/desk/security/model.ts` updated
+  A small, safe fix ships as upkeep, with the threat model and `rooms/boiler/data/model.ts` updated
   together so the Desk shows it; anything bigger becomes an idea card for Nikita's pick;
 - take in Dependabot's grouped minor and patch update (Nikita, 2026-10-21, #204): when Dependabot's grouped
   minor-and-patch PR is open and its `checks` and CodeQL are green, merge main into it locally, run typecheck, lint,

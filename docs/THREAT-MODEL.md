@@ -9,7 +9,7 @@ reference, never a recipe. To report a vulnerability, use the repo's Security ta
 
 The Desk shows this page as data on Systems > Security and Systems > Compliance (`/systems/security`,
 `/systems/compliance`, #82), next to the live scan results. The Desk reads its tables from
-`apps/world/src/desk/security/model.ts`, which copies them word for word; a test fails when the two drift apart, so
+`rooms/boiler/data/model.ts`, which copies them word for word; a test fails when the two drift apart, so
 change both together.
 
 ## What C.E.O. is, in one paragraph
@@ -257,7 +257,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 
 Three files under `api/_security/`, run by `npm test` on every build with no network and no API calls. The models
 are stubbed; the payloads go through the real code around them. `npm run security:evals` counts the cases in each
-area into `apps/world/src/desk/security/evals.json` for the Desk; a test fails when the counts below or that file
+area into `rooms/boiler/data/evals.json` for the Desk; a test fails when the counts below or that file
 fall behind the suite.
 
 | Area | File | Cases | What it proves |

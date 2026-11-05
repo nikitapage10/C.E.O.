@@ -158,7 +158,7 @@ through the day. `api/_world/story.ts`.
   relationship changes, and how everyone stands now.
 - **Today**: "In Ilyr" under While you were away, with a link to the Chronicle.
 - **The Foundry tab**: builders' remarks under their jobs on the Changelog; the world's spend on the Usage panel.
-- **The world clock** (issue #53): on the Desk's **Systems** page (`apps/world/src/desk/Systems.tsx`) and as
+- **The world clock** (issue #53): on the Desk's **Systems** page (`rooms/boiler/web/Systems.tsx`) and as
   the last pipe in the Lattice's **Boiler Room**. When the last hour ran, when the next is due, Claude or scripted,
   and this month's world spend against its $6 share. `apps/world/src/worldClock.ts` polls `GET /api/world-step`
   every minute while the tab is showing: working while the last step is under 70 minutes old, slow (amber, the pipe

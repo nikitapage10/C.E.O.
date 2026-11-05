@@ -1,4 +1,4 @@
-// Writes apps/world/src/desk/security/evals.json: how many cases the injection eval suite (api/_security/) has in
+// Writes rooms/boiler/data/evals.json: how many cases the injection eval suite (api/_security/) has in
 // each area, and how many of them are expected-fail, for the Desk's Security page. It runs the suite (offline, no
 // API calls) and counts what actually ran. Run it after changing the suite: `npm run security:evals`.
 // `--check` writes nothing and exits 1 when the file is behind; a unit test runs that, so CI keeps it current.
@@ -8,7 +8,7 @@ import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startVitest } from "vitest/node";
 
-const OUT = fileURLToPath(new URL("../apps/world/src/desk/security/evals.json", import.meta.url));
+const OUT = fileURLToPath(new URL("../rooms/boiler/data/evals.json", import.meta.url));
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /** The areas, in the order of the table in docs/THREAT-MODEL.md, and the top-level blocks that belong to each. */

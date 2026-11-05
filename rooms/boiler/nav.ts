@@ -7,6 +7,6 @@ import { SECTIONS } from "./sections.ts";
  */
 export const nav = {
   name: "Boiler Room",
-  page: () => import("../../apps/world/src/desk/SystemsHub.tsx").then((m) => ({ default: m.SystemsHub })),
+  page: () => import("./web/SystemsHub.tsx").then((m) => ({ default: m.SystemsHub })),
   sections: SECTIONS,
 };

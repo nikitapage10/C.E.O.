@@ -45,7 +45,7 @@ import { pickKeyWriter, type KeyWriter } from "./vault.js";
 
 /**
  * What a step-up is bound to (#330): sha256(name + "\n" + value), hex, over the value as it will be stored (trimmed).
- * The Desk computes the same in the browser (apps/world/src/desk/security/keys.ts, writeHash).
+ * The Desk computes the same in the browser (rooms/boiler/data/keys.ts, writeHash).
  */
 export function writeHash(name: string, value: string): string {
   return createHash("sha256").update(`${name}\n${value}`).digest("hex");

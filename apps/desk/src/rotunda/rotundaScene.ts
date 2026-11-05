@@ -73,6 +73,7 @@ import {
 import type { RotundaVoice } from "./voice.ts";
 import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig } from "./senateActor.ts";
 import { senatePoses, senatorOf } from "./senators.ts";
+import { debateAt, debateLines, debateOpen } from "./debates.ts";
 
 /**
  * The Senate in 3D (#740), Today's chamber: the round 3 concept (concepts/2026-11-04-today-boiler, r3/rotunda.js)
@@ -89,6 +90,9 @@ import { senatePoses, senatorOf } from "./senators.ts";
  *
  * Since #856 the gallery's shadow Skippies are flat silhouettes in the back tiers' haze, only the line being heard is
  * written large (the rest whisper), and the frame's edges come undone into gold wire and code nanites.
+ * Since #878 the gallery is twice as full of them and each reads as Skippy (can, arms and bicorne in a line of light),
+ * the gold grid sheds faint nanites as it comes undone, the faces glow back the light they're drawn in, and with nothing
+ * on the docket the members argue a topic of their own (debates.ts) until real business takes the floor.
  *
  * Every Skippy in it is its own self (#775): its own idle, gestures, faces and reactions, played from senators.ts by
  * senateActor.ts, with a moving face cast over the front of each can's head.
@@ -179,15 +183,22 @@ type Slot = "a" | "b" | "c" | "d";
 const baseOf = (s: RotundaSeat) => (s.working ? 0.85 : s.alive ? 0.5 : 0.14);
 
 /**
- * The can's outline, seen from the front at its bind pose, drawn once into a small texture whose alpha is the shape with
- * softened edges (#856): what every shadow senator in the gallery is cut from, with the texture's width over its
- * height. Null where a 2D canvas isn't available.
+ * The can's outline, drawn once into a small texture that every shadow senator in the gallery is cut from (#856), with
+ * the texture's width over its height. Since #878 it is the can as it stands in the chamber, not at its bind pose (whose
+ * arms stuck straight out and made a strange cross of it): skinned in the pose `body`'s bones hold when this is called,
+ * turned a little off the front (`yaw`) so the bicorne's two horns and the can's round shoulder both read, and lifted a
+ * touch so the hat sits on top rather than flat. Null where a 2D canvas isn't available.
+ *
+ * Three masks in one opaque texture (no premultiplied edges): red is the figure, edge barely softened so it stays crisp;
+ * green is a wide glow round it, the backlight that lifts a dark figure off the dark wall; blue is a thin rim just
+ * inside the outline, the line of light that draws the can, its hat and its arms.
  */
-function silhouette(body: SkinnedMesh): { tex: CanvasTexture; aspect: number } | null {
+function silhouette(body: SkinnedMesh, yaw = 0.3, pitch = 0.04): { tex: CanvasTexture; aspect: number } | null {
   const pos = body.geometry.getAttribute("position");
   const idx = body.geometry.index;
   if (!pos || !pos.count) return null;
-  // Framed on its own vertices as they stand (not the scene's box, whose units can differ from the mesh's own).
+  const skinned = !!body.geometry.getAttribute("skinIndex") && !!body.skeleton;
+  const turn = new Matrix4().makeRotationX(pitch).multiply(new Matrix4().makeRotationY(yaw));
   const xy = new Float32Array(pos.count * 2);
   const v = new Vector3();
   let x0 = Infinity;
@@ -195,7 +206,9 @@ function silhouette(body: SkinnedMesh): { tex: CanvasTexture; aspect: number } |
   let y0 = Infinity;
   let y1 = -Infinity;
   for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i).applyMatrix4(body.matrixWorld);
+    v.fromBufferAttribute(pos, i);
+    if (skinned) body.applyBoneTransform(i, v);
+    v.applyMatrix4(body.matrixWorld).applyMatrix4(turn);
     xy[i * 2] = v.x;
     xy[i * 2 + 1] = v.y;
     x0 = Math.min(x0, v.x);
@@ -206,8 +219,8 @@ function silhouette(body: SkinnedMesh): { tex: CanvasTexture; aspect: number } |
   const h = y1 - y0;
   const w = x1 - x0;
   if (!(h > 0) || !(w > 0)) return null;
-  const H = 96;
-  const PAD = 14;
+  const H = 160;
+  const PAD = 16;
   const W = Math.max(16, Math.ceil((H * w) / h));
   const hard = document.createElement("canvas");
   hard.width = W + PAD * 2;
@@ -220,45 +233,77 @@ function silhouette(body: SkinnedMesh): { tex: CanvasTexture; aspect: number } |
     px[i * 2 + 1] = PAD + H - ((xy[i * 2 + 1]! - y0) / h) * H;
   }
   hx.fillStyle = "#fff";
+  // Slightly fat strokes as well as fills, so hairline triangles (the hat's thin horns) don't drop out of the mask.
+  hx.strokeStyle = "#fff";
+  hx.lineWidth = 0.6;
+  hx.lineJoin = "round";
   hx.beginPath();
   const tris = idx ? idx.count : pos.count;
   for (let t = 0; t + 2 < tris; t += 3) {
     const a = idx ? idx.getX(t) : t;
     const b = idx ? idx.getX(t + 1) : t + 1;
     const c = idx ? idx.getX(t + 2) : t + 2;
-    hx.moveTo(px[a * 2]!, px[a * 2 + 1]!);
-    hx.lineTo(px[b * 2]!, px[b * 2 + 1]!);
-    hx.lineTo(px[c * 2]!, px[c * 2 + 1]!);
+    const [ax, ay, bx, by, cx, cy] = [px[a * 2]!, px[a * 2 + 1]!, px[b * 2]!, px[b * 2 + 1]!, px[c * 2]!, px[c * 2 + 1]!];
+    // Every triangle wound the same way round, so a back face over a front one adds to the fill instead of cancelling it
+    // (with mixed windings the overlaps punched holes all through the figure).
+    hx.moveTo(ax, ay);
+    if ((bx - ax) * (cy - ay) - (by - ay) * (cx - ax) >= 0) {
+      hx.lineTo(bx, by);
+      hx.lineTo(cx, cy);
+    } else {
+      hx.lineTo(cx, cy);
+      hx.lineTo(bx, by);
+    }
     hx.closePath();
   }
   hx.fill("nonzero");
-  // Two masks in one opaque texture (no premultiplied edges): red is the figure, its edge softened so the haze eats it
-  // instead of the edge giving the card away; green is a wide glow round it, the backlight that lifts a dark figure off
-  // the dark wall behind it.
-  const blurred = (px: number) => {
+  hx.stroke();
+  const W2 = hard.width;
+  const H2 = hard.height;
+  const blurred = (src: HTMLCanvasElement, px: number) => {
     const c = document.createElement("canvas");
-    c.width = hard.width;
-    c.height = hard.height;
+    c.width = W2;
+    c.height = H2;
     const x = c.getContext("2d");
     if (!x) return null;
     x.filter = `blur(${px}px)`;
-    x.drawImage(hard, 0, 0);
-    return x.getImageData(0, 0, c.width, c.height).data;
+    x.drawImage(src, 0, 0);
+    return x.getImageData(0, 0, W2, H2).data;
   };
-  const fig = blurred(1.2);
-  const glow = blurred(7);
-  if (!fig || !glow) return null;
-  const out = new ImageData(hard.width, hard.height);
+  const sharp = hx.getImageData(0, 0, W2, H2).data;
+  // The rim: inside the figure, within two pixels of its edge.
+  const rimC = document.createElement("canvas");
+  rimC.width = W2;
+  rimC.height = H2;
+  const rx = rimC.getContext("2d");
+  if (!rx) return null;
+  const rimD = rx.createImageData(W2, H2);
+  const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < W2 && y < H2 && sharp[(y * W2 + x) * 4 + 3]! > 127;
+  const R = 2;
+  for (let y = 0; y < H2; y++)
+    for (let x = 0; x < W2; x++) {
+      if (!inside(x, y)) continue;
+      let edge = false;
+      for (let dy = -R; dy <= R && !edge; dy++) for (let dx = -R; dx <= R && !edge; dx++) if (dx * dx + dy * dy <= R * R && !inside(x + dx, y + dy)) edge = true;
+      if (edge) rimD.data[(y * W2 + x) * 4 + 3] = 255;
+    }
+  rx.putImageData(rimD, 0, 0);
+  const fig = blurred(hard, 0.5);
+  const glow = blurred(hard, 6);
+  const rim = blurred(rimC, 0.6);
+  if (!fig || !glow || !rim) return null;
+  const out = new ImageData(W2, H2);
   for (let i = 0; i < out.data.length; i += 4) {
     out.data[i] = fig[i + 3]!;
     out.data[i + 1] = glow[i + 3]!;
+    out.data[i + 2] = rim[i + 3]!;
     out.data[i + 3] = 255;
   }
   const done = document.createElement("canvas");
-  done.width = hard.width;
-  done.height = hard.height;
+  done.width = W2;
+  done.height = H2;
   done.getContext("2d")?.putImageData(out, 0, 0);
-  return { tex: new CanvasTexture(done), aspect: done.width / done.height };
+  return { tex: new CanvasTexture(done), aspect: W2 / H2 };
 }
 
 export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement, opts: RotundaOpts): Promise<Rotunda> {
@@ -432,7 +477,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   });
   const bind = new Map([...bones].map(([k, b]) => [k, b.quaternion.clone()]));
   const poses = new Map<Pose, Map<string, Quaternion>>();
-  for (const id of senatePoses()) {
+  for (const id of new Set<Pose>([...senatePoses(), "rest"])) {
     const aims = POSES[id];
     for (const n of ARMS) bones.get(n)?.quaternion.copy(bind.get(n) ?? new Quaternion());
     for (const n of ARMS) {
@@ -446,6 +491,18 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       b.quaternion.copy(b.parent.getWorldQuaternion(new Quaternion()).invert().multiply(qq.multiply(b.getWorldQuaternion(new Quaternion()))));
     }
     poses.set(id, new Map(ARMS.map((n) => [n, bones.get(n)?.quaternion.clone() ?? new Quaternion()])));
+  }
+  // The gallery's silhouette (#878) is cut from the can standing as the members do, arms down at its sides.
+  let shade: { tex: CanvasTexture; aspect: number } | null = null;
+  if (body) {
+    const P = poses.get("rest");
+    if (P) for (const n of ARMS) bones.get(n)?.quaternion.copy(P.get(n)!);
+    proto.updateMatrixWorld(true);
+    try {
+      shade = silhouette(body as SkinnedMesh);
+    } catch {
+      shade = null;
+    }
   }
   // The shared model goes back to its bind pose (modelCache.ts): every clone below takes its own.
   for (const [n, q] of bind) bones.get(n)?.quaternion.copy(q);
@@ -502,16 +559,19 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // The shadow senators (Nikita, 2026-11-05): the gallery's pods aren't empty. A share of them hold a dark silhouette of
   // the can: an audience of shadowy Skippies, never members. Since #856 they are flat (Nikita: "just 2D shadow model,
   // like silhouettes on the podiums in the background ... far enough that you can't tell that they're 2D"): the can's
-  // outline is drawn once into a small soft-edged texture from the model already loaded for the senators, and every
-  // figure is one instanced quad that turns to face the camera, set on the back tiers and sunk into the chamber's haze,
-  // with a faint rim where the outline softens and a slow sway in the shader. No extra model, no mesh per figure, no
-  // per-figure work on the CPU.
-  const shade = body ? silhouette(body as SkinnedMesh) : null;
+  // outline is drawn once into a small texture from the model already loaded for the senators, and every figure is one
+  // instanced quad that turns to face the camera, set on the back tiers and sunk into the chamber's haze. No extra
+  // model, no mesh per figure, no per-figure work on the CPU.
+  //
+  // Since #878 (Nikita: "add even more of the background skippies", "I can't really tell that they're skippies") the
+  // gallery is about twice as full, and each figure reads as Skippy: the can as it stands, arms down, turned a little
+  // off the front so the admiral's bicorne shows both horns, drawn as a crisp line of light round a faint dark fill. Each
+  // floats a hand above its podium with a bob, a lean and a size of its own, all in the shader.
   if (shade) {
     const tex = keep(shade.tex);
     const g = keep(new PlaneGeometry(shade.aspect, 1));
     g.translate(0, 0.5, 0);
-    const NS = PH0 ? 70 : 190;
+    const NS = PH0 ? 120 : 380;
     const fog = scene.fog as FogExp2;
     const shadowU = { t: { value: 0 }, map: { value: tex }, fogC: { value: fog.color }, dens: { value: fog.density } };
     const shadowMat = keep(
@@ -521,18 +581,24 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         depthWrite: false,
         vertexShader: `uniform float t; varying vec2 vU; varying float vD;
           void main(){ float id = float(gl_InstanceID); vU = uv;
+            float h1 = fract(sin(id * 12.9898) * 43758.5453), h2 = fract(sin(id * 78.233) * 24634.6345);
             vec3 o = (modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.)).xyz; float s = length(instanceMatrix[1].xyz);
             vec3 to = cameraPosition - o; to.y = 0.; vec3 right = normalize(vec3(to.z, 0., -to.x) + vec3(1e-5, 0., 0.));
-            float sw = sin(t*.45 + id*1.73)*.05 + sin(t*.21 + id*.61)*.03;
-            vec3 w = o + right * (position.x + sw * position.y) * s + vec3(0., position.y * s, 0.);
+            float lean = (h1 - .5) * .16 + sin(t * (.35 + h2 * .3) + id * 1.73) * .035;
+            float bob = sin(t * (.7 + h1 * .5) + id * 2.31) * .045 + .07;
+            vec2 q = vec2(position.x * cos(lean) - (position.y - .5) * sin(lean), position.x * sin(lean) + (position.y - .5) * cos(lean) + .5);
+            vec3 w = o + right * q.x * s + vec3(0., (q.y + bob) * s, 0.);
             vec4 mv = viewMatrix * vec4(w, 1.); vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
         fragmentShader: `uniform sampler2D map; uniform vec3 fogC; uniform float dens; varying vec2 vU; varying float vD;
-          void main(){ vec2 m = texture2D(map, vU).rg; float body = m.r, halo = max(m.g - m.r, 0.); if (body < .03 && halo < .03) discard;
-            float rim = clamp(body * (1. - body) * 4., 0., 1.) * smoothstep(.3, .9, vU.y);
-            vec3 c = mix(vec3(.5, .58, .95) * .6, vec3(.006, .007, .012) + vec3(.55, .62, .95) * rim * .9, body);
+          void main(){ vec3 m = texture2D(map, vU).rgb; float body = m.r, halo = max(m.g - m.r, 0.), rim = m.b;
+            if (body < .03 && halo < .03) discard;
+            vec3 line = mix(vec3(.72, .8, 1.05), vec3(.95, .82, .52), smoothstep(.6, .68, vU.y));
+            vec3 c = mix(vec3(.1, .11, .17), line, rim);
+            c = mix(line * .5, c, body);
+            float a = max(max(body * .6, rim), halo * .3);
             float haze = 1. - exp(-pow(dens * 1.7 * vD, 2.));
-            c = mix(c, fogC * 1.6, haze * .4);
-            gl_FragColor = vec4(c, max(body, halo * .6) * smoothstep(.06, .16, vU.y) * (1. - haze * .15)); }`,
+            c = mix(c, fogC * 1.6, haze * .45);
+            gl_FragColor = vec4(c, a * (1. - haze * .2)); }`,
       }),
     );
     const shadows = new InstancedMesh(g, shadowMat, NS);
@@ -549,20 +615,22 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const ZERO = new Vector3(0, 0, 0);
     let n = 0;
     // Spread across the back tiers: far enough up and out that the haze takes their edges and nobody sees they're flat.
+    // Every other seat on the lower of them, every third higher up, picked by a hash so no tier is left bare.
     for (let i = 0; i < N && n < NS; i++) {
       const tier = i % 10;
-      if (tier < 2 || tier > 8 || (i * 7919) % (tier < 5 ? 3 : 4) !== 0) continue;
+      const pick = (Math.imul(i, 0x9e3779b1) >>> 16) % (tier < 6 ? 2 : 3);
+      if (tier < 1 || pick !== 0) continue;
       crowd.getMatrixAt(i, M);
       V.setFromMatrixPosition(M);
       // None on the camera's side of the bowl, where one would loom over the floor.
       const off = Math.atan2(Math.sin(Math.atan2(V.z, V.x) - Math.PI / 2), Math.cos(Math.atan2(V.z, V.x) - Math.PI / 2));
-      if (Math.abs(off) < 1.25) continue;
+      if (Math.abs(off) < 1.1) continue;
       // The plain seat gives way to the podium.
       crowd.setMatrixAt(i, M.compose(V, q, ZERO));
       stands.setMatrixAt(n, M.compose(V, q, S.setScalar(PS)));
       V.y += 0.21 * PS;
       rims.setMatrixAt(n, M.compose(V, flat, S.setScalar(PS)));
-      S.setScalar(0.8 * (0.9 + ((i * 31) % 7) * 0.03));
+      S.setScalar(0.74 * (0.86 + ((Math.imul(i, 0x85ebca6b) >>> 20) % 9) * 0.03));
       V.y += 0.01;
       shadows.setMatrixAt(n++, M.compose(V, q, S));
     }
@@ -1085,6 +1153,61 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     dollyTo = 1;
     await sleep(ITEM_GAP_MS, tk);
   }
+  // The recess (#878): with nothing on the docket, the members argue a topic of their own (debates.ts), more of them on
+  // the floor than any item brings. The opener and those who concur take the a, c and b spots; the dissent takes the red
+  // counter spot. Each stays on the floor until its spot is wanted again, so the floor fills as the argument grows. Real
+  // business preempts it: a docket that fills starts a new session, which cancels this one mid-line.
+  let recess = 0;
+  async function debate(tk: number) {
+    const d = debateAt(recess++);
+    kind = "decision";
+    opts.onFloor(null);
+    clearCaps();
+    voice?.prefetch(debateLines(d));
+    const open = debateOpen(d);
+    chair(open);
+    lookTo.set(0, 2.5, 0.8);
+    dollyTo = 1;
+    await line("kernel", open, tk);
+    const spots: [Slot, SpotId][] = [["a", "a"], ["c", "c"], ["b", "b"]];
+    const held = new Map<SpotId, Pod>();
+    let s = 0;
+    for (const l of d.lines) {
+      const nay = l.stance === "nay";
+      const [slot, spot] = nay ? (["d", "d"] as [Slot, SpotId]) : spots[s++ % spots.length]!;
+      const p = podOr(l.by);
+      const was = held.get(spot);
+      if (was && was !== p) {
+        say(slot, null);
+        goHome(was);
+      }
+      if (p) {
+        goIn(p, spot, nay);
+        held.set(spot, p);
+        focus = p;
+        lookTo.set(SPOT[spot].x * 0.4, 2.6, 0.8);
+        dollyTo = 0.96;
+        await sleep(FLY_MS, tk);
+      }
+      if (p) say(slot, p, { text: l.text }, nay);
+      else chair(l.text);
+      await line(p ? l.by : "kernel", l.text, tk);
+    }
+    chair(d.close);
+    voteTo = 1;
+    shareTo = 0.6;
+    focus = null;
+    lookTo.set(0, 2.6, 0.4);
+    dollyTo = 1.04;
+    await line("kernel", d.close, tk, ITEM_END_MS);
+    chair("");
+    clearCaps();
+    allHome();
+    voteTo = 0;
+    shareTo = 0;
+    kind = "idle";
+    await sleep(ITEM_GAP_MS, tk);
+  }
   async function session(startKey: string | null) {
     const tk = ++token;
     voice?.stop();
@@ -1094,8 +1217,10 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       let i = startKey ? Math.max(0, docket.findIndex((m) => m.key === startKey)) : 0;
       for (let k = 0; ; k++) {
         const m = docket.length ? docket[i % docket.length] : null;
-        if (m) await runItem(m, tk);
-        await interlude(k, tk);
+        if (m) {
+          await runItem(m, tk);
+          await interlude(k, tk);
+        } else await debate(tk);
         i = m ? (docket.findIndex((x) => x.key === m.key) + 1 || i + 1) : 0;
       }
     } catch {
@@ -1347,6 +1472,62 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   codeDust.frustumCulled = false;
   codeDust.renderOrder = 22;
   scene.add(codeDust);
+  // The grid turning into nanites (#878). Nikita: "some really dimmed, faded nanites ... as if the grid is kind of turning
+  // into the nanites." Faint sigils born on the wires themselves, each on a point of a real segment: it shows as a
+  // glint of the wire's gold, peels away from it (off the wall toward the floor's middle, up off the floor) and fades as
+  // it drifts, then is born again somewhere else on the grid. Sparse and dim, only where the grid shows (the frame's
+  // edges), fewer on a phone, and held still under reduced motion (its clock stops with the rest of the edge).
+  const NP = PH0 ? 140 : 420;
+  const pp = new Float32Array(NP * 3);
+  const pd = new Float32Array(NP * 3);
+  const pg = new Float32Array(NP);
+  const pr = new Float32Array(NP);
+  const segs = wire.length / 6;
+  for (let i = 0; i < NP; i++) {
+    const k = Math.floor(Math.random() * segs) * 6;
+    const f = Math.random();
+    const x = wire[k]! + (wire[k + 3]! - wire[k]!) * f;
+    const y = wire[k + 1]! + (wire[k + 4]! - wire[k + 1]!) * f;
+    const z = wire[k + 2]! + (wire[k + 5]! - wire[k + 2]!) * f;
+    pp.set([x, y, z], i * 3);
+    const r = Math.hypot(x, z) || 1;
+    const floor = y < 0.1;
+    const out = floor ? 0.15 : -(0.5 + Math.random() * 0.9);
+    pd.set([(x / r) * out + (Math.random() - 0.5) * 0.3, floor ? 0.6 + Math.random() * 0.8 : 0.25 + Math.random() * 0.6, (z / r) * out + (Math.random() - 0.5) * 0.3], i * 3);
+    pg[i] = Math.floor(Math.random() * NG);
+    pr[i] = Math.random();
+  }
+  const pGeo = keep(new BufferGeometry());
+  pGeo.setAttribute("position", new BufferAttribute(pp, 3));
+  pGeo.setAttribute("drift", new BufferAttribute(pd, 3));
+  pGeo.setAttribute("glyph", new BufferAttribute(pg, 1));
+  pGeo.setAttribute("rnd", new BufferAttribute(pr, 1));
+  const peel = new Points(
+    pGeo,
+    keep(
+      new ShaderMaterial({
+        uniforms: edgeU,
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        vertexShader: `attribute float glyph, rnd; attribute vec3 drift; uniform float t, px; varying vec2 vCell; varying float vL;
+          void main(){ float ph = fract(t * (.035 + rnd * .03) + rnd * 7.31); vL = ph;
+            float g = mod(glyph + floor(ph * 3. + rnd * 5.), ${NG.toFixed(1)}); vCell = vec2(mod(g, 8.), floor(g / 8.));
+            vec3 p = position + drift * ph * (1. + ph * .6);
+            vec4 mv = modelViewMatrix * vec4(p, 1.); gl_PointSize = (.45 + rnd * .35) * 22. * px * (6. / -mv.z) * (1. - ph * .35);
+            gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `uniform sampler2D atlas; varying vec2 vCell; varying float vL; ${EDGE}
+          void main(){ float e = smoothstep(.42, .95, edgeOf()); if (e < .01) discard;
+            vec2 uv = (vCell + gl_PointCoord) / 8.; uv.y = 1. - uv.y; float m = texture2D(atlas, uv).a; if (m < .05) discard;
+            float life = smoothstep(0., .12, vL) * (1. - smoothstep(.45, 1., vL));
+            vec3 c = mix(vec3(.89, .79, .55), vec3(.79, .66, .36), smoothstep(0., .5, vL));
+            gl_FragColor = vec4(c, m * e * life * .32); }`,
+      }),
+    ),
+  );
+  peel.frustumCulled = false;
+  peel.renderOrder = 22;
+  scene.add(peel);
   // The halo round the Chair's head stays up once formed (Nikita, 2026-11-05): it used to scatter 3.2 s after each
   // line, which read as the nanites exploding every few seconds. A line now only brightens it for a moment.
   let gather = 0;

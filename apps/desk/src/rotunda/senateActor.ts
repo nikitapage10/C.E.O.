@@ -86,7 +86,12 @@ export function makeActor(id: string, model: Object3D, inner: Group, y0: number,
       ctx.setTransform(rig.faceW / FACE_W, 0, 0, rig.faceH / FACE_H, 0, 0);
       const tex = keep(new CanvasTexture(c));
       tex.colorSpace = SRGBColorSpace;
-      const mat = keep(new MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.35, metalness: 0, depthWrite: false }));
+      // Self-lit (#878): the chamber is dark and lit from above, so a face that only took the room's light sat in the
+      // shadow of its own hat brim and read as a black blob under the visor. Its own drawing glows back out at most of
+      // its strength, so a can reads as the light, friendly face it is in any pod, and still takes the spotlight's warmth.
+      const mat = keep(
+        new MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.62, transparent: true, roughness: 0.35, metalness: 0, depthWrite: false }),
+      );
       const m = new Mesh(rig.capGeo, mat);
       m.renderOrder = 2;
       m.position.copy(HEAD.c);
@@ -331,6 +336,8 @@ export function stepActor(a: Actor, dt: number, now: number, rig: SenateRig) {
   const cap = a.cap;
   if (!cap) return;
   cap.mat.color.copy(a.body.color);
+  // A pod's dimming still shows on its face, but never darker than a soft glow (#878).
+  cap.mat.emissive.setScalar(0.45 + 0.55 * a.body.color.r);
   const face: Face = talking ? P.face.speak : a.react && re > 0.15 ? a.react.face : P.face.rest;
   let oq = 0;
   if (talking) {

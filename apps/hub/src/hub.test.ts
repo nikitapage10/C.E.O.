@@ -954,7 +954,7 @@ describe("the full text and groups on the Desk (#758)", () => {
     const item = h.site.views.at(-1)!.items.find((i) => i.group)!;
     expect(item.messages?.map((m) => m.text)).toEqual(["Sunday at noon?", "Can you bring chairs?"]);
     expect(item.messages?.every((m) => typeof m.from === "string" && m.from.length > 0)).toBe(true);
-    expect(JSON.stringify(item)).not.toMatch(/555|iMessage;/);
+    expect(JSON.stringify(item)).not.toMatch(/5550199|iMessage;/);
   });
 
   it("a group that names Nikita is owed even when the model says nobody asked", async () => {

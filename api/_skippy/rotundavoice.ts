@@ -24,7 +24,7 @@ import type { BlobBackend } from "../_blob.js";
 import { canSpeakEleven, elevenCost, storyMonth, type ElevenConfig, type StoryStore } from "../_world/story.js";
 import { ROOM_TTS_FORMAT, ROOM_TTS_MODEL, ROOM_VOICES } from "./roomvoice.js";
 import { SKIPPY_SOUND, type VoiceSound } from "./voicecrew.js";
-import { rateOf } from "../../apps/desk/src/rotunda/senators.ts";
+import { rateOf } from "@ceo/desk/rotunda/senators.ts";
 
 /** A member's voice in the chamber: always Skippy's own (ELEVENLABS_VOICE_ID), bent its way. */
 export interface CastVoice {

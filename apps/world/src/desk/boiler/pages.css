@@ -66,6 +66,7 @@
 .desk .bx .bx-need h3 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-family: var(--bx-cond); font-weight: 650; font-size: 17px; letter-spacing: 0.02em; line-height: 1.15; }
 .desk .bx .bx-need h3 small { font: 400 11.5px var(--bx-mono); color: var(--bx-mut); white-space: nowrap; }
 .desk .bx .bx-need p { margin: 0; color: var(--bx-mut); font-size: 12.5px; }
+.desk .bx .bx-need.is-focus { outline: 2px solid var(--c); outline-offset: 2px; scroll-margin: 80px; }
 .desk .bx .bx-locked { font-style: italic; }
 .desk .bx .bx-flav { margin: 2px 0 0; font-size: 12px; font-style: italic; color: var(--bx-dim); }
 

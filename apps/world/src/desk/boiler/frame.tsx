@@ -61,7 +61,7 @@ export function BoilerFrame({
 function NeedCard({ n, now, onGo }: { n: Need; now: number; onGo: (go: NeedGo) => void }) {
   const when = n.when ?? (n.at ? ago(n.at, now) : null);
   return (
-    <article className={`bx-need is-${n.tone}`}>
+    <article className={`bx-need is-${n.tone}`} data-need={n.id}>
       <h3>
         <span>{n.title}</span>
         {when ? <small>{when}</small> : null}

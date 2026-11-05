@@ -239,6 +239,47 @@ export function DecisionAct({ a, style }: { a: DeskAction; style?: CardStyle }) 
   );
 }
 
+/**
+ * A decision's options as buttons on its Rotunda docket card (#740): the same answers as DecisionAct's, put to Nikita
+ * once the floor has debated them. A button with a link opens it; the rest answer the decision in place.
+ */
+export function DecisionChoices({ a }: { a: DeskAction }) {
+  const act = useDesk((s) => s.act);
+  const [said, setSaid] = useState("");
+  if (said)
+    return (
+      <p className="rt-carried" role="status">
+        <Check />
+        Carried: {said}
+      </p>
+    );
+  return (
+    <>
+      {a.choices.map((c, k) => {
+        const href = a.hrefs?.[k];
+        const cls = `rt-act is-opt${k === 0 ? " is-pick" : ""}`;
+        return href ? (
+          <a key={c} className={cls} href={href} target="_blank" rel="noreferrer">
+            {c}
+          </a>
+        ) : (
+          <button
+            key={c}
+            type="button"
+            className={cls}
+            onClick={() => {
+              setSaid(c);
+              window.setTimeout(() => act(a.id), 900);
+            }}
+          >
+            {c}
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
 /** A reply someone is waiting on, with Blasto's draft: send it, edit it on Relay, or later. */
 export function ReplyAct({ o, now, style }: { o: OwedReply; now: number; style?: CardStyle }) {
   const { send, later, pick } = useDesk();

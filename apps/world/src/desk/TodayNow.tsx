@@ -1,6 +1,6 @@
-import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import { whenLabel } from "../../../../api/_today/parse.ts";
-import { CREW, type Change, type Crate } from "../foundry.ts";
+import { CREW, crewFor, type Change, type Crate } from "../foundry.ts";
 import { useWorldClock, clockState } from "../worldClock.ts";
 import { DESK_ROOMS, type DeskAction, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { EmailAct } from "./email/EmailAct.tsx";
@@ -11,7 +11,9 @@ import { words, type RoomPulse } from "./roomPulse.ts";
 import { SetupAct } from "./SetupCard.tsx";
 import type { SetupStatus } from "./setupList.ts";
 import { Icon, type TodayIcon } from "./todayIcons.tsx";
-import { age, DecisionAct, IdeasAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
+import { age, DecisionAct, DecisionChoices, IdeasAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
+import { KIND_COLOUR, KIND_LABEL, rites, type RiteInput, type RiteItem, type RiteKind } from "./rotunda/rite.ts";
+import { KindIcon } from "./rotunda/KindIcon.tsx";
 import { useNow } from "./motion.tsx";
 import { mtTime, roman, until, upcoming } from "./todaySchedule.ts";
 import { TalkBack, TodoCapture, TodoCard, useTodosOn } from "./todos/TodoBits.tsx";
@@ -53,6 +55,10 @@ interface Row {
   talk?: Target;
   /** A reminder on it has come due: it rises to the top. */
   due?: boolean;
+  /** How it plays on the Rotunda's floor (#740): its kind and its ritual's safe words. */
+  rite?: Omit<RiteInput, "key">;
+  /** A decision's options as buttons that answer it in place. */
+  options?: () => ReactNode;
 }
 
 /** Held this long, Space starts listening; a quick tap is still a tap. */
@@ -61,6 +67,8 @@ const HOLD_MS = 280;
 const personal = (room: DeskRoom) => room === "relay" || room === "spire" || room === "exchange" || room === "boiler";
 const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Words safe for the chamber's captions, which anyone at the screen can read: no numbers that could be money, no addresses. */
+const safe = (s: string, fallback: string) => (/[\d@$£€]/.test(s) || s.length > 80 ? fallback : s);
 
 /** What's on fire, from the rooms' own pulses and the world clock: plain facts, no guessing. */
 export function fires(pulses: RoomPulse[], clock: "ok" | "slow" | "down" | "off"): { key: string; room: DeskRoom; title: string; sub: string; href: string }[] {
@@ -90,10 +98,20 @@ export interface NowInput {
   /** The eyebrow over the list: "Held for you" on Today since #413. */
   label?: string;
   /**
-   * The Iris (#666): the list is the page's left side, standing alone. The date over "N things, Nikita.", what needs
-   * him numbered, then his own to-dos under "still left", and the add line last.
+   * The Senate Rotunda (#740): what needs him is the docket, one card per item along the foot of the chamber, each a
+   * duty, a decision or a repair that plays on the floor; his own to-dos sit under the chamber under "still left", with
+   * the add line and `aside` (the Lists) beside them.
    */
-  iris?: { name: string };
+  rotunda?: { name: string; bench: string[]; chamber: (c: ChamberLink) => ReactNode; aside?: ReactNode };
+}
+
+/** What the chamber (Rotunda.tsx) and the docket share: the items, which one is on the floor, and the stamps. */
+export interface ChamberLink {
+  docket: RiteItem[];
+  onFloor: (key: string | null) => void;
+  onDone: (key: string) => void;
+  /** Set by the chamber: brings an item to the floor. */
+  bring: MutableRefObject<((key: string) => void) | null>;
 }
 
 export function TodayNow(p: NowInput) {
@@ -101,6 +119,9 @@ export function TodayNow(p: NowInput) {
   const reading = useWorldClock((s) => s.reading);
   const status = useWorldClock((s) => s.status);
   const [open, setOpen] = useState<string | null>(null);
+  const [floor, setFloor] = useState<string | null>(null);
+  const [stamped, setStamped] = useState<ReadonlySet<string>>(() => new Set());
+  const bring = useRef<((key: string) => void) | null>(null);
   const todoState = useTodos((s) => s.state);
   const talkOn = useTodosOn();
   const [talk, setTalk] = useState<{ key: string; listen: boolean; holding?: boolean } | null>(null);
@@ -109,7 +130,17 @@ export function TodayNow(p: NowInput) {
   const marks = new Map(todoState.marks.map((m) => [m.ref, m]));
 
   const held: Row[] = [
-    ...fires(p.pulses, clockState(reading, status, now)).map<Row>((f) => ({ ...f, tier: "fire", icon: "alert", label: `${DESK_ROOMS[f.room].name}, needs a look`, plain: f.title })),
+    ...fires(p.pulses, clockState(reading, status, now)).map<Row>((f) => ({
+      ...f,
+      tier: "fire",
+      icon: "alert",
+      label: `${DESK_ROOMS[f.room].name}, needs a look`,
+      plain: f.title,
+      rite:
+        f.key === "clock"
+          ? { kind: "repair", by: "boiler", room: "Boiler Room", what: "an hour of Ilyr is overdue", cause: "the world clock's step is late", fix: "read the gauge in the Boiler Room" }
+          : { kind: "repair", by: f.room, room: DESK_ROOMS[f.room].name, what: `${DESK_ROOMS[f.room].name} needs a look`, cause: safe(f.title.replace(/^[^:]+:\s*/, ""), "its link isn't answering"), fix: `open ${DESK_ROOMS[f.room].name} and see what it says` },
+    })),
     ...p.questions.map<Row>((c) => ({
       key: `q${c.number}`,
       tier: "ask",
@@ -121,6 +152,7 @@ export function TodayNow(p: NowInput) {
       plain: `Answer Rivet: ${c.question}`,
       at: c.updatedAt,
       card: () => <QuestionAct crate={c} setup={p.setup} now={now} />,
+      rite: { kind: "decision", by: "foundry", room: "Foundry", what: `Rivet asks about ${ideaTitle(c.title)}`, options: [{ label: "Reply in words", say: "Rivet asked; an answer settles it." }, { label: "Build as is", say: "Skip the question and build it as written." }, { label: "Not this one" }] },
     })),
     ...p.decisions.map<Row>((a) => ({
       key: a.id,
@@ -132,6 +164,14 @@ export function TodayNow(p: NowInput) {
       sub: `${a.agent} suggests “${a.choices[0] ?? "a look"}”`,
       plain: a.title,
       card: () => <DecisionAct a={a} />,
+      options: () => <DecisionChoices a={a} />,
+      rite: {
+        kind: "decision",
+        by: a.room,
+        room: DESK_ROOMS[a.room].name,
+        what: personal(a.room) ? `a ${a.kind === "check" ? "quick check" : "decision"} from ${DESK_ROOMS[a.room].name}` : a.title.charAt(0).toLowerCase() + a.title.slice(1),
+        options: a.choices.map((c, k) => ({ label: safe(c, `Option ${k + 1}`), say: k === 0 ? `${a.agent} suggests it.` : undefined })),
+      },
     })),
     ...p.replies.map<Row>((o) => ({
       key: o.id,
@@ -148,9 +188,10 @@ export function TodayNow(p: NowInput) {
       plain: `Reply to ${o.name}`,
       at: o.since,
       card: () => <ReplyAct o={o} now={now} />,
+      rite: { kind: "duty", by: "relay", room: "Relay", what: `a reply on ${o.channel} waiting on you`, say: `It has waited ${age(o.since, now)}.${o.draft ? " Blasto has a draft ready." : ""} Nothing to debate; it only needs you.` },
     })),
     ...(p.emailNeeds
-      ? [{ key: "email", tier: "ask", icon: "mail", room: "relay", label: "Email, sorted by Dialtone", title: `${n(p.emailNeeds, "email needs", "emails need")} you`, sub: "Subjects stay in the Relay.", plain: "Go through the email that needs me", card: () => <EmailAct count={p.emailNeeds} /> } satisfies Row]
+      ? [{ key: "email", tier: "ask", icon: "mail", room: "relay", label: "Email, sorted by Dialtone", title: `${n(p.emailNeeds, "email needs", "emails need")} you`, sub: "Subjects stay in the Relay.", plain: "Go through the email that needs me", card: () => <EmailAct count={p.emailNeeds} />, rite: { kind: "duty", by: "relay", room: "Relay", what: `${n(p.emailNeeds, "email")} sorted as needing you`, say: "Dialtone sorted them. The subjects stay in Relay." } } satisfies Row]
       : []),
     ...(p.toPick.length
       ? [
@@ -167,6 +208,13 @@ export function TodayNow(p: NowInput) {
               .map((c) => ideaTitle(c.title))
               .join(", ") + (p.toPick.length > 2 ? `, and ${p.toPick.length - 2} more` : ""),
             card: () => <IdeasAct ideas={p.toPick} setup={p.setup} now={now} />,
+            rite: {
+              kind: "decision",
+              by: "foundry",
+              room: "Foundry",
+              what: "which idea the Foundry builds next",
+              options: p.toPick.slice(0, 3).map((c) => ({ label: ideaTitle(c.title), say: c.pitch ? c.pitch.split(/(?<=\.)\s/)[0] : `For ${CREW[c.builder ?? crewFor(c)].name}${c.size ? `, ${c.size}` : ""}.` })),
+            },
           } satisfies Row,
         ]
       : []),
@@ -182,6 +230,7 @@ export function TodayNow(p: NowInput) {
             sub: `${p.setupTotal - p.setupLeft} of ${p.setupTotal} done`,
             plain: "Finish the Desk's setup steps",
             card: () => <SetupAct status={p.setupStatus} />,
+            rite: { kind: "duty", by: "boiler", room: "Boiler Room", what: `${n(p.setupLeft, "setup step")} only you can do`, say: `${p.setupTotal - p.setupLeft} of ${p.setupTotal} done. The rest need your hands.` },
           } satisfies Row,
         ]
       : []),
@@ -200,6 +249,7 @@ export function TodayNow(p: NowInput) {
               .join(" · "),
             at: p.shipped[0]!.at,
             href: "/foundry",
+            rite: { kind: "duty", by: "foundry", room: "Foundry", what: `${words(p.shipped.length)} ${p.shipped.length === 1 ? "change" : "changes"} shipped while you were away`, say: `Shipped: ${p.shipped.slice(0, 2).map((c) => ideaTitle(c.title)).join(", ")}${p.shipped.length > 2 ? ", and more" : ""}.` },
           } satisfies Row,
         ]
       : []),
@@ -356,33 +406,189 @@ export function TodayNow(p: NowInput) {
     );
   };
 
-  if (p.iris) {
-    // The Iris: what needs him, numbered; then his own, still left; the add line last.
-    const need = rows.filter((r) => r.room !== "today");
+  // The Rotunda's docket (#740): every row that needs him, each with its ritual, numbered in the list's order.
+  const need = rows.filter((r) => r.room !== "today");
+  const inputs: RiteInput[] = need.map((r) => ({ key: r.key, ...(r.rite ?? { kind: "duty", by: "kernel", room: "Today", what: "something for you" }) }));
+  const bench = p.rotunda?.bench ?? [];
+  const sig = JSON.stringify([inputs, bench]);
+  // Keyed on the content, so the chamber gets a new docket only when it changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const docket = useMemo(() => rites(inputs, bench), [sig]);
+
+  if (p.rotunda) {
+    const R = p.rotunda;
     const left = rows.filter((r) => r.room === "today");
-    const things = fire + ask;
-    const title = things ? `${cap(words(things))} ${things === 1 ? "thing" : "things"}, ${p.iris.name}.` : `Nothing needs you, ${p.iris.name}.`;
-    return (
-      <section className={`td-now is-iris${fire ? " has-fire" : ask ? " has-ask" : " is-clear"}`} aria-labelledby="td-now-h" data-in>
-        <header className="td-now-head">
-          <p className="ti-date">{new Date(now).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-          <h1 id="td-now-h" className="desk__title ti-h1">
-            {title}
-          </h1>
-        </header>
-        {need.length > 0 ? (
-          <ol className="td-now-l ti-need">{need.map((r, i) => row(r, i, String(i + 1)))}</ol>
+    const onFloor = docket.find((d) => d.key === floor) ?? null;
+    const count = need.length;
+    const title = count ? (
+      <>
+        {cap(words(count))} {count === 1 ? "item" : "items"} <i>before you,</i> {R.name}.
+      </>
+    ) : (
+      <>
+        Nothing <i>before you,</i> {R.name}.
+      </>
+    );
+    const card = (r: Row, i: number) => {
+      const it = docket[i];
+      const kind: RiteKind = it?.kind ?? "duty";
+      const isOpen = open === r.key;
+      const toggle = () => setOpen(isOpen ? null : r.key);
+      const roomName = r.room === "today" ? "Today" : DESK_ROOMS[r.room].name;
+      const primary = r.card ? (
+        <button type="button" className="rt-act is-p" aria-expanded={isOpen} aria-controls={`td-ni-${r.key}`} onClick={toggle}>
+          {isOpen ? "Fold" : kind === "decision" ? "Details" : "Answer"}
+        </button>
+      ) : (
+        <a className="rt-act is-p" href={r.href} onClick={roomLink(r.href ?? "/")}>
+          {kind === "repair" ? `Open ${roomName}` : "Open"}
+        </a>
+      );
+      const acts =
+        kind === "decision" ? (
+          r.options ? (
+            <>
+              {r.options()}
+              {primary}
+            </>
+          ) : (
+            (it?.options ?? []).map((o, k) => (
+              <button key={o.label} type="button" className={`rt-act is-opt${k === 0 ? " is-pick" : ""}`} aria-expanded={isOpen} aria-controls={`td-ni-${r.key}`} onClick={() => setOpen(r.key)}>
+                {o.label}
+              </button>
+            ))
+          )
         ) : (
-          <p className="ti-clear" role="status">
-            {busy.length ? `${busy.join(" and ")} ${busy.length === 1 ? "is" : "are"} working on ${busy.length === 1 ? "its" : "their"} own. ` : "The rooms are quiet. "}
-            <NextLine />
+          primary
+        );
+      return (
+        <li
+          key={r.key}
+          className={`td-ni rt-mo is-${kind} is-${r.tier}${isOpen ? " is-open" : ""}${floor === r.key ? " is-on" : ""}${stamped.has(r.key) ? " is-stamped" : ""}${r.due ? " is-due" : ""}`}
+          data-room={r.room}
+          style={{ "--i": i, "--tc": KIND_COLOUR[kind] } as React.CSSProperties}
+          onPointerEnter={() => p.onHot?.(r.room === "today" ? null : r.room)}
+          onPointerLeave={() => p.onHot?.(null)}
+        >
+          <div className="td-ni-line">
+            <button type="button" className="td-ni-row rt-mo-main" title="Bring it to the floor" onClick={() => bring.current?.(r.key)} onKeyDown={(e) => spaceDown(r, e)} onKeyUp={(e) => spaceUp(r, e)}>
+              <span className="rt-mo-k">
+                <span className="rt-mo-ty">
+                  <KindIcon kind={kind} />
+                  {KIND_LABEL[kind]}
+                </span>
+                <span>
+                  Item {it?.n ?? i + 1} · {it?.room ?? roomName}
+                </span>
+              </span>
+              <span className="td-ni-t">
+                <em>{r.label}</em>
+                <b>{r.title}</b>
+                {r.sub && <span>{r.sub}</span>}
+              </span>
+              <span className="rt-mo-m">
+                {it?.meta}
+                {r.at ? <time dateTime={new Date(r.at).toISOString()}> · {age(r.at, now)}</time> : null}
+              </span>
+            </button>
+            <span className="rt-stamp" aria-hidden="true">
+              {it?.stamp}
+            </span>
+            {talkOn && r.talk && (
+              <button
+                type="button"
+                className={`td-ni-talk${talk?.key === r.key ? " is-on" : ""}`}
+                aria-label="Talk back to this: snooze, remind, note, done or to-do"
+                title="Talk back: snooze, remind, note, done (or hold Space on the card)"
+                aria-expanded={talk?.key === r.key}
+                onClick={() => setTalk(talk?.key === r.key ? null : { key: r.key, listen: true })}
+              >
+                <Icon name="mic" />
+              </button>
+            )}
+          </div>
+          <div className="rt-acts">{acts}</div>
+          {talk?.key === r.key && r.talk && (
+            <div className="rt-talk">
+              <TalkBack key={r.key} target={r.talk} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />
+            </div>
+          )}
+          {r.card && (
+            <div id={`td-ni-${r.key}`} className="td-ni-card rt-floor" hidden={!isOpen}>
+              {isOpen && (
+                <>
+                  <div className="rt-floor-bar">
+                    <span>
+                      Item {it?.n ?? i + 1} · {it ? KIND_LABEL[it.kind] : "Duty"}
+                    </span>
+                    <button type="button" className="rt-floor-x" onClick={() => setOpen(null)}>
+                      Fold
+                    </button>
+                  </div>
+                  {r.card()}
+                </>
+              )}
+            </div>
+          )}
+        </li>
+      );
+    };
+    return (
+      <section className={`td-now is-rotunda${fire ? " has-fire" : ask ? " has-ask" : " is-clear"}`} aria-labelledby="td-now-h" data-in>
+        <div className="rt-hall">
+          <header className="rt-hd">
+            <p className="rt-date">
+              Today · {new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+              <span> · the Council is in session</span>
+            </p>
+            <h1 id="td-now-h" className="desk__title rt-h1">
+              {title}
+            </h1>
+          </header>
+          <p className="rt-order" aria-hidden="true">
+            <span>Order of business</span>
+            <b>
+              {onFloor ? (
+                <>
+                  <span style={{ color: KIND_COLOUR[onFloor.kind] }}>
+                    <KindIcon kind={onFloor.kind} />
+                  </span>
+                  Item {onFloor.n} · {KIND_LABEL[onFloor.kind]}
+                </>
+              ) : (
+                "–"
+              )}
+            </b>
           </p>
-        )}
-        <p className="ti-left-k">
-          <span>still left</span>
-        </p>
-        {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, need.length + i, "○"))}</ol>}
-        <TodoCapture />
+          {R.chamber({
+            docket,
+            onFloor: setFloor,
+            onDone: (key) => setStamped((s) => (s.has(key) ? s : new Set([...s, key]))),
+            bring,
+          })}
+          <div className="rt-dock">
+            {need.length > 0 ? (
+              <ol className="td-now-l rt-docket" aria-label="Held for you">
+                {need.map((r, i) => card(r, i))}
+              </ol>
+            ) : (
+              <p className="ti-clear rt-clear" role="status">
+                {busy.length ? `${busy.join(" and ")} ${busy.length === 1 ? "is" : "are"} working on ${busy.length === 1 ? "its" : "their"} own. ` : "The rooms are quiet. "}
+                <NextLine />
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="rt-below">
+          <div className="rt-left">
+            <p className="ti-left-k">
+              <span>still left</span>
+            </p>
+            {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, need.length + i, "○"))}</ol>}
+            <TodoCapture />
+          </div>
+          {R.aside}
+        </div>
       </section>
     );
   }

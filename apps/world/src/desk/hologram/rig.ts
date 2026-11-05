@@ -3,7 +3,7 @@ import type { Band } from "../../agents/bodies/recolor.ts";
 import type { Pose } from "./persona.ts";
 
 /**
- * Skippy's rig, shared by the Talk hologram (holoScene.ts) and the Council of Skippies on Today (council/councilScene.ts,
+ * Skippy's rig, shared by the Talk hologram (holoScene.ts) and the Senate Rotunda on Today (rotunda/rotundaScene.ts,
  * #666): the can's navy band, his head and face cap, and the arm poses. Kept apart so Today never loads the hologram.
  */
 /** The admiral can's navy (Library.tsx, SKIPPY_NAVY): the band a submind repaints in its room's colour. */

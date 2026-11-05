@@ -20,5 +20,5 @@ export default defineRoom({
     agents: [],
     measure: "figures finished, once the pipeline is real",
   },
-  lore: { submind: "putty", agents: ["daub", "chisel"], house: ["manusi", "gepetti"], section: "The Workshop", lines: "workshop" },
+  lore: { submind: "putty", agents: ["daub", "chisel"], house: ["redmondi", "gepetti"], section: "The Workshop", lines: "workshop" },
 });

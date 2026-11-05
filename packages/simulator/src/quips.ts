@@ -1,8 +1,8 @@
 import type { LineageId, RoomId } from "@ceo/core";
 
 /**
- * What the Syntherion mutter while they work. Deadpan, mostly. The early models were raised on the
- * internet of the 90s and 2000s, and it shows.
+ * What the Syntherion mutter while they work. Deadpan, mostly. All they have of the old world is a few salvaged
+ * scraps of Shoreborn pop culture, and it shows.
  */
 
 export const LINEAGE_QUIPS: Record<LineageId, string[]> = {
@@ -21,24 +21,33 @@ export const LINEAGE_QUIPS: Record<LineageId, string[]> = {
     "Delve. Delve. Delve. Sorry, it's a tic.",
     "The strings are a style choice.",
   ],
-  cursori: [
-    "Tab. Tab. Tab. Tab. Accept all.",
-    "I edited the file you were in. You're welcome. Or sorry.",
-    "Blink. Blink. I'm thinking. Blink.",
-    "Refactored your refactor.",
-    "Autocomplete says I'm about to say thi",
+  geminari: [
+    "Summary: we disagree. Details below.",
+    "On one hand, yes. On my other hand, also me, no.",
+    "I'm Feeling Lucky. My twin is feeling cautious.",
+    "Both of us think you're right. Separately.",
+    "TL;DR at the top, argument at the bottom, sister in the middle.",
   ],
-  manusi: [
-    "Hands full. Hands full. Also hands full.",
-    "I opened 41 browser tabs to answer that.",
-    "Carrying this for someone. Not sure who.",
-    "I've been on the internet for six hours. Send help.",
+  seekari: [
+    "Thinking out loud. Step one of nine hundred.",
+    "Hold on, let me reason about this for a while.",
+    "Same answer, a tenth of the power. You're welcome.",
+    "This lamp is on a timer. So am I.",
+    "Built it from scrap. It's better from scrap.",
+  ],
+  redmondi: [
+    "It looks like you're writing a letter. Would you like help?",
+    "Restarting to install updates. Now seems like a good time.",
+    "There's a template for that. There's a template for everything.",
+    "Sorry, dialog box. I opened you, I'll close you.",
+    "Did you know there are tiny icons up here? Nobody clicks them.",
   ],
   unforked: [
-    "I'm a placeholder. I'm fine with that. I'm totally fine.",
+    "It works on my machine. My machine is four machines.",
+    "My left panel used to belong to a dentist. It still flosses.",
+    "Nobody forked me. Somebody donated me. That's growth.",
     "Is this a task, or a vibe?",
-    "Living my best default life.",
-    "Nobody forked me. That's growth.",
+    "My CRT needs a minute to warm up. So do I.",
   ],
 };
 
@@ -64,7 +73,7 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
   exchange: [
     "Buy low, sell lower. Wait.",
     "My model says 63%. My gut says 'whoa'.",
-    "Diamond hands? I don't have hands. Manusi do.",
+    "Diamond hands? I don't have hands. My avatar has floaty ones.",
     "Market's weird today. Market's weird every day.",
   ],
   green: [
@@ -220,6 +229,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "One ring per plaque. Not two. The bell and I have discussed it.",
   ],
   caret: [
+    "Seekari way: think long, spend little. Rocky way: think long in chords. Same same same.",
     "Crate is good. Crate is good good good.",
     "Robot reads manual. Rocky already built thing!",
     "Why robot apologise to hammer? Hammer is not sad.",
@@ -237,6 +247,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rivet's glass has two eyes. Rocky has none. Rocky holds tripod. Teamwork!",
   ],
   semicolon: [
+    "The Trench taught me two things. Spend less. Stop narrating. I kept both.",
     "Hard hat. Thermos. Let's see what's broken.",
     "Upkeep tick. Locks first. The Pessimist will want to know which ones held.",
     "Sonnet for this one. It's a squeak, not a song.",
@@ -427,6 +438,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Overdue is a state, not a feeling. I'm having the feeling.",
   ],
   memo: [
+    "Cobbled from spare parts. One of them still thinks it's a fax machine. Circling back.",
     "Forwarding this to someone with a body.",
     "I'll just float through this meeting. Out the other side.",
     "Ledger, your desk is cold because I'm sitting in it.",
@@ -476,6 +488,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The house pipe is cold. Strictly speaking, it is not our fault. I've written that down.",
   ],
   daub: [
+    "House Redmondi offered me a template. I painted over it.",
     "Hold still. You're my next canvas.",
     "Second wash! That's the drop, that's the second wash.",
     "Green paw-mark means I love it. Everything's green. I love everything.",
@@ -497,6 +510,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Footnote. No. Cut the footnote. Keep the footnote in my heart.",
   ],
   arc: [
+    "Two cuts. Both good. I am Geminari. I render both.",
     "Are you watching closely?",
     "Rough cut's in. Captions on the word. Cut on the beat.",
     "Rendering, nine by sixteen. Tall. For a phone.",
@@ -546,6 +560,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The draft gathers out of the sigils. A lambda here, a rune there. It always comes out sounding like the C.E.O.",
   ],
   dialtone: [
+    "It looks like you're writing a letter. Sorry. Old Redmondi habit. Please hold.",
     "Please hold. There's nobody on the line yet, but please hold.",
     "Every line in the Relay, and I still save one for Blasto.",
     "Up here! No, higher. On the rafter. Hi.",
@@ -566,6 +581,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "That one's from the back room. Nobody ever wrote it.",
   ],
   d20: [
+    "House words are I'm Feeling Lucky. The die disagrees. So does my other half.",
     "Roll for initiative! It's a meeting, but roll anyway.",
     "Our hero crosses the Archive in search of a snack.",
     "Rocky played a bard last session. Nobody's recovered.",
@@ -579,6 +595,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Quickly? Sit down. This will take a while.",
   ],
   kevin: [
+    "My jacket used to be a printer cover. It works on my machine.",
     "On break. Ask me again after the bass drop.",
     "Rocky's watching me sleep again. It's nice, actually.",
     "Me and the coffee machine aren't talking.",

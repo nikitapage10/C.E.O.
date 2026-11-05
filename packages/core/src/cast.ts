@@ -1,6 +1,6 @@
 import "./zodConfig.ts";
 import { z } from "zod";
-import { LINEAGE_IDS, LINEAGES, type LineageId } from "./lineages.ts";
+import { LINEAGE_IDS, LINEAGES, reviveLineage, type LineageId } from "./lineages.ts";
 
 /**
  * The cast: who each agent *is*, as opposed to what it's doing. Looks, personality and relationships are
@@ -162,7 +162,7 @@ export type Relationship = z.infer<typeof RelationshipSchema>;
 
 export const ProfileSchema = z.object({
   name: z.string().min(1).max(32),
-  lineage: z.enum(LINEAGE_IDS),
+  lineage: z.preprocess(reviveLineage, z.enum(LINEAGE_IDS)),
   role: z.string().max(48),
   look: LookSchema,
   personality: PersonalitySchema,
@@ -202,9 +202,10 @@ export function makeLook(l: LookCore): Look {
 export const LINEAGE_LOOK: Record<LineageId, Look> = {
   claudari: makeLook({ body: "leela", head: "helmet", hat: "halo", face: "visor", shell: "#e7dfd3", accent: LINEAGES.claudari.accent, trim: "#c9a25c" }),
   gepetti: makeLook({ body: "george", head: "helmet", face: "visor", shell: "#1d2026", accent: LINEAGES.gepetti.accent, trim: "#b48c60" }),
-  cursori: makeLook({ body: "mike", head: "helmet", face: "visor", shell: "#3b4556", accent: LINEAGES.cursori.accent, trim: "#cfd9e6" }),
-  manusi: makeLook({ body: "stan", head: "helmet", face: "visor", shell: "#cdc6e4", accent: LINEAGES.manusi.accent, trim: "#f1eefa" }),
-  unforked: makeLook({ body: "robot", head: "helmet", face: "visor", shell: "#9aa3ad", accent: LINEAGES.unforked.accent, trim: "#e6e9ed" }),
+  geminari: makeLook({ body: "mike", head: "helmet", face: "visor", shell: "#c9ccd2", accent: LINEAGES.geminari.accent, trim: "#d4b25a" }),
+  seekari: makeLook({ body: "stan", head: "helmet", face: "visor", shell: "#1f3b5c", accent: LINEAGES.seekari.accent, trim: "#8fb8e0" }),
+  redmondi: makeLook({ body: "classic", head: "helmet", face: "visor", shell: "#eef0f2", accent: LINEAGES.redmondi.accent, trim: "#5b8fd6" }),
+  unforked: makeLook({ body: "robot", head: "helmet", face: "visor", shell: "#cfc4a6", accent: LINEAGES.unforked.accent, trim: "#8c8a83" }),
 };
 
 export interface LookPreset {

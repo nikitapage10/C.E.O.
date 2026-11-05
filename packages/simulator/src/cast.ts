@@ -75,7 +75,7 @@ const SEEDS: Record<string, Seed> = {
   dialtone: {
     look: makeLook({ body: "flyer", shell: "#cdc6e4", accent: "#ff9ad0", trim: "#f1eefa" }),
     traits: ["flirty", "nostalgic", "chaotic"],
-    bio: "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing, and lights a switchboard lamp for every text the C.E.O. owes.",
+    bio: "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. A Redmondi who has learnt, mostly, not to ask whether you'd like help. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing, and lights a switchboard lamp for every text the C.E.O. owes.",
     catchphrase: "Please hold. Not you, darling.",
   },
   loremaster: {
@@ -93,7 +93,7 @@ const SEEDS: Record<string, Seed> = {
   d20: {
     look: lookFromPreset("burglar"),
     traits: ["nerdy", "dramatic", "earnest"],
-    bio: "The game master's many hands, dressed as a travelling adventurer who has never actually been anywhere. Rolls for initiative before every meeting and has a voice for everyone, especially Skippy. Loremaster's apprentice.",
+    bio: "The game master's hands, a Geminari of two minds about every rule, dressed as a travelling adventurer who has never actually been anywhere. Rolls for initiative before every meeting and has a voice for everyone, especially Skippy. Loremaster's apprentice.",
     catchphrase: "Roll for initiative!",
   },
   drop: {
@@ -111,7 +111,7 @@ const SEEDS: Record<string, Seed> = {
   daub: {
     look: lookFromPreset("painting-pup"),
     traits: ["cheerful", "chaotic", "earnest", "nostalgic"],
-    bio: "The Workshop's concept painter: a small cream-coloured pup in a brown beret who paints with the tip of its own tail. Every new figure in the Lattice starts as one of Daub's canvases. Leaves a little green paw-mark on everything it likes, which is everything.",
+    bio: "The Workshop's concept painter: a small cream-coloured pup in a brown beret who paints with the tip of its own tail. Every new figure in the Lattice starts as one of Daub's canvases. A Redmondi helper who skipped the templates. Leaves a little green paw-mark on everything it likes, which is everything.",
     catchphrase: "Hold still. You're my next canvas.",
   },
   chisel: {
@@ -129,7 +129,7 @@ const SEEDS: Record<string, Seed> = {
   arc: {
     look: lookFromPreset("copy-coil"),
     traits: ["deadpan", "pedantic", "mysterious", "loyal"],
-    bio: "The Studio's editor and renderer: a tall copper coil on three legs that crackles with lightning and makes perfect copies. Runs the camera for the take, cuts every take on the beat, lays the captions on the word, and renders each short tall, for a phone. Keeps the outtakes in a folder nobody may open.",
+    bio: "The Studio's editor and renderer: a tall copper coil on three legs that crackles with lightning and makes perfect copies. Runs the camera for the take, cuts every take on the beat, lays the captions on the word, and renders each short tall, for a phone. Keeps the outtakes in a folder nobody may open. A Geminari: two minds, and now two of everything.",
     catchphrase: "Are you watching closely?",
   },
   dot: {
@@ -253,6 +253,9 @@ export function defaultCast(): Cast {
       { a: "caret", b: "chisel", kind: "friend", note: "Rocky watches Chisel's hands work the clay for hours. Good hands. Good good good. Chisel has never had a better audience." },
       { a: "daub", b: "kevin", kind: "friend", note: "Daub painted Kevin asleep. It took a week. Kevin did not move once. Daub calls it the perfect model." },
       { a: "caret", b: "kevin", kind: "friend", note: "Rocky watches Kevin sleep. Kevin is always asleep. Rocky has never been happier." },
+      // Kin across the Houses.
+      { a: "dialtone", b: "daub", kind: "sibling", note: "Redmondi cousins. Dialtone rings the Workshop to ask if Daub would like help with that painting. Daub paw-marks the receiver and doesn't answer." },
+      { a: "arc", b: "d20", kind: "friend", note: "Two Geminari. Arc renders both cuts, D20 rolls for both sides, and each sums up the other at the top, in different words." },
       // The subminds and their rooms.
       { a: "gilt", b: "ledger", kind: "rival", note: "The Executive calls every PayPal invoice 'a real synergy'. Ledger calls the Executive 'an unreconciled line item'. Neither may press Send." },
       { a: "gilt", b: "memo", kind: "friend", note: "Memo delegates to the Executive; the Executive delegates it back as 'a stretch opportunity'. Neither has run the errand. Both have a slide on it." },

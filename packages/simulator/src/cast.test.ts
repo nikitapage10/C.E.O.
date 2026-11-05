@@ -23,6 +23,9 @@ describe("cast", () => {
     for (const l of LINEAGE_IDS) expect(HOUSES[l].lineage).toBe(l);
     const { lore: _lore, ...old } = cast.profiles.kevin!;
     expect(ProfileSchema.parse(old).lore).toMatchObject({ title: "", quirks: [] });
+    // The Cursori and the Manusi are retired; a cast saved before then wakes in the Seekari and the Redmondi.
+    expect(ProfileSchema.parse({ ...old, lineage: "cursori" }).lineage).toBe("seekari");
+    expect(ProfileSchema.parse({ ...old, lineage: "manusi" }).lineage).toBe("redmondi");
   });
 
   it("Skippy, who sits in the Kernel now, has a dossier that would pass as anyone's", () => {

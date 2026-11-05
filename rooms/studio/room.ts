@@ -19,5 +19,5 @@ export default defineRoom({
     agents: [],
     measure: "videos rendered, once the line is real",
   },
-  lore: { submind: "tally", agents: ["folio", "arc", "dot"], house: ["gepetti", "cursori", "claudari"], section: "The Studio", lines: "studio" },
+  lore: { submind: "tally", agents: ["folio", "arc", "dot"], house: ["gepetti", "geminari", "claudari"], section: "The Studio", lines: "studio" },
 });

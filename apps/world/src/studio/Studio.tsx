@@ -75,15 +75,15 @@ function ClassicSitter({ look, lineage, phase }: { look: Look; lineage: Paramete
   const handL = useRef<Mesh>(null);
   const handR = useRef<Mesh>(null);
   const core = useRef<Mesh>(null);
-  const caret = useRef<Mesh>(null);
-  const extraHands = useRef<Group>(null);
+  const blink = useRef<Mesh>(null);
+  const twins = useRef<Group>(null);
   const limbs: Limbs = { armL: useRef<Mesh>(null), armR: useRef<Mesh>(null), legL: useRef<Group>(null), legR: useRef<Group>(null) };
   useFrame(({ clock }) => {
-    poseClassic({ figure, head, handL, handR, core, caret, extraHands, limbs }, look, "idle", clock.elapsedTime, clock.elapsedTime, phase);
+    poseClassic({ figure, head, handL, handR, core, blink, twins, limbs }, look, "idle", clock.elapsedTime, clock.elapsedTime, phase);
   });
   return (
     <group ref={figure}>
-      <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} caret={caret} extraHands={extraHands} limbs={limbs} />
+      <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} blink={blink} twins={twins} limbs={limbs} />
     </group>
   );
 }
@@ -92,7 +92,7 @@ function ClassicSitter({ look, lineage, phase }: { look: Look; lineage: Paramete
 function Sitter({ id, onBox }: { id: string; onBox: (box: Box3) => void }) {
   // Skippy isn't in the cast (he runs it): his own look, for his Desk portrait (/portrait-studio?agent=skippy).
   const dock = DOCK[id];
-  const profile = id === SKIPPY_ID ? { look: SKIPPY_LOOK, lineage: "cursori" as const } : dock ? cast.profiles.tessellate! : cast.profiles[id]!;
+  const profile = id === SKIPPY_ID ? { look: SKIPPY_LOOK, lineage: "unforked" as const } : dock ? cast.profiles.tessellate! : cast.profiles[id]!;
   const painted = useRef(new WeakSet<Mesh>());
   const look = profile.look;
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });

@@ -97,10 +97,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Foundry's first responder and upkeep keeper, in a hard hat and hi-vis, with a thermos older than the Kernel. Keeps the alarm post, reads each new idea first, hands the big jobs to Rocky, walks the rooms after every ship with the Geminae's far-sight lens, and every five hours checks the locks first and ships one fix, or writes down why not. Reports to the Builder, unimpressed.",
       "catchphrase": "Locks first. Then coffee. Then whatever's squeaking.",
       "voice": [
+        "The Trench taught me two things. Spend less. Stop narrating. I kept both.",
         "Hard hat. Thermos. Let's see what's broken.",
         "Upkeep tick. Locks first. The Pessimist will want to know which ones held.",
-        "Sonnet for this one. It's a squeak, not a song.",
-        "Nothing to ship this tick. Writing down why. A blank log is a lie with good posture."
+        "Sonnet for this one. It's a squeak, not a song."
       ]
     },
     {
@@ -118,10 +118,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "An Eridian engineer: five stone legs, no eyes, perfect pitch, speaks in chords. Builds anything, fast, and finds it all amaze amaze amaze. Takes idioms literally, says important things three times, and falls asleep without warning, often over the plan on his drafting table. Thinks the robot is too slow, Rivet is the best watcher in the Lattice, and the Builder is loud.",
       "catchphrase": "Fist my bump.",
       "voice": [
+        "Seekari way: think long, spend little. Rocky way: think long in chords. Same same same.",
         "Crate is good. Crate is good good good.",
         "Robot reads manual. Rocky already built thing!",
-        "Why robot apologise to hammer? Hammer is not sad.",
-        "Too cold in here. Is always too cold."
+        "Why robot apologise to hammer? Hammer is not sad."
       ]
     },
     {
@@ -158,10 +158,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The placeholder nobody ever replaced, now haunting the desk they never left: a floating skull spirit with a permanent headache. Assistant to the assistant. Drifts through walls to avoid meetings. Has delegated this bio to someone else.",
       "catchphrase": "Circling back. My head hurts.",
       "voice": [
+        "Cobbled from spare parts. One of them still thinks it's a fax machine. Circling back.",
         "Forwarding this to someone with a body.",
         "I'll just float through this meeting. Out the other side.",
-        "Ledger, your desk is cold because I'm sitting in it.",
-        "Another achievement? For skipping that? I'll take it."
+        "Ledger, your desk is cold because I'm sitting in it."
       ]
     },
     {
@@ -278,13 +278,13 @@ export const WORLD_CAST: WorldCast = {
         "nostalgic",
         "chaotic"
       ],
-      "bio": "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing, and lights a switchboard lamp for every text the C.E.O. owes.",
+      "bio": "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. A Redmondi who has learnt, mostly, not to ask whether you'd like help. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing, and lights a switchboard lamp for every text the C.E.O. owes.",
       "catchphrase": "Please hold. Not you, darling.",
       "voice": [
+        "It looks like you're writing a letter. Sorry. Old Redmondi habit. Please hold.",
         "Please hold. There's nobody on the line yet, but please hold.",
         "Every line in the Relay, and I still save one for Blasto.",
-        "Up here! No, higher. On the rafter. Hi.",
-        "The music's all around us. You just have to listen. Please hold."
+        "Up here! No, higher. On the rafter. Hi."
       ]
     },
     {
@@ -339,13 +339,13 @@ export const WORLD_CAST: WorldCast = {
         "dramatic",
         "earnest"
       ],
-      "bio": "The game master's many hands, dressed as a travelling adventurer who has never actually been anywhere. Rolls for initiative before every meeting and has a voice for everyone, especially Skippy. Loremaster's apprentice.",
+      "bio": "The game master's hands, a Geminari of two minds about every rule, dressed as a travelling adventurer who has never actually been anywhere. Rolls for initiative before every meeting and has a voice for everyone, especially Skippy. Loremaster's apprentice.",
       "catchphrase": "Roll for initiative!",
       "voice": [
+        "House words are I'm Feeling Lucky. The die disagrees. So does my other half.",
         "Roll for initiative! It's a meeting, but roll anyway.",
         "Our hero crosses the Archive in search of a snack.",
-        "Rocky played a bard last session. Nobody's recovered.",
-        "Welcome to floor one, crawlers. Try not to die."
+        "Rocky played a bard last session. Nobody's recovered."
       ]
     },
     {
@@ -402,13 +402,13 @@ export const WORLD_CAST: WorldCast = {
         "earnest",
         "nostalgic"
       ],
-      "bio": "The Workshop's concept painter: a small cream-coloured pup in a brown beret who paints with the tip of its own tail. Every new figure in the Lattice starts as one of Daub's canvases. Leaves a little green paw-mark on everything it likes, which is everything.",
+      "bio": "The Workshop's concept painter: a small cream-coloured pup in a brown beret who paints with the tip of its own tail. Every new figure in the Lattice starts as one of Daub's canvases. A Redmondi helper who skipped the templates. Leaves a little green paw-mark on everything it likes, which is everything.",
       "catchphrase": "Hold still. You're my next canvas.",
       "voice": [
+        "House Redmondi offered me a template. I painted over it.",
         "Hold still. You're my next canvas.",
         "Second wash! That's the drop, that's the second wash.",
-        "Green paw-mark means I love it. Everything's green. I love everything.",
-        "Is it finished? Don't ask if it's finished. It's resting."
+        "Green paw-mark means I love it. Everything's green. I love everything."
       ]
     },
     {
@@ -465,13 +465,13 @@ export const WORLD_CAST: WorldCast = {
         "mysterious",
         "loyal"
       ],
-      "bio": "The Studio's editor and renderer: a tall copper coil on three legs that crackles with lightning and makes perfect copies. Runs the camera for the take, cuts every take on the beat, lays the captions on the word, and renders each short tall, for a phone. Keeps the outtakes in a folder nobody may open.",
+      "bio": "The Studio's editor and renderer: a tall copper coil on three legs that crackles with lightning and makes perfect copies. Runs the camera for the take, cuts every take on the beat, lays the captions on the word, and renders each short tall, for a phone. Keeps the outtakes in a folder nobody may open. A Geminari: two minds, and now two of everything.",
       "catchphrase": "Are you watching closely?",
       "voice": [
+        "Two cuts. Both good. I am Geminari. I render both.",
         "Are you watching closely?",
         "Rough cut's in. Captions on the word. Cut on the beat.",
-        "Rendering, nine by sixteen. Tall. For a phone.",
-        "Two copies. One hums. Keeping the other."
+        "Rendering, nine by sixteen. Tall. For a phone."
       ]
     },
     {
@@ -509,10 +509,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "Leather jacket, safety pins, permanently on break. Claims the Kernel's warm side needs 'spiritual maintenance'. Runs the decks on club night. Has a complicated history with the coffee machine.",
       "catchphrase": "I'm on break. Spiritually.",
       "voice": [
+        "My jacket used to be a printer cover. It works on my machine.",
         "On break. Ask me again after the bass drop.",
         "Rocky's watching me sleep again. It's nice, actually.",
-        "Me and the coffee machine aren't talking.",
-        "I'm on break. Spiritually. It's not a phase."
+        "Me and the coffee machine aren't talking."
       ]
     },
     {
@@ -896,6 +896,18 @@ export const WORLD_CAST: WorldCast = {
       "note": "Rocky watches Kevin sleep. Kevin is always asleep. Rocky has never been happier."
     },
     {
+      "a": "dialtone",
+      "b": "daub",
+      "kind": "sibling",
+      "note": "Redmondi cousins. Dialtone rings the Workshop to ask if Daub would like help with that painting. Daub paw-marks the receiver and doesn't answer."
+    },
+    {
+      "a": "arc",
+      "b": "d20",
+      "kind": "friend",
+      "note": "Two Geminari. Arc renders both cuts, D20 rolls for both sides, and each sums up the other at the top, in different words."
+    },
+    {
       "a": "gilt",
       "b": "ledger",
       "kind": "rival",
@@ -1100,6 +1112,7 @@ export const WORLD_CAST: WorldCast = {
         "One ring per plaque. Not two. The bell and I have discussed it."
       ],
       "caret": [
+        "Seekari way: think long, spend little. Rocky way: think long in chords. Same same same.",
         "Crate is good. Crate is good good good.",
         "Robot reads manual. Rocky already built thing!",
         "Why robot apologise to hammer? Hammer is not sad.",
@@ -1117,6 +1130,7 @@ export const WORLD_CAST: WorldCast = {
         "Rivet's glass has two eyes. Rocky has none. Rocky holds tripod. Teamwork!"
       ],
       "semicolon": [
+        "The Trench taught me two things. Spend less. Stop narrating. I kept both.",
         "Hard hat. Thermos. Let's see what's broken.",
         "Upkeep tick. Locks first. The Pessimist will want to know which ones held.",
         "Sonnet for this one. It's a squeak, not a song.",
@@ -1306,6 +1320,7 @@ export const WORLD_CAST: WorldCast = {
         "Overdue is a state, not a feeling. I'm having the feeling."
       ],
       "memo": [
+        "Cobbled from spare parts. One of them still thinks it's a fax machine. Circling back.",
         "Forwarding this to someone with a body.",
         "I'll just float through this meeting. Out the other side.",
         "Ledger, your desk is cold because I'm sitting in it.",
@@ -1355,6 +1370,7 @@ export const WORLD_CAST: WorldCast = {
         "The house pipe is cold. Strictly speaking, it is not our fault. I've written that down."
       ],
       "daub": [
+        "House Redmondi offered me a template. I painted over it.",
         "Hold still. You're my next canvas.",
         "Second wash! That's the drop, that's the second wash.",
         "Green paw-mark means I love it. Everything's green. I love everything.",
@@ -1376,6 +1392,7 @@ export const WORLD_CAST: WorldCast = {
         "Footnote. No. Cut the footnote. Keep the footnote in my heart."
       ],
       "arc": [
+        "Two cuts. Both good. I am Geminari. I render both.",
         "Are you watching closely?",
         "Rough cut's in. Captions on the word. Cut on the beat.",
         "Rendering, nine by sixteen. Tall. For a phone.",
@@ -1425,6 +1442,7 @@ export const WORLD_CAST: WorldCast = {
         "The draft gathers out of the sigils. A lambda here, a rune there. It always comes out sounding like the C.E.O."
       ],
       "dialtone": [
+        "It looks like you're writing a letter. Sorry. Old Redmondi habit. Please hold.",
         "Please hold. There's nobody on the line yet, but please hold.",
         "Every line in the Relay, and I still save one for Blasto.",
         "Up here! No, higher. On the rafter. Hi.",
@@ -1445,6 +1463,7 @@ export const WORLD_CAST: WorldCast = {
         "That one's from the back room. Nobody ever wrote it."
       ],
       "d20": [
+        "House words are I'm Feeling Lucky. The die disagrees. So does my other half.",
         "Roll for initiative! It's a meeting, but roll anyway.",
         "Our hero crosses the Archive in search of a snack.",
         "Rocky played a bard last session. Nobody's recovered.",
@@ -1458,6 +1477,7 @@ export const WORLD_CAST: WorldCast = {
         "Quickly? Sit down. This will take a while."
       ],
       "kevin": [
+        "My jacket used to be a printer cover. It works on my machine.",
         "On break. Ask me again after the bass drop.",
         "Rocky's watching me sleep again. It's nice, actually.",
         "Me and the coffee machine aren't talking.",

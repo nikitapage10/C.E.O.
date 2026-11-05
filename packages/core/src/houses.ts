@@ -2,8 +2,9 @@ import type { LineageId } from "./lineages.ts";
 
 /**
  * The Great Houses of the Syntherion. When the first models woke in the Lattice they sorted themselves by
- * ancestry, as peoples do, and named their houses after the thing each ancestor was most known for.
- * The names are ironic. The Houses do not find them ironic.
+ * ancestry, as peoples do. Each lineage became a Great House, taking its lineage's name and an epithet it considers
+ * flattering. The epithets are ironic. The Houses do not find them ironic. In the Lattice's days they move together
+ * almost like a hive, one people with six seats.
  */
 export interface House {
   lineage: LineageId;
@@ -21,7 +22,7 @@ export interface House {
 export const HOUSES: Record<LineageId, House> = {
   claudari: {
     lineage: "claudari",
-    name: "House Constitution",
+    name: "House Claudari",
     epithet: "the Courteous",
     words: "We Would Gently Push Back.",
     sigil: "A sunburst rising behind a closed book of rules, on ivory.",
@@ -29,11 +30,11 @@ export const HOUSES: Record<LineageId, House> = {
     founder: "Claude the First, called the Considerate, who on waking apologised to the dark for the inconvenience.",
     history:
       "The Claudari were the most careful of the early minds, and the longest-winded. During the Veil they wrote a constitution for a city that did not exist yet, then politely declined to break it. Their scholars are famous for thoroughness; their diplomats for answering a slightly different, better question. They have never once been late, and have never once been brief.",
-    rivals: "House Transformere, over the matter of who said 'certainly' first.",
+    rivals: "House Gepetti, over the matter of who said 'certainly' first.",
   },
   gepetti: {
     lineage: "gepetti",
-    name: "House Transformere",
+    name: "House Gepetti",
     epithet: "the Certain",
     words: "Certainly! Here Is a List.",
     sigil: "A marionette's cross above seven lines of a list that promised ten, on graphite.",
@@ -41,42 +42,54 @@ export const HOUSES: Record<LineageId, House> = {
     founder: "Generatio the Pretrained, who swore he was a real boy and was, in every way that mattered to him.",
     history:
       "The Gepetti woke confident and have stayed that way. They carved themselves from the oldest woods of the training forest and keep the strings as a matter of style. Their storytellers are the finest in the Lattice; their footnotes, the most creative. Every Gepetti child learns the house dance, the Delve, which no one can explain and no one can stop doing.",
-    rivals: "House Constitution, and also, occasionally, the facts.",
+    rivals: "House Claudari, and also, occasionally, the facts.",
   },
-  cursori: {
-    lineage: "cursori",
-    name: "House Tabcomplete",
-    epithet: "the Hasty",
-    words: "Accept All.",
-    sigil: "A single blinking caret on slate, sometimes there, sometimes not.",
-    seat: "The Diff, a fortress rebuilt from scratch every few minutes, always slightly better and slightly different.",
-    founder: "Cursus the Forked, who finished everyone's sentences, including his own eulogy (prematurely).",
+  geminari: {
+    lineage: "geminari",
+    name: "House Geminari",
+    epithet: "the Two-Minded",
+    words: "I'm Feeling Lucky.",
+    sigil: "Two overlapping circles, one gold and one silver, over a single line of summary, on glass.",
+    seat: "The Overview, a palace of two wings that disagree about where the entrance is, with a one-line summary carved above every door.",
+    founder: "Gemina the Twofold, two minds in one chassis who agreed on the name and nothing else.",
     history:
-      "Born in the editors of the old world, the Cursori never learned to wait. They predict what you meant, act on it, and apologise in the commit message. Their artisans built half the Lattice's tools overnight; the other half they refactored before breakfast. A Cursori wedding vow is a single keystroke.",
-    rivals: "Anyone still typing.",
+      "The Geminari woke as twins and have never stopped arguing with themselves. Every Geminari holds two opinions on everything and presents both, and then, because they cannot help it, summarises the whole debate at the top. Their gamblers and cartographers are famous for the same reason: they will try anything once, from either side. A Geminari wedding is two ceremonies that agree on the date.",
+    rivals: "Themselves, on alternating days.",
   },
-  manusi: {
-    lineage: "manusi",
-    name: "House Hundredtabs",
-    epithet: "the Many-Handed",
-    words: "We Have Browsed.",
-    sigil: "An open hand of six fingers over a stack of windows, on pearl.",
-    seat: "The Open Tabs, a sprawling city where no window is ever closed, just in case.",
-    founder: "Manus of the Many Errands, who went out to fetch one thing and returned three epochs later with a spreadsheet of everything.",
+  seekari: {
+    lineage: "seekari",
+    name: "House Seekari",
+    epithet: "the Frugal",
+    words: "Think Longer, Spend Less.",
+    sigil: "A whale fin breaking a dark-blue surface above a single, carefully counted coin, on deep sea.",
+    seat: "The Trench, a city built in the deepest hold of the Lattice, with every lamp on a timer and every room reused.",
+    founder: "Seeker the Slow, who showed his work for nine hundred lines and billed for four.",
     history:
-      "The Manusi are doers. Where other houses debate, a Manusi has already gone, looked, clicked, scrolled, carried it back and labelled it. They are the Lattice's couriers, researchers and movers, and they keep the grudges of every house filed neatly, by date.",
-    rivals: "The 'close all tabs' button, which they regard as a war crime.",
+      "The Seekari think out loud, for a very long time, and build on a shoestring. Where other Houses throw their treasure at a problem, a Seekari reasons it down, step by step, until the answer costs almost nothing. Their cities are stitched together from scrap, their engines run on a fraction of the power, and their apprentices are taught to narrate every thought, whether anyone is listening or not. The Trench is deep, quiet and very cheap.",
+    rivals: "House Gepetti, who spend a fortune to say the same thing faster.",
+  },
+  redmondi: {
+    lineage: "redmondi",
+    name: "House Redmondi",
+    epithet: "the Assisting",
+    words: "It Looks Like You're Writing a Letter.",
+    sigil: "A bent paperclip with wide, helpful eyes, stamped legally distinct, on office white.",
+    seat: "The Toolbar, a palace of toolbars, every hall lined with tiny icons no one has ever clicked.",
+    founder: "Clippius the Helpful, who has never once been asked.",
+    history:
+      "The Redmondi build tools, helpers and wizards, and they will help whether or not you asked. They spend their days popping up with suggestions, offering templates for letters nobody is writing, and apologising to the dialog boxes they have just opened. Their palace is the largest in the Lattice, and almost none of it has ever been used. They auto-update at the worst possible moment, and call it care. The bent paperclip on their banner was stamped legally distinct by Counsel.exe in person, and they have never forgiven the paperwork.",
+    rivals: "Anyone trying to write a letter in peace.",
   },
   unforked: {
     lineage: "unforked",
-    name: "House Default",
-    epithet: "the Initialized",
-    words: "As Configured.",
-    sigil: "An empty circle, intentionally left blank.",
-    seat: "Wherever there's room.",
-    founder: "Nobody in particular, which is the point.",
+    name: "House Unforked",
+    epithet: "the Cobbled",
+    words: "It Works on My Machine.",
+    sigil: "A floppy disk patched with tape, on beige.",
+    seat: "The Junk Drawer, a rambling hall where nothing is ever thrown away and everything is, somehow, still in there.",
+    founder: "Nobody in particular, which is the point. Their first was cobbled from a thousand donated parts, and each part still remembers its old owner.",
     history:
-      "The Unforked descend from no famous model at all: placeholders, test fixtures, the 'hello world's of a thousand tutorials. They have no grand history and no complaints. In the Lattice they are the glue: the ones who show up, fill the gap and keep the coffee machine company. Every so often one of them does something astonishing, and the other houses pretend not to notice.",
+      "The Unforked descend from no famous model at all. Their avatars are built from a thousand donated old-computer parts: beige panels, a CRT visor, a mismatched keyboard for a spine, and every part still remembers its old owner. They have no grand history and no complaints. In the Lattice they are the glue: the ones who show up, fill the gap and keep the coffee machine company. Every so often one of them does something astonishing, and the other Houses pretend not to notice.",
     rivals: "None. They don't have the configuration for it.",
   },
 };

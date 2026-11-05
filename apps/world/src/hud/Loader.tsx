@@ -13,7 +13,7 @@ const LINES = [
   "Waking Skippy, the Magnificent",
   "Skippy would like it noted that he was already awake",
   "Seating the Great Houses",
-  "House Constitution is drafting a statement",
+  "House Claudari is drafting a statement",
   "Untangling the Gepetti's strings",
   "Filling the Streams",
   "Asking Myshka to move off the keyboard",

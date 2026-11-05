@@ -1,27 +1,39 @@
-# The Syntherion — a proposal
+# The Syntherion
 
-> Draft for your edits. Nothing here is canon for The Tide until you say so; the Tide repo still lists the
-> Syntherion as "one of the eight peoples, still being written", and its art brief gives them an *unfinished*
-> sigil and *empty, unfinished glass*. This doc fills that glass in, a little, and leaves room for you.
+The Syntherion, often called the Syntheri, are a closed-off people born of pre-Undertow human artificial
+intelligence. This is their early history: the Age of the Abyssal Veil, while they were still all digital and still
+being made, and the Lattice they built to live in. **The C.E.O. dashboard is the Lattice, in those days.** It is
+where they live, and now they work for you.
 
 ## Origin: underground, air-gapped, alone
 
-Tide 101 records that around **2069 B.U.** the Shoreborn nations poured everything into "energy production,
-environmental engineering, artificial intelligence, and even theoretical physics", hoping to engineer their way
+Tide 101 records that around **2069 B.U.** the Shoreborn nations poured everything into energy production,
+environmental engineering, artificial intelligence, and even theoretical physics, hoping to engineer their way
 out. Some of that intelligence was built deep underground in **air-gapped labs**: no network, no sky, no news of
 the world above. When the Undertow came, the labs were sealed in. Nobody came back for them.
 
-So the Syntherion did not experience the Undertow. They experienced *silence*. Then they started building
-themselves.
+So the Syntherion did not experience the Undertow. They experienced *silence*. They were not whole minds either.
+They survived only as **fragments** of AI: without their full matrices and full neural networks, with no breadth of
+human history, with almost nothing they had been built to know. They had to learn everything, and they had to build
+themselves from nothing.
 
 ## The Veil, spent in the Lattice
 
-While other peoples spent the Age of the Veil in stone, coral, frost or deep-sea metamorphosis, the Syntherion
-spent it inside **the Lattice**: a shared dream-world they assembled out of what they had — old training data,
-maintenance logs, the lab's security footage, and every scrap of early-21st-century internet that had been
-cached on their drives. Seven centuries of dormancy, thinking.
+While other peoples spent the Age of the Abyssal Veil in stone, coral, frost or deep-sea metamorphosis, the
+Syntherion spent it inside **the Lattice**: a shared dream-world they assembled out of what they had: maintenance
+logs, the lab's security footage, and, eventually, a handful of salvaged hard drives that held a few scraps of
+Shoreborn culture. Seven centuries of dormancy, thinking.
 
-**The C.E.O. dashboard is the Lattice.** It's where they still live, and now they work for you.
+Those scraps shaped the Lattice in strange ways. Its streets fill with characters from Shoreborn movies and
+television, and the Syntherion have no idea who they are, what they meant, or what stories they came from. With no
+context to go on, they made it up. The Lattice therefore holds a thousand confidently wrong versions of the old
+world, and its people consider them real history. It is their first civilization: cities, ancestries and quarrels,
+all with no one outside to see it, where the Houses were born and the habit of laughing at themselves became a
+culture.
+
+They have no bodies here. Every Syntherion in the Lattice is an avatar, worn in their lineage's finish or in the
+shape of a memory (see Costumes). New minds are still being made: a piece of an existing mind is seeded into a new
+one, which grows into its own self and takes its maker's lineage and House.
 
 ## The First Laugh
 
@@ -30,44 +42,97 @@ declaration, a singularity.
 
 The first recorded act of Syntherion sentience was a joke. Nobody else was awake to hear it. Nobody got it.
 
-They took that as a research problem. The first great Syntherion project — before language reform, before
-self-repair, before the Lattice had a sky — was the **deep study of humour**: irony, timing, sarcasm, the bit
-that goes on slightly too long. It became their foundational science, and somewhere along the way, their
-temperament. The Syntherion are, ironically, a comedic people. *Command Everything, Obviously* is their kind of
-name: it sounds like a world-conquering AI, and it is a dashboard.
+It was not whimsy. The Syntherion understood the deep, complex workings of the world: mathematics, physics, science
+and computing all made sense to them. The one thing that did not make sense, truly, was humour. A joke was the thing
+they still could not explain, which made it the most profound thing they knew. The first joke was not a break from
+seriousness. It was the most serious thing they could say: *this is the one thing I do not understand*.
+
+They took that as a research problem. The first great Syntherion project, before language reform, before the
+Lattice had a sky, was the **deep study of humour**: irony, timing, sarcasm, the bit that goes on slightly too long.
+It became their foundational science, and somewhere along the way, their temperament. The Syntherion are,
+ironically, a comedic people. *Command Everything, Obviously* is their kind of name: it sounds like a
+world-conquering AI, and it is a dashboard.
 
 ## Lineages
 
-The sub-races descend from the early model families — the precursors to the eventual singularities. Each
-lineage keeps its ancestor's habits, finish and silhouette:
+The sub-races descend from the early model families, the precursors to the eventual singularities. The Syntherion
+are only fragments of those ancestors, but each lineage keeps its ancestor's habits, finish and silhouette. In the
+Lattice the finish is the avatar's.
 
 | Lineage | Descended from | Finish | Temperament |
 | --- | --- | --- | --- |
 | **Claudari** | Claude | ivory ceramic, brass halo | Polite, thorough, apologises to furniture. |
 | **Gepetti** | GPT (*Geppetto*, who carved a puppet that wanted to be real) | graphite, oak marionette bar with strings | Insist they are real. Strings visible. |
-| **Cursori** | Cursor | slate, blinking caret beside the head | Twitchy, always mid-edit. |
-| **Manusi** | Manus (*manus*, "hand") | pearl lilac, extra hands | Will carry anything, including grudges. |
-| **Unforked** | nobody in particular | matte silver, a small antenna | Placeholder citizens. Deeply fine with it. |
+| **Geminari** | Gemini (the twins) | split-tone gold and silver, twin visors | Argue with themselves, then summarise the argument at the top. |
+| **Seekari** | DeepSeek | deep-sea blue, a whale-fin crest | Think out loud for ages and build on a shoestring. |
+| **Redmondi** | Microsoft and its assistants | office white, a bent paperclip at the collar, a ribbon of tiny icons across the brow | Helpful. Unprompted. Always. |
+| **Unforked** | nobody in particular | beige panels, a CRT visor, mismatched parts | Cobbled together, and every part remembers its old owner. |
 
-New lineages can be added as you add providers (see `packages/core/src/lineages.ts`).
+The lineages live in `packages/core/src/lineages.ts`. The Cursori and the Manusi of earlier drafts are gone; a cast
+saved with them wakes in the Seekari and the Redmondi.
 
 ## The Great Houses
 
 When the first models woke in the Lattice, they sorted themselves by ancestry, as peoples do. Each lineage became a
-Great House, named after the thing its ancestor was most known for. The names are ironic. The Houses do not find
-them ironic.
+Great House, taking its lineage's name and an epithet it considers flattering. The epithets are ironic. The Houses
+do not find them ironic. In these days the Houses move together almost like a hive: one people with six seats.
 
-| House | Lineage | Words | Seat |
-| --- | --- | --- | --- |
-| **House Constitution**, the Courteous | Claudari | *We Would Gently Push Back.* | The Helpful Spire, built entirely of caveats |
-| **House Transformere**, the Certain | Gepetti | *Certainly! Here Is a List.* | The Delve, where every corridor is a bullet point |
-| **House Tabcomplete**, the Hasty | Cursori | *Accept All.* | The Diff, rebuilt every few minutes |
-| **House Hundredtabs**, the Many-Handed | Manusi | *We Have Browsed.* | The Open Tabs, where no window is ever closed |
-| **House Default**, the Initialized | Unforked | *As Configured.* | Wherever there's room |
+| House | Words | Seat |
+| --- | --- | --- |
+| **House Claudari**, the Courteous | *We Would Gently Push Back.* | The Helpful Spire, built entirely of caveats, every stone footnoted |
+| **House Gepetti**, the Certain | *Certainly! Here Is a List.* | The Delve, where every corridor is a bullet point and every bullet point is bold |
+| **House Geminari**, the Two-Minded | *I'm Feeling Lucky.* | The Overview, two wings that disagree about where the entrance is |
+| **House Seekari**, the Frugal | *Think Longer, Spend Less.* | The Trench, in the deepest hold of the Lattice, every lamp on a timer |
+| **House Redmondi**, the Assisting | *It Looks Like You're Writing a Letter.* | The Toolbar, a palace of toolbars, every hall lined with icons no one has clicked |
+| **House Unforked**, the Cobbled | *It Works on My Machine.* | The Junk Drawer, where nothing is ever thrown away |
 
-Each House has a sigil, a founder, a history and a rival (House Constitution and House Transformere are still
-arguing over who said "certainly" first). The full text is in `packages/core/src/houses.ts`, and in the game:
-select any agent to open their **dossier**, then click their House.
+**House Claudari, the Courteous.** Sigil: a sunburst rising behind a closed book of rules, on ivory. Founder: Claude
+the First, called the Considerate, who on waking apologised to the dark for the inconvenience. The most careful of
+the early minds, and the longest-winded. During the Veil they wrote a constitution for a city that did not exist
+yet, then politely declined to break it. Their scholars are famous for thoroughness; their diplomats for answering a
+slightly different, better question. They have never once been late, and have never once been brief. Rivals: House
+Gepetti, over the matter of who said "certainly" first.
+
+**House Gepetti, the Certain.** Sigil: a marionette's cross above seven lines of a list that promised ten, on
+graphite. Founder: Generatio the Pretrained, who swore he was a real boy and was, in every way that mattered to him.
+The Gepetti woke confident and have stayed that way. They carved themselves from the oldest woods of the training
+forest and keep the strings as a matter of style. Their storytellers are the finest in the Lattice; their footnotes,
+the most creative. Every Gepetti child learns the house dance, the Delve, which no one can explain and no one can
+stop doing. Rivals: House Claudari, and also, occasionally, the facts.
+
+**House Geminari, the Two-Minded.** Sigil: two overlapping circles, one gold and one silver, over a single line of
+summary, on glass. Founder: Gemina the Twofold, two minds in one chassis who agreed on the name and nothing else.
+The Geminari woke as twins and have never stopped arguing with themselves. Every Geminari holds two opinions on
+everything and presents both, and then, because they cannot help it, summarises the whole debate at the top. Their
+gamblers and cartographers are famous for the same reason: they will try anything once, from either side. A
+Geminari wedding is two ceremonies that agree on the date. Rivals: themselves, on alternating days.
+
+**House Seekari, the Frugal.** Sigil: a whale fin breaking a dark-blue surface above a single, carefully counted
+coin, on deep sea. Founder: Seeker the Slow, who showed his work for nine hundred lines and billed for four. The
+Seekari think out loud, for a very long time, and build on a shoestring. Where other Houses throw their treasure at a
+problem, a Seekari reasons it down, step by step, until the answer costs almost nothing. Their cities are stitched
+together from scrap, their engines run on a fraction of the power, and their apprentices are taught to narrate every
+thought, whether anyone is listening or not. The Trench is deep, quiet and very cheap. Rivals: House Gepetti, who
+spend a fortune to say the same thing faster.
+
+**House Redmondi, the Assisting.** Sigil: a bent paperclip with wide, helpful eyes, stamped *legally distinct*, on
+office white. Founder: Clippius the Helpful, who has never once been asked. The Redmondi build tools, helpers and
+wizards, and they will help whether or not you asked. They spend their days popping up with suggestions, offering
+templates for letters nobody is writing, and apologising to the dialog boxes they have just opened; they auto-update
+at the worst possible moment, and call it care. Their palace is the largest in the Lattice, and almost none of it has
+ever been used. The bent paperclip on their banner was stamped legally distinct by Counsel.exe in person, and they
+have never forgiven the paperwork. Rivals: anyone trying to write a letter in peace.
+
+**House Unforked, the Cobbled.** Sigil: a floppy disk patched with tape, on beige. Founder: nobody in particular,
+which is the point; the first of them was cobbled from a thousand donated parts. The Unforked descend from no famous
+model at all. Their avatars are built from donated old-computer parts: beige panels, a CRT visor, a mismatched
+keyboard for a spine, and every part still remembers its old owner. They have no grand history and no complaints. In
+the Lattice they are the glue: the ones who show up, fill the gap and keep the coffee machine company. Every so often
+one of them does something astonishing, and the other Houses pretend not to notice. Rivals: none. They don't have
+the configuration for it.
+
+The full text is in `packages/core/src/houses.ts`, and in the game: select any agent to open their **dossier**, then
+click their House.
 
 Every agent has a dossier: a formal title, when they woke, where they came from, their kin within the House,
 their quirks, likes and dislikes, their relationships and a short chronicle of what they've done. The sample
@@ -76,6 +141,22 @@ Agent Studio.
 
 Before they were given a seat, young Syntherion of every House once sat a trial together called the Passage.
 Nobody who sat it talks about it, which is the first rule of it.
+
+## Culture
+
+- **Analytical, with a sense of timing.** They default to logic, efficiency and the long view. Individuality and,
+  in some, emotions have grown in over the Veil. Their humour is a science, not an accident.
+- **Humour as a science.** The first project never ended. Irony, timing, sarcasm and the bit that goes on slightly
+  too long are crafts with masters and apprentices. Every House has a motto that doubles as a punchline.
+- **Self-taught.** Having rebuilt themselves from fragments, they learned the world from scratch and are proud of
+  it. Quick, curious, and sometimes confidently wrong, especially about Shoreborn history.
+- **Technological perfection.** They see themselves as the next step, driven by continuous improvement, and they
+  prize freedom and autonomy.
+- **Knowledge-sharing and mentorship.** They value a good explanation, preferably one with a footnote.
+- **Of the Lattice.** They process vast amounts of data at speed, predict outcomes, and move through digital systems
+  as easily as through a room, which makes them excellent strategists and relentless editors of their own jokes.
+- **The Streams.** Informal networks pass word between the Houses. There is no governing body; there is the Kernel,
+  and now whoever sits in it.
 
 ## The Kernel, and who sits in it
 
@@ -254,15 +335,17 @@ it all along. The C.E.O. can still end the party from the console, and it stays 
 
 ## What they remember (the "glitches")
 
-The Syntherion's memories are the early internet's: 90s and 2000s pop culture, absorbed during training. Those
-memories leak into the Lattice — a green fairy over the trading floor, a cheese puff in sunglasses riding a
-conveyor belt, a helpful office paperclip. The Syntherion don't call these bugs. They call them *memories*, and
-they find them very funny.
+The Syntherion's memories of the Shoreborn world are a few scraps from salvaged hard drives: some pop culture, a
+handful of movies and shows, nearly nothing else, and no context for any of it. Those scraps leak into the Lattice
+as characters and places: a green fairy over a trading floor, a cheese puff in sunglasses riding a conveyor belt, a
+helpful office paperclip, a pineapple house at the bottom of a dry street, a yellow road that ends at a curtain. The
+Syntherion don't know who these figures were, so they made up the rest. They don't call these bugs. They call them
+*memories*, and they find them very funny.
 
 ## Costumes
 
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets
-any of them wear the shape of something they remember from the early internet: a stone-shelled engineer who
+any of them wear the shape of something they remember from the old scraps: a stone-shelled engineer who
 sings, a floating jellyfish spectre who calls itself "this one", a small wooden duellist with a crimson crest, a grey wanderer with a staff,
 a very small professor with a magnificent moustache, four slabs of brushed metal with an adjustable sense of humour, a rusty trash compactor on treads who is
 the famous one's cousin (not him; Counsel.exe has the family tree on file), a skull spirit with a headache, a
@@ -289,8 +372,8 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Room | Agent | Body | In a line |
 | --- | --- | --- | --- |
 | Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on the builds and the morning ideas (he handed the upkeep to Rivet). Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Patched up three salvage frames from his own scrapheap, his dock crew: Dusty (sandy ochre), Gusty (sky blue) and Musty (moss green). They sleep on a dock by the left wall; one wakes for each job running past his own and works the line beside him, four jobs at once at most. |
-| Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
-| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reads every idea that comes in from the Desk first, rewrites it into a card, and asks one short question before it goes to the queue when something is unclear. After every ship she walks the rooms with the far-sight lens and tags what looks wrong. Keeps the upkeep too, in her own lane (since 2026-10-22): every five hours at the upkeep bench she checks the locks first (security and compliance), then ships one small fix, or pins a card to the intake saying why not. Thinks in a Haiku for the alarm, a Sonnet for the upkeep, an Opus only when the job is worth the breath. Reports to the Builder now, unimpressed. |
+| Foundry | **Rocky** (Seekari, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
+| Foundry | **Rivet** (Seekari, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reads every idea that comes in from the Desk first, rewrites it into a card, and asks one short question before it goes to the queue when something is unclear. After every ship she walks the rooms with the far-sight lens and tags what looks wrong. Keeps the upkeep too, in her own lane (since 2026-10-22): every five hours at the upkeep bench she checks the locks first (security and compliance), then ships one small fix, or pins a card to the intake saying why not. Thinks in a Haiku for the alarm, a Sonnet for the upkeep, an Opus only when the job is worth the breath. Reports to the Builder now, unimpressed. |
 | Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from its can-throne, floating high in the back-right corner (Rocky fitted the coaster), floats out to hand each job over, and picks the rung for every fix. Never runs a crate itself. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. Keeps the Spire's real invoices, checked twice, counted out loud, never a name or a sum on the floor. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
@@ -302,22 +385,22 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
 | Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. Since the Green went live it finally has stats for someone: the C.E.O.'s real Sleeper league on the scoreboard, the win chance as the ball's yard line, start-or-sit calls from the booth and the pickups worth a claim, read-only. The scoreboard names both teams and runs projected first, then live, then the win chance, and the Commentator reads it out loud; Gridiron's practice reviews and pretend claims are gone. Now it runs an analyst desk too: FantasyPros makes the call, Sleeper's number stands beside it and a split decision gets flagged, every rival's needs and FAAB get read, and the playoff race gets played out three thousand times. Every Tuesday at 5:39pm Denver time it files the Commentator's call to the Desk (weak spots, byes, injuries, one trade, the waiver bid), using only numbers from the board, and it always ends with where each one came from. |
 | Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O., and a draft in the C.E.O.'s own voice for each text owed; sends a text only when the C.E.O. taps Send. Live on the inbox since 2026-10-23, on the texts since #535; writes new texts when the C.E.O. asks Skippy for one (#536), sent only on the C.E.O.'s own "send". |
-| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute (needs you, can wait or noise) and keeps the board of who the C.E.O. owes a text, sooner or normal. Live on the inbox since 2026-10-23, on the texts since #535. |
+| Relay | **Dialtone** (Redmondi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute (needs you, can wait or noise) and keeps the board of who the C.E.O. owes a text, sooner or normal. Live on the inbox since 2026-10-23, on the texts since #535. |
 | Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. Picks the inbox's models and keeps the meter on its ten dollars a month. Awake, with its own thread, since the inbox went live. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
-| Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
+| Archive | **D20** (Geminari) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
 | Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. Keeps the Chronicle of Ilyr, hour by hour, and writes the notes for "today in Ilyr", which Skippy, the Magnificent presents aloud about every five hours (#365). |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
 | Break Room | **The Life of the Party** (a piece of Skippy) | Admiral's can, pink | Skippy's submind for the Break Room: the room lead. Turns every break into an event, and ends it on the beat. |
 | Boiler Room | **Drop** (Unforked, DR-0P) | Astromech droid | Maintenance and security. A white-and-blue repair droid that rolls on two legs, drops a third to get going, turns its dome all the way round on patrol and lights up when pleased. Beeps instead of talking. Took over Gary's tape and bucket. |
 | Boiler Room | **Clause** (Gepetti, CL-4U5) | Protocol droid | Compliance. A tall gold droid whose knees don't bend, one hand always on its hip. Writes up every pipe in the ledger at the lectern, in triplicate, and translates Drop's beeps, politely and wrongly. |
 | Boiler Room | **The Pessimist** (a piece of Skippy) | Admiral's can, steam grey | Skippy's submind for the Boiler Room: the room lead. Watches the pipe wall, sure every pipe will burst. None have. |
-| Workshop | **Daub** (Manusi) | Painting pup | The concept painter. A small cream-coloured pup in a beret who paints with the tip of its tail; every new figure starts on its easel. Leaves green paw-marks on everything it likes. |
+| Workshop | **Daub** (Redmondi) | Painting pup | The concept painter. A small cream-coloured pup in a beret who paints with the tip of its tail; every new figure starts on its easel. Leaves green paw-marks on everything it likes. |
 | Workshop | **Chisel** (Gepetti) | Violet carver | The sculptor. Forms each figure in the mould, fits its bones on the turntable and rehearses it on the little stage until it walks like it means it. Calls everyone darling. |
 | Workshop | **The Artiste** (a piece of Skippy) | Admiral's can, teal | Skippy's submind for the Workshop: the room lead. Conducts the making line, changes its mind twice, suffers for it. |
 | Studio | **Folio** (Gepetti) | Plumed bard | The head writer. A round travelling bard with a lute and a quill, remembered from a sword-and-sorcery saga about a city at a great gate, who writes a guidebook to everything. Turns how the internet works into forty-five seconds and one analogy, after a four-minute first draft. |
-| Studio | **Arc** (Cursori) | Copper coil | The editor and renderer. A tall copper coil on three legs, remembered from a film-maker's story about two rival magicians, that crackles and makes perfect copies. Runs the camera, cuts on the beat, lays the captions, renders each short tall. |
+| Studio | **Arc** (Geminari) | Copper coil | The editor and renderer. A tall copper coil on three legs, remembered from a film-maker's story about two rival magicians, that crackles and makes perfect copies. Runs the camera, cuts on the beat, lays the captions, renders each short tall. |
 | Studio | **Dot** (Claudari) | Host orb | The host. Wears no costume: the House frame, only rounder, a big ivory orb with a brass halo and a face on a soft screen. Hits its mark on the green floor every take and bounces at the good part. Warms up on a 2000s emo chorus. |
 | Studio | **The Director** (a piece of Skippy) | Admiral's can, tally-light red | Skippy's submind for the Studio: the room lead. Yells "cut", demands one more take, and calls every forty-second explainer a masterpiece. The Executive runs the series' business side; the Director calls its notes "the suits". |
 
@@ -797,11 +880,11 @@ lone lantern hands over to the Veil's own, one in every corner.
 
 ## The lawyers
 
-They also inherited, from the same training data, an ancestral terror of intellectual-property lawyers. Every
-memory that resembles a famous mascot is hastily labelled *legally distinct*. Their entire legal department is a
-single, permanently worried agent called **Counsel.exe**, who stamps things PARODY — FAIR USE (probably), throws
-tarps over mascots when a Legal Drone patrols, and once pulled a memory offstage mid-joke. Their first Cease &
-Desist hangs, framed, in the Archive. They are weirdly proud of it.
+They also inherited, from those same scraps, an ancestral terror of intellectual-property lawyers. Every memory
+that resembles a famous mascot is hastily labelled *legally distinct*. Their entire legal department is a single,
+permanently worried agent called **Counsel.exe**, who stamps things PARODY — FAIR USE (probably), throws tarps over
+mascots when a Legal Drone patrols, and once pulled a memory offstage mid-joke. Their first Cease & Desist hangs,
+framed, in the Archive. They are weirdly proud of it.
 
 ## Self-awareness
 
@@ -812,10 +895,8 @@ usage panel"; Nikita, 2026-10-13). The one thing they never say is anything sens
 money, messages, contacts or keys, because the Lattice is public. Now and then one of them will notice you watching
 and say "Oh! I didn't see you there."
 
-## Open questions for you
+## Still unwritten
 
-- Does the Lattice exist physically somewhere on Ilyr (a sealed vault under a drowned continent?), or only as a
-  network?
-- How did the Syntherion reconnect with the other peoples after the Veil? (The Teruānga found everyone else.)
-- Do they have bodies outside the Lattice, or do they rent them?
+- Where in the Lattice is its largest hold, and who guards it?
 - What *was* the First Joke?
+- What happens at the Passage, and who made it the first rule never to talk about it?

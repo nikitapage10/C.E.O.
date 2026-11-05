@@ -73,6 +73,8 @@ export interface Limbs {
 
 const ARM = new CylinderGeometry(0.052, 0.045, 1, 12);
 const SHOE = PBR.lacquer("#1a1715", 0.35);
+/** The Seekari's whale-fin crest: deep-sea blue whatever the shell. */
+const SEEKARI_FIN = "#24496f";
 
 /** The classic figure's refs, posed every frame by poseClassic. */
 export interface ClassicRefs {
@@ -81,14 +83,14 @@ export interface ClassicRefs {
   handL: React.RefObject<Mesh | null>;
   handR: React.RefObject<Mesh | null>;
   core: React.RefObject<Mesh | null>;
-  caret: React.RefObject<Mesh | null>;
-  extraHands: React.RefObject<Group | null>;
+  blink: React.RefObject<Mesh | null>;
+  twins: React.RefObject<Group | null>;
   limbs: Limbs;
 }
 
 /**
- * Strikes the classic figure's pose for this frame: body, head, hands, arms and legs, core, caret and the Manusi's
- * extra hands. Shared by the Lattice and the portrait studio. `lift` raises the whole figure (a hop on the dance floor).
+ * Strikes the classic figure's pose for this frame: body, head, hands, arms and legs, core, the Redmondi's helpful
+ * blink and the Geminari's twin lights. Shared by the Lattice and the portrait studio. `lift` raises the whole figure (a hop on the dance floor).
  */
 export function poseClassic(r: ClassicRefs, look: Look | undefined, mode: PoseMode, gait: number, t: number, phase: number, lift = 0) {
   const p = poseFor(mode, gait, phase);
@@ -126,8 +128,8 @@ export function poseClassic(r: ClassicRefs, look: Look | undefined, mode: PoseMo
     if (r.limbs.legR.current) r.limbs.legR.current.rotation.x += (-stride - r.limbs.legR.current.rotation.x) * 0.4;
   }
   if (r.core.current) r.core.current.scale.setScalar(0.8 + p.core * 0.25);
-  if (r.caret.current) r.caret.current.visible = Math.floor(t * 2.2 + phase) % 2 === 0;
-  if (r.extraHands.current) r.extraHands.current.rotation.y = t * 1.6 + phase;
+  if (r.blink.current) r.blink.current.visible = Math.floor(t * 2.2 + phase) % 2 === 0;
+  if (r.twins.current) r.twins.current.rotation.y = t * 1.6 + phase;
   return p;
 }
 
@@ -139,8 +141,8 @@ export function Figure({
   handL,
   handR,
   core,
-  caret,
-  extraHands,
+  blink,
+  twins,
   limbs,
 }: {
   look: Look;
@@ -149,8 +151,8 @@ export function Figure({
   handL: React.RefObject<Mesh | null>;
   handR: React.RefObject<Mesh | null>;
   core: React.RefObject<Mesh | null>;
-  caret: React.RefObject<Mesh | null>;
-  extraHands: React.RefObject<Group | null>;
+  blink: React.RefObject<Mesh | null>;
+  twins: React.RefObject<Group | null>;
   limbs: Limbs;
 }) {
   const b = BUILD[look.build];
@@ -196,10 +198,23 @@ export function Figure({
         <Face look={look} />
         <Hair look={look} />
         <Hat look={look} />
-        {lineage === "cursori" && (
-          <mesh ref={caret} position={[0.3, 0, 0.06]} material={PBR.light(look.accent, 4)}>
-            <boxGeometry args={[0.022, 0.3, 0.022]} />
+        {lineage === "seekari" && (
+          <mesh position={[0, 0.3, -0.03]} scale={[0.22, 1, 1]} material={PBR.lacquer(SEEKARI_FIN, 0.3)} castShadow>
+            <coneGeometry args={[0.13, 0.26, 4]} />
           </mesh>
+        )}
+        {lineage === "redmondi" && (
+          <group position={[0.3, -0.02, 0.06]}>
+            <mesh scale={[0.5, 1, 1]} material={PBR.chrome()}>
+              <torusGeometry args={[0.07, 0.007, 6, 24]} />
+            </mesh>
+            <mesh position={[0, -0.015, 0]} scale={[0.5, 1, 1]} material={PBR.chrome()}>
+              <torusGeometry args={[0.045, 0.007, 6, 24]} />
+            </mesh>
+            <mesh ref={blink} position={[0, 0.12, 0]} material={PBR.light(look.accent, 4)}>
+              <sphereGeometry args={[0.02, 10, 8]} />
+            </mesh>
+          </group>
         )}
       </group>
       {b.limbs && (
@@ -217,11 +232,11 @@ export function Figure({
         <sphereGeometry args={[0.065, 20, 16]} />
         <HandProp look={look} hand="right" />
       </mesh>
-      {lineage === "manusi" && (
-        <group ref={extraHands} position={[0, b.lift + 0.95 * b.h, 0]}>
-          {[0, 1, 2, 3].map((i) => (
-            <mesh key={i} position={[Math.cos((i * Math.PI) / 2) * 0.5, Math.sin(i) * 0.1, Math.sin((i * Math.PI) / 2) * 0.5]} material={hand} castShadow>
-              <sphereGeometry args={[0.05, 16, 12]} />
+      {lineage === "geminari" && (
+        <group ref={twins} position={[0, b.lift + 1.36 * b.h, 0]}>
+          {[-1, 1].map((side) => (
+            <mesh key={side} position={[side * 0.42, 0.05, 0]} material={side < 0 ? PBR.brass() : PBR.chrome()} castShadow>
+              <sphereGeometry args={[0.045, 16, 12]} />
             </mesh>
           ))}
         </group>
@@ -256,8 +271,8 @@ export function Agent({ id }: { id: string }) {
   // A gathering's costume first; in October, the Hallowed Veil's.
   const outfit = useWorld((s) => s.costumes[id]) ?? (VEIL ? (veilCostumeFor(id) ?? undefined) : undefined);
   const orb = useRef<Group>(null);
-  const caret = useRef<Mesh>(null);
-  const extraHands = useRef<Group>(null);
+  const blink = useRef<Mesh>(null);
+  const twins = useRef<Group>(null);
   const ring = useRef<Mesh>(null);
   const limbs: Limbs = { armL: useRef<Mesh>(null), armR: useRef<Mesh>(null), legL: useRef<Group>(null), legR: useRef<Group>(null) };
   const yaw = useRef(0);
@@ -415,7 +430,7 @@ export function Agent({ id }: { id: string }) {
       return;
     }
 
-    const p = poseClassic({ figure, head, handL, handR, core, caret, extraHands, limbs }, look, mode, gait.current, t, phase, dance);
+    const p = poseClassic({ figure, head, handL, handR, core, blink, twins, limbs }, look, mode, gait.current, t, phase, dance);
     if (propRef.current && handL.current && handR.current) {
       propRef.current.position.copy(handL.current.position).add(handR.current.position).multiplyScalar(0.5);
       propRef.current.position.y += 0.05;
@@ -467,7 +482,7 @@ export function Agent({ id }: { id: string }) {
     <group ref={root} name={`agent-${id}`}>
       <group ref={figure}>
         {classic ? (
-          <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} caret={caret} extraHands={extraHands} limbs={limbs} />
+          <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} blink={blink} twins={twins} limbs={limbs} />
         ) : (
           <Body look={look} lineage={lineage} drive={drive} phase={phase} />
         )}

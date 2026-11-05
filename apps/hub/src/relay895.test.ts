@@ -40,6 +40,12 @@ class FakeBB implements BlueBubbles {
   async send() {
     return true;
   }
+  async react(): Promise<boolean> {
+    return true;
+  }
+  async privateApi(): Promise<boolean | null> {
+    return true;
+  }
   async chats() {
     return [];
   }

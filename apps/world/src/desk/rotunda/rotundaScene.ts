@@ -47,7 +47,24 @@ import { cachedModel } from "../modelCache.ts";
 import { ARMS, CHILD, NAVY, POSES } from "../hologram/rig.ts";
 import type { Pose } from "../hologram/persona.ts";
 import { SKIPPY_MODEL } from "../council/live.ts";
-import { chairLine, COUNTER_COLOUR, MURMUR_MAX, murmurFor, type RiteItem, type RiteKind, type RiteLine } from "./rite.ts";
+import {
+  chairLine,
+  COUNTER_COLOUR,
+  FLY_MS,
+  ITEM_END_MS,
+  ITEM_GAP_MS,
+  MURMUR_MAX,
+  murmurFor,
+  murmurVoice,
+  readMs,
+  spoken,
+  SPOKEN_BEAT_MS,
+  TURN_GAP_MS,
+  type RiteItem,
+  type RiteKind,
+  type RiteLine,
+} from "./rite.ts";
+import type { RotundaVoice } from "./voice.ts";
 
 /**
  * The Senate Rotunda in 3D (#740), Today's chamber: the round 3 concept (concepts/2026-11-04-today-boiler, r3/rotunda.js)
@@ -57,7 +74,8 @@ import { chairLine, COUNTER_COLOUR, MURMUR_MAX, murmurFor, type RiteItem, type R
  * the submind isn't active, brighter when it is, brightest while its room is at work. The docket's items (rite.ts) play
  * in turn: a pod flies in to the floor when it speaks and glides home after. The gallery is hundreds of instanced pods
  * with a pinprick light each, and now and then one murmurs a canned line (at most three at once, none under reduced
- * motion). Haze drifts through the bowl and up the podium's shaft; sigil nanites drift in the air and gather at the
+ * motion). With the sound on (#755, voice.ts) every line is spoken and the session waits for it to finish, plus a beat;
+ * with it off each caption holds for its reading time (rite.ts, `readMs`). Haze drifts through the bowl and up the podium's shaft; sigil nanites drift in the air and gather at the
  * podium when the chair speaks. Phones get fewer particles and 30 frames a second; reduced motion slows everything to a
  * near stop. Lazy loaded with three.js, never in the Desk's first load.
  */
@@ -88,6 +106,8 @@ export interface RotundaOpts {
   onPlace: (id: string, x: number, y: number, visible: boolean) => void;
   /** Pixels at the host's bottom that captions keep clear of (the docket). */
   safeBottom: () => number;
+  /** The voices (#755): the choreography waits on each spoken line; without one (or with the sound off) it reads. */
+  voice?: RotundaVoice;
 }
 
 export interface Rotunda {
@@ -143,6 +163,7 @@ const baseOf = (s: RotundaSeat) => (s.working ? 0.85 : s.alive ? 0.5 : 0.14);
 
 export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement, opts: RotundaOpts): Promise<Rotunda> {
   const { reduce } = opts;
+  const voice = opts.voice ?? null;
   const PH0 = opts.phone;
   const gltf = await cachedModel<GLTF>(SKIPPY_MODEL, () => {
     const loader = new GLTFLoader();
@@ -585,6 +606,12 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       m.until = clock.t + 3 + Math.random() * 1.5;
       m.d.textContent = text;
       m.d.classList.add("on");
+      // With the sound on, a murmur is heard quietly when no one has the floor, and stays up while it is (#755).
+      const by = voice ? murmurVoice(text) : null;
+      if (voice && by)
+        void voice.murmur(by, text).then((d) => {
+          if (d !== null && m.d.textContent === text) m.until = Math.max(m.until, clock.t + d + 0.8);
+        });
       return;
     }
   };
@@ -655,16 +682,41 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // A pod that isn't seated (a Desk-only room missing from the Council) speaks through the chair instead.
   const podOr = (id: string) => byId(id);
 
+  // One line on the floor (#755): with the sound on, held while it is spoken and a beat after; otherwise (or when it
+  // can't be spoken) held for its reading time. Then the gap before the next move.
+  const line =async (by: string, text: string, tk: number, gap = TURN_GAP_MS) => {
+    if (!text) return;
+    const spoke = voice ? await voice.say(by, text) : false;
+    if (tk !== token || dead) throw new Error("cancel");
+    await sleep((spoke ? SPOKEN_BEAT_MS : readMs(text)) + gap, tk);
+  };
+  /** A pod flying in while the chair speaks: whichever takes longer. */
+  const both = (a: Promise<void>, b: Promise<void>) => Promise.all([a, b]).then(() => undefined);
+  /** Every line an item will say, so the voices are fetched before they're needed. */
+  const linesOf = (m: RiteItem) => [
+    { by: "kernel", text: m.clerk },
+    ...(m.say ? [{ by: m.by, text: spoken(m.say) }] : []),
+    ...(m.options ?? []).flatMap((o, k) => [
+      { by: "kernel", text: chairLine.recognize(o.by, o.label) },
+      { by: o.by, text: spoken(o.say) },
+      ...(m.counter && m.counter.on === k ? [{ by: "kernel", text: chairLine.tradeoff(m.counter.by) }, { by: m.counter.by, text: spoken(m.counter.say) }] : []),
+    ]),
+    ...(m.report ? [{ by: "kernel", text: chairLine.report(m.by) }, { by: m.by, text: spoken(m.report, true) }] : []),
+    ...(m.risk ? [{ by: "kernel", text: chairLine.risk() }, { by: m.risk.by, text: spoken(m.risk.say) }] : []),
+    { by: "kernel", text: m.done },
+  ];
+
   async function runItem(m: RiteItem, tk: number) {
     kind = m.kind;
     opts.onFloor(m.key);
     clearCaps();
     shareTo = 0;
     voteTo = 0;
+    voice?.prefetch(linesOf(m));
     chair(m.clerk);
     lookTo.set(0, 2.4, 0.8);
     dollyTo = 1;
-    await sleep(2200, tk);
+    await line("kernel", m.clerk, tk);
     if (m.kind === "duty") {
       const p = podOr(m.by);
       if (p) {
@@ -672,15 +724,15 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         focus = p;
         lookTo.set(-1, 2.3, 1.4);
         dollyTo = 0.92;
-        await sleep(2300, tk);
+        await sleep(FLY_MS, tk);
         say("a", p, m.say);
       } else chair(m.say?.text ?? "");
-      await sleep(3200, tk);
+      await line(p ? m.by : "kernel", spoken(m.say), tk);
       chair(m.done);
       opts.onDone(m.key);
       voteTo = 1;
       shareTo = 0.85;
-      await sleep(3000, tk);
+      await line("kernel", m.done, tk, ITEM_END_MS);
     } else if (m.kind === "decision") {
       const slots: [Slot, SpotId][] = [["a", "a"], ["c", "c"], ["b", "b"]];
       const opts2 = m.options ?? [];
@@ -688,26 +740,28 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         const o = opts2[k]!;
         const p = podOr(o.by);
         const [slot, spot] = slots[k % slots.length]!;
-        chair(chairLine.recognize(o.by, o.label));
+        const rec = chairLine.recognize(o.by, o.label);
+        chair(rec);
         if (p) {
           goIn(p, spot);
           focus = p;
           lookTo.set(SPOT[spot].x * 0.4, 2.6, 0.8);
           dollyTo = 0.95;
         }
-        await sleep(2200, tk);
+        await both(line("kernel", rec, tk, 0), sleep(FLY_MS, tk));
         say(slot, p, o.say);
-        await sleep(2900, tk);
+        await line(o.by, spoken(o.say), tk);
         if (m.counter && m.counter.on === k) {
           const c = podOr(m.counter.by);
-          chair(chairLine.tradeoff(m.counter.by));
+          const tr = chairLine.tradeoff(m.counter.by);
+          chair(tr);
           if (c) {
             goIn(c, "d", true);
             focus = c;
           }
-          await sleep(2200, tk);
+          await both(line("kernel", tr, tk, 0), sleep(FLY_MS, tk));
           say("d", c, m.counter.say, true);
-          await sleep(3400, tk);
+          await line(m.counter.by, spoken(m.counter.say), tk);
         }
       }
       chair(m.done);
@@ -717,44 +771,46 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       lookTo.set(0, 2.6, 0.4);
       dollyTo = 1.04;
       focus = null;
-      await sleep(4600, tk);
+      await line("kernel", m.done, tk, ITEM_END_MS + 1_200);
     } else {
       const p = podOr(m.by);
-      chair(chairLine.report(m.by));
+      const rep = chairLine.report(m.by);
+      chair(rep);
       if (p) {
         goIn(p, "r");
         focus = p;
         lookTo.set(1, 2.5, 1.2);
         dollyTo = 0.93;
       }
-      await sleep(2300, tk);
+      await both(line("kernel", rep, tk, 0), sleep(FLY_MS, tk));
       say("b", p, m.report, false, true);
-      await sleep(3600, tk);
+      await line(m.by, spoken(m.report, true), tk);
       if (m.risk) {
         const c = podOr(m.risk.by);
-        chair(chairLine.risk());
+        const rk = chairLine.risk();
+        chair(rk);
         if (c) {
-          goIn(c, c === p ? "a" : "a", true);
+          goIn(c, "a", true);
           focus = c;
           lookTo.set(-0.4, 2.5, 1.2);
         }
-        await sleep(2200, tk);
+        await both(line("kernel", rk, tk, 0), sleep(FLY_MS, tk));
         say("a", c, m.risk.say, true);
-        await sleep(3200, tk);
+        await line(m.risk.by, spoken(m.risk.say), tk);
       }
       chair(m.done);
       opts.onDone(m.key);
       lookTo.set(0, 2.4, 0.6);
       dollyTo = 1;
       focus = null;
-      await sleep(3400, tk);
+      await line("kernel", m.done, tk, ITEM_END_MS);
     }
     clearCaps();
     allHome();
     voteTo = 0;
     shareTo = 0;
     kind = "idle";
-    await sleep(2600, tk);
+    await sleep(ITEM_GAP_MS, tk);
   }
   async function interlude(k: number, tk: number) {
     chair("");
@@ -763,25 +819,27 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const it = ambient.length ? ambient[k % ambient.length]! : null;
     const p = it ? byId(it.by) : null;
     if (!it || !p) {
-      await sleep(4000, tk);
+      await sleep(ITEM_GAP_MS + 2_000, tk);
       return;
     }
+    voice?.prefetch([{ by: it.by, text: it.text }]);
     goIn(p, "u");
     focus = p;
     lookTo.set(-1, 2.3, 1.3);
     dollyTo = 0.95;
-    await sleep(2300, tk);
+    await sleep(FLY_MS, tk);
     say("a", p, { text: it.text });
-    await sleep(3400, tk);
+    await line(it.by, it.text, tk, 0);
     say("a", null);
     goHome(p);
     focus = null;
     lookTo.set(0, 2.2, 0);
     dollyTo = 1;
-    await sleep(2400, tk);
+    await sleep(ITEM_GAP_MS, tk);
   }
   async function session(startKey: string | null) {
     const tk = ++token;
+    voice?.stop();
     allHome();
     clearCaps();
     try {
@@ -1006,7 +1064,12 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
 
   // ---- the loop ---------------------------------------------------------------------------------------------------
   let visible = true;
-  const io = typeof IntersectionObserver === "function" ? new IntersectionObserver((en) => (visible = en[en.length - 1]!.isIntersecting)) : null;
+  const io = typeof IntersectionObserver === "function" ? new IntersectionObserver((en) => {
+          visible = en[en.length - 1]!.isIntersecting;
+          // The voices hold with the chamber, as its clock does.
+          voice?.hold(!visible);
+        })
+      : null;
   io?.observe(host);
   let last = performance.now();
   let T = 0;
@@ -1131,6 +1194,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     dispose: () => {
       dead = true;
       token++;
+      voice?.stop();
       cancelAnimationFrame(raf);
       window.clearTimeout(chairTimer);
       ro?.disconnect();

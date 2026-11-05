@@ -228,7 +228,12 @@ option, the Pessimist always rising for the counterpoint before the question is 
 reported, cause then fix, with one note of risk from the Boiler Room. A pod flies down to the floor to speak and glides
 home after. Nobody knows who sits in the gallery. It murmurs anyway ("Hear, hear", "Is the Pessimist ever cheerful?"),
 never more than three voices at once, and the Historian keeps the minutes. A submind with no real work yet waits dim
-in its seat; whoever the C.E.O. points at is lit.
+in its seat; whoever the C.E.O. points at is lit. Since #755 the chamber can be heard: with the sound on, Skippy chairs
+in his own voice and each submind speaks in one of its own (the Builder gravelly, the Pessimist low and slow, the
+Messenger quick as gossip, the Historian a British storyteller who sighs at dates), and nobody takes the floor until
+the last speaker has finished. Each line is spoken once and kept in the Archive's vaults for ever after, which the
+Bookie calls "the only sound investment in the building". The gallery mutters under its breath, and goes quiet the
+moment anyone on the floor opens their mouth.
 
 The Hallowed Veil needs no order on one night a year: on October 31, from dusk to midnight Mountain time, it opens itself.
 The agents come to the club in costume, jack-o'-lanterns light up in every room, and Skippy announces it as if he had planned

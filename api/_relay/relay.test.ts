@@ -984,7 +984,8 @@ describe("the backlog's Rescan and the learn chore (#758)", () => {
     const big = { contacts: Array.from({ length: 60 }, (_, i) => ({ label: `C${i + 1}`, texts: Array.from({ length: 30 }, () => "y".repeat(200)) })) };
     const body = learnRequest(big);
     expect(body.messages[0].content.match(/<text>/g)!.length).toBeLessThanOrEqual(1_000);
-    expect(body.messages[0].content.replace(/<[^>]+>|\n/g, "").length).toBeLessThanOrEqual(60_000);
+    // Every sample character is a "y" here, so counting them counts the text that went, with no tag stripping.
+    expect(body.messages[0].content.split("y").length - 1).toBeLessThanOrEqual(60_000);
     expect(readLearn({ ...LEARNED, relations: [{ label: "C9", kind: "family" }] }, ["C1"])?.relations).toEqual([]);
     expect(readLearn({ ...LEARNED, extra: "x" }, ["C1"])).toBeNull();
     expect(cleanTrait("“see you soon”")).toBe("");

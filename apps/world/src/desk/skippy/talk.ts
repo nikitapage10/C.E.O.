@@ -3,6 +3,7 @@ import { readCrew } from "../hologram/crew.ts";
 import { setCrew, setSpeaker } from "../hologram/signal.ts";
 import { setCallLive } from "./liveCall.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
+import { texting as roomTexting } from "./rooms.ts";
 import { sendTalkTiming } from "./talkBeacon.ts";
 import { SILENCE_CHECK_MS, silenceGuard, type SilenceGuard } from "./silence.ts";
 import { holdBegin, holdCheck, holdEnd, holdHeard } from "./hold.ts";
@@ -397,8 +398,8 @@ export const useTalk = create<TalkStore>((set, get) => {
         set((st) => ({ timings: { ...st.timings, [stage]: Math.round(performance.now() - tap) } }));
       };
       const mod = loadSession().then((m) => (mark("code"), m));
-      // Texting on the call (#536): its client tools, loaded with the call's own code.
-      const texting = import("../texts/talkTools.ts").catch(() => null);
+      // Texting on the call (#536): its client tools, loaded with the call's own code (the Relay's, plugged in by the Desk: rooms.ts).
+      const texting = (roomTexting()?.talkTools() ?? Promise.resolve(null)).catch(() => null);
       // The microphone prompt comes only now, straight after the tap, and before anything is spent.
       try {
         const mic = await navigator.mediaDevices.getUserMedia({ audio: true });

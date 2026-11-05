@@ -22,7 +22,7 @@ Lattice map, Green and the Boiler Room build on this kit, so the Desk reads as o
 
 Import from `desk/flow/index.ts` in a page that is itself lazy (it brings the fonts and `flow.css` with it). The kit's
 core (the field, paths, rising words, tempo and `flow.css`) lives in the engine at `@ceo/engine/sigils/` since #617
-step 2; `index.ts`, `useFlow` and `useTempo` stay here until step 3.
+step 2; `index.ts`, `useFlow` and `useTempo` stay here until the route moves into the engine.
 
 ```tsx
 import { fan, useFlow, RC, type FlowLayoutFn } from "../flow/index.ts";
@@ -66,7 +66,8 @@ crew, #433; no DOM reads in it).
 
 Every field moves with its room's real activity, with nothing for the page to do. `useFlow` reads the room from the
 route (or `room`, `null` to opt out), takes its pulse from the stores the Desk already keeps (`useTempo.ts`, which
-starts and polls nothing of its own), and `tempoOf` (`tempo.ts`, tested) turns its activity into multipliers on every
+starts and polls nothing of its own; the kit reads no room itself, the Desk hands it the pulse hook in `pulse.ts` from
+`desk/roomHooks.ts`, #617), and `tempoOf` (`tempo.ts`, tested) turns its activity into multipliers on every
 line's rate, density, brightness and spread: a busy room runs faster, fuller, brighter and thicker, the middle of the
 range leaves the page's own look as it is, and a room with nothing connected (or still waiting on its source) idles.
 Waiting lines are never scaled. The page's largest field also carries the small legend (`.fl-drive`, bottom right of

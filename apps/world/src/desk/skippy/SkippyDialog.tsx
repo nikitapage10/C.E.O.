@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useId, useLayoutEffect, useRef, useState } f
 import { createPortal } from "react-dom";
 import { runAction } from "./actions.ts";
 import { AnswerCard } from "./AnswerCard.tsx";
-import { ComposeCard } from "../texts/ComposeCard.tsx";
 import { handedName } from "./asked.ts";
 import { canSpeak, stopSpeaking, useSkippy, type ActionState, type Confirm, type SkippyAction, type Turn } from "./chat.ts";
 import { useHide } from "../hide.ts";
@@ -10,12 +9,19 @@ import { Private } from "../Private.tsx";
 import { SkippyComposer } from "./SkippyChat.tsx";
 import { SKIPPY_PORTRAIT } from "./SkippyAvatar.tsx";
 import { SkippyLine, TalkUsage } from "./SkippyLine.tsx";
+import { texting } from "./rooms.ts";
 import { useTalk } from "./talk.ts";
 import { useDeskAuth } from "../signin.ts";
 import { stripTags } from "../hologram/tags.ts";
 import "./skippy.css";
 
 /** The open dialogue, its own download: the Desk loads it the first time Skippy is opened (first-load budget). */
+
+/** A text's card (#536): the Relay's, plugged in by the Desk (rooms.ts) and loaded by the time a turn carries one. */
+function TextCard({ id }: { id: string }) {
+  const Card = texting()?.Card;
+  return Card ? <Card id={id} /> : null;
+}
 
 /** A turn as it reads: a voice line's audio tags ("[smug]", #490) are for the voice, not the transcript. */
 const spoken = (t: Turn) => (t.who === "nikita" ? t.text : stripTags(t.text));
@@ -258,7 +264,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
               </p>
             )}
             {t.text && <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{spoken(t)}</Private>}</p>}
-            {t.compose && <ComposeCard id={t.compose} />}
+            {t.compose && <TextCard id={t.compose} />}
             {t.card && (
               <Private block as="div">
                 <AnswerCard card={t.card} />

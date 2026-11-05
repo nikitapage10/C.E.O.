@@ -11,8 +11,8 @@ import type { Link } from "../../systems.ts";
  * odds board (questions and probabilities, never Nikita's positions or any amount) and the Boiler Room's links that
  * aren't healthy. No money, messages, contacts or keys.
  *
- * The rooms' own lines come from the rooms (the Green's from desk/green/skippy.ts, the Exchange's from
- * desk/exchange/skippy.ts), plugged in by the Desk (skippy/rooms.ts, `addPageSource`): the kit reads no room's data.
+ * The rooms' own lines come from the rooms (the Green's from rooms/green/skippy.ts, the Exchange's from
+ * rooms/exchange/skippy.ts), plugged in by the Desk (skippy/rooms.ts, `addPageSource`): the kit reads no room's data.
  */
 
 /** The function's own caps (api/_skippy/prompt.ts): at most this many characters and lines. */

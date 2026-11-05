@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Keeper } from "../rooms/parts.tsx";
-import { fan, useFlow, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
-import { asideLine, byMove } from "./asides.ts";
-import { biggestMove, floorWord, marketLine, MINT } from "./floor.ts";
+import { Keeper } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import { fan, useFlow, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
+import { asideLine, byMove } from "../data/asides.ts";
+import { biggestMove, floorWord, marketLine, MINT } from "../data/floor.ts";
 import { Marquee } from "./Marquee.tsx";
 import { ago, MarketRow, usePinToggle } from "./Markets.tsx";
-import { money, pct, startPolymarket, usePolymarket } from "./polymarket.ts";
-import { usePositions } from "./positions.ts";
+import { money, pct, startPolymarket, usePolymarket } from "../data/polymarket.ts";
+import { usePositions } from "../data/positions.ts";
 
 /**
  * The floor, the top of the Exchange (#430, on the flow kit): Today's language in the Bookie's mint. Along the top the

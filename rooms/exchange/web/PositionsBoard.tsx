@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useFlow, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
-import { Private } from "../Private.tsx";
-import { useDeskAuth } from "../signin.ts";
-import { MINT, nowPrice, positionLine, returnPct, toneRgb, waterline } from "./floor.ts";
-import { cents, contracts, pnlTone, signedPct, signedUsd, startPositions, usd, usePositions, type PmPosition, type PmPositions, type PmTrade, type PosStatus } from "./positions.ts";
+import { useFlow, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { MINT, nowPrice, positionLine, returnPct, toneRgb, waterline } from "../data/floor.ts";
+import { cents, contracts, pnlTone, signedPct, signedUsd, startPositions, usd, usePositions, type PmPosition, type PmPositions, type PmTrade, type PosStatus } from "../data/positions.ts";
 
 /**
  * Nikita's own Polymarket US positions (#253; on the flow kit since #430). The book reads first as plain figures

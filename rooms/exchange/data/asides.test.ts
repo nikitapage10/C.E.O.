@@ -2,7 +2,7 @@ import { BOOKIE_WORLD_QUIPS } from "@ceo/simulator";
 import { describe, expect, it } from "vitest";
 import { asideBadge, asideLine, byMove, moveWords, seedOf, shortName } from "./asides.ts";
 import { isPmWorld, readBoard, type PmWorld } from "./polymarket.ts";
-import { bookieWorldLine } from "../../rooms/liveBoards.ts";
+import { bookieWorldLine } from "../../../apps/world/src/rooms/liveBoards.ts";
 
 const W = (id: string, over: Partial<PmWorld> = {}): PmWorld => ({
   id,

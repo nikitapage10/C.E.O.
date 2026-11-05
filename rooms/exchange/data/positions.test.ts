@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { bookLine, cents, readPositions, signedPct, signedUsd, startPositions, usd, usePositions } from "./positions.ts";
 
 const pos = { market: "Brewers win?", outcome: "Yes", url: "https://polymarket.us/event/mlb", short: false, contracts: 40, avgPrice: 0.55, value: 25.2, cost: 22, pnl: 3.2, pnlPct: 14.5, realized: 0, expired: false };

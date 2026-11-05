@@ -1,15 +1,15 @@
-import { Waits, type Wait } from "./parts.tsx";
+import { Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import { SetupAsks } from "../skippy/SetupAsks.tsx";
-import { RC } from "../flow/index.ts";
-import { Floor } from "../exchange/Floor.tsx";
-import { Watchlist } from "../exchange/Markets.tsx";
-import { Movers } from "../exchange/Movers.tsx";
-import { PositionsBoard } from "../exchange/PositionsBoard.tsx";
-import { bookLine, usePositions } from "../exchange/positions.ts";
-import { tapeLine, usePolymarket } from "../exchange/polymarket.ts";
-import "./rooms.css";
-import "../exchange/exchange.css";
+import { SetupAsks } from "../../../apps/world/src/desk/skippy/SetupAsks.tsx";
+import { RC } from "../../../apps/world/src/desk/flow/index.ts";
+import { Floor } from "./Floor.tsx";
+import { Watchlist } from "./Markets.tsx";
+import { Movers } from "./Movers.tsx";
+import { PositionsBoard } from "./PositionsBoard.tsx";
+import { bookLine, usePositions } from "../data/positions.ts";
+import { tapeLine, usePolymarket } from "../data/polymarket.ts";
+import "../../../apps/world/src/desk/rooms/rooms.css";
+import "./exchange.css";
 
 /**
  * The Exchange (#225, redrawn #367, #387; on the flow kit since #430): Today's language in the Bookie's mint. The floor

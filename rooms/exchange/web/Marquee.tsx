@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { tapeItems, tapeSeconds, type TapeItem } from "./floor.ts";
-import type { PmBoard, PmStatus } from "./polymarket.ts";
+import { tapeItems, tapeSeconds, type TapeItem } from "../data/floor.ts";
+import type { PmBoard, PmStatus } from "../data/polymarket.ts";
 import { useReducedMotion } from "./viz.tsx";
 
 /**

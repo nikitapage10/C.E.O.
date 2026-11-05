@@ -74,7 +74,7 @@ plugging in adds nothing to the first load.
 | Kit | What a room offers | Plugged in with |
 | --- | --- | --- |
 | Flow (`desk/flow`) | Its pulse, for the tempo of its page's lines (`useRoomPulse`, from the stores the Desk keeps) | `setPulseReader` (`desk/flow/pulse.ts`) |
-| Skippy's page block (`desk/skippy/page.ts`) | Its lines for his quick take: the Green's start/sit calls (`desk/green/skippy.ts`, leading every block) and the Exchange's odds (`desk/exchange/skippy.ts`) | `addPageSource` (`desk/skippy/rooms.ts`) |
+| Skippy's page block (`desk/skippy/page.ts`) | Its lines for his quick take: the Green's start/sit calls (`rooms/green/skippy.ts`, leading every block) and the Exchange's odds (`rooms/exchange/skippy.ts`) | `addPageSource` (`desk/skippy/rooms.ts`) |
 | Skippy's texting (#536) | The Relay's compose card and call tools (`desk/texts/`) | `setTexting` (`desk/skippy/rooms.ts`) |
 
 As a room moves into `rooms/<id>/`, its part moves with it (its `skippy.ts`) and is offered through its manifest.
@@ -162,7 +162,10 @@ followed (step 6): `web/Green.tsx`, `web/stadium.ts` and `web/green.css` (its ru
 the league store and the analysis in `data/`, and its lines for Skippy in `skippy.ts` (the old `desk/green/league.ts`
 and `desk/green/skippy.ts` re-export them). The Haven followed (step 7): its whole page, `web/HavenPage.tsx` with its
 parts, sheets and tests (moved from `desk/haven` unchanged); the Boiler Room's house setup reads its grocery list through
-the old `desk/haven/groceries.ts`, which re-exports it. Every other
+the old `desk/haven/groceries.ts`, which re-exports it. The Exchange followed (step 8): `web/Exchange.tsx` with its
+floor, boards and `exchange.css`, the odds and positions stores and their helpers in `data/` (the Lattice's boards and
+the Desk's Systems read them through the old `desk/exchange/*.ts`, which re-export them), and its odds lines for Skippy
+in `skippy.ts`. Every other
 room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest

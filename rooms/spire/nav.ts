@@ -4,5 +4,5 @@
  */
 export const nav = {
   name: "Spire",
-  page: () => import("../../apps/world/src/desk/rooms/Spire.tsx").then((m) => ({ default: m.Spire })),
+  page: () => import("./web/Spire.tsx").then((m) => ({ default: m.Spire })),
 };

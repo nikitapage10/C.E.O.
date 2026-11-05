@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { emptyInvoiceStatus } from "../../../../../api/_paypal/status.ts";
-import { useSystems } from "../../systems.ts";
+import { emptyInvoiceStatus } from "../../../api/_paypal/status.ts";
+import { useSystems } from "../../../apps/world/src/systems.ts";
 import { checkForm, draftPayload, formTotal, invoicesLine, linkOf, readItem, readView, useInvoices, type DraftForm } from "./invoices.ts";
 
 const NOW = Date.UTC(2026, 9, 22, 18);

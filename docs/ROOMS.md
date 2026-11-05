@@ -27,6 +27,7 @@ the engine's `<RoomSections>`. Until a room's own step lands, its code stays whe
 | `@ceo/engine/tools` | The rooms' tools (#646): `RoomTool` (a name, a title, a description, a strict input schema and an effect: `read`, `write`, `send`, `spend` or `delete`), `needsConfirm`, `checkInput` and `ToolOutcome`. One registry for Desk Skippy's agent and the room voice | |
 | `@ceo/engine/sigils/*` | The particle layer: `wvCanvas.ts` (the Desk's one shared loop and canvas helpers), `motion.tsx`, the flow kit's core (`field.ts`, `draw.ts`, `path.ts`, `rise.ts`, `motes.ts`, `tempo.ts`, `flow.css`) and the glyph engine (`sigils.ts`, `sigils.css`, #615) | `desk/wvCanvas.ts`, `desk/motion.tsx`, `desk/flow/`, `desk/relay/sigils.ts` |
 | `@ceo/engine/web/*` | The sign-in shell: `signin.ts`, `SignIn.tsx`, `SitePassword.tsx`, the Hide veil (`hide.ts`, `Private.tsx`) and the device pings (`pings.ts`, `PingSwitch.tsx`) | the same names in `desk/` |
+| `@ceo/engine/web/RoomParts.tsx`, `web/roomParts.css` | The pieces room pages share (step 5): `Waits` (what a room waits on), `KeeperLine` (the keeper's portrait, line and name, handed in by the room; `desk/rooms/parts.tsx` `Keeper` reads them from the room's banner, so the engine reaches no lore), and the shared rules for them and the room head (`rm-head`, `rm-h2`, `rm-guard`) | `desk/rooms/parts.tsx`, `desk/rooms/rooms.css` |
 | `@ceo/engine/web/sections.ts`, `web/RoomSections.tsx` | A room's sub-menu: which section a path opens, the tab's title, and the links (see `sections` under "The manifest") | `desk/SystemsNav.tsx` |
 | `@ceo/engine/web/RoomLoader.tsx`, `web/roomReady.ts`, `sigils/roomSigils.ts` | The room loader (#752): see "The room loader" below | |
 
@@ -152,11 +153,12 @@ rooms/green/
   tests/         unit tests and an e2e smoke test
 ```
 
-The Workshop and the Studio are the first in this shape (step 4): `web/Workshop.tsx` and `workshop.css`, `web/Studio.tsx`
-and `studio.css`, each sheet holding only its own room's rules (moved out of `desk/rooms/rooms.css` unchanged). They
-still use the Desk's shared room parts (`desk/rooms/parts.tsx`, the keeper and the waits list, and `rooms.css`'s shared
-rules) until those move into the engine. Every other room has only its `room.ts` and `nav.ts`, whose `page` still
-points at its page in `apps/world/src/desk`.
+The Workshop and the Studio were the first in this shape (step 4): `web/Workshop.tsx` and `workshop.css`,
+`web/Studio.tsx` and `studio.css`, each sheet holding only its own room's rules (moved out of `desk/rooms/rooms.css`
+unchanged). The Spire followed (step 5): `web/Spire.tsx` and `spire.css`, its invoices section (`web/InvoicesSection.tsx`,
+`invoices.css`) and its invoices store in `data/invoices.ts` (the Desk's Systems, pulses and Controls, and the
+Lattice's Spire, read it through the old `desk/spire/invoices.ts`, which re-exports it until step 14). Every other
+room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest
 

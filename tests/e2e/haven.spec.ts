@@ -439,6 +439,48 @@ test("signed in: the wet tray says when it closes itself, and Close shuts it now
   expect(sent[0]).toMatchObject({ action: "wet.close", device: "a00000000005" });
 });
 
+test("signed in: each device on its own plate, its reading drawn on the render (#766)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: FAKE_PLAN });
+  await page.goto(`${BASE}/haven`);
+  await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Pets" }).click();
+  const sheet = page.getByRole("dialog", { name: "Pets" });
+  for (const name of ["Dry feeder", "Wet feeder", "Water fountain", "Litter-Robot"]) await expect(sheet.getByRole("region", { name })).toBeVisible();
+  // The made-up readings, drawn where they live: food low in the hopper, bowl 2 in front of the tray, 58% in the tank.
+  const dry = sheet.getByRole("region", { name: "Dry feeder" });
+  await expect(dry.locator(".hv-plNum")).toHaveText("Low");
+  const wet = sheet.getByRole("region", { name: "Wet feeder" });
+  await expect(wet.locator(".hv-plNum")).toHaveText("Bowl 2");
+  await expect(wet.locator('.hv-plChip.is-on[data-bowl="2"]')).toBeVisible();
+  await expect(sheet.getByRole("region", { name: "Water fountain" }).locator(".hv-plOv text")).toContainText("58");
+  await expect(sheet.getByRole("region", { name: "Litter-Robot" }).locator(".hv-plOv text")).toContainText("drawer 30%");
+  // Every render is the Desk's own image, loaded.
+  await expect.poll(() => sheet.locator(".hv-plRd img").evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).naturalWidth > 0))).toBe(true);
+  if (SHOTS) {
+    await page.waitForTimeout(2000);
+    await sheet.getByRole("region", { name: "Dry feeder" }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/devices-a1-pets.png` });
+    await sheet.getByRole("region", { name: "Litter-Robot" }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/devices-a1-pets-2.png` });
+    await sheet.locator(".hv-plates").screenshot({ path: `${SHOTS}/devices-a1-plates.png` });
+  }
+  await page.keyboard.press("Escape");
+  await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Hall" }).click();
+  const hall = page.getByRole("dialog", { name: "Hall" });
+  const vac = hall.getByRole("region", { name: "Vacuum" });
+  await expect(vac.locator(".hv-plOv")).toHaveAttribute("data-dock", "away");
+  await expect(vac.locator(".hv-plOv text")).toContainText("81");
+  if (SHOTS) {
+    await page.waitForTimeout(1000);
+    await vac.screenshot({ path: `${SHOTS}/devices-a1-vacuum.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.keyboard.press("Escape");
+    await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Pets" }).click();
+    await page.getByRole("dialog", { name: "Pets" }).getByRole("region", { name: "Wet feeder" }).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(2000);
+    await page.screenshot({ path: `${SHOTS}/devices-a1-phone.png` });
+  }
+});
+
 test("signed in: each device gauge opens its controls, and they send the existing actions (#718)", async ({ page }) => {
   await stub(page, { signedIn: true, plan: FAKE_PLAN });
   const sent: Record<string, unknown>[] = [];

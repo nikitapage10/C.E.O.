@@ -27,7 +27,7 @@ export async function loadMeals(f: typeof fetch = fetch): Promise<MealsLoad> {
   }
 }
 
-export type MealsAction = { action: "edit"; edit: MealEdit } | { action: "confirm"; week?: string } | { action: "send"; week?: string } | { action: "seed"; meals: unknown; replace?: boolean };
+export type MealsAction = { action: "edit"; edit: MealEdit } | { action: "confirm"; week?: string } | { action: "send"; week?: string } | { action: "reopen"; week?: string } | { action: "seed"; meals: unknown; replace?: boolean };
 
 export interface MealsAnswer {
   ok: boolean;

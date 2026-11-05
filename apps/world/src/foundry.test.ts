@@ -165,6 +165,15 @@ describe("parseE2e", () => {
     expect(parseE2e([run("workflow_dispatch", null, "in_progress")]).state).toBe("running");
     expect(CHECKS_LINK.fail).toBe("down");
   });
+
+  it("holds the last verdict through skipped and cancelled runs, and buries no nightly under pull request runs", () => {
+    const prs = Array.from({ length: 12 }, () => run("pull_request", "skipped"));
+    expect(parseE2e([...prs, run("schedule", "failure")])).toMatchObject({ state: "fail", url: "schedule" });
+    expect(parseE2e([run("workflow_dispatch", "cancelled"), run("schedule", "success"), run("schedule", "failure")])).toMatchObject({ state: "pass", url: "schedule" });
+    expect(parseE2e([run("schedule", "timed_out")]).state).toBe("fail");
+    expect(parseE2e([run("schedule", "skipped")]).state).toBe("unknown");
+    expect(parseE2e([run("pull_request", null, "in_progress"), run("schedule", null, "in_progress")]).state).toBe("running");
+  });
 });
 
 describe("parseChecks", () => {

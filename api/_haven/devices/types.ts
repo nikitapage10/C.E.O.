@@ -77,6 +77,17 @@ export interface DeviceReading {
   /** Wet feeder: its schedule from the Petlibro app, each meal's Mountain time ("18:00") and bowl when the plan says,
    * and (#685) when its window closes and where it stands today. */
   meals?: WetMeal[];
+  /** Wet feeder: the device list's own next meal ("HH:MM", Mountain, and its window's end), the fallback when the plan
+   * itself doesn't come back, and whether the feeding plan is switched on (`enableFeedingPlan`), when Petlibro says. */
+  nextFeed?: { time: string; end?: string };
+  planOn?: boolean;
+  /** Wet feeder: bowls opened from here today (the tray log, rails.ts) and a heads-up when the next meal's bowl isn't
+   * the one in front, or was already served. */
+  served?: number[];
+  heads?: string;
+  /** Wet feeder: what the plan read came back as, counts and key names only (never values), so a signed-in Desk can
+   * tell a plan Petlibro doesn't send to this account from one the parser drops. */
+  wetPlanShape?: WetPlanShape;
   /** Wet feeder (#713): when the lid opened from here closes itself (ISO), while it is open and the auto-close stands. */
   closesAt?: string;
   /** Fountain: water level and filter life, in percent. */
@@ -161,6 +172,23 @@ export interface WetMeal {
   plate?: number;
   end?: string;
   status?: MealStatus;
+  /** The meal's name in the Petlibro app (`label`, often what's in the bowl), cleaned and cut to 40 characters. Private. */
+  label?: string;
+}
+
+/**
+ * The wet plan read's shape (private diagnostic): whether the read went through, whether a template came back, how
+ * many plan entries, how many of them are switched off or carry no readable time, and the key names seen on the
+ * entries (`keys`) and on the answer itself (`top`). Names and counts only, never a value.
+ */
+export interface WetPlanShape {
+  read: "ok" | "failed";
+  template: boolean;
+  entries: number;
+  disabled: number;
+  badTime: number;
+  keys: string[];
+  top: string[];
 }
 
 /**

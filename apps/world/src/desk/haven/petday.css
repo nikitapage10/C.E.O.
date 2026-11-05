@@ -141,3 +141,79 @@
   border-color: rgba(134, 212, 180, 0.4);
   color: var(--hv-ok);
 }
+/* The wet tray: its three bowls side by side, the one in front ringed. */
+[data-room="haven"] .pd-tray {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .pd-tbowl {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 10px 10px;
+  border: 1px solid var(--hv-line);
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .pd-tbowl b {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--hv-text);
+}
+[data-room="haven"] .pd-tbowl .pd-when,
+[data-room="haven"] .pd-tbowl em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-tbowl .pd-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-room="haven"] .pd-tbowl.is-front {
+  border-color: rgba(134, 212, 180, 0.45);
+}
+[data-room="haven"] .pd-tbowl.is-front em,
+[data-room="haven"] .pd-tbowl.is-now b,
+[data-room="haven"] .pd-tbowl.is-next b {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .pd-tbowl.is-now .pd-bowl {
+  border-color: var(--hv-ok);
+  color: var(--hv-ok);
+}
+[data-room="haven"] .pd-tbowl.is-served b,
+[data-room="haven"] .pd-tbowl.is-none b {
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-none,
+[data-room="haven"] .pd-heads {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .pd-heads {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .pd-diag {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--hv-faint);
+}
+[data-room="haven"] .pd-diag summary {
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-room="haven"] .pd-diag p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}

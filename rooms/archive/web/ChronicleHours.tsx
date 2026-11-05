@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { hourLabel, type DayPage, type HistoryEntry, type RoomId } from "../chronicle.ts";
-import { weekDaysOf } from "../../../../api/_world/weeks.ts";
-import { mountainHour, threadDensity, threadPath, threadRate, threadsOf, type DayThreads } from "./archiveThreads.ts";
+import { hourLabel, type DayPage, type HistoryEntry, type RoomId } from "../../../apps/world/src/chronicle.ts";
+import { weekDaysOf } from "../../../api/_world/weeks.ts";
+import { mountainHour, threadDensity, threadPath, threadRate, threadsOf, type DayThreads } from "../data/archiveThreads.ts";
 import { hoursOf, ROOM_NAME, shortDay } from "./ChronicleWeave.tsx";
-import { polyOf, RC, useFlow, type FlowLayoutFn, type FlowLine } from "./flow/index.ts";
-import { mixRgb } from "./wvCanvas.ts";
+import { polyOf, RC, useFlow, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
+import { mixRgb } from "../../../apps/world/src/desk/wvCanvas.ts";
 
 export { mountainHour };
 

@@ -1,5 +1,5 @@
 import { Chronicle } from "./Chronicle.tsx";
-import { useChronicle } from "../chronicle.ts";
+import { useChronicle } from "../../../apps/world/src/chronicle.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./archive.css";
 

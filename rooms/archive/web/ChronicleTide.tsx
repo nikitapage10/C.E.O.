@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { hourLabel, type HistoryEntry } from "../chronicle.ts";
-import { PORTRAITS } from "./portraits.ts";
+import { hourLabel, type HistoryEntry } from "../../../apps/world/src/chronicle.ts";
+import { PORTRAITS } from "../../../apps/world/src/desk/portraits.ts";
 import { Chevron, shortDay } from "./ChronicleWeave.tsx";
 
 /**

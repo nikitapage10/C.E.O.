@@ -170,7 +170,10 @@ in `skippy.ts`. The Relay followed (step 9): the Thread and its queue, the email
 `data/`, with their tests (moved unchanged; the Desk's Today, Systems and pulses, the Boiler Room's controls and the
 Lattice's Relay read them through the old `desk/email/*` and `desk/texts/*`, which re-export them). The Foundry followed (step 10): `web/FoundryPage.tsx` with the forge stage, its parts, `foundry.css` and its test, and the
 forge and progress helpers with their tests in `data/` (moved unchanged; nothing else imported them, so no re-exports; the
-Foundry's store, graph and crew runs stay in `apps/world/src` because the Desk, Today and Systems share them). Every other
+Foundry's store, graph and crew runs stay in `apps/world/src` because the Desk, Today and Systems share them). The Archive
+followed (step 11): `web/` holds the page, the Chronicle with its hours, tide and weave folios, Today in Ilyr's `DayStory`, the
+ship weeks folio and `archive.css`; `data/` holds the thread maths with its test (moved unchanged; `desk/DayStory.tsx`
+re-exports for Today, and `chronicle.css` stays in the Desk because the Desk's other pages share it). Every other
 room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest

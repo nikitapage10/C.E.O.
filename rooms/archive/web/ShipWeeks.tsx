@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { useFoundry, withTrails } from "../foundry.ts";
-import { useUsage } from "../usage.ts";
-import { ChangePictures } from "./ChangePictures.tsx";
+import { useFoundry, withTrails } from "../../../apps/world/src/foundry.ts";
+import { useUsage } from "../../../apps/world/src/usage.ts";
+import { ChangePictures } from "../../../apps/world/src/desk/ChangePictures.tsx";
 import { Chevron } from "./ChronicleWeave.tsx";
-import { formatSpan, shipWeeks, WEEKS_OPEN } from "./shipWeeks.ts";
+import { formatSpan, shipWeeks, WEEKS_OPEN } from "../../../apps/world/src/desk/shipWeeks.ts";
 
 const day = (monday: string) => new Date(Date.UTC(Number(monday.slice(0, 4)), Number(monday.slice(5, 7)) - 1, Number(monday.slice(8, 10)), 12)).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "long" });
 

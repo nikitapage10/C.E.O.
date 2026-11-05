@@ -4,6 +4,7 @@ import { usePolymarket, type PmBoard } from "../../../../rooms/exchange/data/pol
 import { greenLines } from "../../../../rooms/green/skippy.ts";
 import { exchangeLines } from "../../../../rooms/exchange/skippy.ts";
 import { useGreen, type GreenBoard, type GreenPlayer } from "../../../../rooms/green/data/league.ts";
+import { loadToolbelt } from "@ceo/engine/tools";
 import "./roomHooks.ts";
 import { PAGE_LINES, PAGE_MAX, boilerLines, pageContext } from "./skippy/page.ts";
 import { pageSources, texting } from "./skippy/rooms.ts";
@@ -90,5 +91,14 @@ describe("texting from Skippy (#536)", () => {
   it("is the Relay's, plugged in with its card loading on the first text", () => {
     expect(texting()).not.toBeNull();
     expect(texting()!.Card).toBeNull();
+  });
+});
+
+describe("Skippy's tools for the Boiler Room's Controls (#847)", () => {
+  it("are every room's, in the same order the server's registry runs them", async () => {
+    const { ALL_TOOLS } = await import("../../../../api/_skippy/agent/tools.ts");
+    const desk = await loadToolbelt();
+    expect(desk.length).toBeGreaterThan(0);
+    expect(desk.map((t) => t.name)).toEqual(ALL_TOOLS.map((t) => t.name));
   });
 });

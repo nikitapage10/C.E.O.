@@ -8,6 +8,7 @@ import { usePolymarket } from "../../../../rooms/exchange/data/polymarket.ts";
 import { setPulseReader } from "./flow/pulse.ts";
 import { useGreen } from "../../../../rooms/green/data/league.ts";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
+import { setToolbelt } from "@ceo/engine/tools";
 import { roomPulses, type RoomPulse } from "./roomPulse.ts";
 import { addPageSource, setTexting, type Texting } from "./skippy/rooms.ts";
 import { useInvoices } from "../../../../rooms/spire/data/invoices.ts";
@@ -70,6 +71,20 @@ const TEXTING: Texting = {
   talkTools: () => Promise.all([import("../../../../rooms/relay/data/talkTools.ts"), loadCard()]).then(([m]) => m),
 };
 setTexting(TEXTING);
+
+/* ── Skippy's tools (#847), for the Boiler Room's Controls: every room's list, loaded only when the panel asks ── */
+
+setToolbelt(() =>
+  Promise.all([
+    import("../../../../rooms/today/tools.ts"),
+    import("../../../../rooms/foundry/tools.ts"),
+    import("../../../../rooms/relay/tools.ts"),
+    import("../../../../rooms/green/tools.ts"),
+    import("../../../../rooms/exchange/tools.ts"),
+    import("../../../../rooms/boiler/tools.ts"),
+    import("../../../../rooms/haven/tools.ts"),
+  ]).then((ms) => ms.flatMap((m) => m.TOOLS)),
+);
 
 /* ── The flow kit's tempo ── */
 

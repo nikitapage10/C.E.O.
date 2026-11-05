@@ -118,3 +118,19 @@ export function checkInput(schema: ToolSchema, input: unknown): { ok: true; valu
   }
   return { ok: true, value: out };
 }
+
+/*
+ * Every room's tools, for a page that shows them (#847, the Boiler Room's Controls). A room never imports another, so
+ * the Desk plugs the rooms' lists in here, once, as it starts (`desk/roomHooks.ts`), as a lazy loader: nothing loads
+ * until a page asks. Its order matches the server's registry (`ALL_TOOLS`, api/_skippy/agent/tools.ts), and a test
+ * keeps the two the same.
+ */
+let toolbelt: (() => Promise<readonly RoomTool[]>) | null = null;
+
+/** The Desk hands in how to load every room's tools. */
+export function setToolbelt(load: () => Promise<readonly RoomTool[]>): void {
+  toolbelt = load;
+}
+
+/** Every room's tools, or an empty list where nothing has been plugged in (a test, the server). */
+export const loadToolbelt = (): Promise<readonly RoomTool[]> => (toolbelt ? toolbelt() : Promise.resolve([]));

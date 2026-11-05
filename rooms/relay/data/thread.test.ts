@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EmailItem } from "./email.ts";
 import type { TextItem } from "./texts.ts";
-import { allowed, codexOf, commandOf, isOrder, olderInOrder, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
+import { allowed, codexOf, commandOf, contactsHint, fromText, isOrder, noGistLine, olderInOrder, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
+import { readTextItem } from "../../../api/_relay/texts.ts";
+import { emptyRelayStatus } from "@ceo/core";
 import { GHOST, MAX_LIVE, room, SigilStage, SIGILS } from "@ceo/engine/sigils/sigils.ts";
 
 /* Relay's Thread (#615). Every person and message here is made up. */
@@ -307,5 +309,31 @@ describe("the Codex (#642)", () => {
   it("a text's photo and a sender's logo ride along as opaque ids only", () => {
     const [x] = queueOf([mail({ logo: "0123456789abcdef0123456789abcdef", photo: "fedcba9876543210fedcba9876543210" })], []);
     expect(x).toMatchObject({ logo: "0123456789abcdef0123456789abcdef", photo: "fedcba9876543210fedcba9876543210" });
+  });
+});
+
+describe("why a text has no name or no gist (#861)", () => {
+  it("says the hub's real reason instead of 'hasn't read this one'", () => {
+    const x = fromText(text({ gist: "", wait: "cap" }));
+    expect(noGistLine(x)).toBe("No gist yet: the texts line's monthly model cap is reached.");
+    expect(noGistLine(fromText(text({ gist: "", wait: "queued" })))).toBe("No gist yet: waiting in line for Dialtone.");
+    // An older hub sends no reason; a gist clears it.
+    expect(noGistLine(fromText(text({ gist: "" })))).toBe("The Mac hasn't read this one yet.");
+    expect(fromText(text({ wait: "model" })).wait).toBeUndefined();
+  });
+
+  it("takes a reason only from the closed list, and drops it once there is a gist", () => {
+    expect(readTextItem({ ...text({ gist: "" }), wait: "site" })?.wait).toBe("site");
+    expect(readTextItem({ ...text({ gist: "" }), wait: "anthropic said 429" })).toBeNull();
+    expect(readTextItem({ ...text(), wait: "queued" })?.wait).toBeUndefined();
+  });
+
+  it("asks to let BlueBubbles read Contacts only when the hub reads none", () => {
+    const on = { ...emptyRelayStatus(NOW), hub: "listening" as const };
+    expect(contactsHint({ ...on, contacts: 0 })).toMatch(/Privacy & Security > Contacts/);
+    expect(contactsHint({ ...on, contacts: 12 })).toBeNull();
+    expect(contactsHint(on)).toBeNull();
+    expect(contactsHint({ ...emptyRelayStatus(NOW, "wiped"), contacts: 0 })).toBeNull();
+    expect(contactsHint(null)).toBeNull();
   });
 });

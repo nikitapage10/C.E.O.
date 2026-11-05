@@ -6,7 +6,7 @@ import { CARD_KEEP_MS, readTextsView, type Reason, type RequestResult, type Text
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, ChatInfo, Contact, ContactPhoto, Message, Polled } from "./bluebubbles.ts";
 import type { LearnInput } from "../../../api/_relay/voice.ts";
-import { BlueBubblesError, readPolled } from "./bluebubbles.ts";
+import { BlueBubblesError, contactHandles, readContact, readPolled } from "./bluebubbles.ts";
 import { DEFAULT_CONFIG, HOST } from "./config.ts";
 import { CATCH_UP_MS, DRAFT_KEEP_MS, Engine, POLL_OVERLAP_MS, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS, chatHandle } from "./engine.ts";
 import { line, memoryLogger } from "./log.ts";
@@ -997,5 +997,105 @@ describe("the full text and groups on the Desk (#758)", () => {
     expect(readTextsView(JSON.parse(JSON.stringify(v)), h.now())).not.toBeNull();
     const tooMany = { ...v, items: [{ ...v.items[0]!, messages: Array.from({ length: 6 }, () => ({ text: "hi", at: NOW })) }] };
     expect(readTextsView(JSON.parse(JSON.stringify(tooMany)), h.now())).toBeNull();
+  });
+});
+
+describe("names and gists on the Desk (#861)", () => {
+  const owe = async (h: ReturnType<typeof setup>, chat = CHAT, handle = HANDLE, at = NOW) => {
+    h.bb.history = [{ text: "Are we still on for Saturday?", fromMe: false, at, handle }];
+    await h.engine.onMessage({ chat, group: false, groupName: "", message: h.bb.history[0]! });
+  };
+
+  it("reports how many contacts BlueBubbles lets it read, 0 when macOS keeps Contacts from it", async () => {
+    const h = setup();
+    expect(h.engine.status()!.contacts).toBeUndefined();
+    h.bb.people = [];
+    await h.engine.checkMessages();
+    expect(h.engine.status()!.contacts).toBe(0);
+    // Contacts allowed: asked again while there are none, and the names come back.
+    h.bb.people = [CONTACT];
+    await h.engine.checkMessages();
+    expect(h.engine.status()!.contacts).toBe(1);
+    await owe(h);
+    expect(readTextsView(h.engine.texts(), NOW)!.items[0]!.name).toBe("Riley Test");
+  });
+
+  it("names someone not in the contacts by the last 4 digits, never the number", async () => {
+    const h = setup();
+    h.bb.people = [];
+    await owe(h);
+    expect(h.engine.texts().items[0]!.name).toBe("Unknown (ending 0123)");
+    expect(JSON.stringify(h.engine.texts())).not.toMatch(/5555550123/);
+  });
+
+  it("says a new thread is waiting in line, then that the model call failed, and tries again after a backoff", async () => {
+    const h = setup();
+    await owe(h);
+    expect(h.engine.texts().items[0]!.wait).toBe("queued");
+    const sort = h.site.sort.bind(h.site);
+    h.site.sort = async () => {
+      throw Object.assign(new Error("site"), { name: "HttpError", status: 502 });
+    };
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(readTextsView(h.engine.texts(), h.now())!.items[0]!.wait).toBe("model");
+    // Not again straight away.
+    h.site.sort = sort;
+    h.at(NOW + SETTLE_MS + 60_000);
+    await h.engine.work();
+    expect(h.site.sorts).toHaveLength(0);
+    // After the backoff it sorts, and the wait goes with the gist.
+    h.at(NOW + SETTLE_MS + 3 * 60_000);
+    await h.engine.work();
+    expect(h.site.sorts).toHaveLength(1);
+    const item = h.engine.texts().items[0]!;
+    expect(item.gist).not.toBe("");
+    expect(item.wait).toBeUndefined();
+  });
+
+  it("says the site couldn't be reached, and that the monthly cap is reached", async () => {
+    const h = setup();
+    await owe(h);
+    h.site.sort = async () => {
+      throw Object.assign(new Error("fetch failed"), { name: "TypeError" });
+    };
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(h.engine.texts().items[0]!.wait).toBe("site");
+    (h.site as Site).sort = async () => ({ paused: true as const });
+    h.at(NOW + SETTLE_MS + 10 * 60_000);
+    await h.engine.work();
+    expect(h.engine.texts().items[0]!.wait).toBe("cap");
+  });
+
+  it("puts every owed thread without a gist in line, newest first, a few a round", async () => {
+    const h = setup();
+    for (let i = 0; i < 9; i++) await owe(h, `iMessage;-;+1555555020${i}`, `+1555555020${i}`, NOW - (9 - i) * 60_000);
+    // A restart forgets the line; the threads are still owed without a gist.
+    const fresh = new Engine({ store: h.store, bb: h.bb, site: h.site, log: h.log, config: DEFAULT_CONFIG, sendKey: KEY, now: h.now, offsetAt: UTC });
+    h.at(NOW + SETTLE_MS + 1);
+    await fresh.work();
+    expect(h.site.sorts).toHaveLength(6);
+    await fresh.work();
+    expect(h.site.sorts).toHaveLength(9);
+    expect(fresh.texts().items.every((i) => i.gist && !i.wait)).toBe(true);
+  });
+
+  it("lists an owed thread whose first unanswered text is over 30 days old while their latest is recent", async () => {
+    const h = setup();
+    await owe(h);
+    const s = h.store.load();
+    s.threads[0]!.since = NOW - 40 * 24 * 60 * 60_000;
+    h.store.save(s);
+    expect(h.engine.status()!.owed).toBe(1);
+    expect(h.engine.texts().items).toHaveLength(1);
+  });
+});
+
+describe("BlueBubbles' contacts (#861)", () => {
+  it("reads numbers and addresses as objects or bare strings, and the whole name first", () => {
+    expect(contactHandles({ phoneNumbers: [{ address: "+1 555 555 0123" }, "(555) 555-0199"], emails: ["riley@example.com", { address: "" }] })).toEqual(["+1 555 555 0123", "(555) 555-0199", "riley@example.com"]);
+    expect(readContact({ firstName: "Riley", lastName: "Test", phoneNumbers: [] }).names).toEqual(["Riley Test", "Riley", "Test"]);
+    expect(readContact({ displayName: "Riley Test", firstName: "Riley", lastName: "Test", nickname: "Ri" }).names).toEqual(["Riley Test", "Riley", "Test", "Ri"]);
   });
 });

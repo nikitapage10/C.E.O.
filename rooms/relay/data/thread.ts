@@ -1,5 +1,6 @@
 import type { EmailItem, EmailStatus } from "./email.ts";
 import type { TextItem, TextRequestView } from "./texts.ts";
+import { CONTACTS_HINT, GIST_WAIT_WORDS, type GistWait } from "../../../api/_relay/texts.ts";
 import type { RelayStatus } from "@ceo/core";
 import { closingOf, draftAsk, skipOf } from "../../../api/_email/intentWords.ts";
 
@@ -66,6 +67,19 @@ export interface Exchange {
   messages?: TextItem["messages"];
   /** A group text: owed only when Nikita was asked or named, never drafted for. */
   group?: boolean;
+  /** Why a text has no gist yet (#861): the hub's reason from a closed list. */
+  wait?: GistWait;
+}
+
+/** What a text with no gist says (#861): the hub's real reason, else (an older hub) that the Mac hasn't read it. */
+export function noGistLine(x: Pick<Exchange, "line" | "wait">): string {
+  if (x.line !== "text") return "No gist yet: Dialtone hasn't read this one.";
+  return x.wait ? `No gist yet: ${GIST_WAIT_WORDS[x.wait]}` : "The Mac hasn't read this one yet.";
+}
+
+/** The Contacts hint (#861), when the hub reports it can read no contacts; null otherwise (and for an older hub). */
+export function contactsHint(status: Pick<RelayStatus, "hub" | "contacts"> | null | undefined): string | null {
+  return status && status.hub !== "off" && status.hub !== "wiped" && status.contacts === 0 ? CONTACTS_HINT : null;
 }
 
 const firstName = (who: string) => who.trim().split(/\s+/)[0] || who;
@@ -80,7 +94,7 @@ export function fromEmail(i: EmailItem, canSend = false): Exchange {
 
 /** One text thread as an exchange. */
 export function fromText(i: TextItem): Exchange {
-  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group, ...(i.photo && { photo: i.photo }), ...(i.unread && { unread: true }), ...(i.messages?.length && { messages: i.messages }), ...(i.group && { group: true }) };
+  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group, ...(i.photo && { photo: i.photo }), ...(i.unread && { unread: true }), ...(i.messages?.length && { messages: i.messages }), ...(i.group && { group: true }), ...(!i.group && !i.gist && i.wait && { wait: i.wait }) };
 }
 
 /**

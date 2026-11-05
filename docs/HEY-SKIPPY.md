@@ -122,9 +122,10 @@ ElevenLabs call at all. The audio link works once and for five minutes, and carr
 Skippy remembers the last few turns from each phone for ten quiet minutes, so a second press follows on from the
 first: "garlic and lemons", then "and milk too"; or "who do I start at flex?", then "what about Godwin?".
 
-Every list shows on **Today** under your to-dos, under **lists** (#735): a tab for Groceries (the Kitchen list) and
-one for Things to buy, each with its count. Signed in, tick things off, × one away (Undo for a few seconds), add with
-the quick-add line, or **Clear ticked**; signed out it shows the counts only. The Haven's Kitchen page keeps its own
+Every list shows in the **Haven**, in a folded panel on the left of the page, under **Lists** (#735): a section for
+Groceries (the Kitchen list) and one for Things to buy, each with its count and each folded until you open it (the
+open or shut state is remembered on that device). Signed in, tick things off, × one away (Undo for a few seconds), add
+with the quick-add line, or **Clear ticked**; signed out it shows the counts only. The Haven's Kitchen page keeps its own
 view of the groceries. On the Desk, Skippy's chat puts things on it too ("add a desk lamp to my Amazon list"). Phone
 to-dos are kept privately until Today's own voice to-dos (#622) take them over.
 

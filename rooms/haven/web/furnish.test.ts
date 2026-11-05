@@ -118,6 +118,8 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(Math.abs(a.y + a.h - 320)).toBeLessThanOrEqual(2);
     expect(a.w).toBeGreaterThanOrEqual(110);
     expect(KIND_STYLE.art.height).toBeGreaterThan(a.w / 5);
+    // It hangs under the top of the cut-down walls (140 plan units), never over the edge (#892).
+    expect(KIND_STYLE.art.lift + KIND_STYLE.art.height).toBeLessThanOrEqual(135);
     // Clear of the door into the dining area (x 420 to 520), and inside the kitchen's wall.
     expect(a.x + a.w).toBeLessThanOrEqual(410);
     expect(a.x).toBeGreaterThanOrEqual(220);

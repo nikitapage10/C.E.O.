@@ -111,6 +111,8 @@ interface TodoStore {
   /** Reads talk-back words: the rules, then Claude when they can't tell, then two fallback chips. */
   read: (text: string, doFetch?: typeof fetch) => Promise<Reading>;
   apply: (target: Target | null, intent: Intent, doFetch?: typeof fetch) => Promise<void>;
+  /** A floor item said to Skippy (./floorTalk.ts): the line that says so, and the hand-off's turn kept on its mark. */
+  hand: (target: Target, line: string, turn?: string, doFetch?: typeof fetch) => Promise<void>;
   undo: (doFetch?: typeof fetch) => Promise<void>;
   dismissDid: () => void;
 }
@@ -195,6 +197,15 @@ export const useTodos = create<TodoStore>((set, get) => {
       if (!undo) return;
       set({ did: { line: didLine(intent, now), undo, at: now } });
       await save(changes, doFetch);
+    },
+    hand: async (target, line, turn, doFetch = fetch) => {
+      const now = Date.now();
+      // Nothing to undo: what was said has gone to Skippy.
+      set({ did: { line, undo: null, at: now } });
+      if (!turn || target.type !== "held") return;
+      const had = get().state.marks.find((m) => m.ref === target.ref);
+      const { pinged: _p, ...before } = had ?? { ref: target.ref, updated: iso(now) };
+      await save({ marks: [{ ...before, updated: iso(now), handed: turn }] }, doFetch);
     },
     undo: async (doFetch = fetch) => {
       const did = get().did;

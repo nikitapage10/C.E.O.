@@ -37,7 +37,7 @@ export interface AskedTurn {
 }
 
 /** Who a hand-off went to, by name (api/_skippy/log.ts, ROOM_SUBMINDS). */
-const HANDED_TO: Record<string, string> = { skippy: "Skippy", ember: "The Builder", ticker: "The Bookie", turf: "The Commentator", soot: "The Pessimist", static: "The Messenger", hearth: "The Steward" };
+const HANDED_TO: Record<string, string> = { skippy: "Skippy", "kernel-agent": "Skippy", ember: "The Builder", ticker: "The Bookie", turf: "The Commentator", soot: "The Pessimist", static: "The Messenger", hearth: "The Steward" };
 export const handedName = (id: string): string => HANDED_TO[id] ?? "Skippy";
 
 /** "idle" before the first read; "signed-out" without the Desk session; "off" where the route doesn't exist (a local preview). */

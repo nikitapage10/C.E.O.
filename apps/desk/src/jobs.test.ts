@@ -60,8 +60,11 @@ describe("the job board's rows", () => {
   });
 
   it("marks a job whose next run never came as missed, and leaves Visual QA without lateness", () => {
-    const old = run({ created_at: "2026-10-22T06:07:00Z" });
-    expect(jobRows(feed("world-step.yml", old), now)[3]).toMatchObject({ lateMin: 2, missed: true });
+    // An hourly cron is missed only after half a day with no run: GitHub drops most hourly runs (2026-11-05).
+    expect(jobRows(feed("world-step.yml", run({ created_at: "2026-10-22T06:07:00Z" })), now)[3]).toMatchObject({ lateMin: 2, missed: false });
+    expect(jobRows(feed("world-step.yml", run({ created_at: "2026-10-21T23:07:00Z" })), now)[3]).toMatchObject({ lateMin: 2, missed: true });
+    // A daily job whose next slot came and went is missed after the usual grace.
+    expect(jobRows(feed("backup-azure.yml", run({ created_at: "2026-10-20T10:45:00Z" })), now)[0]).toMatchObject({ missed: true });
     expect(jobRows(feed("world-step.yml", run({ created_at: "2026-10-22T11:09:00Z" })), now)[3]).toMatchObject({ lateMin: 4, missed: false });
     const vqa = jobRows(feed("visual-qa.yml", run()), now).find((r) => r.file === "visual-qa.yml")!;
     expect(vqa).toMatchObject({ state: "pass", lateMin: null, missed: false });
@@ -97,7 +100,7 @@ describe("the Pessimist's line", () => {
   });
 
   it("names a job that didn't turn up", () => {
-    const rows = jobRows(all({ "world-step.yml": { created_at: "2026-10-22T08:07:00Z" } }), now);
+    const rows = jobRows(all({ "world-step.yml": { created_at: "2026-10-21T22:07:00Z" } }), now);
     expect(pessimistLine(rows)).toBe("World step didn't turn up when it was due.");
   });
 

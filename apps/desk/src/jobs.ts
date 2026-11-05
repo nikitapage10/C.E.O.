@@ -130,6 +130,9 @@ function stateOf(run: GhJobRun): JobState {
   return "other";
 }
 
+/** Whether a cron fires every hour ("5 * * * *"). */
+const hourly = (cron: string | null) => cron !== null && /^\d+ \* \* \* \*$/.test(cron.trim());
+
 /** The board's rows, in JOBS order, from the feed's runs (absent from an older cached feed). */
 export function jobRows(jobs: GhJob[] | undefined, now: number): JobRow[] {
   const byFile = new Map((Array.isArray(jobs) ? jobs : []).map((j) => [j.file, j.run]));
@@ -146,7 +149,9 @@ export function jobRows(jobs: GhJob[] | undefined, now: number): JobRow[] {
       state: stateOf(run),
       at,
       lateMin: slot === null ? null : Math.floor((at - slot) / MINUTE),
-      missed: def.events ? now - at > EVENTS_QUIET_MS : next !== null && now - next > MISSED_AFTER_MS,
+      // An hourly cron counts as missed only after the same quiet spell as an event-driven job: GitHub drops most hourly
+      // runs, which nobody can act on (Nikita 2026-11-05: World step and the Lattice read yellow while all was well).
+      missed: def.events || hourly(def.cron) ? now - at > EVENTS_QUIET_MS : next !== null && now - next > MISSED_AFTER_MS,
       url: RUN_URL.test(run.html_url) ? run.html_url : null,
     };
   });

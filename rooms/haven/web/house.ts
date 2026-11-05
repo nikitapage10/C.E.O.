@@ -738,14 +738,16 @@ export class House {
       const { a, b, mid, put } = along(s);
       const L = (b - a) / U;
       const H = DOOR_H, tr = DOOR_H * 0.86;
-      // The door: glass, a frame round it, the transom bar, the meeting stile of a pair.
+      // One single door (Nikita 2026-11-05: single doors, never a pair): glass, a frame round it, the transom bar. An
+      // opening wider than a door gets a fixed glass sidelight beside it, split off by a full-height mullion.
       put(pane, L, H, 0.012, mid, 0, H / 2, 3);
       for (const e of [a + 2, b - 2]) put(frame, 0.035, H, T + 0.02, e, 0, H / 2);
       put(frame, L, 0.035, T + 0.02, mid, 0, H);
       put(frame, L, 0.025, T + 0.02, mid, 0, tr);
-      if (L > 1.1) put(frame, 0.025, tr, T + 0.02, mid, 0, tr / 2);
-      // The handle, a tall bar at the meeting stile (or the door's far edge), so a door never reads as a window.
-      put(frame, 0.03, WH * 0.12, 0.06, L > 1.1 ? mid + 0.06 : mid + L * 0.3, 0, WH * 0.3);
+      const leaf = Math.min(b - a, 95);
+      if (b - a > leaf + 20) put(frame, 0.035, H, T + 0.02, a + leaf, 0, H / 2);
+      // The handle, a tall bar near the door's free edge, so a door never reads as a window.
+      put(frame, 0.03, WH * 0.12, 0.06, a + leaf - 8, 0, WH * 0.3);
     }
     // The balconies beyond.
     for (const s of [...decks, ...list.filter((d) => !decks.some((k) => holds(d, k)))]) {

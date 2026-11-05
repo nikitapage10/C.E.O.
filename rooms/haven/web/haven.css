@@ -26,23 +26,21 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  /* The whole house, Reset view included, fits on one screen under the nav and the room tabs (#806). */
-  height: calc(100svh - var(--hv-navh, 62px) - var(--hv-tabsh, 0px));
+  /* The whole house, Reset view included, fits on one screen under the nav (#806). */
+  height: calc(100svh - var(--hv-navh, 62px));
   min-height: 460px;
   padding-top: 18px;
   padding-bottom: 18px;
-}
-/* The room tabs' row (8px gap + the pill), taken off the stage so Reset view stays on screen. */
-[data-room="haven"]:has(> .hv-tabs) {
-  --hv-tabsh: 58px;
 }
 [data-room="haven"] .hv-houseWrap {
   position: relative;
   min-height: 0;
 }
+/* The house runs edge to edge under the nav (Nikita 2026-11-05: it was cut off at the sides and top): its canvas
+   reaches past the stage's padding to the stage's own edges. */
 [data-room="haven"] .hv-house {
   position: absolute;
-  inset: 0;
+  inset: -18px calc(-1 * var(--fl-pad, 16px)) -18px;
   z-index: 1;
 }
 [data-room="haven"] .hv-house .hv-gl {
@@ -54,16 +52,23 @@
 }
 [data-room="haven"] .hv-labs {
   position: absolute;
-  inset: 0;
+  inset: -18px calc(-1 * var(--fl-pad, 16px)) -18px;
   z-index: 1;
   overflow: hidden;
   pointer-events: none;
 }
 [data-room="haven"] .hv-head {
   position: relative;
-  z-index: 2;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   max-width: 560px;
   pointer-events: none;
+}
+[data-room="haven"] .hv-head > .hv-tabs,
+[data-room="haven"] .hv-head > .hv-lists {
+  pointer-events: auto;
 }
 [data-room="haven"] .hv-h1 {
   margin: 0;
@@ -216,11 +221,11 @@
   background: rgba(14, 13, 18, 0.7);
   overflow-x: auto;
 }
-/* At the top of the page above the house, in the page's flow: never floating over the house (#806). */
+/* In the house's corner, under its name and summary, in the head's own flow (Nikita 2026-11-05). */
 [data-room="haven"] .hv-tabs {
   position: relative;
   z-index: 3;
-  margin: 8px auto 0;
+  margin: 14px 0 0;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }

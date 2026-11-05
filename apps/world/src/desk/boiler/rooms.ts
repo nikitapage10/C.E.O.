@@ -62,10 +62,13 @@ export const ROOM_COLOUR: Record<string, string> = {
   foundry: "#ff7a3d",
   relay: "#4fa8ff",
   archive: "#a07aff",
-  boiler: "#f0c987",
   green: "#4fd18b",
   exchange: "#3fc8c0",
   spire: "#e0a24f",
+  // The Haven's lamplight, warmed so it reads apart from the Spire's gold (#789).
+  haven: "#ffb08a",
+  // The Boiler Room's steel: only the shared plumbing now.
+  boiler: "#a8aebc",
 };
 
 /** Which reading in pipes.ts (readPipes) stands for a fitting, where one is richer than the rack's own state. */
@@ -167,7 +170,9 @@ function connOf(fitId: string, room: string): Connection | undefined {
 /** The whole map, room by room. */
 export function roomSections(input: RoomsInput): RoomSection[] {
   const { now, rows, map, jobs, lastSeen = {}, caps = {}, signedIn, security } = input;
-  return rows.map((r) => {
+  // Every room that uses an API owns it; the Boiler Room keeps the shared plumbing and comes last (#789).
+  const order = [...rows].sort((a, b) => Number(a.id === "boiler") - Number(b.id === "boiler"));
+  return order.map((r) => {
     const pipes: RoomPipe[] = [];
     const used = new Set<string>();
     const seen = new Set<string>();
@@ -362,16 +367,24 @@ export interface MapGeo {
   box: [number, number, number, number];
 }
 
-/** Spacing along a header (a pair of branches, one up and one down, share each step), branch length, row pitch. */
+/** Spacing along a header (a pair of branches, one up and one down, share each step), branch length, room pitch. */
 export const STEP = 1.1;
 export const BRANCH = 1.05;
 export const PITCH = 3.3;
+/** The most steps a header runs before it winds back on itself (#789), and the pitch between its runs. */
+export const RUN = 6;
+export const ROW = 3.4;
 const TRUNK_X = 2.4;
 const LEAD = 1.0;
 
+/** How many runs a room's header winds through. */
+export const runsOf = (pipes: number) => Math.max(1, Math.ceil(Math.max(1, Math.ceil(pipes / 2)) / RUN));
+
 /**
  * Lay the rooms out as manifolds: half on each side of the boiler, sides balanced by how many pipes they carry, each
- * room a header running outward from its side's trunk, its branches alternating up and down in pairs.
+ * room a header running outward from its side's trunk, its branches alternating up and down in pairs. A header longer
+ * than RUN steps winds back on itself (#789): out, down a run, back toward the trunk, and so on, so a big room (the
+ * Foundry, the Archive) stays a block that fits the view instead of one long line.
  */
 export function layout(sections: { id: string; pipes: { id: string }[] }[]): MapGeo {
   const sides: { ids: string[]; load: number }[] = [
@@ -382,7 +395,7 @@ export function layout(sections: { id: string; pipes: { id: string }[] }[]): Map
   for (const { s } of order) {
     const side = sides[0]!.load <= sides[1]!.load ? sides[0]! : sides[1]!;
     side.ids.push(s.id);
-    side.load += Math.ceil(s.pipes.length / 2) + 2;
+    side.load += runsOf(s.pipes.length) * ROW + PITCH;
   }
   // Within a side keep the rack's order.
   for (const side of sides) side.ids.sort((a, b) => sections.findIndex((s) => s.id === a) - sections.findIndex((s) => s.id === b));
@@ -395,31 +408,61 @@ export function layout(sections: { id: string; pipes: { id: string }[] }[]): Map
     const sx = si === 0 ? 1 : -1;
     const n = side.ids.length;
     if (!n) return;
-    const zs = side.ids.map((_, i) => (i - (n - 1) / 2) * PITCH);
+    // Each room's first run, stacked down the side with its wound runs under it, the side centred on the boiler.
+    const tops: number[] = [];
+    let z = 0;
+    for (const id of side.ids) {
+      tops.push(z);
+      z += (runsOf(sections.find((x) => x.id === id)!.pipes.length) - 1) * ROW + PITCH;
+    }
+    const last = side.ids[n - 1]!;
+    const span = tops[n - 1]! + (runsOf(sections.find((x) => x.id === last)!.pipes.length) - 1) * ROW;
+    const zs = tops.map((t) => t - span / 2);
     trunks.push([
       [sx * 1.35, 0],
       [sx * TRUNK_X, 0],
     ]);
     if (n > 1)
       trunks.push([
-        [sx * TRUNK_X, zs[0]!],
-        [sx * TRUNK_X, zs[n - 1]!],
+        [sx * TRUNK_X, Math.min(0, zs[0]!)],
+        [sx * TRUNK_X, Math.max(0, zs[n - 1]!)],
       ]);
     side.ids.forEach((id, i) => {
       const s = sections.find((x) => x.id === id)!;
-      const z = zs[i]!;
+      const z0 = zs[i]!;
       const steps = Math.max(1, Math.ceil(s.pipes.length / 2));
-      const end = TRUNK_X + LEAD + (steps - 1) * STEP + 0.6;
+      const runs = runsOf(s.pipes.length);
+      const full = Math.min(steps, RUN);
+      const inner = TRUNK_X + LEAD - 0.55;
+      const outer = TRUNK_X + LEAD + (full - 1) * STEP + 0.6;
+      const xAt = (step: number) => {
+        const r = Math.floor(step / RUN);
+        const j = step % RUN;
+        return TRUNK_X + LEAD + (r % 2 ? RUN - 1 - j : j) * STEP;
+      };
       const pipes: PipeGeo[] = s.pipes.map((p, k) => {
-        const x = sx * (TRUNK_X + LEAD + Math.floor(k / 2) * STEP);
+        const step = Math.floor(k / 2);
+        const z = z0 + Math.floor(step / RUN) * ROW;
         const dz = k % 2 ? BRANCH : -BRANCH;
-        return { id: p.id, root: [x, z], tip: [x, z + dz] };
+        return { id: p.id, root: [sx * xAt(step), z], tip: [sx * xAt(step), z + dz] };
       });
+      // The header: out along the first run, then turning at each end into the next.
+      const header: V2[] = [[sx * TRUNK_X, z0]];
+      for (let r = 0; r < runs; r++) {
+        const z = z0 + r * ROW;
+        const lastRun = r === runs - 1;
+        const left = steps - r * RUN;
+        const endX = lastRun && runs > 1 ? xAt(r * RUN + Math.min(RUN, left) - 1) + (r % 2 ? -0.6 : 0.6) : r % 2 ? inner : outer;
+        header.push([sx * (r === 0 ? TRUNK_X : r % 2 ? outer : inner), z]);
+        header.push([sx * endX, z]);
+      }
+      const tidy = header.filter((p, k) => k === 0 || p[0] !== header[k - 1]![0] || p[1] !== header[k - 1]![1]);
+      const z1 = z0 + (runs - 1) * ROW;
       // The box takes in the room's name past the header's end.
-      const outer = sx * (end + 2.6);
-      const b: [number, number, number, number] = [Math.min(sx * TRUNK_X, outer), z - BRANCH - 0.7, Math.max(sx * TRUNK_X, outer), z + BRANCH + 0.5];
+      const far = sx * (outer + 2.6);
+      const b: [number, number, number, number] = [Math.min(sx * TRUNK_X, far), z0 - BRANCH - 0.7, Math.max(sx * TRUNK_X, far), z1 + BRANCH + 0.5];
       grow(b);
-      out.push({ id, header: [[sx * TRUNK_X, z], [sx * end, z]], pipes, label: [sx * (end + 1.2), z], box: b });
+      out.push({ id, header: tidy, pipes, label: [sx * (outer + 1.2), z0], box: b });
     });
   });
   // Keep the input's order.

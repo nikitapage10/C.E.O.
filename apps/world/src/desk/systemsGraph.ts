@@ -102,6 +102,7 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
   const { links, foundry, connected, building, clock, world, pings, vqa } = input;
   const L = (id: string): GState => G_STATE[links[id] ?? "off"];
   const hub = L("hub");
+  const HOUSE = ["roborock", "petlibro", "whisker", "nest", "tasks", "kroger"];
   const relayLive = hub !== "wait";
   const story = world?.story ?? null;
   const fnode = (id: string) => foundry.nodes.find((n) => n.id === id);
@@ -170,6 +171,8 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     nest: { id: "nest", l: "Google Nest", s: L("nest") === "wait" ? "not connected yet" : "the thermostat", k: "service", state: L("nest") },
     tasks: { id: "tasks", l: "Google Tasks", s: L("tasks") === "wait" ? "not connected yet" : "quick-adds, every 5 min", k: "service", state: L("tasks") },
     kroger: { id: "kroger", l: "Kroger", s: L("kroger") === "wait" ? "not connected yet" : "King Soopers cart", k: "service", state: L("kroger") },
+    // The Haven (#789): its own room on the Boiler Room's map, live once any of its devices is (one broken device cracks only its own pipe).
+    haven: { id: "haven", l: "Haven", s: "the house and the kitchen", k: "room", room: "haven", state: HOUSE.some((h) => L(h) === "ok" || L(h) === "run") ? "ok" : HOUSE.some((h) => L(h) === "bad") ? "bad" : "wait" },
     fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "no key yet" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
@@ -210,12 +213,14 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     { ...e("green", "fantasypros", "green", nodes.fantasypros!.state), label: "Projections", how: conn("fantasypros")?.how, ...fromConn("fantasypros") },
     e("desk", "spire", "spire", nodes.spire!.state),
     { ...e("spire", "paypal", "spire", nodes.paypal!.state), label: "Invoices", how: conn("paypal")?.how, ...fromConn("paypal") },
-    { ...e("boiler", "roborock", "boiler", nodes.roborock!.state), label: "The vacuum", how: conn("roborock")?.how, ...fromConn("roborock") },
-    { ...e("boiler", "petlibro", "boiler", nodes.petlibro!.state), label: "Feeders and fountain", how: conn("petlibro")?.how, ...fromConn("petlibro") },
-    { ...e("boiler", "whisker", "boiler", nodes.whisker!.state), label: "The Litter-Robot", how: conn("whisker")?.how, ...fromConn("whisker") },
-    { ...e("boiler", "nest", "boiler", nodes.nest!.state), label: "The thermostat", how: conn("nest")?.how, ...fromConn("nest") },
-    { ...e("boiler", "tasks", "boiler", nodes.tasks!.state), label: "Tasks quick-add", how: conn("google-tasks")?.how, ...fromConn("google-tasks") },
-    { ...e("boiler", "kroger", "boiler", nodes.kroger!.state), label: "Send to King Soopers", how: conn("kroger")?.how, ...fromConn("kroger") },
+    // The house's devices are the Haven's (#789): the room that uses them owns them, not the Boiler Room.
+    e("desk", "haven", "haven", nodes.haven!.state),
+    { ...e("haven", "roborock", "haven", nodes.roborock!.state), label: "The vacuum", how: conn("roborock")?.how, ...fromConn("roborock") },
+    { ...e("haven", "petlibro", "haven", nodes.petlibro!.state), label: "Feeders and fountain", how: conn("petlibro")?.how, ...fromConn("petlibro") },
+    { ...e("haven", "whisker", "haven", nodes.whisker!.state), label: "The Litter-Robot", how: conn("whisker")?.how, ...fromConn("whisker") },
+    { ...e("haven", "nest", "haven", nodes.nest!.state), label: "The thermostat", how: conn("nest")?.how, ...fromConn("nest") },
+    { ...e("haven", "tasks", "haven", nodes.tasks!.state), label: "Tasks quick-add", how: conn("google-tasks")?.how, ...fromConn("google-tasks") },
+    { ...e("haven", "kroger", "haven", nodes.kroger!.state), label: "Send to King Soopers", how: conn("kroger")?.how, ...fromConn("kroger") },
   ];
 
   // The Foundry's flow: foundryGraph's edges, with their connections' kinds, sign-in and timing.

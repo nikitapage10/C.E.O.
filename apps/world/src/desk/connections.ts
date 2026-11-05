@@ -13,6 +13,9 @@ import type { DeskRoom } from "./deskData.ts";
  * The page is public: name env vars at most, never a value (connections.test.ts checks for anything key-like).
  */
 
+/** A room that owns connections: a Desk room, or the Haven (a Desk-only room with no still or tint of its own there). */
+export type ConnectionRoom = DeskRoom | "haven";
+
 export type ConnectionKind = "REST API" | "SDK" | "MCP server" | "CLI" | "Scheduled" | "Webhook" | "Polling" | "Storage" | "WebSocket" | "MQTT" | "Agent";
 
 /** Where a connection is explained: a part of Relay's or the Foundry's diagram, the world clock, the Exchange's, the Green's or the Spire's page, or the home devices (#632). */
@@ -21,8 +24,9 @@ export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { 
 export interface Connection {
   id: string;
   name: string;
-  /** The room it belongs to: the world clock's belong to the Boiler Room. */
-  room: DeskRoom;
+  /** The room that uses it (#789): the house devices' belong to the Haven, and only the shared plumbing (the world
+   * clock, the store, the keys, the Azure template) to the Boiler Room. */
+  room: ConnectionRoom;
   /** Where it's explained on the Systems page. */
   at: ConnectionPlace[];
   /** What it serves, in a couple of words. */
@@ -294,7 +298,7 @@ export const CONNECTIONS: Connection[] = [
   {
     id: "roborock",
     name: "Roborock",
-    room: "boiler",
+    room: "haven",
     at: [{ system: "home" }],
     serves: "The vacuum: status, start, pause, dock and a clean of named rooms",
     kinds: ["REST API", "MQTT"],
@@ -306,7 +310,7 @@ export const CONNECTIONS: Connection[] = [
   {
     id: "petlibro",
     name: "Petlibro",
-    room: "boiler",
+    room: "haven",
     at: [{ system: "home" }],
     serves: "The dry and wet food feeders and the water fountain",
     kinds: ["REST API"],
@@ -318,7 +322,7 @@ export const CONNECTIONS: Connection[] = [
   {
     id: "whisker",
     name: "Whisker",
-    room: "boiler",
+    room: "haven",
     at: [{ system: "home" }],
     serves: "The Litter-Robot 5 Pro: drawer level, last use and a clean cycle",
     kinds: ["REST API"],
@@ -330,7 +334,7 @@ export const CONNECTIONS: Connection[] = [
   {
     id: "nest",
     name: "Google Nest",
-    room: "boiler",
+    room: "haven",
     at: [{ system: "home" }],
     serves: "The thermostat: temperature, humidity, mode, set point and heating or cooling, and changes within 60 to 80 °F",
     kinds: ["REST API"],
@@ -342,7 +346,7 @@ export const CONNECTIONS: Connection[] = [
   {
     id: "google-tasks",
     name: "Google Tasks",
-    room: "boiler",
+    room: "haven",
     at: [{ system: "home" }],
     serves: "Quick-adds onto the Kitchen list from a Google Tasks list",
     kinds: ["REST API", "Scheduled"],
@@ -354,7 +358,7 @@ export const CONNECTIONS: Connection[] = [
   {
     id: "kroger",
     name: "Kroger",
-    room: "boiler",
+    room: "haven",
     at: [{ system: "home" }],
     serves: "Send to King Soopers: the Kitchen list matched at your home store, the picks added to your cart",
     kinds: ["REST API"],

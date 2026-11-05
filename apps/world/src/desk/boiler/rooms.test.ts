@@ -3,7 +3,7 @@ import { CONNECTIONS } from "../connections.ts";
 import type { JobRow } from "../jobs.ts";
 import { pipeRows, systemsModel } from "../systemsGraph.ts";
 import { readPipes } from "./pipes.ts";
-import { layout, roomCounts, roomFaults, roomSections, roomState, STEP } from "./rooms.ts";
+import { layout, roomCounts, roomFaults, roomSections, roomState, ROW, RUN, runsOf, STEP } from "./rooms.ts";
 
 const NOW = Date.UTC(2026, 10, 4, 22, 0);
 const job = (file: string, patch: Partial<JobRow> = {}): JobRow => ({ file, name: file.replace(".yml", ""), when: "daily", state: "pass", at: NOW - 3_600_000, lateMin: 2, missed: false, url: "https://github.com/nikitapage10/C.E.O./actions/runs/1", ...patch });
@@ -65,7 +65,43 @@ describe("the pipe map, room by room", () => {
     expect(new Set(tips).size).toBe(tips.length);
     for (const sec of g.sections) {
       const xs = sec.pipes.map((p) => Math.abs(p.root[0]));
-      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo((Math.ceil(sec.pipes.length / 2) - 1) * STEP);
+      const n = s.find((x) => x.id === sec.id)!.pipes.length;
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo((Math.min(RUN, Math.ceil(n / 2)) - 1) * STEP);
     }
+  });
+
+  it("winds a long header back on itself, so a big room is a block, not one long line (#789)", () => {
+    const s = build({ ...LIVE }, ["checks.yml", "e2e.yml", "codeql.yml", "scorecard.yml", "deploy-azure.yml", "desk-pings.yml", "live-watch.yml"].map((f) => job(f)));
+    const g = layout(s);
+    const big = s.reduce((a, b) => (b.pipes.length > a.pipes.length ? b : a));
+    expect(runsOf(big.pipes.length)).toBeGreaterThan(1);
+    const geo = g.sections.find((x) => x.id === big.id)!;
+    // Its runs stack down the floor, each no longer than RUN steps.
+    const zs = [...new Set(geo.pipes.map((p) => p.root[1].toFixed(2)))].map(Number).sort((a, b) => a - b);
+    expect(zs).toHaveLength(runsOf(big.pipes.length));
+    expect(zs[1]! - zs[0]!).toBeCloseTo(ROW);
+    for (const sec of g.sections) {
+      const xs = sec.pipes.map((p) => Math.abs(p.root[0]));
+      expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual((RUN - 1) * STEP + 1e-6);
+      // The header turns only at right angles.
+      for (let k = 1; k < sec.header.length; k++) {
+        const [a, b] = [sec.header[k - 1]!, sec.header[k]!];
+        expect(a[0] === b[0] || a[1] === b[1]).toBe(true);
+      }
+    }
+    // No two rooms' boxes overlap on one side of the boiler.
+    for (const a of g.sections)
+      for (const b of g.sections)
+        if (a !== b && Math.sign(a.box[0] + a.box[2]) === Math.sign(b.box[0] + b.box[2])) expect(a.box[3] <= b.box[1] + 1e-6 || b.box[3] <= a.box[1] + 1e-6, `${a.id}/${b.id}`).toBe(true);
+  });
+
+  it("gives the house devices to the Haven and puts the Boiler Room, only shared plumbing, last (#789)", () => {
+    const s = build({ ...LIVE }, [job("backup-azure.yml")]);
+    expect(s[s.length - 1]!.id).toBe("boiler");
+    const haven = s.find((x) => x.id === "haven")!;
+    for (const id of ["roborock", "petlibro", "whisker", "nest", "tasks", "kroger"]) expect(haven.pipes.some((p) => p.id === `haven:${id}`), id).toBe(true);
+    const boiler = s.find((x) => x.id === "boiler")!;
+    expect(boiler.pipes.some((p) => /roborock|petlibro|whisker|nest|tasks|kroger/.test(p.id))).toBe(false);
+    expect(boiler.pipes.some((p) => p.id === "boiler:clock")).toBe(true);
   });
 });

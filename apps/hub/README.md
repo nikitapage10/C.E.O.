@@ -3,8 +3,10 @@
 One Node file that runs under `launchd` on Nikita's always-on MacBook and gives Relay its texts line. The rules it
 follows are in [`docs/RELAY-PRIVACY.md`](../../docs/RELAY-PRIVACY.md); this page is only the map.
 
-- **In:** BlueBubbles Server's webhook, on `127.0.0.1:7420` only (`src/server.ts`), and BlueBubbles' local REST API
-  for a chat's latest messages and the contacts (`src/bluebubbles.ts`). The hub never opens `chat.db`.
+- **In:** BlueBubbles' local REST API on `127.0.0.1:1234`: new messages polled every 5 seconds from
+  `POST /api/v1/message/query` (#749; BlueBubbles 1.9.12 refuses API webhooks to `127.0.0.1`), a chat's latest
+  messages and the contacts (`src/bluebubbles.ts`). The hub never opens `chat.db`. Its only listener,
+  `127.0.0.1:7420`, is for the `relay` command (`src/server.ts`).
 - **Settled on the Mac:** codes, short codes, promos, money and legal texts, and the private skip list
   (`src/rules.ts`), without a model.
 - **Through the site:** placeholdered, trimmed snippets (`src/placeholders.ts`) go to `POST /api/relay-hub?view=sort`

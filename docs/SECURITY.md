@@ -44,7 +44,7 @@ Relay's texts line (#535), a hub on the MacBook that reads iMessage and SMS thro
 [RELAY-PRIVACY.md](RELAY-PRIVACY.md) (#149, R5 in [THREAT-MODEL.md](THREAT-MODEL.md)). Message text stays on the
 Mac except inside one trimmed, placeholdered snippet at a time, which the site passes to Claude with its own Key
 Vault key under the texts line's own $10 and never stores; the Mac holds no model key. The hub only calls out, with
-a paired token, and listens only on `127.0.0.1` for BlueBubbles' webhook. The public site gets counts, enum states
+a paired token, and listens only on `127.0.0.1`, for the `relay` command (new texts are polled from BlueBubbles' local API, #749). The public site gets counts, enum states
 and timestamps only, in one allowlisted shape (`RelayStatus` and `readRelayStatus` in `packages/core/src/relay.ts`)
 that refuses an unknown key or any free string. The signed-in Desk gets a sealed who's-waiting list (names, gists,
 drafts) for 7 days at most. A send is a single-use, signed, 10-minute request made only on the Desk, after a passkey

@@ -7,7 +7,7 @@ import { dirname } from "node:path";
  * `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, rewritten whole on every change (a temp file and a
  * rename), so a deleted row never lingers in free pages. It holds, per thread, a random Relay id, the Messages chat id,
  * the times, the state and Dialtone's sort; Relay's own outputs (drafts, group summaries, the later times); daily
- * counts; the ids of Desk requests already acted on. **Never a message body, a name or a handle of its own** (the chat id carries the handle,
+ * counts; the ids of Desk requests already acted on; the new-message poll's cursor (a time and guid hashes, #749). **Never a message body, a name or a handle of its own** (the chat id carries the handle,
  * which is why it never leaves this file: not in a log, a status or a model call).
  */
 
@@ -108,9 +108,20 @@ export interface RelayState {
   photos: Record<string, string>;
   /** When the photos were last synced. */
   photosAt: number | null;
+  /**
+   * Where the poll of BlueBubbles has read up to (#749): the newest message time taken in (ms), and a short hash of
+   * each message guid taken in over the overlap window, so a message read twice is taken in once. Hashes and times
+   * only: never a message, a guid, a handle or a chat id. Null until the hub's first poll, which starts from then.
+   */
+  inbox: Inbox | null;
 }
 
-export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null, photos: {}, photosAt: null });
+export interface Inbox {
+  at: number;
+  recent: { h: string; at: number }[];
+}
+
+export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null, photos: {}, photosAt: null, inbox: null });
 
 export const newThreadId = () => randomBytes(8).toString("hex");
 
@@ -180,6 +191,13 @@ function readCard(v: unknown): Card | null {
   };
 }
 
+function readInbox(v: unknown): Inbox | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || n(o.at) === null) return null;
+  const recent = Array.isArray(o.recent) ? (o.recent as Record<string, unknown>[]).flatMap((e) => (typeof e?.h === "string" && /^[0-9a-f]{16}$/.test(e.h) && n(e.at) !== null ? [{ h: e.h, at: e.at as number }] : [])).slice(-2_000) : [];
+  return { at: o.at as number, recent };
+}
+
 /** The state from the file's text, each row checked; a bad row is dropped, a bad file is a fresh state. */
 export function readState(raw: string | null): RelayState {
   let o: Record<string, unknown>;
@@ -209,6 +227,7 @@ export function readState(raw: string | null): RelayState {
       return out;
     })(),
     photosAt: n(o.photosAt),
+    inbox: readInbox(o.inbox),
   };
 }
 

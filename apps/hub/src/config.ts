@@ -6,7 +6,7 @@ import { join } from "node:path";
  * keys are in the login Keychain (./keychain.ts), never in a file, the launchd plist or the environment.
  */
 
-/** The hub listens here, for BlueBubbles' webhook only, and nowhere else. */
+/** The hub listens here, for the `relay` command only, and nowhere else (new messages are polled, #749). */
 export const HOST = "127.0.0.1";
 export const PORT = 7420;
 
@@ -22,7 +22,7 @@ export const KEYCHAIN_SERVICE = "CEO Relay";
  * bluebubbles-password  typed by Nikita at install; the hub's way into BlueBubbles' local API
  * hub-token             from pairing: the hub's key to its own calls on the site
  * send-key              from pairing: checks the signature on every Desk request before the hub acts on it
- * local-key             made at install: the BlueBubbles webhook's and the relay command's key to the hub itself
+ * local-key             made at install: the relay command's key to the hub itself
  */
 export const KEYCHAIN_ITEMS = ["bluebubbles-password", "hub-token", "send-key", "local-key"] as const;
 export type KeychainItem = (typeof KEYCHAIN_ITEMS)[number];

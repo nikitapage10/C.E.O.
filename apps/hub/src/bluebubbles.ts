@@ -1,8 +1,11 @@
 import { BLUEBUBBLES } from "./config.ts";
+import { errorClass } from "./log.ts";
 
 /**
  * BlueBubbles Server's local API (http://127.0.0.1:1234, its own password), the hub's only way to Messages: the
- * hub never opens chat.db itself, so it needs no Full Disk Access. Read: contacts (names for placeholders and the
+ * hub never opens chat.db itself, so it needs no Full Disk Access. Every call goes to 127.0.0.1 with a timeout. Read: new
+ * messages (polled every few seconds from `/api/v1/message/query`, #749: BlueBubbles 1.9.12 refuses API webhooks to
+ * 127.0.0.1, and a poll needs no inbound path at all), contacts (names for placeholders and the
  * Desk), a chat's recent messages (fetched for one call and dropped), the one-to-one chats' ids (to find the chat a
  * new text goes in, #536; read for one ask and dropped). Write: one text, only when Nikita's signed send
  * request says so (./engine.ts, `act`). Attachments are never asked for.
@@ -47,6 +50,15 @@ export interface BlueBubbles {
   chats(): Promise<string[]>;
   /** The contacts that have a picture (#642), with it: read for one photo sync and dropped. */
   contactPhotos(): Promise<ContactPhoto[]>;
+  /** Messages dated at or after `after` (ms), oldest first, `limit` at most (#749): the hub's way in. */
+  since(after: number, limit: number): Promise<Polled[]>;
+}
+
+/** One message from a poll: its guid and time move the cursor; `inbound` is null for a reaction or a system item. */
+export interface Polled {
+  guid: string;
+  at: number;
+  inbound: Inbound | null;
 }
 
 /** The most of one contact picture the hub reads (bytes): bigger ones are skipped. */
@@ -76,25 +88,107 @@ export function readMessage(o: Record<string, unknown> | null | undefined): Mess
   return { text: str(o.text), fromMe: o.isFromMe === true, at: num(o.dateCreated), handle: o.isFromMe === true ? "" : handle };
 }
 
-/** A BlueBubbles webhook body, read: a new message in one chat, or null for any other event. */
-export function readWebhook(body: unknown): Inbound | null {
-  const b = body as Record<string, unknown> | null;
-  if (!b || b.type !== "new-message" || !b.data || typeof b.data !== "object") return null;
-  const data = b.data as Record<string, unknown>;
-  const chat = Array.isArray(data.chats) ? (data.chats[0] as Record<string, unknown> | undefined) : undefined;
-  const guid = str(chat?.guid, 300);
-  const message = readMessage(data);
-  if (!guid || !message || !message.at) return null;
-  return { chat: guid, group: isGroupChat(guid), groupName: str(chat?.displayName, 80), message };
+/** One message from `/api/v1/message/query` (with its chats), read: null when it has no guid or time. */
+export function readPolled(o: Record<string, unknown> | null | undefined): Polled | null {
+  if (!o || typeof o !== "object") return null;
+  const guid = str(o.guid, 200);
+  const at = num(o.dateCreated);
+  if (!guid || !at) return null;
+  const chat = Array.isArray(o.chats) ? (o.chats[0] as Record<string, unknown> | undefined) : undefined;
+  const chatGuid = str(chat?.guid, 300);
+  const message = readMessage(o);
+  return { guid, at, inbound: chatGuid && message ? { chat: chatGuid, group: isGroupChat(chatGuid), groupName: str(chat?.displayName, 80), message } : null };
+}
+
+/* ── Calls, and failing in plain words (#749) ── */
+
+/** How a BlueBubbles call failed. The error's name stays on log.ts's closed list. */
+export type BlueBubblesFailure = "timeout" | "unreachable" | "http" | "not-json";
+
+export class BlueBubblesError extends Error {
+  readonly kind: BlueBubblesFailure;
+  readonly status: number;
+  /** BlueBubbles' own error words, redacted and cut short ("" when it gave none). */
+  readonly detail: string;
+  constructor(kind: BlueBubblesFailure, status = 0, detail = "") {
+    super(`bluebubbles ${kind}`);
+    this.name = kind === "timeout" ? "TimeoutError" : kind === "unreachable" ? "FetchError" : "HttpError";
+    this.kind = kind;
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/** Text with every secret taken out: each value given (raw and URL-encoded) and any password, guid, token or k param. */
+export function redact(text: string, secrets: readonly string[] = []): string {
+  let out = text;
+  for (const v of secrets) {
+    if (!v) continue;
+    for (const form of new Set([v, encodeURIComponent(v), new URLSearchParams({ v }).toString().slice(2)])) out = out.split(form).join("•••");
+  }
+  return out.replace(/([?&](?:password|guid|token|k)=)[^&\s"']*/gi, "$1•••");
+}
+
+/** BlueBubbles' error words from its JSON body ({ error: { message } } or { message }), redacted, 200 characters at most. */
+function errorWords(parsed: unknown, secrets: readonly string[]): string {
+  const b = parsed as { message?: unknown; error?: unknown } | null;
+  const e = b && typeof b === "object" && b.error && typeof b.error === "object" ? (b.error as { message?: unknown }).message : undefined;
+  const words = typeof e === "string" && e ? e : b && typeof b === "object" && typeof b.message === "string" ? b.message : "";
+  return redact(words, secrets).replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+const isTimeout = (e: unknown) => {
+  const name = e && typeof e === "object" && "name" in e ? String((e as { name: unknown }).name) : "";
+  return name === "TimeoutError" || name === "AbortError";
+};
+
+/** One call: a timeout always; a throw from fetch becomes a timeout or an unreachable, never its message (the URL holds the password). */
+async function call(fetcher: typeof fetch, url: string, init: RequestInit, ms: number): Promise<Response> {
+  try {
+    return await fetcher(url, { ...init, signal: AbortSignal.timeout(ms) });
+  } catch (e) {
+    throw new BlueBubblesError(isTimeout(e) ? "timeout" : "unreachable");
+  }
+}
+
+/** The JSON body of an answer, or a BlueBubblesError: the HTTP status with BlueBubbles' words, or not JSON. */
+async function body(res: Response, secrets: readonly string[]): Promise<{ data?: unknown }> {
+  let text: string;
+  try {
+    text = await res.text();
+  } catch (e) {
+    throw new BlueBubblesError(isTimeout(e) ? "timeout" : "unreachable", res.status);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = undefined;
+  }
+  if (!res.ok) throw new BlueBubblesError("http", res.status, errorWords(parsed, secrets));
+  if (!parsed || typeof parsed !== "object") throw new BlueBubblesError("not-json", res.status);
+  return parsed as { data?: unknown };
+}
+
+export const BB_TIMEOUT_MS = 15_000;
+export const BB_SEND_TIMEOUT_MS = 30_000;
+
+/** A failed BlueBubbles call in plain words for the Terminal, the password never in it; "" for any other error. */
+export function describeFailure(e: unknown): string {
+  if (!(e instanceof BlueBubblesError)) return "";
+  if (e.kind === "timeout") return `BlueBubbles didn't answer within ${BB_TIMEOUT_MS / 1000} seconds. Is it running, and not stuck on a dialog?`;
+  if (e.kind === "unreachable") return "couldn't reach BlueBubbles on 127.0.0.1:1234. Is BlueBubbles open, with its server running?";
+  if (e.kind === "not-json") return `BlueBubbles answered HTTP ${e.status} with something that isn't the JSON it should be. Is port 1234 BlueBubbles' own server?`;
+  if (e.status === 401) return `BlueBubbles answered HTTP 401: the password in the Keychain doesn't match BlueBubbles' server password${e.detail ? ` (${e.detail})` : ""}.`;
+  return `BlueBubbles answered HTTP ${e.status}${e.detail ? `: ${e.detail}` : ""}.`;
 }
 
 export function blueBubbles(password: string, fetcher: typeof fetch = fetch, base = BLUEBUBBLES): BlueBubbles {
+  const secrets = [password];
   const url = (path: string, q: Record<string, string> = {}) => `${base}${path}?${new URLSearchParams({ ...q, password }).toString()}`;
-  const get = async (path: string, q?: Record<string, string>) => {
-    const res = await fetcher(url(path, q), { signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) throw Object.assign(new Error("bluebubbles"), { name: "HttpError" });
-    return ((await res.json()) as { data?: unknown }).data;
-  };
+  const get = async (path: string, q?: Record<string, string>) => (await body(await call(fetcher, url(path, q), {}, BB_TIMEOUT_MS), secrets)).data;
+  const post = async (path: string, json: unknown, ms = BB_TIMEOUT_MS) => (await body(await call(fetcher, url(path), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(json) }, ms), secrets)).data;
+  const handlesOf = (c: Record<string, unknown>) => [...(Array.isArray(c.phoneNumbers) ? c.phoneNumbers : []), ...(Array.isArray(c.emails) ? c.emails : [])].map((h) => str((h as Record<string, unknown>)?.address, 200)).filter(Boolean);
   return {
     ping: async () => {
       try {
@@ -109,7 +203,7 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
       if (!Array.isArray(data)) return [];
       return (data as Record<string, unknown>[]).map((c) => ({
         names: [str(c.displayName, 80), str(c.firstName, 40), str(c.lastName, 40)].filter((x) => x.trim().length > 1),
-        handles: [...(Array.isArray(c.phoneNumbers) ? c.phoneNumbers : []), ...(Array.isArray(c.emails) ? c.emails : [])].map((h) => str((h as Record<string, unknown>)?.address, 200)).filter(Boolean),
+        handles: handlesOf(c),
       }));
     },
     messages: async (chat, limit) => {
@@ -122,40 +216,63 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
       const out: ContactPhoto[] = [];
       for (const c of data as Record<string, unknown>[]) {
         const image = readAvatar(c.avatar);
-        const handles = [...(Array.isArray(c.phoneNumbers) ? c.phoneNumbers : []), ...(Array.isArray(c.emails) ? c.emails : [])].map((h) => str((h as Record<string, unknown>)?.address, 200)).filter(Boolean);
+        const handles = handlesOf(c);
         if (image && handles.length) out.push({ handles, image });
       }
       return out;
     },
     chats: async () => {
-      const res = await fetcher(url("/api/v1/chat/query"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ limit: 1000, offset: 0, sort: "lastmessage" }), signal: AbortSignal.timeout(15_000) });
-      if (!res.ok) throw Object.assign(new Error("bluebubbles"), { name: "HttpError" });
-      const data = ((await res.json()) as { data?: unknown }).data;
+      const data = await post("/api/v1/chat/query", { limit: 1000, offset: 0, sort: "lastmessage" });
       return Array.isArray(data) ? (data as Record<string, unknown>[]).map((c) => str(c?.guid, 300)).filter((g) => /^(?:iMessage|SMS);-;/i.test(g)) : [];
     },
+    // BlueBubbles 1.9.12's message query (messageValidator.queryBodyRules): `after` is ms since 1970 and matches
+    // message.date >= after, `with: ["chat"]` joins each message's chats (the handle always comes), ASC is oldest
+    // first, `limit` is 1 to 1000. Attachments are never asked for.
+    since: async (after, limit) => {
+      const data = await post("/api/v1/message/query", { with: ["chat"], sort: "ASC", after: Math.max(0, Math.floor(after)), limit: Math.max(1, Math.min(1000, Math.floor(limit))) });
+      if (!Array.isArray(data)) throw new BlueBubblesError("not-json", 200);
+      return (data as Record<string, unknown>[]).map(readPolled).filter((p): p is Polled => p !== null);
+    },
     send: async (chat, text, tempGuid) => {
-      const res = await fetcher(url("/api/v1/message/text"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chatGuid: chat, tempGuid, message: text, method: "apple-script" }), signal: AbortSignal.timeout(30_000) });
-      return res.ok;
+      try {
+        await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 }
 
-/** Registers the hub's webhook with BlueBubbles (new messages only), replacing any earlier Relay one. */
-export async function registerWebhook(password: string, hookUrl: string, fetcher: typeof fetch = fetch, base = BLUEBUBBLES): Promise<void> {
-  const q = new URLSearchParams({ password }).toString();
-  const list = await fetcher(`${base}/api/v1/webhook?${q}`).then((r) => r.json() as Promise<{ data?: { id?: unknown; url?: unknown }[] }>);
-  for (const w of list.data ?? []) {
-    if (typeof w.url === "string" && w.url.startsWith("http://127.0.0.1:7420/")) await fetcher(`${base}/api/v1/webhook/${encodeURIComponent(String(w.id))}?${q}`, { method: "DELETE" });
-  }
-  const res = await fetcher(`${base}/api/v1/webhook?${q}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: hookUrl, events: ["new-message"] }) });
-  if (!res.ok) throw Object.assign(new Error("bluebubbles webhook"), { name: "HttpError" });
+/** Whether BlueBubbles answers with this password: nothing when it does, else a BlueBubblesError that says why. */
+export async function checkBlueBubbles(password: string, fetcher: typeof fetch = fetch, base = BLUEBUBBLES): Promise<void> {
+  await body(await call(fetcher, `${base}/api/v1/ping?${new URLSearchParams({ password }).toString()}`, {}, BB_TIMEOUT_MS), [password]);
 }
 
-/** Removes the hub's webhook from BlueBubbles (the wipe). */
-export async function removeWebhook(password: string, fetcher: typeof fetch = fetch, base = BLUEBUBBLES): Promise<void> {
+/** Where the hub's old webhook pointed (before #749): any BlueBubbles webhook to it is Relay's. */
+export const OLD_HOOK_PREFIX = "http://127.0.0.1:7420/";
+
+/**
+ * Removes any webhook an earlier hub registered with BlueBubbles (the install and the wipe, #749): the hub polls now,
+ * so a webhook to 127.0.0.1:7420 is left over. Returns how many went; throws a BlueBubblesError when it can't tell.
+ */
+export async function removeOldWebhooks(password: string, fetcher: typeof fetch = fetch, base = BLUEBUBBLES): Promise<number> {
+  const secrets = [password];
   const q = new URLSearchParams({ password }).toString();
-  const list = await fetcher(`${base}/api/v1/webhook?${q}`).then((r) => r.json() as Promise<{ data?: { id?: unknown; url?: unknown }[] }>);
-  for (const w of list.data ?? []) {
-    if (typeof w.url === "string" && w.url.startsWith("http://127.0.0.1:7420/")) await fetcher(`${base}/api/v1/webhook/${encodeURIComponent(String(w.id))}?${q}`, { method: "DELETE" });
+  const list = await body(await call(fetcher, `${base}/api/v1/webhook?${q}`, {}, BB_TIMEOUT_MS), secrets);
+  if (!Array.isArray(list.data)) throw new BlueBubblesError("not-json", 200);
+  let removed = 0;
+  for (const w of list.data as { id?: unknown; url?: unknown }[]) {
+    if (typeof w?.url !== "string" || !w.url.startsWith(OLD_HOOK_PREFIX) || (typeof w.id !== "number" && typeof w.id !== "string")) continue;
+    await body(await call(fetcher, `${base}/api/v1/webhook/${encodeURIComponent(String(w.id))}?${q}`, { method: "DELETE" }, BB_TIMEOUT_MS), secrets);
+    removed++;
   }
+  return removed;
 }
+
+/** A command's failure line for the Terminal: a BlueBubbles failure says which, anything else its error class. Never a value. */
+export function failure(e: unknown): string {
+  const bb = describeFailure(e);
+  return redact(bb ? `Relay: ${bb}` : `Relay: something went wrong (${errorClass(e)}).`);
+}
+

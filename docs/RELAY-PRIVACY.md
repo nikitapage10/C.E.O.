@@ -20,7 +20,8 @@ The parts:
 
 - **BlueBubbles Server** on the Mac, the bridge to Messages, with its local connection only.
 - **The hub** (`apps/hub`), one Node file under `launchd`, with its own Node runtime. It reads and sends through
-  BlueBubbles' local API and takes BlueBubbles' webhook on `127.0.0.1:7420`. Every other call it makes is outbound,
+  BlueBubbles' local API, polling it every 5 seconds for new messages (#749: BlueBubbles 1.9.12 refuses API webhooks
+  to `127.0.0.1`), and listens on `127.0.0.1:7420` for the `relay` command only. Every other call it makes is outbound,
   to the site, over its paired token. No port is open for the site or the internet; there is no Tailscale.
 - **The site** (Azure, `api/_relay`): it keeps the public counts, the sealed who's-waiting list and the Desk's send
   requests, and it makes the model calls with the site's own Claude key, from Key Vault.
@@ -53,13 +54,13 @@ The parts:
 | --- | --- | --- | --- |
 | Messages | Every message and attachment | Apple's `chat.db`. Relay never opens it; it asks BlueBubbles for a chat's latest messages when it needs them | Apple's choice, not Relay's |
 | BlueBubbles | Its own cache, settings and server password | `~/Library/Application Support/bluebubbles-server/` | Until BlueBubbles is removed (see the wipe) |
-| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen. Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. **Never a copy of a message body** | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
+| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen; the new-message poll's cursor (the newest message time read, and 16 hex of the SHA-256 of each message guid read in the last 2 minutes, never the guid). Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. **Never a copy of a message body** | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
 | Style profile | Four numbers made at draft time from Nikita's own past replies to that contact (usual length, and how often they start with a capital, use emoji, end with a full stop). No text | Memory, for one call | The call |
 | Style examples | Up to 8 of Nikita's own past replies to that contact | Memory only, for one Blasto call | The call |
 | Contacts | Names and handles, from BlueBubbles | The hub's memory, refreshed hourly | While the hub runs |
 | Dictation | Nikita's spoken words, as text | The Desk's browser, then a sealed restyle request on the site, then one Blasto call | As a request (below) |
 | Logs | Event kinds, counts, error classes | `~/Library/Logs/CEO Relay/`, mode 0600 | 14 days, one file a day |
-| Mac secrets | The BlueBubbles password, the hub token, the send key, the local webhook key | The login Keychain, service "CEO Relay" | Until the wipe |
+| Mac secrets | The BlueBubbles password, the hub token, the send key, the local key (the `relay` command's key to the hub) | The login Keychain, service "CEO Relay" | Until the wipe |
 | The site's public status | The latest `RelayStatus`: counts, states, times | Azure blob `relay/status.json` (private container, served by a function) | The latest only |
 | The site's sealed list | The who's-waiting list (names, gists, drafts, summaries), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push, items 7 days at most. Requests: a day after they end |
 | The pairing | The pairing's id and the SHA-256 of the hub's token; an open pair code's SHA-256 | Azure blobs `relay/hub.json`, `relay/pair.json` | Until Unpair; a code 10 minutes |
@@ -363,7 +364,7 @@ What this adds to each boundary:
 
 ## The off switch and the full wipe
 
-**Off.** `relay off` on the Mac pauses the hub: it ignores BlueBubbles' webhooks, makes no model call, refuses every
+**Off.** `relay off` on the Mac pauses the hub: it takes in no new message (the poll's cursor moves on), makes no model call, refuses every
 request, stops the nudges, and reports `hub: "paused"`. Data stays until it ages out or is wiped. `relay on` resumes.
 
 **Wipe.** `relay wipe` on the Mac (and only there, so a stolen session can't use it) asks to confirm, then:
@@ -372,7 +373,7 @@ request, stops the nudges, and reports `hub: "paused"`. Data stays until it ages
 2. Sends a final status with `hub: "wiped"` and every count at zero, then unpairs on the site
    (`?view=unpair`): the hub's token stops working, and the list and the requests go.
 3. Unloads and deletes the `launchd` job.
-4. Removes BlueBubbles' webhook to the hub, then deletes Relay's four Keychain items (the BlueBubbles password, the
+4. Removes any BlueBubbles webhook to the hub an install before #749 left, then deletes Relay's four Keychain items (the BlueBubbles password, the
    hub token, the send key, the local key).
 5. Deletes `~/Library/Application Support/CEO Relay/` (the state file, the hub, its Node runtime),
    `~/Library/Logs/CEO Relay/`, the `relay` command and its PATH line in `~/.zprofile`.
@@ -391,9 +392,9 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
 
 - **No Full Disk Access for Relay.** The hub reads Messages only through BlueBubbles' local API, so it never opens
   `chat.db` and needs no special permission. BlueBubbles needs Full Disk Access (and Accessibility to send) for itself.
-- **The hub listens on `127.0.0.1:7420` only**, never `0.0.0.0`, and only for BlueBubbles' webhook and the `relay`
-  command's own control calls. Each needs the local key (a random value in the Keychain; the webhook's URL carries
-  it, so BlueBubbles' own settings hold a copy). The listener refuses any request with an `Origin` header, so a web
+- **The hub listens on `127.0.0.1:7420` only**, never `0.0.0.0`, and only for the `relay` command's own control
+  calls, which need the local key (a random value in the Keychain). New messages come from polling BlueBubbles'
+  local API, so nothing, BlueBubbles included, calls into the hub (#749). The listener refuses any request with an `Origin` header, so a web
   page in a browser on the Mac can't reach it, and it sends no CORS headers. BlueBubbles' proxy service is set to
   none (no Cloudflare, ngrok or zrok tunnel), with no Firebase or Google sign-in. BlueBubbles must not be reachable
   from the network. The installer and `relay status` check that it listens on `127.0.0.1` only, or that the macOS
@@ -420,7 +421,7 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
 | The Mac itself, unlocked | Everything in Messages, not only Relay | FileVault and the lock screen; the biggest risk, and not Relay's to fix |
 | Relay's state file | Who Nikita owes and since when (by chat id), gists, drafts and group summaries from the last few days | No message bodies; short retention; 0600; no backups |
 | Logs | When Relay was busy | No content by rule and by test |
-| The Keychain items | With the hub token and send key: the right to push a list, poll requests and spend on the model calls up to the cap (not to make send requests); with the local key: the local webhook; with the BlueBubbles password: BlueBubbles itself | The hub token never expires on its own: it works until Unpair or `relay wipe`. The $10 cap; send requests are made only on the Desk |
+| The Keychain items | With the hub token and send key: the right to push a list, poll requests and spend on the model calls up to the cap (not to make send requests); with the local key: the `relay` command's pause, resume and report; with the BlueBubbles password: BlueBubbles itself | The hub token never expires on its own: it works until Unpair or `relay wipe`. The $10 cap; send requests are made only on the Desk |
 | BlueBubbles | Everything in Messages, and sending as Nikita | Local only, no tunnel, its own password |
 | The site's sealed list | Names, gists, drafts and the requests' text from the last week, for whoever holds both the Azure store and `GMAIL_TOKEN_KEY` | Sealed; 7 days; no message bodies; no numbers |
 | A Desk session | The list, and with this device's unlock, send requests for drafts already on it, for 72 hours | Passkey sign-in; the unlock is per device and per passkey; one thread, one draft, 10 minutes; Lock and Unpair |

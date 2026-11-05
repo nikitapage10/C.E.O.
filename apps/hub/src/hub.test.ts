@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
 import { CARD_KEEP_MS, readTextsView, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
-import type { BlueBubbles, Contact, ContactPhoto, Message } from "./bluebubbles.ts";
-import { readWebhook } from "./bluebubbles.ts";
+import type { BlueBubbles, Contact, ContactPhoto, Message, Polled } from "./bluebubbles.ts";
+import { readPolled } from "./bluebubbles.ts";
 import { DEFAULT_CONFIG, HOST } from "./config.ts";
-import { DRAFT_KEEP_MS, Engine, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS, chatHandle } from "./engine.ts";
+import { CATCH_UP_MS, DRAFT_KEEP_MS, Engine, POLL_OVERLAP_MS, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS, chatHandle } from "./engine.ts";
 import { line, memoryLogger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
 import { settleByRule } from "./rules.ts";
@@ -53,6 +53,15 @@ class FakeBB implements BlueBubbles {
   pictures: ContactPhoto[] = [];
   async contactPhotos() {
     return this.pictures;
+  }
+  /** What BlueBubbles' message query holds (#749), and each `after` asked for. */
+  inbox: Polled[] = [];
+  asked: number[] = [];
+  failPoll = false;
+  async since(after: number, limit: number) {
+    this.asked.push(after);
+    if (this.failPoll) throw Object.assign(new Error("bluebubbles"), { name: "TimeoutError" });
+    return this.inbox.filter((p) => p.at >= after).sort((a, b) => a.at - b.at).slice(0, limit);
   }
 }
 
@@ -616,20 +625,96 @@ describe("the local server", () => {
       r.end(body);
     });
 
-  it("binds 127.0.0.1 only and refuses a missing key or any Origin", async () => {
-    const got: unknown[] = [];
+  it("binds 127.0.0.1 only, takes only /control, and refuses a missing key or any Origin", async () => {
+    const got: string[] = [];
     const log = memoryLogger();
-    server = await listen({ localKey: "local-test-key", log, onMessage: async (m) => void got.push(m), control: async () => undefined }, 0);
+    server = await listen({ localKey: "local-test-key", log, control: async (what) => void got.push(what) }, 0);
     const addr = server.address() as AddressInfo;
     expect(addr.address).toBe("127.0.0.1");
-    expect(await call(addr.port, "/bluebubbles")).toBe(401);
-    expect(await call(addr.port, "/bluebubbles?k=wrong")).toBe(401);
-    expect(await call(addr.port, "/bluebubbles?k=local-test-key", { origin: "https://example.com" })).toBe(401);
+    expect(await call(addr.port, "/control")).toBe(401);
+    expect(await call(addr.port, "/control?k=wrong")).toBe(401);
+    expect(await call(addr.port, "/control?k=local-test-key", { origin: "https://example.com" })).toBe(401);
     expect(await call(addr.port, "/send?k=local-test-key")).toBe(404);
-    const hook = JSON.stringify({ type: "new-message", data: { text: "hi", isFromMe: false, dateCreated: NOW, handle: { address: HANDLE }, chats: [{ guid: CHAT }] } });
-    expect(await call(addr.port, "/bluebubbles?k=local-test-key", {}, hook)).toBe(204);
-    expect(got.length).toBe(readWebhook(JSON.parse(hook)) ? 1 : 0);
+    // The old webhook path is gone (#749): the hub polls BlueBubbles instead.
+    expect(await call(addr.port, "/bluebubbles?k=local-test-key", {}, JSON.stringify({ type: "new-message", data: {} }))).toBe(404);
+    expect(await call(addr.port, "/control?k=local-test-key", {}, JSON.stringify({ do: "pause" }))).toBe(204);
+    expect(got).toEqual(["pause"]);
     expect(typeof handler).toBe("function");
+  });
+});
+
+describe("new messages, polled from BlueBubbles (#749)", () => {
+  const polled = (guid: string, at: number, t = "Dinner Saturday?", over: Partial<Message> = {}): Polled => ({ guid, at, inbound: { chat: CHAT, group: false, groupName: "", message: { text: t, fromMe: false, at, handle: HANDLE, ...over } } });
+
+  it("starts from now on the first poll, then takes each new message in once", async () => {
+    const h = setup();
+    h.bb.inbox = [polled("old-guid", NOW - 60_000)];
+    expect(await h.engine.poll()).toBe(0);
+    expect(h.store.load().inbox?.at).toBe(NOW);
+    expect(h.store.load().threads).toEqual([]);
+    h.bb.inbox.push(polled("new-guid", NOW + 1_000));
+    h.at(NOW + 5_000);
+    expect(await h.engine.poll()).toBe(1);
+    expect(h.store.load().threads[0]!.state).toBe("owed");
+    // The overlap reads the same message again; it is taken in once.
+    h.at(NOW + 10_000);
+    expect(await h.engine.poll()).toBe(0);
+    expect(h.bb.asked.at(-1)).toBe(NOW + 1_000 - POLL_OVERLAP_MS);
+    // Reactions move the cursor but are not messages.
+    h.bb.inbox.push({ guid: "tapback", at: NOW + 11_000, inbound: null });
+    h.at(NOW + 15_000);
+    expect(await h.engine.poll()).toBe(0);
+    expect(h.store.load().inbox?.at).toBe(NOW + 11_000);
+  });
+
+  it("keeps hashes and times only in the state file, never a guid, a chat id or a text", async () => {
+    const h = setup();
+    await h.engine.poll();
+    h.bb.inbox = [polled("8F1C2D3E-guid-secret", NOW + 1_000, "Running late")];
+    h.at(NOW + 5_000);
+    await h.engine.poll();
+    const inbox = JSON.stringify(h.store.load().inbox);
+    expect(inbox).not.toMatch(/guid|iMessage|555|Running/);
+    expect(h.store.load().inbox?.recent[0]?.h).toMatch(/^[0-9a-f]{16}$/);
+    expect(h.log.lines.join("\n")).not.toMatch(/guid|iMessage|555|Running/);
+  });
+
+  it("catches up after the hub was off, a day back at most, and Nikita's own reply settles the thread", async () => {
+    const h = setup();
+    await h.engine.poll();
+    h.bb.inbox = [polled("a", NOW + 1_000), polled("b", NOW + 2_000, "", { fromMe: true, handle: "" })];
+    h.at(NOW + 3 * CATCH_UP_MS);
+    expect(await h.engine.poll()).toBe(0);
+    expect(h.bb.asked.at(-1)).toBe(NOW + 2 * CATCH_UP_MS);
+    const g = setup();
+    await g.engine.poll();
+    g.bb.inbox = [polled("a", NOW + 1_000), polled("b", NOW + 2_000, "", { fromMe: true, handle: "" })];
+    g.at(NOW + 60_000);
+    expect(await g.engine.poll()).toBe(2);
+    expect(g.store.load().threads[0]!.state).not.toBe("owed");
+  });
+
+  it("takes nothing in while paused, and a failed poll keeps the cursor", async () => {
+    const h = setup();
+    await h.engine.poll();
+    h.engine.pause();
+    h.bb.inbox = [polled("a", NOW + 1_000)];
+    h.at(NOW + 5_000);
+    expect(await h.engine.poll()).toBe(0);
+    expect(h.store.load().threads).toEqual([]);
+    expect(h.store.load().inbox?.at).toBe(NOW + 5_000);
+    h.engine.resume();
+    h.bb.failPoll = true;
+    h.at(NOW + 10_000);
+    await expect(h.engine.poll()).rejects.toThrow();
+    expect(h.store.load().inbox?.at).toBe(NOW + 5_000);
+  });
+
+  it("reads BlueBubbles' message query rows: a message with its chat, a reaction as no message", () => {
+    const row = { guid: "g1", dateCreated: NOW, text: "hi", isFromMe: false, handle: { address: HANDLE }, chats: [{ guid: CHAT, displayName: "" }] };
+    expect(readPolled(row)).toEqual({ guid: "g1", at: NOW, inbound: { chat: CHAT, group: false, groupName: "", message: { text: "hi", fromMe: false, at: NOW, handle: HANDLE } } });
+    expect(readPolled({ ...row, associatedMessageGuid: "p:0/x" })?.inbound).toBeNull();
+    expect(readPolled({ ...row, guid: undefined })).toBeNull();
   });
 });
 

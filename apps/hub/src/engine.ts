@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readRelayStatus, RELAY_STATUS_VERSION, type RelayStatus } from "@ceo/core";
 import { CAPS, readDraft, readSort, within, type Line, type StyleProfile } from "../../../api/_relay/models.ts";
 import { CARD_KEEP_MS, readTextRequest, type RequestResult, type TextCard, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
@@ -18,7 +18,7 @@ import { newThreadId, type Card, type CardTarget, type Day, type RelayState, typ
 /**
  * Relay's texts line on the Mac (#535, docs/RELAY-PRIVACY.md): the engine the launchd job runs.
  *
- *   in     BlueBubbles' webhook (./server.ts) hands each new message to `onMessage`. Paused, it is ignored.
+ *   in     `poll` reads new messages from BlueBubbles every 5 seconds (#749) and hands each to `onMessage`. Paused, it is ignored.
  *          Nikita's own message settles the thread as replied. Anything else is settled by rule on the Mac (skip
  *          list, money and legal, short codes, one-time codes, promos: ./rules.ts) or marked owed and queued.
  *   sort   `work` reads the thread's last messages from BlueBubbles into memory, swaps names and numbers for
@@ -46,6 +46,17 @@ export const DRAFT_KEEP_MS = 7 * 24 * 60 * 60_000;
 export const SUMMARY_KEEP_MS = 48 * 60 * 60_000;
 export const LATER_KEEP_MS = 14 * 24 * 60 * 60_000;
 export const SEEN_KEEP_MS = 24 * 60 * 60_000;
+/** How often `serve` polls BlueBubbles for new messages (#749). */
+export const POLL_MS = 5_000;
+/** How far back each poll reaches past its cursor, for a message Messages writes a moment late. */
+export const POLL_OVERLAP_MS = 2 * 60_000;
+/** The most a catch-up reaches back, after the hub was off (a longer gap is left to Messages). */
+export const CATCH_UP_MS = 24 * 60 * 60_000;
+export const POLL_PAGE = 200;
+export const POLL_PAGES = 10;
+
+/** A message guid as the state file keeps it (#749): 16 hex of its SHA-256, never the guid. */
+const guidHash = (guid: string) => createHash("sha256").update(guid).digest("hex").slice(0, 16);
 
 export interface EngineDeps {
   store: StateStore;
@@ -181,7 +192,61 @@ export class Engine {
     } else this.d.log.log("skip terms failed");
   }
 
-  /** One message from BlueBubbles' webhook. */
+  /**
+   * One poll of BlueBubbles for new messages (#749), every POLL_MS from `serve`, and a catch-up when the hub starts:
+   * everything dated after the cursor (less POLL_OVERLAP_MS, for a message Messages writes late), oldest first, page
+   * by page, each guid taken in once. The first poll ever starts from now; a gap is caught up for CATCH_UP_MS at most.
+   * Paused, the cursor moves on and nothing is taken in, as the webhook was ignored. Returns how many came in.
+   */
+  async poll(): Promise<number> {
+    const now = this.d.now();
+    const s = this.d.store.load();
+    if (s.paused || !s.inbox) {
+      // Start (or, paused, move on) from now: what is already there, in the overlap window, counts as read.
+      const recent: { h: string; at: number }[] = [];
+      try {
+        for (const p of await this.d.bb.since(now - POLL_OVERLAP_MS, 1_000)) recent.push({ h: guidHash(p.guid), at: p.at });
+      } catch {
+        // Nothing seen yet: the next poll reads the overlap again, and `serve` logs a poll that keeps failing.
+      }
+      this.change((x) => {
+        x.inbox = { at: Math.max(now, ...recent.map((r) => r.at)), recent: recent.slice(-2_000) };
+      });
+      return 0;
+    }
+    let cursor = s.inbox.at;
+    const recent = new Map(s.inbox.recent.map((e) => [e.h, e.at]));
+    let from = Math.max(cursor - POLL_OVERLAP_MS, now - CATCH_UP_MS);
+    let taken = 0;
+    try {
+      for (let page = 0; page < POLL_PAGES; page++) {
+        const got = await this.d.bb.since(from, POLL_PAGE);
+        for (const p of got) {
+          const h = guidHash(p.guid);
+          if (recent.has(h)) continue;
+          recent.set(h, p.at);
+          cursor = Math.max(cursor, p.at);
+          if (p.inbound) {
+            await this.onMessage(p.inbound);
+            taken++;
+          }
+        }
+        if (got.length < POLL_PAGE) break;
+        const last = got[got.length - 1]!.at;
+        if (last <= from) break;
+        from = last;
+      }
+      this.linkMessages = "up";
+    } finally {
+      this.change((x) => {
+        x.inbox = { at: cursor, recent: [...recent].filter(([, at]) => at >= cursor - POLL_OVERLAP_MS).map(([h, at]) => ({ h, at })).slice(-2_000) };
+      });
+    }
+    if (taken) this.d.log.log("messages in", { count: taken });
+    return taken;
+  }
+
+  /** One new message, from the poll. */
   async onMessage(m: Inbound): Promise<void> {
     const state = this.d.store.load();
     if (state.paused) return;

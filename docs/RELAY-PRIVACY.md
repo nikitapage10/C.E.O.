@@ -578,5 +578,5 @@ Run by `npm test`:
   open to the network. The hub's hash is stamped into the installer, the `relay` command is written from the
   script's own functions (valid bash, no download), and the pair code is read hidden.
 - **`apps/hub/build.mjs`** fails the build if the hub's bundle contains the Anthropic SDK or an API-key header.
-- **`apps/world/src/desk/security/model.test.ts`** keeps the Desk's copy of THREAT-MODEL.md word for word, and
+- **`rooms/boiler/data/model.test.ts`** keeps the Desk's copy of THREAT-MODEL.md word for word, and
   **`api/_world/prompt.test.ts`** proves the world step never carries Relay-style messages or contacts.

@@ -28,7 +28,7 @@ the engine's `<RoomSections>`. Until a room's own step lands, its code stays whe
 | `@ceo/engine/sigils/*` | The particle layer: `wvCanvas.ts` (the Desk's one shared loop and canvas helpers), `motion.tsx`, the flow kit's core (`field.ts`, `draw.ts`, `path.ts`, `rise.ts`, `motes.ts`, `tempo.ts`, `flow.css`) and the glyph engine (`sigils.ts`, `sigils.css`, #615) | `desk/wvCanvas.ts`, `desk/motion.tsx`, `desk/flow/`, `desk/relay/sigils.ts` |
 | `@ceo/engine/web/*` | The sign-in shell: `signin.ts`, `SignIn.tsx`, `SitePassword.tsx`, the Hide veil (`hide.ts`, `Private.tsx`) and the device pings (`pings.ts`, `PingSwitch.tsx`) | the same names in `desk/` |
 | `@ceo/engine/web/RoomParts.tsx`, `web/roomParts.css` | The pieces room pages share (step 5): `Waits` (what a room waits on), `KeeperLine` (the keeper's portrait, line and name, handed in by the room; `desk/rooms/parts.tsx` `Keeper` reads them from the room's banner, so the engine reaches no lore), and the shared rules for them and the room head (`rm-head`, `rm-h2`, `rm-guard`) | `desk/rooms/parts.tsx`, `desk/rooms/rooms.css` |
-| `@ceo/engine/web/sections.ts`, `web/RoomSections.tsx` | A room's sub-menu: which section a path opens, the tab's title, and the links (see `sections` under "The manifest") | `desk/SystemsNav.tsx` |
+| `@ceo/engine/web/sections.ts`, `web/RoomSections.tsx` | A room's sub-menu: which section a path opens, the tab's title, and the links (see `sections` under "The manifest") | `rooms/boiler/web/SystemsNav.tsx` |
 | `@ceo/engine/web/RoomLoader.tsx`, `web/roomReady.ts`, `sigils/roomSigils.ts` | The room loader (#752): see "The room loader" below | |
 
 ### The room loader
@@ -177,7 +177,11 @@ re-exports for Today, and `chronicle.css` stays in the Desk because the Desk's o
 (step 12): `web/` holds the page and its acts, docket (`TodayNow`), rail, weave and more folios, the icons and `today.css`;
 `data/` holds the schedule maths with its test (moved unchanged; `desk/Today.tsx`, `TodayNow.tsx`, `TodayRail.tsx`,
 `todayIcons.tsx` and `todaySchedule.ts` re-export for the Desk shell, the Rotunda, the Boiler Room's settings, the to-do
-bits and the council). Every other
+bits and the council). The Boiler Room followed (step 13): `web/` holds the Map, Controls, Security and Compliance pages
+(`Systems*`, `ControlsPage`, `SecurityPage`, `CompliancePage`) with their panels, parts and stylesheets; `data/` holds the pipes, rack, pressure,
+wind, schematic, connections, controls and pages logic, the security model, keys, checks and feed, and `evals.json`, with
+their tests (moved unchanged apart from import paths and the two path constants that read `docs/` and write `evals.json`;
+security, compliance and connections behave exactly as before; `desk/SystemsNav.tsx` re-exports for two Desk tests). Every other
 room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest

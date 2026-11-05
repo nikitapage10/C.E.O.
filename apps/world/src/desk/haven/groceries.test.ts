@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { krogerImage, matchAll, readGroceries, shelfOf, type GAction, type GReply } from "./groceries.ts";
+import { krogerImage, matchAll, readGroceries, reviewOf, shelfOf, VERDICT_BADGE, type GAction, type GReply } from "./groceries.ts";
 
 /** Product photos on the Kitchen page (#677): only Kroger's own https image host ever reaches an <img>. */
 
@@ -18,7 +18,7 @@ describe("grocery photos (#677)", () => {
 });
 
 describe("Shopping (#737)", () => {
-  const reply = (matched: number, left: number, ok = true): GReply => ({ ok, status: ok ? 200 : 502, error: ok ? null : "vendor", view: null, url: null, items: 0, already: 0, matched, left });
+  const reply = (matched: number, left: number, ok = true): GReply => ({ ok, status: ok ? 200 : 502, error: ok ? null : "vendor", view: null, url: null, items: 0, already: 0, matched, left, by: null, usd: 0 });
 
   it("matches everything in one press, telling how far it got", async () => {
     const answers = [reply(25, 13), reply(13, 0)];
@@ -77,5 +77,36 @@ describe("Shopping (#737)", () => {
       ],
     });
     expect(v?.lines.map((l) => l.inCart)).toEqual([true, false]);
+  });
+});
+
+describe("the quantity check (#761)", () => {
+  const prod = { productId: "g1", price: 79, description: "Fresh Garlic", size: "1 ct" };
+  it("reads each pick's check, count and staleness strictly", () => {
+    const v = readGroceries({
+      ready: true,
+      plan: { changed: 1, stale: 1, fresh: 2 },
+      lines: [
+        { id: "1", name: "garlic 30 cloves", key: "garlic 30 clove", qty: 3, stale: true, pick: { product: prod, alts: [], review: { productId: "g1", qty: 3, verdict: "covered", reason: "1 head ≈ 10 cloves", better: null, by: "ai" } } },
+        { id: "2", name: "panko", key: "panko", qty: 99, pick: { product: { ...prod, productId: "k1" }, alts: [], review: { productId: "k1", qty: 1, verdict: "great", reason: "x" } } },
+        { id: "3", name: "eggs", key: "egg", qty: 2, pick: { product: { ...prod, productId: "e2" }, alts: [], review: { productId: "e1", qty: 2, verdict: "short", reason: "old pick", better: null } } },
+      ],
+    })!;
+    expect(v.plan).toEqual({ changed: 1, stale: 1, fresh: 2 });
+    expect(v.lines.map((l) => [l.qty, l.stale])).toEqual([
+      [3, true],
+      [1, false],
+      [2, false],
+    ]);
+    expect(reviewOf(v.lines[0]!)).toMatchObject({ qty: 3, verdict: "covered", by: "ai" });
+    expect(v.lines[1]!.pick!.review).toBeNull();
+    // A check made for another product doesn't hold for this one.
+    expect(reviewOf(v.lines[2]!)).toBeNull();
+    expect(VERDICT_BADGE.covered).toBeNull();
+    expect(VERDICT_BADGE.wrong).toBe("wrong product");
+  });
+
+  it("an old answer without a plan reads as unchanged", () => {
+    expect(readGroceries({ ready: true, lines: [] })!.plan).toEqual({ changed: 0, stale: 0, fresh: 0 });
   });
 });

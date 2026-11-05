@@ -39,6 +39,7 @@ import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoSt
 import { onWrote, touchesList, touchesMeals } from "../skippy/wrote.ts";
 import { cookLunchOf, cookOf, type Cook } from "./cook.ts";
 import { CookMode } from "./CookMode.tsx";
+import { onListCleared } from "./groceries.ts";
 import "./meals.css";
 
 /**
@@ -936,6 +937,27 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
 
   // A week that's gone (moved on, or Undo took it back) falls back to the current one.
   const at = file && start && file.ahead.some((w) => w.start === start) ? start : null;
+
+  // The Shopping card's Clear list (#761): the list is empty, so the week shown opens again (Finalize too) at Plan.
+  const atRef = useRef<string | null>(null);
+  useEffect(() => {
+    atRef.current = at;
+  }, [at]);
+  useEffect(
+    () =>
+      onListCleared(() => {
+        setPhase("plan");
+        setPick(null);
+        onListChanged();
+        const n = ++seq.current;
+        void mealsAction({ action: "reopen", ...(atRef.current && { week: atRef.current }) }).then((r) => {
+          if (n !== seq.current) return;
+          if (r.status === 401) return useDeskAuth.getState().lost();
+          if (r.ok && r.file) setFile(r.file);
+        });
+      }),
+    [onListChanged],
+  );
   const aim = useCallback((e: MealEdit): MealEdit => (at && e.op !== "undo" && e.op !== "next-week" && e.op !== "plan-ahead" ? { ...e, week: at } : e), [at]);
   const edit = useCallback(
     (e: MealEdit) => {

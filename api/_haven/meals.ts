@@ -13,6 +13,12 @@
  *                                                       picks it up) → { changes, added, already, photos (the
  *                                                       customized nights waiting for a photo), meals }.
  *                                                       `week` (a Monday) aims confirm or send at a week ahead (#721).
+ *                                                       Finalizing again after the plan changed (#761) also takes
+ *                                                       off the open list lines the planner put there that no week
+ *                                                       sent to the list wants any more.
+ *   POST /api/haven-meals { action: "reopen" }          passkey session (#761, the Shopping card's Clear list): the
+ *                                                       week back to a draft, not sent, so Finalize is open again
+ *                                                       → { meals }.
  *   POST /api/haven-meals { action: "send" }            passkey session: the week's shopping onto the list again
  *                                                       → { added, already, meals }.
  *   POST /api/haven-meals { action: "seed", meals, replace? }   passkey session: load a whole file (checked by
@@ -35,8 +41,8 @@ import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { readJson, updateJson } from "./json.js";
-import { KitchenList } from "./list.js";
-import { addLunches, allComponents, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
+import { KitchenList, sameKey } from "./list.js";
+import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
 
@@ -78,6 +84,17 @@ export class MealsStore {
     });
   }
 
+  /** A week back to a draft, not sent (#761): Finalize opens again. No Undo: it changes nothing about what's cooked. */
+  async reopen(start?: string): Promise<MealsFile | null> {
+    return updateJson<unknown, MealsFile | null>(this.blob, MEALS_PATH, null, (raw) => {
+      const file = readMeals(raw);
+      if (!file?.week) return { next: null, result: file };
+      const open = <W extends { confirmedAt: string | null; photoQueue: unknown[]; sentAt: string | null }>(w: W): W => ({ ...w, confirmedAt: null, photoQueue: [], sentAt: null });
+      const next = { ...file, week: !start || start === file.week.start ? open(file.week) : file.week, ahead: file.ahead.map((w) => (w.start === start ? open(w) : w)) };
+      return { next, result: next };
+    });
+  }
+
   /** Marks a week sent (no Undo: the list keeps its own): the current one, or one ahead by its Monday (#721). */
   async sent(now: number, start?: string): Promise<MealsFile | null> {
     return updateJson<unknown, MealsFile | null>(this.blob, MEALS_PATH, null, (raw) => {
@@ -91,14 +108,42 @@ export class MealsStore {
   }
 }
 
-/** The week's shopping onto the Kitchen list (source "meals"), then the week marked sent. Null when there's nothing to send. */
-export async function sendWeek(blob: BlobBackend, now: number, start?: string): Promise<{ added: number; already: number; meals: MealsFile | null } | null> {
+/**
+ * What the planner wants on the Kitchen list (#761): every week whose shopping went to the list, with its lines as the
+ * plan stands now. `keep` is their lines' keys; `changed` how many of those weeks changed since they were finalized (a
+ * draft again), and `fresh` those weeks' lines, to tell which matches no longer fit and what isn't on the list yet.
+ */
+export function plannedLines(meals: MealsFile | null): { keep: Set<string>; changed: number; fresh: string[] } {
+  const keep = new Set<string>();
+  const fresh: string[] = [];
+  let changed = 0;
+  if (!meals?.week) return { keep, changed, fresh };
+  for (const w of allWeeks(meals)) {
+    if (!w.sentAt) continue;
+    const lines = shoppingList(viewOf(meals, w.start === meals.week.start ? null : w.start)).map(shopLine);
+    for (const l of lines) keep.add(sameKey(l));
+    if (!w.confirmedAt) {
+      changed++;
+      fresh.push(...lines);
+    }
+  }
+  return { keep, changed, fresh };
+}
+
+/**
+ * The week's shopping onto the Kitchen list (source "meals"), then the week marked sent. Null when there's nothing to
+ * send. With `sync` (finalizing, #761), the planner's own open lines that no sent week wants any more come off.
+ */
+export async function sendWeek(blob: BlobBackend, now: number, start?: string, sync = false): Promise<{ added: number; already: number; dropped: number; meals: MealsFile | null } | null> {
   const store = new MealsStore(blob);
   const meals = await store.read();
   const lines = meals?.week ? shoppingList(viewOf(meals, start)).map(shopLine) : [];
   if (!lines.length) return null;
-  const { added, already } = await new KitchenList(blob).add(lines, now, "meals");
-  return { added: added.length, already: already.length, meals: await store.sent(now, start) };
+  const list = new KitchenList(blob);
+  const { added, already } = await list.add(lines, now, "meals");
+  const sent = await store.sent(now, start);
+  const dropped = sync && sent ? await list.dropMissing("meals", plannedLines(sent).keep, now) : 0;
+  return { added: added.length, already: already.length, dropped, meals: sent };
 }
 
 /** The counts for the Haven's status view. */
@@ -175,12 +220,18 @@ export async function mealsPost(request: Request, deps: MealsDeps): Promise<Resp
   if (body.action === "confirm") {
     const got = await store.edit({ op: "confirm", ...(week && { week }) }, now);
     if (!got.ok) return reply({ error: got.error }, got.error === "not-seeded" ? 404 : 409);
-    const sent = await sendWeek(deps.blob, now, week);
+    const sent = await sendWeek(deps.blob, now, week, true);
     // The customized nights to photograph (`week.photoQueue`): the Desk hands them to the photo library
     // (POST /api/haven-photos, api/_haven/photos.ts) and writes the ids back with the `photo` edit.
     const photos = photoJobs(viewOf(got.file, week)).length;
-    deps.log(`haven: the week was confirmed (${sent?.added ?? 0} to the list, ${photos} photos to make)`);
-    return reply({ ok: true, changes: got.changes, added: sent?.added ?? 0, already: sent?.already ?? 0, photos, ...view(sent?.meals ?? got.file) });
+    deps.log(`haven: the week was confirmed (${sent?.added ?? 0} to the list${sent?.dropped ? `, ${sent.dropped} off it` : ""}, ${photos} photos to make)`);
+    return reply({ ok: true, changes: got.changes, added: sent?.added ?? 0, already: sent?.already ?? 0, dropped: sent?.dropped ?? 0, photos, ...view(sent?.meals ?? got.file) });
+  }
+  if (body.action === "reopen") {
+    const meals = await store.reopen(week);
+    if (!meals?.week) return reply({ error: "no-week" }, 409);
+    deps.log("haven: the week was reopened");
+    return reply({ ok: true, ...view(meals) });
   }
   if (body.action === "send") {
     const got = await sendWeek(deps.blob, now, week);

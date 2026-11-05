@@ -17,6 +17,7 @@ import {
   mealsPost,
   mealsPut,
   photoJobs,
+  plannedLines,
   readEdit,
   readMeals,
   shopLine,
@@ -267,5 +268,33 @@ describe("/api/haven-meals", () => {
     const list = await new KitchenList(d.blob).items(NOW);
     expect(list.every((i) => i.source === "meals")).toBe(true);
     expect(list.map((i) => i.name)).toContain("Quinoa (1 cup)");
+  });
+
+  it("a change after finalizing reopens Finalize and marks what no longer fits; finalizing again takes it off; reopen opens the week (#761)", async () => {
+    const d = deps();
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    await mealsPost(post({ action: "seed", meals: fixture() }, cookie), d);
+    await mealsPost(post({ action: "edit", edit: { op: "customize", day: "mon", part: { index: 1, option: "quinoa" } } }, cookie), d);
+    await mealsPost(post({ action: "confirm" }, cookie), d);
+    const list = new KitchenList(d.blob);
+    await list.add(["paper towels"], NOW);
+    // Changed back after finalizing: a draft again, and quinoa no longer wanted.
+    const back = (await (await mealsPost(post({ action: "edit", edit: { op: "customize", day: "mon", part: { index: 1, option: "jasmine-rice" } } }, cookie), d)).json()) as { meals: MealsFile };
+    expect(back.meals.week!.confirmedAt).toBeNull();
+    const plan = plannedLines(back.meals);
+    expect(plan.changed).toBe(1);
+    expect(plan.keep.has("quinoa (1 cup)")).toBe(false);
+    // Finalize again: quinoa comes off the list; his own item stays.
+    const again = (await (await mealsPost(post({ action: "confirm" }, cookie), d)).json()) as { dropped: number; meals: MealsFile };
+    expect(again.dropped).toBeGreaterThanOrEqual(1);
+    const names = (await list.items(NOW)).map((i) => i.name);
+    expect(names).not.toContain("Quinoa (1 cup)");
+    expect(names).toContain("paper towels");
+    expect(plannedLines(again.meals).changed).toBe(0);
+    // Clear list: everything off, then the week reopened.
+    expect(await list.clearAll(NOW)).toBe(names.length);
+    const reopened = (await (await mealsPost(post({ action: "reopen" }, cookie), d)).json()) as { meals: MealsFile };
+    expect(reopened.meals.week).toMatchObject({ confirmedAt: null, sentAt: null, photoQueue: [] });
+    expect(plannedLines(reopened.meals)).toMatchObject({ changed: 0, fresh: [] });
   });
 });

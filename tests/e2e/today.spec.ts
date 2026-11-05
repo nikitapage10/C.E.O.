@@ -6,7 +6,7 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * Today as the Senate Rotunda (#740): the built site with made-up data stubbed in the browser. Skippy chairs a round
+ * Today as the Senate (#740): the built site with made-up data stubbed in the browser. Skippy chairs a round
  * chamber with the Council's subminds on bronze pods; what needs Nikita is the docket along its foot, each item a duty,
  * a decision or a repair that plays on the floor and answers in place. His own to-dos and the Lists sit under the
  * chamber. Signed out, the page keeps the chamber and the counts only.
@@ -186,7 +186,7 @@ test("signed in: the docket in the chamber, the Council's pods, the to-dos and t
 
   // The bar, and Ask Skippy bottom right.
   const bar = page.getByRole("navigation", { name: "Desk" });
-  await expect(bar.getByRole("link")).toHaveText(["Today", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
+  await expect(bar.getByRole("link")).toHaveText(["Senate", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
   await expect(page.getByRole("button", { name: "Ask Skippy", exact: true }).first()).toBeVisible();
   expect(errors).toEqual([]);
 });

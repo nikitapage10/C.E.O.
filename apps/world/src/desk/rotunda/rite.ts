@@ -1,5 +1,5 @@
 /**
- * The Senate Rotunda's order of business (#740), pure so it can be tested: how each item on Today's docket plays on the
+ * The Senate's order of business (#740), pure so it can be tested: how each item on Today's docket plays on the
  * chamber floor. Three kinds, each with its own ritual (the round 3 concept Nikita picked, 2026-11-04):
  *
  * - a **duty** (blue) is read by the clerk; its room's pod flies in, says it, and it is moved and seconded onto the

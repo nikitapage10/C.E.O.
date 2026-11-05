@@ -30,7 +30,7 @@ export const loadTodayMore = () => import("./TodayMore.tsx");
 const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore })));
 
 /**
- * Today, as the Senate Rotunda (#740; the round 3 concept Nikita picked, 2026-11-04). Skippy chairs a round chamber
+ * Today, as the Senate (#740; the round 3 concept Nikita picked, 2026-11-04). Skippy chairs a round chamber
  * and the Council's subminds sit round it on bronze pods (rotunda/Rotunda.tsx, 3D in its own chunk, flat CSS until it
  * loads). What needs Nikita is the docket along the chamber's foot, one card per item, each a duty, a decision or a
  * repair that plays on the floor in turn (rotunda/rite.ts): a duty is moved and seconded, a decision is debated and
@@ -109,7 +109,7 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
 
   return (
     <div className="today wv-page td rt-page">
-      <section className="rt" aria-label="Today">
+      <section className="rt" aria-label="The Senate">
         <TodayNow
             rotunda={{
               name: "Nikita",

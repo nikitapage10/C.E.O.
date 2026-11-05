@@ -55,7 +55,7 @@ interface Row {
   talk?: Target;
   /** A reminder on it has come due: it rises to the top. */
   due?: boolean;
-  /** How it plays on the Rotunda's floor (#740): its kind and its ritual's safe words. */
+  /** How it plays on the Senate floor (#740): its kind and its ritual's safe words. */
   rite?: Omit<RiteInput, "key">;
   /** A decision's options as buttons that answer it in place. */
   options?: () => ReactNode;
@@ -98,7 +98,7 @@ export interface NowInput {
   /** The eyebrow over the list: "Held for you" on Today since #413. */
   label?: string;
   /**
-   * The Senate Rotunda (#740): what needs him is the docket, one card per item along the foot of the chamber, each a
+   * The Senate (#740): what needs him is the docket, one card per item along the foot of the chamber, each a
    * duty, a decision or a repair that plays on the floor; his own to-dos sit under the chamber under "still left", with
    * the add line and `aside` (the Lists) beside them.
    */
@@ -406,9 +406,9 @@ export function TodayNow(p: NowInput) {
     );
   };
 
-  // The Rotunda's docket (#740): every row that needs him, each with its ritual, numbered in the list's order.
+  // The Senate's docket (#740): every row that needs him, each with its ritual, numbered in the list's order.
   const need = rows.filter((r) => r.room !== "today");
-  const inputs: RiteInput[] = need.map((r) => ({ key: r.key, ...(r.rite ?? { kind: "duty", by: "kernel", room: "Today", what: "something for you" }) }));
+  const inputs: RiteInput[] = need.map((r) => ({ key: r.key, ...(r.rite ?? { kind: "duty", by: "kernel", room: "Senate", what: "something for you" }) }));
   const bench = p.rotunda?.bench ?? [];
   const sig = JSON.stringify([inputs, bench]);
   // Keyed on the content, so the chamber gets a new docket only when it changes.
@@ -434,7 +434,7 @@ export function TodayNow(p: NowInput) {
       const kind: RiteKind = it?.kind ?? "duty";
       const isOpen = open === r.key;
       const toggle = () => setOpen(isOpen ? null : r.key);
-      const roomName = r.room === "today" ? "Today" : DESK_ROOMS[r.room].name;
+      const roomName = r.room === "today" ? "Senate" : DESK_ROOMS[r.room].name;
       const primary = r.card ? (
         <button type="button" className="rt-act is-p" aria-expanded={isOpen} aria-controls={`td-ni-${r.key}`} onClick={toggle}>
           {isOpen ? "Fold" : kind === "decision" ? "Details" : "Answer"}
@@ -538,7 +538,7 @@ export function TodayNow(p: NowInput) {
         <div className="rt-hall">
           <header className="rt-hd">
             <p className="rt-date">
-              Today · {new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+              The Senate · {new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
               <span> · the Council is in session</span>
             </p>
             <h1 id="td-now-h" className="desk__title rt-h1">

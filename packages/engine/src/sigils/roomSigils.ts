@@ -2,7 +2,7 @@
  * The rooms' sigils (#752): one small mark per Desk room, drawn as threads on the C.E.O. mark's 48 grid (the same
  * grid as the Lattice C in scripts/desk-icons.mjs). The room loader's motes gather along these strokes and the
  * hairlines draw in under them; with reduced motion the strokes simply show. Form follows the room: Today's sun over
- * the Rotunda, the Foundry's fire on its anvil, Relay's envelope, the Boiler Room's gauge on its pipe, the Archive's
+ * the Senate, the Foundry's fire on its anvil, Relay's envelope, the Boiler Room's gauge on its pipe, the Archive's
  * open book, the Spire, the Exchange's rising line, the Green's pitch, the Workshop's cube, the Studio's frame, the
  * Annex's pop-up tent and the Haven's house.
  *
@@ -46,7 +46,7 @@ const rays = (cx: number, cy: number, r0: number, r1: number, n: number): Stroke
 const H = { t: [24, 7], ur: [38.72, 15.5], lr: [38.72, 32.5], b: [24, 41], ll: [9.28, 32.5], ul: [9.28, 15.5], c: [24, 24] } as const satisfies Record<string, Pt>;
 
 export const ROOM_SIGILS: Record<string, RoomSigil> = {
-  // The sun over the Rotunda, where Skippy chairs the day.
+  // The sun over the Senate, where Skippy chairs the day.
   today: { strokes: [arc(24, 24, 8.5), ...rays(24, 24, 12.5, 18, 8)], nodes: [[24, 24]] },
   // Fire (the alchemists' rising triangle) over the anvil's face.
   foundry: {

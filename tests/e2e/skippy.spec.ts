@@ -70,7 +70,7 @@ for (const width of [1280, 400]) {
     await box.press("Enter");
     await expect(chat.getByText("Bask in my summary.")).toBeVisible();
     // The message goes with the page's own data for his quick take (#341), never with anything typed before.
-    expect(asked).toEqual([{ message: "What's going on?", history: [], page: expect.stringMatching(/^Nikita is on the Desk's Today page\./) }]);
+    expect(asked).toEqual([{ message: "What's going on?", history: [], page: expect.stringMatching(/^Nikita is on the Desk's Senate page\./) }]);
     // The unknown "merge" button is dropped in the browser too.
     await expect(chat.getByRole("button", { name: "Merge everything" })).toHaveCount(0);
     await expect(chat.getByRole("button", { name: /File: podium/ })).toBeVisible();
@@ -203,7 +203,7 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   await page.goto(BASE + "/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await page.waitForTimeout(1500);
-  // The Council of Skippies on Today loads his model since #666 (the Rotunda since #740, rotunda/rotundaScene.ts), but never the hologram itself.
+  // The Council of Skippies on Today loads his model since #666 (the Senate since #740, rotunda/rotundaScene.ts), but never the hologram itself.
   expect(asked.filter((u) => /holoScene|HologramStage/.test(u))).toEqual([]);
 
   await page.locator(".desk__skippy").click();

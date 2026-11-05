@@ -9,7 +9,7 @@ import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
 
 /**
  * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the Lattice C and the wordmark (#640), then every page as a plain word
- * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
+ * with a thread under the one you're on: the Senate (once Today, #775), the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Hands-free (#638), the way into
  * the Lattice, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
  * Keys 1 to 9 open them in order, 0 the tenth. The order is route.ts NAV_ORDER, by what actually works (Nikita,
@@ -20,7 +20,7 @@ import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
  */
 
 export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
-  { id: "today", label: "Today" },
+  { id: "today", label: "Senate" },
   { id: "foundry", label: "Foundry" },
   { id: "relay", label: "Relay" },
 ];

@@ -12,7 +12,7 @@ import { Talks } from "../confluence/Talks.tsx";
 import type { CouncilPulse } from "./live.ts";
 
 /**
- * A member of the Council, opened (#666, kept for the Rotunda in #740): what its room is doing now, the last real thing
+ * A member of the Council, opened (#666, kept for the Senate in #740): what its room is doing now, the last real thing
  * it did today, what's held for Nikita there, and his talks with it (signed in only for the words, Talks.tsx), with the
  * way into its room. Skippy's own card says what he says and opens his chat (Talk lives there).
  */

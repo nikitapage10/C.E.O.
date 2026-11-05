@@ -77,6 +77,11 @@ thing in the room, loyal underneath. Each bends it its own way.
 Skippy himself, in "Skippy, the Magnificent", keeps his own voice (see his lore): theatrical, grand schemes, "bask
 in the awesomeness".
 
+The same personalities show in the Senate, the Desk's first page (called Today until #775), where the Council sits in
+3D: each Skippy's idle, gestures, faces, blink rate and reactions to whoever is speaking come from one table,
+`apps/world/src/desk/rotunda/senators.ts`, played by `senateActor.ts`. Tune a submind's manner there, beside its voice
+here.
+
 ## The room voice: talking to a room without a call (#638)
 
 Nikita, 2026-11-04: "I don't want to have to initiate a call every time we want to do a command." So there is no call

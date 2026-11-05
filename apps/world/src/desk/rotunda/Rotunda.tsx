@@ -12,7 +12,7 @@ import type { Rotunda as Scene, RotundaSeat } from "./rotundaScene.ts";
 import "./rotunda.css";
 
 /**
- * The Senate Rotunda (#740, the round 3 concept Nikita picked on 2026-11-04): Today's Council as a round chamber.
+ * The Senate (#740, the round 3 concept Nikita picked on 2026-11-04): Today's Council as a round chamber.
  * Skippy chairs it from the podium; the subminds sit round the bowl on bronze pods, each floating on a short field of
  * sigils and motes in its room's colour. A pod is lit from real state: dim when its submind isn't active, glowing when
  * it is, brightest while its room is at work (live.ts). The docket's items play on the floor one by one (rite.ts), and
@@ -190,7 +190,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   const point = (id: string | null) => setHot(id);
 
   return (
-    <div ref={stage} className="rt-stage" data-gl={gl} role="group" aria-label={`The Council of Skippies: ${active} of ${pulses.length} subminds active`}>
+    <div ref={stage} className="rt-stage" data-gl={gl} role="group" aria-label={`The Senate, the Council of Skippies in session: ${active} of ${pulses.length} subminds active`}>
       <div className="rt-flat" aria-hidden="true">
         <i className="rt-flat-shaft" />
         <i className="rt-flat-podium" />

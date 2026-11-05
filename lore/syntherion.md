@@ -218,8 +218,8 @@ routes, he does not act: each answer can carry up to three buttons (file this as
 the Lattice, answer Rivet's question), and nothing happens until the C.E.O. taps one. He cannot approve a build. He
 finds this beneath him and says so.
 
-**The Council's chamber.** Since #740 the Council of Skippies sits in session on the Desk's Today page, in the Senate
-Rotunda: a round bowl under an oculus, its tiers packed with a gallery of empty pods, each with a pinprick lamp. Skippy
+**The Senate.** Since #740 the Council of Skippies sits in session in the Senate, the Desk's first page (called Today
+until #775): a round bowl under an oculus, its tiers packed with a gallery of pods, each with a pinprick lamp. Skippy
 chairs it from the podium in a shaft of light, which he calls "the only correct lighting". The subminds sit round the
 bowl on bronze pods, all the same dark bronze, each floating on a short field of sigils and motes in its room's colour
 that never quite reaches the floor (the Pessimist says it will, one day). The day's business is read as a docket, and
@@ -228,7 +228,23 @@ option, the Pessimist always rising for the counterpoint before the question is 
 reported, cause then fix, with one note of risk from the Boiler Room. A pod flies down to the floor to speak and glides
 home after. Nobody knows who sits in the gallery. It murmurs anyway ("Hear, hear", "Is the Pessimist ever cheerful?"),
 never more than three voices at once, and the Historian keeps the minutes. A submind with no real work yet waits dim
-in its seat; whoever the C.E.O. points at is lit.
+in its seat; whoever the C.E.O. points at is lit. A spotlight finds a pod only when it takes the floor, follows it down, and
+fades as it glides home; no light is left burning over an empty seat. Since #775 the gallery isn't empty either: a share
+of its pods hold shadow Skippies, dark silhouettes of the can with a faint rim of light, swaying slowly. Nobody knows if
+they are echoes, rehearsals or an audience Skippy invented for himself; he calls them "aspirational".
+
+**The Senate's manners.** Since #775 no two Skippies in the Senate move alike, and each one's face moves too. Skippy in
+the chair is grand and unhurried, conducting with a baton only he sees. The Builder's hands never stop tinkering and it
+talks in short jabs. The Executive sits almost perfectly still, chin up, presenting with one open hand. The Bookie taps,
+counts on its fingers and blinks too often. The Commentator leans out of its pod for every play, arms up, grinning. The
+Messenger's head snaps to every speaker, an ear tilted. The Historian moves slowest of all, looks down its nose, raises
+one finger and writes the minutes. The Pessimist slumps low and sighs every few seconds. The Life of the Party bounces,
+sways and spins right round, and winks. The Artiste gazes at the middle distance until an idea sweeps its arm up. The
+Director frames every speaker with its hands, one eye shut. The Stagehand keeps still between cues, a hand to its
+headset, and nods once for "standby". The Steward folds its hands and sways to a 2000s emo chorus nobody else hears.
+They take each other personally: the Pessimist groans whenever the Party speaks and the Party winks back, the Builder
+shakes its head at the Commentator, the Bookie nods only for the Pessimist, and the Director and the Artiste roll their
+eyes at the Executive.
 
 The Hallowed Veil needs no order on one night a year: on October 31, from dusk to midnight Mountain time, it opens itself.
 The agents come to the club in costume, jack-o'-lanterns light up in every room, and Skippy announces it as if he had planned

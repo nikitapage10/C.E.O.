@@ -77,7 +77,7 @@ const accentOf = (route: Exclude<Route, "lattice">) => (route === "today" ? "--i
 
 type DeskTab = Exclude<Route, "lattice">;
 
-const TITLES: Partial<Record<DeskTab, string>> = { relay: "Relay", foundry: "Foundry", archive: "Archive", spire: "Spire", exchange: "Exchange", green: "Green", workshop: "Workshop", studio: "Studio", annex: "Annex", haven: "Haven" };
+const TITLES: Partial<Record<DeskTab, string>> = { today: "The Senate", relay: "Relay", foundry: "Foundry", archive: "Archive", spire: "Spire", exchange: "Exchange", green: "Green", workshop: "Workshop", studio: "Studio", annex: "Annex", haven: "Haven" };
 
 export function Desk({ route }: { route: DeskTab }) {
   const awaySince = useAwaySince();

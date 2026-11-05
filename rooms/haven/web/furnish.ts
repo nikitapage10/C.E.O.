@@ -139,12 +139,13 @@ function lampSpot(R: Rect, tvWall: Side, retEnd: "lo" | "hi"): [number, number] 
 /** `pinLamp`: the openings came from the walls, so the arc lamp keeps the spot it had before they did (#764). */
 function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   const win = windowWall(R, p);
-  // The TV wall: the one the plan names; else the wall without glass nearest the Gym (#860); else across from the
-  // windows when that wall is solid, else the longest wall without glass.
+  // The TV wall: the wall without glass nearest the Gym (#860, Nikita: the TV and media stand go against the wall
+  // closest to the gym, whatever wall was saved before); else the one the plan names; else across from the windows
+  // when that wall is solid, else the longest wall without glass.
   const named = SIDES.find((s) => runs(R, s, p.tv ?? []).length);
   const solidSides = SIDES.filter((s) => glass(R, s, p) === 0);
   const nearGym = gymAt(p) ? byGym(R, p, solidSides)[0] : undefined;
-  const tvWall = named ?? nearGym ?? (glass(R, OPP[win], p) === 0 ? OPP[win] : ([...solidSides].sort((a, b) => wallLen(R, b) - wallLen(R, a))[0] ?? OPP[win]));
+  const tvWall = nearGym ?? named ?? (glass(R, OPP[win], p) === 0 ? OPP[win] : ([...solidSides].sort((a, b) => wallLen(R, b) - wallLen(R, a))[0] ?? OPP[win]));
   const L = wallLen(R, tvWall), D = depthTo(R, tvWall);
   const out: PlanItem[] = [];
   const conLen = clampLen(L * 0.6, 120, 260);

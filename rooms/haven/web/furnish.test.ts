@@ -40,8 +40,14 @@ describe("dressing the rooms (#747, #764)", () => {
     }
   });
 
-  it("hangs the living room's TV on the wall the plan names, over its console, the sectional facing it", () => {
-    const list = plan.items.filter(inRoom("living"));
+  it("with a Gym, hangs the TV on the solid wall nearest it even when another wall was saved (#860)", () => {
+    const named = furnish(base).items.filter(inRoom("living")).find((i) => i.k === "tv")!;
+    const fresh = furnish({ ...base, tv: [] }).items.filter(inRoom("living")).find((i) => i.k === "tv")!;
+    expect([named.x, named.y, named.w, named.h]).toEqual([fresh.x, fresh.y, fresh.w, fresh.h]);
+  });
+
+  it("without a Gym, hangs the living room's TV on the wall the plan names, over its console, the sectional facing it", () => {
+    const list = furnish({ ...base, rooms: base.rooms.filter((r) => r.id !== "gym") }).items.filter(inRoom("living"));
     const tv = list.find((i) => i.k === "tv")!;
     expect(tv.x).toBe(600);
     expect(list.find((i) => i.k === "console")!.x).toBeLessThan(650);

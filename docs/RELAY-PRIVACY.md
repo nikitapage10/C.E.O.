@@ -17,7 +17,10 @@ only. It is not an urgency filter. It keeps track of who Nikita owes a reply, so
 come first, lets them push a reply to later, nudges them gently once or twice a day, and drafts replies in their own
 voice, learned from their own past replies to that contact. A dictated reply is lightly restyled. **Nothing is sent
 without Nikita's tap on the Desk.** Group chats are only summarised, never drafted for; since #805 Nikita can answer
-one with his own typed words, sent exactly as typed.
+one with his own typed words, sent exactly as typed. Since #916 a chat counts as a group only with 6 or more other
+people (`GROUP_MIN_PEOPLE` in `apps/hub/src/bluebubbles.ts`, from BlueBubbles' participants; a chat whose size
+BlueBubbles doesn't give stays a group). A smaller chat of several is handled as a one-to-one thread (see "Small chats
+of several" below).
 
 The parts:
 
@@ -98,6 +101,13 @@ cost (tokens and dollars) is kept.
   earlier turns (2,000 characters in all), up to 8 of Nikita's own past replies to that same contact as style
   examples (1,500 characters in all), the style profile's four numbers, and, when Nikita dictated, their words to
   restyle (1,000 characters at most). Never another contact's messages.
+- **Small chats of several (#916).** A chat with 2 to 5 other people is sorted and drafted for like a one-to-one
+  thread, under every rule above: each person in it is `Member 1`, `Member 2`… inside the placeholdered text, every
+  line of theirs is written `them` (no Member line reaches Blasto), the rules run on each line with its own sender
+  and the skip list over everyone in the chat, so one skip-listed person keeps the whole chat from the models. Its
+  style examples are Nikita's own past texts in that chat; no learned relationship applies. The names go back only on
+  the Mac, into the gist and draft. Its reply goes to that chat's own id, never to one of its people, through the same
+  signed, single-use, 10-minute send as any other. The learn pass still reads one-to-one chats only.
 - **Blasto, learning the voice** (#758, Claude Sonnet, once per tap of "Learn from my texts") sees about 1,000 of
   Nikita's own sent texts from the last 12 months: one-to-one chats only, contacts in Mac Contacts only, the 60
   most-texted at most, 30 texts per contact at most (spread over the year), 200 characters each and 60,000 in all,
@@ -457,7 +467,9 @@ sealed list holds. The public site still gets counts only.
   (money, legal, codes, short codes, promos, the skip list): the hub clears them the moment a rule matches, and the
   site never sees them. They are never logged, never in the state file and never sent to a model beyond the
   placeholdered snippets above. The gist stays as a small line under them.
-- **Groups.** A group's summary shows in a Groups section on the Texts page. A group becomes owed when Dialtone says
+- **Groups.** A group (6 or more other people, #916) has its summary in a Groups section on the Texts page; a smaller
+  chat of several is on the line with the one-to-one threads, named by its name in Messages or its people's first
+  names, each of its lines with its sender. A group becomes owed when Dialtone says
   Nikita was asked something, or when one of Nikita's names (`me` in the hub's `config.json`, "Nikita" by default)
   stands as a word in a member's text. It is still never drafted for. BlueBubbles 1.9.12 doesn't expose a chat's mute
   state (its `isFiltered` is the unknown-senders filter), so muted groups aren't treated apart.

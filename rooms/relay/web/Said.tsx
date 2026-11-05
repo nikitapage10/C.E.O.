@@ -37,7 +37,8 @@ function Words({ m }: { m: Shown }) {
 }
 
 /**
- * Their own texts (#758). In a group, each line with its sender's face and name, oldest first. In a one-to-one thread
+ * Their own texts (#758). In a group, or a small chat of several (#916, Nikita's own lines marked "you"), each line
+ * with its sender's face and name, oldest first. In a one-to-one thread
  * the card is the conversation (#904, Nikita: "like iMessage"): their lines on the left, his own (`me: true`) on the
  * right, the older ones dimmer above, and the newest at the bottom, large. Nothing is blurred: the context stays
  * readable, and brightens on hover or keyboard focus.
@@ -49,11 +50,13 @@ export function Said({ messages, hidden }: { messages: NonNullable<Exchange["mes
       <ol className="cx-said">
         {messages.map((m, i) => (
           <li key={`${m.at}-${i}`} className="cx-msg">
-            {m.from !== undefined && (
+            {m.from !== undefined && m.from !== "me" ? (
               <span className="cx-who">
                 <MemberFace name={m.from} photo={m.photo} hidden={hidden} />
                 <Private>{m.from}</Private>
               </span>
+            ) : (
+              mine(m) && <span className="cx-lab">you</span>
             )}
             <Words m={m} />
           </li>

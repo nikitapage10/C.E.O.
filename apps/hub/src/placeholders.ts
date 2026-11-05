@@ -22,6 +22,11 @@ export interface Known {
   contact?: { names: string[]; handle: string };
   /** Group members, in order, as "Member 1"…: their names and handles. */
   members?: { names: string[]; handle: string }[];
+  /**
+   * Put each member's first name back for "Member N" in `restore` (#916): a small chat of several's draft and gist,
+   * for Nikita's eyes, as "Contact" is in a one-to-one thread. A group's summary keeps its placeholders, as before.
+   */
+  restoreMembers?: boolean;
   /** Every other name in Nikita's contacts (first, last and full), for "Person N". */
   others: string[];
 }
@@ -48,6 +53,8 @@ export class Placeholders {
     known.members?.forEach((m, i) => {
       for (const name of withParts(m.names)) add(name, `Member ${i + 1}`);
       add(m.handle, `Member ${i + 1}`);
+      const first = m.names.find((x) => x.trim().length >= 2);
+      if (known.restoreMembers && first) this.back.set(`Member ${i + 1}`, first.trim().split(/\s+/)[0]!);
     });
     // Longer names first, so "Sam Reyes" goes before "Sam".
     const others = withParts(known.others);

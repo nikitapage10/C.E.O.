@@ -16,7 +16,8 @@ import { settleByRule } from "./rules.ts";
  *   check    the last item is a reaction, a system item or has no text: the engine reads that chat's latest messages
  *            and sorts it again on the newest real one.
  *
- * Groups stay summary-only and are left out. A chat whose last message is Nikita's own is answered. Read state
+ * Groups (#916: 6 or more other people, GROUP_MIN_PEOPLE) stay summary-only and are left out; a smaller chat of several
+ * is sorted like a one-to-one chat. A chat whose last message is Nikita's own is answered. Read state
  * (Messages' `dateRead`) only marks an owed chat unread; it never hides one.
  */
 
@@ -52,6 +53,9 @@ export function verdictOf(c: ChatInfo, now: number, skipTerms: readonly string[]
   // No words and no attachment mark: the chat's latest messages decide. A photo or a file with no words (#870) is a
   // text that came like any other: their sender's rules (the skip list, a short code) still run, on the handle alone.
   if (!m.text.trim() && !m.media) return now - m.at < OWED_WINDOW_MS ? "check" : "empty";
+  // A small chat of several (#916): the chat query's last message names no sender, so the chat's latest messages
+  // (which do) decide, and the skip list runs on whoever wrote it.
+  if ((c.multi ?? c.group) && !m.handle) return now - m.at < OLDER_WINDOW_MS ? "check" : "empty";
   const handle = m.handle || c.handle;
   if (settleByRule({ handle, names: contactOf(handle)?.names ?? [], text: m.text }, skipTerms)) return "settled";
   if (now - m.at < OWED_WINDOW_MS) return "owed";

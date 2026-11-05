@@ -45,7 +45,7 @@ export function whoMatches(contacts: readonly Contact[], query: string): Contact
 }
 
 /** The one-to-one chats with any of these handles (a number or an address), from BlueBubbles' chat list. */
-export const chatsFor = (chats: readonly ChatInfo[], handles: readonly string[]) => chats.filter((c) => !c.group && handles.some((h) => same(h, c.handle || chatPerson(c.chat))));
+export const chatsFor = (chats: readonly ChatInfo[], handles: readonly string[]) => chats.filter((c) => !(c.multi ?? c.group) && handles.some((h) => same(h, c.handle || chatPerson(c.chat))));
 
 /**
  * One chat's verdict, by the hub's own rules: `msgs` its latest messages (oldest first, words or attachments), as the

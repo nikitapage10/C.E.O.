@@ -154,11 +154,11 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
             .map((x) => (declined[x.key] !== undefined && declined[x.key] === x.draft ? { ...x, draft: null } : x))
             .map((x) => (!x.said && saidHere[x.key] && x.draft ? { ...x, said: saidHere[x.key]! } : x))
             // A text's ready draft folds until Reply (#642), unless it was written from Nikita's own words.
-            .map((x) => (x.line === "text" && x.draft && !revealed.includes(x.key) && !saidHere[x.key] ? { ...x, draft: null, ready: true } : x))
+            .map((x) => (x.line === "text" && x.draft && !revealed.includes(x.key) && !saidHere[x.key] ? { ...x, draft: null, ready: true, hint: x.draft } : x))
         : null),
     [all, gone, declined, saidHere, revealed],
   );
-  const ex = useMemo(() => (queue ? (queue.find((x) => x.key === current) ?? queue[0] ?? null) : null), [queue, current]);
+  const ex = useMemo(() => (queue ? (queue.find((x) => x.key === current) ?? queue.find((x) => !x.settled) ?? queue[0] ?? null) : null), [queue, current]);
   useEffect(() => setCurrent(ex?.key ?? null), [ex?.key]);
 
   const unlocked = !!textsView?.unlockedUntil && textsView.unlockedUntil > now;

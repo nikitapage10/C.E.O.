@@ -7,7 +7,7 @@ import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { gmailHref } from "./EmailSection.tsx";
 import { takeGmailReturn, useEmail } from "../data/email.ts";
-import { useTexts } from "../data/texts.ts";
+import { useTexts, type TextItem } from "../data/texts.ts";
 import { TextsSection } from "./TextsSection.tsx";
 import { setRelayHandler } from "../data/bridge.ts";
 import { GroupFlipper } from "./GroupFlipper.tsx";
@@ -16,25 +16,26 @@ import { RelayQueue, useMedia } from "./RelayQueue.tsx";
 import { Said } from "./Said.tsx";
 import { ghost, ghosted, quill, rise, SigilStage, sink } from "@ceo/engine/sigils/sigils.ts";
 import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGistLine, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "../data/thread.ts";
-import { wavePoint } from "../data/wave.ts";
 import { errorText, useThread, type Notice } from "../data/useThread.ts";
-import { useRoomMic } from "@ceo/desk/roomvoice/roomVoice.ts";
+import { listen, useRoomMic, type Listener } from "@ceo/desk/roomvoice/roomVoice.ts";
 import "./thread.css";
 
 /**
- * The Relay's nanites, its sigils, in the app's gold (Nikita, 2026-11-05: "keep the line blue and everything, but the
- * nanite should be gold"): every glyph on the spine, the wave, the quill and the bursts; the line's own glow and the
- * rest of the blue look stay as they are. The gold is the Desk's own accent (232, 207, 156).
+ * The Relay's nanites, its sigils, in soft white (Nikita, 2026-11-05: "I don't like the gold accent on the relay. They
+ * should be white."; #864 had made them gold): every glyph on the spine, the quill, the send and the bursts; the line's
+ * own glow and the rest of the blue look stay as they are.
  */
-const NANITE = { hi: "#e8cf9c", you: "#f3e3c0", white: "#fff4dc", sink: "#8f7d5c" } as const;
+const NANITE = { hi: "#eef2ff", you: "#ffffff", white: "#ffffff", sink: "#8a90a6" } as const;
 
 /**
  * Relay's Thread (#615, simplified in #642) in the Codex look Nikita picked: a glowing spine down the page. Since #803
  * everything about the exchange in focus sits right of the line (their photo, logo or glowing initial, their name in
  * serif italic, their own texts, the gist small, Blasto's advice, one row of actions: Draft it or Reply, Write, Done,
- * Later and "…"), written in by a quill of sigils from the spine; left of the line, what comes next rides a wave of
- * sigils toward it (./RelayQueue.tsx), and a small toggle on the line orders the queue newest, oldest or by priority.
- * A draft appears only when asked for, with Send, Edit and Change; Write and Edit send your own words exactly as typed.
+ * Later, Skip and "…"), written in by a quill of sigils from the spine; every owed thread's circle sits on the line
+ * itself, magnified under a glass lens where the pointer or the scroll is (./RelayQueue.tsx, #869), and a small toggle
+ * on the line orders the queue newest, oldest or by priority. A text opens straight on Nikita's own words (#869): the
+ * composer, with a mic to dictate into it and Blasto's draft only as a faint suggestion beside it; an email's draft
+ * appears when asked for, with Send, Edit and Change. Write and Edit send your own words exactly as typed.
  * What you say shows at the spine's foot while you speak, then fades; the keys hide behind "?".
  *
  * The to-do queue is one continuous codex: each exchange a full-height entry, soft-snapped. The entry in focus is the
@@ -175,9 +176,6 @@ function More({ x, t }: { x: Exchange; t: ReturnType<typeof useThread> }) {
         …
       </summary>
       <div className="cx-menu" role="menu">
-        <button type="button" role="menuitem" onClick={pick(() => t.say("skip"))}>
-          Skip <kbd>S</kbd>
-        </button>
         {x.line === "email" && (
           <>
             <button type="button" role="menuitem" onClick={pick(() => t.say("filter"))}>
@@ -216,34 +214,101 @@ function More({ x, t }: { x: Exchange; t: ReturnType<typeof useThread> }) {
   );
 }
 
+/** Opens a text's composer (#869): its circle on the line, R, or Reply. */
+const WRITE_EVENT = "relay:write";
+const openComposer = (key: string) => window.dispatchEvent(new CustomEvent(WRITE_EVENT, { detail: key }));
+
 const focusWords = () => document.getElementById("cx-words")?.focus();
 
 /**
  * Nikita's own reply (#803): what he types here goes exactly as typed when he taps Send, after the same few seconds of
  * Undo; no rewrite and no model. Blasto's voice is for his drafts and for what is said aloud (the dock's line).
  */
-function Own({ x, t, start, close }: { x: Exchange; t: ReturnType<typeof useThread>; start: string; close: () => void }) {
+function Own({ x, t, start, close, autoFocus, launch, children }: { x: Exchange; t: ReturnType<typeof useThread>; start: string; close: (() => void) | null; autoFocus: boolean; launch: (el: HTMLElement | null) => void; children?: ReactNode }) {
   const [text, setText] = useState(start);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const ear = useRef<Listener | null>(null);
+  const [hearing, setHearing] = useState(false);
+  const [micNote, setMicNote] = useState("");
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !autoFocus) return;
     el.focus({ preventScroll: true });
     el.setSelectionRange(el.value.length, el.value.length);
-  }, []);
+  }, [autoFocus]);
+  useEffect(() => () => ear.current?.cancel(), []);
   const locked = x.line === "text" && !t.unlocked;
+  const hint = x.hint && !t.hidden && text.trim() !== x.hint.trim() ? x.hint : null;
+  const take = (words: string) => {
+    setText(words);
+    window.setTimeout(() => {
+      const el = ref.current;
+      el?.focus({ preventScroll: true });
+      el?.setSelectionRange(words.length, words.length);
+    }, 0);
+  };
+  /** Dictation (#869): the browser's own speech recognition writes into the box; nothing goes until Send. */
+  const mic = async () => {
+    if (ear.current) {
+      const l = ear.current;
+      ear.current = null;
+      setHearing(false);
+      const got = await l.finish();
+      if ("error" in got) setMicNote(got.error);
+      else if ("clip" in got) setMicNote("Dictation needs a browser with speech recognition (Chrome, Edge or Safari).");
+      return;
+    }
+    const base = text.trim() ? `${text.trimEnd()} ` : "";
+    setMicNote("");
+    ear.current = listen((w) => setText(`${base}${w}`));
+    setHearing(true);
+  };
   return (
     <form
       className="cx-own"
+      data-hint={hint ? "" : undefined}
       onSubmit={(e) => {
         e.preventDefault();
-        if (t.sendOwn(text)) close();
+        ear.current?.cancel();
+        ear.current = null;
+        setHearing(false);
+        if (t.sendOwn(text)) {
+          launch(ref.current);
+          setText("");
+          close?.();
+        }
       }}
     >
       <label className="cx-sr" htmlFor={`cx-own-${x.key}`}>
         Your reply to {t.hidden ? "them" : x.who}, sent exactly as you type it
       </label>
-      <textarea id={`cx-own-${x.key}`} ref={ref} value={text} onChange={(e) => setText(e.target.value)} rows={Math.min(6, Math.max(2, text.split("\n").length))} maxLength={2_000} placeholder="Write it yourself. It goes exactly as typed." data-private="" />
+      <div className="cx-ownrow">
+        <textarea
+          id={`cx-own-${x.key}`}
+          ref={ref}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // Tab on an empty box takes the suggestion, as the iPhone's does on a tap.
+            if (e.key === "Tab" && !e.shiftKey && hint && !text.trim()) {
+              e.preventDefault();
+              take(hint);
+            }
+          }}
+          rows={Math.min(6, Math.max(2, text.split("\n").length))}
+          maxLength={2_000}
+          placeholder={hearing ? "Listening…" : "Write it, or tap the mic and say it. It goes exactly as written."}
+          data-private=""
+        />
+        {/* Blasto's draft, faint, off to the side: a suggestion to pick, never sent unless picked and sent (#869). */}
+        {hint && (
+          <div className="cx-hints" aria-label="Suggestion">
+            <button type="button" className="cx-hint" onClick={() => take(hint)} title="Use this suggestion (Tab)">
+              <Private>{hint}</Private>
+            </button>
+          </div>
+        )}
+      </div>
       <div className="cx-ask cx-acts">
         {locked ? (
           <button type="button" className="cx-opt is-yes" onClick={() => void useTexts.getState().unlock()} title="One passkey check unlocks sending on this device for 72 hours">
@@ -251,19 +316,28 @@ function Own({ x, t, start, close }: { x: Exchange; t: ReturnType<typeof useThre
           </button>
         ) : (
           <button type="submit" className="cx-opt is-yes" disabled={!text.trim() || t.hidden}>
-            Send as typed
+            Send
           </button>
         )}
-        <button type="button" className="cx-opt" onClick={close}>
-          Cancel
-        </button>
+        {typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
+          <button type="button" className="cx-opt cx-mic" data-on={hearing || undefined} aria-pressed={hearing} onClick={() => void mic()} title={hearing ? "Stop dictating" : "Dictate into the box"}>
+            {hearing ? "Stop" : "Mic"}
+          </button>
+        )}
+        {close && (
+          <button type="button" className="cx-opt" onClick={close}>
+            Cancel
+          </button>
+        )}
+        {children}
       </div>
+      {micNote && <p className="cx-warn">{micNote}</p>}
     </form>
   );
 }
 
 /** One exchange, right of the line (#803): who, their words, Blasto's advice, one row of actions; a draft only once asked for. */
-function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number; t: ReturnType<typeof useThread> }) {
+function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now: number; t: ReturnType<typeof useThread>; launch: (el: HTMLElement | null) => void }) {
   const hidden = t.hidden;
   const sealed = t.pending === x.key;
   const phase = focus ? t.phase : null;
@@ -277,7 +351,32 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
   useEffect(() => {
     if (!focus) setOwn(null);
   }, [focus]);
+  // Reply on a text (#869): a tap on its circle, R, or the Reply button opens the composer, Nikita's own words first.
+  useEffect(() => {
+    if (!focus || x.line !== "text" || !x.sendable) return;
+    const open = (e: Event) => {
+      if ((e as CustomEvent<string>).detail === x.key) setOwn((o) => o ?? "");
+    };
+    window.addEventListener(WRITE_EVENT, open);
+    return () => window.removeEventListener(WRITE_EVENT, open);
+  }, [focus, x.key, x.line, x.sendable]);
+  const textReply = x.line === "text" && x.sendable && phase === "incoming";
   const writing = focus && own !== null && (phase === "incoming" || phase === "ask");
+  /** One small, quiet row (#869): Skip, Done, Later, and "…". */
+  const rest = (
+    <>
+      <button type="button" className="cx-opt" onClick={() => t.say("skip")}>
+        Skip <kbd>S</kbd>
+      </button>
+      <button type="button" className="cx-opt" onClick={() => t.say("done")}>
+        Done <kbd>D</kbd>
+      </button>
+      <button type="button" className="cx-opt" onClick={() => t.say("later")}>
+        Later <kbd>L</kbd>
+      </button>
+      <More x={x} t={t} />
+    </>
+  );
   return (
     <article className="cx-entry" data-key={x.key} data-focus={focus || undefined} aria-label={`From ${hidden ? "someone" : x.who}`} aria-current={focus || undefined}>
       <div className="cx-folio">
@@ -291,24 +390,14 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
                 <span className="cx-meta">
                   {x.line === "email" ? "email" : x.channel === "SMS" ? "sms" : "text"} · {agoShort(now - x.at)}
                   {x.unread && <span className="cx-unread"> · unread</span>}
+                  {x.settled && <span className="cx-settled"> · no reply needed</span>}
                 </span>
               </span>
             </header>
             {x.messages?.length ? (
               <>
-                {/* Their own words (#758), oldest first; Dialtone's line stays as a small subtitle. */}
+                {/* Their own words (#758), the hero (#869): oldest first, the newest last and largest; no gist. */}
                 <Said messages={x.messages} hidden={hidden} />
-                {x.body ? (
-                  <p className="cx-gist">
-                    <span className="cx-lab">gist</span> <Private>{x.body}</Private>
-                  </p>
-                ) : (
-                  x.wait && (
-                    <p className="cx-gist">
-                      <span className="cx-lab">gist</span> {noGistLine(x)}
-                    </p>
-                  )
-                )}
               </>
             ) : (
               <p className="cx-msg">
@@ -326,19 +415,20 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
         {(focus || x.draft) && (
           <div className="cx-verse cx-you">
             <div className="cx-body">
-              <p className="cx-youlab">
-                <span className="cx-lab is-you">you</span>
-                {x.said && (
+              {x.said && (
+                <p className="cx-youlab">
                   <span className="cx-meta">
                     heard{" "}
                     <q>
                       <Private>{x.said}</Private>
                     </q>
                   </span>
-                )}
-              </p>
+                </p>
+              )}
               {writing ? (
-                <Own x={x} t={t} start={own} close={() => setOwn(null)} />
+                <Own x={x} t={t} start={own ?? ""} close={() => setOwn(null)} autoFocus launch={launch}>
+                  {textReply ? rest : null}
+                </Own>
               ) : focus && reading ? (
                 <p className="cx-quiet">Reading that…</p>
               ) : focus && phase === "drafting" ? (
@@ -358,23 +448,23 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
 
               {focus && phase === "incoming" && !reading && !writing && (
                 <div className="cx-ask cx-acts">
-                  {x.line === "email" || x.ready ? (
-                    <button type="button" className="cx-opt is-yes" onClick={() => t.say("draft")}>
-                      {x.line === "email" ? "Draft it" : "Reply"} <kbd>R</kbd>
+                  {textReply ? (
+                    <button type="button" className="cx-opt is-yes" onClick={() => setOwn("")} title="Write or say your reply; it goes exactly as written">
+                      Reply <kbd>R</kbd>
                     </button>
+                  ) : x.line === "email" ? (
+                    <>
+                      <button type="button" className="cx-opt is-yes" onClick={() => t.say("draft")}>
+                        Draft it <kbd>R</kbd>
+                      </button>
+                      {x.sendable && (
+                        <button type="button" className="cx-opt" onClick={() => setOwn("")} title="Type your reply; it goes exactly as typed">
+                          Write
+                        </button>
+                      )}
+                    </>
                   ) : null}
-                  {x.sendable && (
-                    <button type="button" className={x.line === "email" || x.ready ? "cx-opt" : "cx-opt is-yes"} onClick={() => setOwn("")} title="Type your reply; it goes exactly as typed">
-                      Write
-                    </button>
-                  )}
-                  <button type="button" className="cx-opt" onClick={() => t.say("done")}>
-                    Done <kbd>D</kbd>
-                  </button>
-                  <button type="button" className="cx-opt" onClick={() => t.say("later")}>
-                    Later <kbd>L</kbd>
-                  </button>
-                  <More x={x} t={t} />
+                  {rest}
                 </div>
               )}
 
@@ -406,6 +496,9 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
                         }}
                       >
                         Change
+                      </button>
+                      <button type="button" className="cx-opt" onClick={() => t.say("skip")}>
+                        Skip <kbd>S</kbd>
                       </button>
                       <More x={x} t={t} />
                     </>
@@ -444,7 +537,35 @@ function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number;
   );
 }
 
-const ORDER_LABEL: Record<Order, string> = { newest: "Newest", oldest: "Oldest", priority: "Priority" };
+/**
+ * The Groups shelf (#869, Nikita: "take group chats off the date-ordered line"): every group chat in one compact row on
+ * the stage, each with how many texts came since Nikita last spoke there and a dot when Messages shows it unread. A tap
+ * opens that group in the Codex's flipper, where he can read the summary and reply.
+ */
+function GroupShelf({ groups, hidden, open }: { groups: readonly TextItem[]; hidden: boolean; open: (id: string) => void }) {
+  if (!groups.length) return null;
+  return (
+    <nav className="cx-shelf" aria-label="Groups">
+      <span className="cx-lab">Groups</span>
+      <ol>
+        {groups.map((g) => {
+          const n = g.messages?.length ?? 0;
+          return (
+            <li key={g.id}>
+              <button type="button" onClick={() => open(g.id)} title={hidden ? "A group" : (g.summary?.text ?? g.name)} aria-label={`${hidden ? "A group" : g.name}${n ? `, ${n} new` : ""}${g.unread ? ", unread" : ""}`}>
+                {g.unread && <span className="cx-dot" aria-hidden="true" />}
+                <Private as="b">{g.name || "Group"}</Private>
+                {n > 0 && <em aria-hidden="true">{n}</em>}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+const ORDER_LABEL: Record<Order, string> ={ newest: "Newest", oldest: "Oldest", priority: "Priority" };
 
 /** Newest (the default), Oldest or Priority (Dialtone's "reply sooner" first): one segmented toggle on the line (#803). */
 function OrderToggle({ order, set }: { order: Order; set: (o: Order) => void }) {
@@ -468,11 +589,10 @@ export function RelayThread({ now }: { now: number }) {
   /** The spine's lit stretch (and its alpha, easing to `to`), the rush of its falling sigils, how loud the ear is. */
   const fx = useRef({ lit: null as Element | null, a: 0, to: 0, rush: 0, loud: 0, listening: false });
   const spineX = () => (sg.current && earRef.current ? sg.current.rel(earRef.current).cx : 0);
-  /** The queue's wave (#803): its box, whether it is drawn, and whether it lies flat (a phone). */
+  /** The queue on the line (#803, #869): its box, and whether it lies flat (a phone). */
   const waveRef = useRef<HTMLElement>(null);
   const narrow = useMedia("(max-width: 760px)");
   const still = useMedia("(prefers-reduced-motion: reduce)");
-  const wave = useRef({ on: false, narrow });
   const entryOf = (key: string | null | undefined) => (key ? (pagesRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`) ?? null) : null);
 
   // A filtered or blocked sender's words sink down the spine before the entry leaves.
@@ -491,7 +611,6 @@ export function RelayThread({ now }: { now: number }) {
   const { ex, phase, hidden } = t;
   const tRef = useRef(t);
   tRef.current = t;
-  wave.current = { on: !hidden && !!t.queue && t.queue.length > 1, narrow };
   // One listener (#638, #642): the Desk's room mic and hands-free hear Nikita; the Thread only lights its ear.
   const micPhase = useRoomMic((s) => (s.room === "relay" ? s.phase : "idle"));
   const [typed, setTyped] = useState("");
@@ -524,7 +643,6 @@ export function RelayThread({ now }: { now: number }) {
     setEngine(s);
     (window as unknown as { __relaySigils?: SigilStage }).__relaySigils = s;
     const amb = Array.from({ length: 26 }, () => ({ y: rnd(), v: 0.02 + rnd() * 0.04, g: Math.floor(rnd() * 40), o: (rnd() - 0.5) * 6, s: 6 + rnd() * 3 }));
-    const flow = Array.from({ length: 34 }, () => ({ u: rnd(), v: 0.035 + rnd() * 0.05, g: Math.floor(rnd() * 40), o: (rnd() - 0.5) * 22, s: 6 + rnd() * 3 }));
     let loud = 0;
     const off = s.field((c, time, dt) => {
       const ear = earRef.current;
@@ -566,21 +684,6 @@ export function RelayThread({ now }: { now: number }) {
         }
         if (rnd() < dt * 1.2) a.g = Math.floor(rnd() * 40);
         s.glyph(c, NANITE.hi, a.g, X + a.o, a.y * (E.y - 10), a.s, 0.4 * Math.sin(a.y * Math.PI));
-      }
-      // The queue's wave (#803): a ribbon of sigils flowing along it into the line, the rows riding the same curve.
-      const nav = waveRef.current;
-      if (nav && wave.current.on) {
-        const B = s.rel(nav);
-        for (const p of flow) {
-          p.u -= p.v * dt * (1 + f.rush * 2);
-          if (p.u < 0) {
-            p.u = 1;
-            p.g = Math.floor(rnd() * 40);
-          }
-          if (rnd() < dt * 0.8) p.g = Math.floor(rnd() * 40);
-          const [x, y] = wavePoint(p.u, time, B, wave.current.narrow);
-          s.glyph(c, NANITE.hi, p.g, x, y + p.o * Math.min(1, p.u * 3), p.s, 0.34 * Math.sin(p.u * Math.PI));
-        }
       }
       // The ear: a short wick of sigils at the foot of the spine, brighter while it hears you.
       const live = f.listening ? 1 : 0.55;
@@ -680,17 +783,42 @@ export function RelayThread({ now }: { now: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ex?.draft, ex?.key, phase]);
 
-  // The seal: on a yes the draft goes white and its sigils run up the spine and out the top.
+  /**
+   * The send (#869, Nikita: "a fun send animation"): the text lifts off as white sigils that stream to the line and up
+   * it, and the person's circle on the line flashes a ring and a small burst as they pass. Quick (about a second), and
+   * with reduced motion there is none: the undo line says it is sending.
+   */
+  const launched = useRef<string | null>(null);
+  const launch = useCallback(
+    (el: HTMLElement | null) => {
+      const s = sg.current;
+      launched.current = tRef.current.pending ?? tRef.current.ex?.key ?? null;
+      if (!s || !el || hidden || s.reduced) return;
+      const r = s.rel(el);
+      const X = spineX();
+      fx.current.rush = 1;
+      s.burst(r.cx, r.cy, { n: 150, w: r.w, h: r.h, dur: 1100, stagger: 420, size: 8, color: NANITE.you, to: () => [X + (rnd() - 0.5) * 6, -30], path: rise });
+      const li = waveRef.current?.querySelector<HTMLElement>(".rq-item[data-cur]");
+      const face = li?.querySelector(".rq-face");
+      if (!li || !face) return;
+      window.setTimeout(() => {
+        li.dataset.sent = "";
+        const c = s.rel(face);
+        s.burst(c.cx, c.cy, { n: 44, ang: 0, spread: Math.PI * 2, dist: 44, dur: 650, stagger: 80, size: 6, color: NANITE.white });
+      }, 260);
+      window.setTimeout(() => delete li.dataset.sent, 1_200);
+    },
+    [hidden],
+  );
+
+  // A send of the draft on screen (a yes, by tap, key or voice) takes off the same way.
   useEffect(() => {
-    const s = sg.current;
-    if (!s || !ex || t.pending !== ex.key || hidden) return;
-    const d = entryOf(ex.key)?.querySelector<HTMLElement>(".cx-draft");
-    if (!d) return;
-    const r = s.rel(d);
-    const X = spineX();
-    fx.current.rush = 1;
-    s.burst(r.cx, r.cy, { n: 160, w: r.w, h: r.h, dur: 1500, stagger: 600, size: 8, color: NANITE.you, to: () => [X, -30], path: rise });
+    if (!ex || t.pending !== ex.key || launched.current === ex.key) return;
+    launch(entryOf(ex.key)?.querySelector<HTMLElement>(".cx-draft") ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t.pending]);
+  useEffect(() => {
+    if (!t.pending) launched.current = null;
   }, [t.pending]);
 
   // A rule that didn't take: the words come back.
@@ -745,6 +873,16 @@ export function RelayThread({ now }: { now: number }) {
     },
     [pick],
   );
+  /** A tap on the line (#869): puts it in focus and, for a text, opens straight on the composer. */
+  const goWrite = useCallback(
+    (key: string) => {
+      goTo(key);
+      if (!key.startsWith("t:")) return;
+      // Once it is in focus (the next render), its composer opens.
+      window.setTimeout(() => openComposer(key), 60);
+    },
+    [goTo],
+  );
 
   // Keys: Y send, N no, R draft it, D done, L later, S skip, Z undo; J and K move; ? the list. Space is the room mic's.
   // Never while typing.
@@ -772,11 +910,17 @@ export function RelayThread({ now }: { now: number }) {
         e.preventDefault();
         return;
       }
+      // R on a text opens its composer (#869): Nikita's own words first; Blasto's draft waits there as a suggestion.
+      if (k === "r" && ex?.line === "text" && ex.sendable && phase === "incoming") {
+        openComposer(ex.key);
+        e.preventDefault();
+        return;
+      }
       if (!e.repeat && t.key(e.key)) e.preventDefault();
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [t, ex?.key, goTo]);
+  }, [t, ex?.key, ex?.line, ex?.sendable, phase, goTo]);
 
   const submit = (raw: string) => {
     const r = t.line(raw);
@@ -784,6 +928,14 @@ export function RelayThread({ now }: { now: number }) {
   };
 
   const waiting = t.metrics.waiting;
+  const textsItems = useTexts((s) => s.view?.items);
+  const shelf = useMemo(() => (t.signedIn ? groupsOf(textsItems, now, t.order) : []), [t.signedIn, textsItems, now, t.order]);
+  const [openGroup, setOpenGroup] = useState<{ id: string; at: number } | null>(null);
+  const showGroup = useCallback((id: string) => {
+    setOpenGroup({ id, at: Date.now() });
+    const sec = document.getElementById("cx-groups");
+    sec?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   return (
     <div className="cx" data-phase={phase} data-still={engine?.reduced || undefined}>
@@ -802,11 +954,14 @@ export function RelayThread({ now }: { now: number }) {
         {/* The order (#803): one small toggle sitting on the line, remembered on this device. */}
         {t.queue && t.queue.length > 1 && <OrderToggle order={t.order} set={t.setOrder} />}
 
-        {/* What comes next (#803): left of the line, riding the wave toward it; a tap puts one in focus. */}
-        {t.queue && t.queue.length > 1 && <RelayQueue queue={t.queue} cur={ex?.key ?? null} now={now} hidden={hidden} goTo={goTo} navRef={waveRef} narrow={narrow} still={still || !!engine?.reduced} />}
+        {/* Group chats (#869): off the line, on their own shelf. */}
+        <GroupShelf groups={shelf} hidden={hidden} open={showGroup} />
+
+        {/* Who is waiting (#803, #869): every circle on the line, magnified where you point; a tap opens it. */}
+        {t.queue && t.queue.length > 1 && <RelayQueue queue={t.queue} cur={ex?.key ?? null} now={now} hidden={hidden} goTo={goWrite} navRef={waveRef} pagesRef={pagesRef} narrow={narrow} still={still || !!engine?.reduced} />}
 
         <div className="cx-pages" ref={pagesRef} tabIndex={-1}>
-          {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} />) : <Waiting signedIn={t.signedIn} waiting={waiting} />}
+          {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} launch={launch} />) : <Waiting signedIn={t.signedIn} waiting={waiting} />}
         </div>
 
         <div className="cx-dock">
@@ -840,7 +995,7 @@ export function RelayThread({ now }: { now: number }) {
             </div>
             {hints && (
               <p className="cx-keys" id="cx-keys">
-                <b>Y</b> send · <b>N</b> no · <b>R</b> draft it · <b>D</b> done · <b>L</b> later · <b>S</b> skip · <b>Z</b> undo · <b>J K</b> move
+                <b>Y</b> send · <b>N</b> no · <b>R</b> reply · <b>D</b> done · <b>L</b> later · <b>S</b> skip · <b>Z</b> undo · <b>J K</b> move
                 {" "}
                 · hold <b>Space</b> to talk
               </p>
@@ -850,7 +1005,7 @@ export function RelayThread({ now }: { now: number }) {
         </div>
       </section>
 
-      <Codex now={now} t={t} back={back} goTo={goTo} />
+      <Codex now={now} t={t} back={back} goTo={goTo} openGroup={openGroup} />
     </div>
   );
 }
@@ -895,7 +1050,7 @@ function Rows({ rows, cur, goTo, empty }: { rows: ReturnType<typeof codexOf>["em
 }
 
 /** The Codex (#642): one line of numbers, Email and Texts, then everything else behind Settings. */
-function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useThread>; back: string | null; goTo: (key: string) => void }) {
+function Codex({ now, t, back, goTo, openGroup }: { now: number; t: ReturnType<typeof useThread>; back: string | null; goTo: (key: string) => void; openGroup: { id: string; at: number } | null }) {
   const ex = t.ex;
   const view = useEmail((s) => s.view);
   const status = useEmail((s) => s.status);
@@ -1013,13 +1168,13 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
             </div>
           </div>
           {groups.length > 0 && (
-            <div className="cx-verse cx-sec" data-list="groups">
+            <div className="cx-verse cx-sec" data-list="groups" id="cx-groups">
               <div className="cx-mar">
                 <span className="cx-lab">Groups</span>
               </div>
               <div className="cx-body">
                 {/* The flipper (#805): one group at a time, its texts, and a reply sent exactly as typed. */}
-                <GroupFlipper groups={groups} hidden={t.hidden} unlocked={t.unlocked} />
+                <GroupFlipper groups={groups} hidden={t.hidden} unlocked={t.unlocked} open={openGroup} />
               </div>
             </div>
           )}

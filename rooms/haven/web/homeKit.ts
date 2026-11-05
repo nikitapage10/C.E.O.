@@ -12,7 +12,7 @@ import type { GymGeo } from "./gymKit.ts";
 
 export const HOME_MODELS = new Set<Kind>([
   "counter", "range", "fridge", "island", "tv", "sofa", "cattree", "lamp", "shower", "tub", "wc", "vanity",
-  "towelbar", "litterbox", "coatrack", "tunnel", "greenhouse", "bowls", "sideboard", "upper", "dj", "art",
+  "towelbar", "litterbox", "coatrack", "tunnel", "greenhouse", "bowls", "sideboard", "upper", "dj", "art", "espresso",
 ]);
 
 export interface HomeMats {
@@ -197,9 +197,35 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "tv": {
-      // A big flat TV on the wall.
-      b(M.black, L, H, Math.max(0.02, D), 0, lift + H / 2, 0);
-      b(M.screen, L * 0.97, H * 0.94, 0.004, 0, lift + H / 2, -Math.max(0.02, D) / 2 - 0.002);
+      // A big flat TV on the wall, 16:9 (Nikita 2026-11-05: it read as a plain bar). Its height follows its width; it
+      // hangs clear above the console, a thin black bezel round a dark glass screen with a faint glow, a slim chin with
+      // a small light at the bottom, and a wall plate behind it so it stands off the wall.
+      const h = L * (9 / 16), dep = 0.035, y0 = Math.max(lift, 0.62), cy = y0 + h / 2;
+      b(M.dark, L * 0.3, h * 0.3, 0.02, 0, cy, D / 2 - 0.01);
+      b(M.black, L, h, dep, 0, cy, D / 2 - 0.02 - dep / 2);
+      const front = D / 2 - 0.02 - dep - 0.002;
+      b(M.screen, L - 0.03, h - 0.045, 0.004, 0, cy + 0.008, front);
+      b(M.dark, L, 0.022, dep + 0.006, 0, y0 + 0.011, D / 2 - 0.02 - dep / 2 - 0.003);
+      b(M.warm, 0.012, 0.004, 0.004, 0, y0 + 0.011, front - 0.002);
+      return g;
+    }
+    case "espresso": {
+      // The silver Breville (Nikita 2026-11-05): a brushed-steel body, the bean hopper in smoked glass on top, the
+      // group head and portafilter at the front with its black handle, a pressure dial, the steam wand at the side,
+      // and the drip tray at the foot. It stands on whatever it sits on (lift).
+      const W = Math.max(L, 0.3), d = Math.max(D, 0.28), h = Math.max(H, 0.4), y = lift;
+      b(M.steel, W, h * 0.78, d, 0, y + (h * 0.78) / 2, 0);
+      b(M.chrome, W * 1.01, 0.012, d * 1.01, 0, y + h * 0.78, 0);
+      c(M.glass, W * 0.22, h * 0.22, -W * 0.18, y + h * 0.78 + h * 0.11, d * 0.08);
+      c(M.black, W * 0.23, 0.02, -W * 0.18, y + h - 0.01, d * 0.08);
+      b(M.dark, W * 0.86, 0.035, d * 0.42, 0, y + 0.018, -d / 2 - d * 0.18);
+      b(M.chrome, W * 0.84, 0.004, d * 0.4, 0, y + 0.037, -d / 2 - d * 0.18);
+      c(M.chrome, 0.035, 0.03, -W * 0.05, y + h * 0.42, -d / 2 - 0.012, "z");
+      c(M.steel, 0.032, 0.03, -W * 0.05, y + h * 0.36, -d / 2 - 0.03);
+      b(M.black, 0.03, 0.025, 0.13, -W * 0.05, y + h * 0.36, -d / 2 - 0.11);
+      c(M.white, 0.03, 0.006, W * 0.22, y + h * 0.6, -d / 2 - 0.004, "z");
+      c(M.chrome, 0.006, h * 0.32, W * 0.42, y + h * 0.35, -d / 2 - 0.03);
+      b(M.warm, 0.02, 0.006, 0.004, W * 0.22, y + h * 0.3, -d / 2 - 0.003);
       return g;
     }
     case "sofa": {
@@ -365,7 +391,7 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       // A black sideboard, its doors drawn in, under floating shelves.
       b(M.black, L, H, D, 0, H / 2, 0);
       b(M.dark, 0.004, H * 0.8, 0.004, 0, H / 2, fz - 0.002);
-      for (const y of [H + 0.28, H + 0.52]) b(M.black, L, 0.025, Math.min(D, 0.24), 0, y, D / 2 - Math.min(D, 0.24) / 2);
+      for (const y of [H + 0.58, H + 0.82]) b(M.black, L, 0.025, Math.min(D, 0.24), 0, y, D / 2 - Math.min(D, 0.24) / 2);
       return g;
     }
   }

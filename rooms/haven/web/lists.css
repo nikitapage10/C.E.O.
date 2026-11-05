@@ -7,6 +7,8 @@
 /* The engine makes every .fl-stage child position:relative (flow.css), which dropped the panel under the house, off the
    screen (#844); it floats over the house, so it says so a step more specifically. */
 [data-room="haven"] .hv-stage.fl-stage>.hv-lists{position:absolute;z-index:3}
+/* Under the name, the summary and the room tabs, in the head's flow, so it never covers the summary (2026-11-05). */
+[data-room="haven"] .hv-head>.hv-lists{position:relative;left:auto;top:auto;margin-top:12px;max-height:calc(100svh - var(--hv-navh,62px) - 330px)}
 [data-room="haven"] .hv-lists-h,[data-room="haven"] .hv-ls-h{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 14px;border:0;background:none;color:var(--hv-ink);font-family:var(--hv-text);font-size:13px;letter-spacing:.06em;text-transform:uppercase;text-align:left;cursor:pointer}
 [data-room="haven"] .hv-ls-h{font-size:14px;letter-spacing:0;text-transform:none;color:var(--hv-soft);border-top:1px solid var(--hv-line)}
 [data-room="haven"] .hv-lists-h span,[data-room="haven"] .hv-ls-h span{flex:1}

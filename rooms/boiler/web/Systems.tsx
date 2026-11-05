@@ -17,6 +17,7 @@ import { pipeRows, systemsModel, type FlowId, type GState } from "../data/system
 import { SystemsNav, type TabScores } from "./SystemsNav.tsx";
 import { emailLine, linkOf, startEmail, useEmail, type EmailLoad, type EmailStatus } from "../../relay/data/email.ts";
 import { startInvoices } from "../../spire/data/invoices.ts";
+import { startTexts } from "../../relay/data/texts.ts";
 import { startPolymarket } from "../../exchange/data/polymarket.ts";
 import { startGreen } from "../../green/data/league.ts";
 import { roomLink } from "@ceo/desk/hero/roomLink.ts";
@@ -132,6 +133,9 @@ export function Systems({ now }: { now: number }) {
   // Polymarket's thread is real (#240): read its odds while this page is open, so the thread shows its true state.
   useEffect(() => startPolymarket(), []);
   useEffect(() => startEmail(), []);
+  // The texts hub's links (MacBook, Hub, BlueBubbles, Messages, Dialtone, Blasto): without this feed they read "off"
+  // here while the Relay was live (Nikita 2026-11-05).
+  useEffect(() => startTexts(), []);
   const emailLoad = useEmail((s) => s.load);
   const emailStatus = useEmail((s) => s.status);
   // So are Sleeper and FantasyPros, through the Green's board (#252).

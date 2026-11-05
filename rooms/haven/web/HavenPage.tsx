@@ -320,16 +320,6 @@ export function Haven() {
 
   return (
     <div className="hv fl-page" data-room="haven" data-open={open ? "" : undefined} style={{ ["--fl-accent" as string]: ACCENT, ["--hv-navh" as string]: `${navH}px` }}>
-      {signedIn && (
-        <nav className="hv-tabs" aria-label="Haven rooms">
-          {TABS.map((t) => (
-            <button key={t} type="button" className="hv-tab" aria-pressed={openTab === t} onClick={() => setOpen({ tab: t })}>
-              {TAB_NAME[t]}
-            </button>
-          ))}
-        </nav>
-      )}
-
       <section className="hv-stage fl-stage" aria-label="The house">
         <div className="hv-houseWrap">
           <div className="hv-house" ref={houseHost} data-gl={gl} />
@@ -342,6 +332,18 @@ export function Haven() {
             </p>
             <h1 className="hv-h1">The Haven</h1>
             <p className="hv-sum">{summary}</p>
+            {/* The room tabs and the lists sit in the house's own corner, under its name (Nikita 2026-11-05: one piece
+                with the house, not a bar above it). */}
+            {signedIn && (
+              <nav className="hv-tabs" aria-label="Haven rooms">
+                {TABS.map((t) => (
+                  <button key={t} type="button" className="hv-tab" aria-pressed={openTab === t} onClick={() => setOpen({ tab: t })}>
+                    {TAB_NAME[t]}
+                  </button>
+                ))}
+              </nav>
+            )}
+            <HavenLists />
           </header>
           {!signedIn && (
             <div className="hv-out">
@@ -389,7 +391,6 @@ export function Haven() {
             ) : null}
           </Plinth>
         </div>
-        <HavenLists />
       </section>
 
 

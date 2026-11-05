@@ -173,20 +173,15 @@ const G_TO: Record<GState, StationState> = { ok: "ok", run: "ok", wait: "dry", b
 const L_TO: Record<LinkState, StationState> = { ok: "ok", slow: "late", off: "dry", down: "leak" };
 const RANK: Record<StationState, number> = { leak: 4, shut: 3, late: 2, ok: 1, dry: 0 };
 
-/** How long a late start keeps a passed job amber: after that the pass is what counts (#866). */
-const LATE_FOR_MS = 24 * 3_600_000;
-
 /**
- * One job's state as a station's: failed leaks, skipped or missed shuts, a recent late start runs slow, no run yet is
- * dry. A late start older than a day reads as the pass it was (a weekly scan GitHub started hours late on Monday is
- * not still late on Thursday).
+ * One job's state as a station's: failed leaks, skipped or missed shuts, no run yet is dry, and a pass is a pass. A late
+ * start alone never turns a passed job amber (Nikita 2026-11-05: the nightly checks passed but read yellow because
+ * GitHub started them hours late, which nobody can act on); it shows as a note on the green gauge instead.
  */
-export function jobState(r: JobRow | undefined, now?: number): StationState {
+export function jobState(r: JobRow | undefined, _now?: number): StationState {
   if (!r || r.state === "none") return "dry";
   if (r.state === "fail") return "leak";
   if (r.state === "other" || r.missed) return "shut";
-  const fresh = now === undefined || r.at === null || now - r.at < LATE_FOR_MS;
-  if (r.lateMin !== null && r.lateMin >= LATE_MIN && r.state !== "running" && fresh) return "late";
   return "ok";
 }
 
@@ -227,7 +222,7 @@ export function jobCause(name: string, r: JobRow | undefined, now: number): Caus
     case "dry":
       return { state: s, title: `${name} hasn't run yet.`, body: "", note: "no run seen yet" };
     default:
-      return { state: "ok", title: "", body: "", note: `ran ${since || "recently"}` };
+      return { state: "ok", title: "", body: "", note: `ran ${since || "recently"}${r && r.lateMin !== null && r.lateMin >= LATE_MIN ? `, started ${r.lateMin} min late` : ""}` };
   }
 }
 

@@ -94,6 +94,34 @@ test("the faults are in the pipes: a leak, a shut valve and a late clock, worst 
   await expect(panel.locator(".bp-fix")).toHaveText("Open the nightly backup's run");
   await panel.locator(".bp-queue button", { hasText: "world clock" }).click();
   await expect(panel.locator(".bp-fix")).toHaveText("Read the clock again");
+  // Every room is its own section: picking one focuses it.
+  const rooms = board.locator(".bp-rooms button");
+  await expect(rooms.first()).toHaveText("All rooms");
+  await expect(rooms).toHaveCount(8);
+  await rooms.filter({ hasText: "Boiler Room" }).click();
+  await expect(rooms.filter({ hasText: "Boiler Room" })).toHaveAttribute("aria-pressed", "true");
+  // The panel opens the fault's card: what it is, its state, when it last worked, what it needs, its fix.
+  await panel.locator(".bp-more").click();
+  const card = board.locator(".bp-card");
+  await expect(card.locator("h3")).toHaveText("World clock");
+  await expect(card).toContainText("Running late");
+  await expect(card).toContainText("Needs you");
+  await expect(card.locator(".bp-fix")).toHaveText("Read the clock again");
+  await page.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
+  // Hovering a station's gauge opens its card.
+  await rooms.first().click();
+  await expect(board.locator(".bp-map.is-on")).toBeVisible();
+  await page.waitForTimeout(1500);
+  const lb = board.locator('.bp-lb.is-st.is-show', { hasText: "Petlibro" });
+  const b = (await lb.boundingBox())!;
+  for (const dy of [10, 16, 22, 28]) {
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height + dy);
+    if (await card.count()) break;
+    await page.waitForTimeout(200);
+  }
+  await expect(card.locator("h3")).toHaveText("Petlibro");
+  await page.mouse.move(5, 5);
   // The tabs carry the other three pages.
   await expect(board.locator(".bp-tabs a")).toHaveText([/^Map/, /^Controls/, /^Security/, /^Compliance/]);
   // Signed out, nothing private: no money, no addresses.
@@ -101,10 +129,14 @@ test("the faults are in the pipes: a leak, a shut valve and a late clock, worst 
   await expect(board).not.toContainText("@");
 
   if (SHOTS) {
-    await panel.locator(".bp-queue button").first().click();
-    await expect(board.locator(".bp-map.is-on")).toBeVisible();
-    await page.waitForTimeout(2500);
+    // The whole map, then one room in focus with a station's card open.
+    await rooms.first().click();
+    await page.waitForTimeout(3500);
     await board.screenshot({ path: `${SHOTS}/boiler-pipes-desktop.png` });
+    await panel.locator(".bp-queue button").first().click();
+    await panel.locator(".bp-more").click();
+    await page.waitForTimeout(3500);
+    await board.screenshot({ path: `${SHOTS}/boiler-pipes-desktop-room.png` });
   }
 });
 
@@ -126,10 +158,15 @@ test("on a phone the map sits above the panel", async ({ browser }) => {
   const [m, p] = [await map.boundingBox(), await panel.boundingBox()];
   expect(m && p && m.y + m.height <= p.y + 1).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  // A tap on a room focuses it; the panel opens the fault's card, rising from the foot of the map.
+  await page.locator(".bp-rooms button", { hasText: "Boiler Room" }).tap();
+  await panel.locator(".bp-more").tap();
+  await expect(page.locator(".bp-card h3")).toHaveText("Petlibro");
   if (SHOTS) {
     await expect(page.locator(".bp-map.is-on")).toBeVisible();
-    await page.waitForTimeout(2500);
-    // The Desk scrolls inside its own frame, so the shot grows the screen to the board's foot instead.
+    await page.waitForTimeout(3500);
+    // The Desk scrolls inside its own frame, so the shot goes back to the top and grows the screen to the board's foot.
+    await page.evaluate(() => document.querySelectorAll("*").forEach((e) => e.scrollTop && (e.scrollTop = 0)));
     const box = await page.locator(".bp").boundingBox();
     const h = Math.ceil((box?.y ?? 0) + (box?.height ?? 844));
     await page.setViewportSize({ width: 390, height: h });

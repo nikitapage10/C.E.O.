@@ -124,6 +124,12 @@ export interface StationRead {
   state: StationState;
   /** A few words on the reading, for a tap on a healthy station. */
   note: string;
+  /** Why it's in that state, its fix and steps (empty for a healthy one). */
+  title: string;
+  body: string;
+  since: string;
+  fix: Fix | null;
+  steps: string[];
 }
 
 export interface PipeMap {
@@ -176,7 +182,7 @@ export function jobState(r: JobRow | undefined): StationState {
   return "ok";
 }
 
-interface Cause {
+export interface Cause {
   state: StationState;
   title: string;
   body: string;
@@ -188,16 +194,16 @@ interface Cause {
 
 const worst = (cs: Cause[]): Cause => cs.reduce((a, b) => (RANK[b.state] > RANK[a.state] ? b : a));
 
-const VENDOR_FIX: Partial<Record<string, Fix>> = {
+export const VENDOR_FIX: Partial<Record<string, Fix>> = {
   nest: { kind: "google", label: "Reconnect Nest", grant: "nest" },
   tasks: { kind: "google", label: "Reconnect Google Tasks", grant: "tasks" },
   kroger: { kind: "kroger", label: "Reconnect King Soopers" },
   roborock: { kind: "nav", label: "Reconnect Roborock", path: "/boiler/controls#ct-house", signedIn: true },
 };
 
-const KEY_FIX = (what: string): Fix => ({ kind: "nav", label: `Replace the ${what} key`, path: "/boiler/controls#ct-keys", signedIn: true });
+export const KEY_FIX = (what: string): Fix => ({ kind: "nav", label: `Replace the ${what} key`, path: "/boiler/controls#ct-keys", signedIn: true });
 
-function jobCause(name: string, r: JobRow | undefined, now: number): Cause {
+export function jobCause(name: string, r: JobRow | undefined, now: number): Cause {
   const s = jobState(r);
   const url = r?.url ?? GITHUB_RUNS;
   const lower = name.replace(/^The /, "the ");
@@ -310,7 +316,7 @@ export function readPipes(input: PipeInput): PipeMap {
   const faults: Fault[] = [];
   for (const s of STATIONS) {
     const c = causes[s.id] ?? dry();
-    stations[s.id] = { id: s.id, state: c.state, note: c.note ?? "" };
+    stations[s.id] = { id: s.id, state: c.state, note: c.note ?? "", title: c.title, body: c.body, since: c.since ?? "", fix: c.fix ?? null, steps: c.steps ?? [] };
     if (c.state === "leak" || c.state === "shut" || c.state === "late") {
       const line = MAP_LINES.find((l) => l.id === s.line)!;
       faults.push({ id: s.id, station: s.id, kind: c.state, line: line.name, since: c.since ?? "", title: c.title, body: c.body, route: ["Boiler", line.name, s.name], fix: c.fix ?? null, steps: c.steps ?? [] });

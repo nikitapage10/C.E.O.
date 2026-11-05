@@ -28,6 +28,7 @@ import { OWASP_LLM, owaspTally } from "./security/model.ts";
 import { ACCENT, Arrow, RoomDetail } from "./boiler/Rack.tsx";
 import { PipeBoard } from "./boiler/PipeBoard.tsx";
 import { readPipes } from "./boiler/pipes.ts";
+import { roomSections } from "./boiler/rooms.ts";
 import { jobRows } from "./jobs.ts";
 import { useDeskAuth } from "./signin.ts";
 import { reducedMotion } from "./wvCanvas.ts";
@@ -191,6 +192,16 @@ export function Systems({ now }: { now: number }) {
     clock: { state: cstate, at: reading?.at ? Date.parse(reading.at) : null },
     problems: signedIn ? problems : undefined,
   });
+  // Room by room (#743): every room's own manifold, with when each link last answered and the caps it runs under.
+  const clockAt = reading?.at ? Date.parse(reading.at) : null;
+  const lastSeen: Record<string, number | null> = { ...Object.fromEntries(linkList.map((l) => [l.id, l.lastSeen])), step: clockAt, clock: clockAt, worldstate: clockAt, gmail: emailStatus?.lastCheck ?? null };
+  const story = world?.story;
+  const caps: Record<string, number | null> = {
+    gmail: emailStatus ? emailStatus.budgetPct / 100 : null,
+    ...(world ? { claude: world.spend.budget > 0 ? world.spend.usd / world.spend.budget : null } : {}),
+    ...(story ? { speech: story.elevenBudget ? (story.elevenUsd ?? 0) / story.elevenBudget : null } : {}),
+  };
+  const sections = roomSections({ now, rows, map: pipes, jobs: jobList, lastSeen, caps, signedIn, security: sec ? { failing: failing.length, reported: reported.length, alerts } : null });
   // The tabs' counts: connections live, scans passing, OWASP risks covered. Counts only.
   const linkCount = Object.values(links);
   const liveLinks = linkCount.filter((x) => x === "ok" || x === "slow").length;
@@ -217,7 +228,7 @@ export function Systems({ now }: { now: number }) {
 
   return (
     <div className={`systems-page wv-page fl-page bx-page${row ? " is-open" : ""}`} data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
-      <PipeBoard map={pipes} signedIn={signedIn} tabs={<SystemsNav scores={scores} className="bp-tabs" />} onOpenRoom={openLine} />
+      <PipeBoard sections={sections} now={now} signedIn={signedIn} tabs={<SystemsNav scores={scores} className="bp-tabs" />} onOpenRoom={openLine} />
 
       {row && (
         <div className="bx-detail fl-below" key={row.id} ref={detail}>

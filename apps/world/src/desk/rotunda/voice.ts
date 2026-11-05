@@ -42,11 +42,14 @@ interface SoundStore {
   on: boolean;
   /** Someone in the chamber is speaking now (the level indicator moves). */
   speaking: boolean;
+  /** The sound is on but the browser held a line back until a tap (a phone after a reload): the button asks for one. */
+  blocked: boolean;
   set: (p: Partial<Omit<SoundStore, "set">>) => void;
 }
 export const useRotundaSound = create<SoundStore>((set) => ({
   on: typeof window !== "undefined" && readSound(),
   speaking: false,
+  blocked: false,
   set: (p) => set(p),
 }));
 
@@ -91,6 +94,9 @@ export async function fetchLine(by: string, text: string, doFetch: Fetch = fetch
 
 /** The live voices' players, unlocked inside the tap that turns the sound on. */
 const unlockers = new Set<() => void>();
+
+/** The events a browser counts as a user's tap for letting sound play. */
+const GESTURES = ["pointerup", "touchend", "keydown"] as const;
 
 const keyOf = (by: string, text: string) => `${by}\u0000${text}`;
 
@@ -171,6 +177,16 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
     }
   };
   unlockers.add(unlock);
+  // Phones only let audio play after a tap on the page this visit. With the sound already on from an earlier visit, the
+  // first tap or key anywhere on the page unlocks the players, so the next line is heard without touching the button.
+  const firstTap = () => {
+    if (useRotundaSound.getState().on) {
+      unlock();
+      useRotundaSound.getState().set({ blocked: false });
+    }
+    for (const ev of GESTURES) document.removeEventListener(ev, firstTap, true);
+  };
+  for (const ev of GESTURES) document.addEventListener(ev, firstTap, true);
   // Off means quiet at once, mid-line included.
   const unsub = useRotundaSound.subscribe((s, was) => s.on !== was.on && !s.on && voice.stop());
 
@@ -192,8 +208,14 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
         main.volume = 1;
         speaking(true);
         if (held || document.visibilityState === "hidden") return;
-        // Blocked (no tap yet this visit, after a reload with sound on): read it instead.
-        main.play().catch(() => end === done && finish(false));
+        // Blocked (no tap yet this visit, after a reload with sound on): read it instead, and ask for a tap.
+        main
+          .play()
+          .then(() => useRotundaSound.getState().blocked && useRotundaSound.getState().set({ blocked: false }))
+          .catch(() => {
+            if (useRotundaSound.getState().on) useRotundaSound.getState().set({ blocked: true });
+            if (end === done) finish(false);
+          });
       });
     },
     prefetch(next) {
@@ -238,6 +260,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       voice.stop();
       unsub();
       unlockers.delete(unlock);
+      for (const ev of GESTURES) document.removeEventListener(ev, firstTap, true);
       document.removeEventListener("visibilitychange", visibility);
       main.removeAttribute("src");
       mur.removeAttribute("src");
@@ -251,6 +274,6 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
 /** Turns the sound on or off. On, inside the tap, it plays a moment of silence so the browser lets the voices play. */
 export function setSound(on: boolean): void {
   keepSound(on);
-  useRotundaSound.getState().set({ on, ...(!on && { speaking: false }) });
+  useRotundaSound.getState().set({ on, blocked: false, ...(!on && { speaking: false }) });
   if (on) unlockers.forEach((u) => u());
 }

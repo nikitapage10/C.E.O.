@@ -85,6 +85,9 @@
 .desk .rt-sound:hover{color:var(--rt-soft);border-color:rgba(201,168,92,.5)}
 .desk .rt-sound:focus-visible{outline:1px solid var(--rt-gold);outline-offset:3px}
 .desk .rt-sound.is-on{color:var(--rt-gold);border-color:rgba(227,201,141,.55);background:rgba(20,18,12,.85)}
+.desk .rt-sound.is-blocked{animation:rt-sound-ask 1.6s ease-in-out infinite}
+@keyframes rt-sound-ask{50%{box-shadow:0 0 0 4px rgba(227,201,141,.28)}}
+@media (prefers-reduced-motion:reduce){.desk .rt-sound.is-blocked{animation:none;box-shadow:0 0 0 2px rgba(227,201,141,.4)}}
 .desk .rt-sound svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .desk .rt-sound-c{fill:currentColor;fill-opacity:.25}
 .desk .rt-sound-lv{display:inline-flex;align-items:flex-end;gap:2px;height:12px}

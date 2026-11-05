@@ -1,9 +1,10 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 
 /** The Archive: the day as a story, and the Tide. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "archive",
-  name: "Archive",
+  ...nav,
   path: "/archive",
   navKey: "7",
   accent: "--room-archive",

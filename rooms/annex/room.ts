@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 
 /**
  * The Annex: the Desk's staging room for short-run pop-ups (#618), Election night first. A Desk-only room with no
@@ -7,7 +8,7 @@ import { defineRoom } from "@ceo/engine/manifest";
  */
 export default defineRoom({
   id: "annex",
-  name: "Annex",
+  ...nav,
   path: "/annex",
   navKey: "8",
   accent: "--room-annex",

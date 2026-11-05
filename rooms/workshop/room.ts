@@ -1,9 +1,10 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 
 /** The Workshop: from a prompt to a print. Not live yet. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "workshop",
-  name: "Workshop",
+  ...nav,
   path: "/workshop",
   navKey: "0",
   accent: "--room-workshop",

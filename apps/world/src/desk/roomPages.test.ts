@@ -1,0 +1,15 @@
+import { describe, expect, it } from "vitest";
+import { NAV_ORDER } from "../route.ts";
+import { PAGE_LOADERS, pageName } from "./roomPages.ts";
+
+/** The Desk's bar and page loaders, read from the room manifests (#617, step 3): the same bar as before. */
+describe("the Desk's pages from the manifests", () => {
+  it("names every page in the bar as it always has, in the bar's order", () => {
+    expect(NAV_ORDER.map(pageName)).toEqual(["Senate", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
+  });
+
+  it("loads every page but Today lazily, from its manifest", () => {
+    expect(Object.keys(PAGE_LOADERS)).toEqual(NAV_ORDER.filter((id) => id !== "today"));
+    for (const load of Object.values(PAGE_LOADERS)) expect(typeof load).toBe("function");
+  });
+});

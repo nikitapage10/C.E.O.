@@ -697,12 +697,9 @@ function landingOf(home: PlanRoom[], bed: PlanRoom | null, doors: Seg[]): { room
   return c ? { room: c.room, door: c.door ?? segMid(c.edges[0]!) } : null;
 }
 
-/** Whether any of the room's walls carries a window or balcony door in the plan. */
-const hasGlass = (r: PlanRoom, p: HavenPlan) => r.parts.some((pt) => SIDES.some((s) => runs(pt, s, [...p.windows, ...(p.balconies ?? [])]).length > 0));
-
 /**
- * The plan as drawn, with what the walls say when the plan doesn't (#764). For a room with no window or balcony door
- * saved: an edge of its main rectangle with no room on the other side is an outside wall, and
+ * The plan as drawn. Openings set in the wall editor (`plan.openings`) are drawn as saved, every other wall solid.
+ * Otherwise (#764, #799) the stored ones are ignored and only these defaults are drawn, by room and side: an edge of its main rectangle with no room on the other side is an outside wall, and
  *   the living room    gets windows along its longest outside wall, a balcony door at the end nearest the Studio, and
  *                      the TV on the solid wall opposite (unless the plan names one);
  *   the main bedroom   gets windows and a balcony door on its longest outside wall;
@@ -713,7 +710,10 @@ const hasGlass = (r: PlanRoom, p: HavenPlan) => r.parts.some((pt) => SIDES.some(
  */
 export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving: boolean } {
   const home = plan.rooms.filter((r) => !r.detached);
-  const windows = [...plan.windows], balconies = [...(plan.balconies ?? [])], tv = [...(plan.tv ?? [])], doors = [...plan.doors];
+  // Openings saved from the wall editor are exactly what is drawn. Without them, only the defaults below are: whatever
+  // an import carried is not trusted, so a wall nobody set is solid.
+  const set = plan.openings === true;
+  const windows = set ? [...plan.windows] : [], balconies = set ? [...(plan.balconies ?? [])] : [], tv = set ? [...(plan.tv ?? [])] : [], doors = [...plan.doors];
   const studio = home.find((r) => STUDIO.test(r.name));
   const bed = masterBed(home);
   const landing = landingOf(home, bed, plan.doors);
@@ -723,7 +723,7 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
     if (g.win) windows.push(segOn(R, s, ...g.win));
   };
   for (const r of home) {
-    if (!LIVING.test(r.name) || hasGlass(r, plan)) continue;
+    if (!LIVING.test(r.name) || set) continue;
     const R = mainRect(r);
     const o = longestOutside(R, home, plan.doors, 120);
     if (!o) continue;
@@ -731,12 +731,12 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
     put(R, o.s, glaze(o.a, o.b, nearEnd(R, o.s, o.a, o.b, studio ? centreOfRoom(studio) : null), 12, 90));
     if (!SIDES.some((s) => runs(R, s, tv).length)) tv.push(segOn(R, OPP[o.s], 0, wallLen(R, OPP[o.s])));
   }
-  if (bed && !hasGlass(bed, plan)) {
+  if (bed && !set) {
     const R = mainRect(bed);
     const o = longestOutside(R, home, plan.doors, 120);
     if (o) put(R, o.s, glaze(o.a, o.b, nearEnd(R, o.s, o.a, o.b, landing ? centreOfRoom(landing.room) : null), 12, 90));
   }
-  if (landing && !hasGlass(landing.room, plan)) {
+  if (landing && !set) {
     const R = mainRect(landing.room);
     const o = longestOutside(R, home, plan.doors, 110);
     if (o) {

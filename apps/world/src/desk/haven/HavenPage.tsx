@@ -93,6 +93,7 @@ export function Haven() {
   const [counts, setCounts] = useState<{ kitchen: number; todos: number; gym: { perWeek: number; doneThisWeek: number } | null } | null>(null);
   const [plan, setPlan] = useState<PlanLoad>({ state: "idle" });
   const [open, setOpen] = useState<Open>(null);
+  const [wallsOpen, setWallsOpen] = useState(false);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
   // Sent from the Kitchen chip or Controls (?open=kitchen): the Kitchen opens (#664).
   const houseHost = useRef<HTMLDivElement>(null);
@@ -362,6 +363,11 @@ export function Haven() {
                   Reset view
                 </button>
               )}
+              {signedIn && thePlan && (
+                <button type="button" className="hv-reset hv-editWalls" aria-expanded={wallsOpen} onClick={() => setWallsOpen((v) => !v)}>
+                  Edit walls
+                </button>
+              )}
             </div>
           )}
           <Plinth gauges={gauges} order={order} thermo={thermo} pop={pop} onPop={togglePop} canPop={canPop} onOpen={openGauge} canOpen={canOpen} lamp={lamp} onScroll={touch} stripRef={strip}>
@@ -379,10 +385,8 @@ export function Haven() {
         <HavenLists />
       </section>
 
-      {signedIn && thePlan && (
-        <div className="hv-wallsRow">
-          <WallEditor plan={thePlan} onSaved={(p) => setPlan({ state: "ready", plan: p })} />
-        </div>
+      {signedIn && thePlan && wallsOpen && (
+        <WallEditor plan={thePlan} onSaved={(p) => setPlan({ state: "ready", plan: p })} onClose={() => setWallsOpen(false)} />
       )}
 
 

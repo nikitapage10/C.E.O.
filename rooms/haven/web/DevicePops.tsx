@@ -2,9 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { closeClock, useHome, type ActExtra, type DeviceReading, type VendorState } from "@ceo/desk/homeDevices.ts";
 import type { HavenPlan } from "./data.ts";
 import { VacuumArt } from "./DeviceArt.tsx";
-import { DryStage, FountainStage, LitterStage, WetStage } from "./DevicePlates.tsx";
+import { DryStage, FountainStage, LitterStage, WetStage, WetTray as TrayWheel } from "./DevicePlates.tsx";
 import { WetTray } from "./PetDay.tsx";
-import { RoomMap, vacuumName } from "./RoomMap.tsx";
+import { frontBowl } from "./plates.ts";
+import { RoomMap } from "./RoomMap.tsx";
+import { matchVacuumRooms } from "./vacuumMatch.ts";
 
 /**
  * The gauges' pop-ups (#718): tap Roborock, Petlibro or Whisker on the strip and its controls open over it. Only the
@@ -139,7 +141,7 @@ export function VacuumModes({ suction, water, onSuction, onWater }: { suction: S
 
 /** With the plan, the rooms it draws are picked on the map; the names the vacuum has and the plan doesn't stay chips. */
 export function chipsBeside(names: string[], plan: HavenPlan | null): { onPlan: Set<string>; chips: string[] } {
-  const onPlan = new Set(plan ? plan.rooms.filter((r) => !r.detached).map((r) => vacuumName(names, r)).filter((n): n is string => !!n) : []);
+  const onPlan = new Set(plan ? matchVacuumRooms(names, plan.rooms.filter((r) => !r.detached)).values() : []);
   return { onPlan, chips: names.filter((n) => !onPlan.has(n)) };
 }
 
@@ -259,6 +261,16 @@ export function useFlash(ms: number): [boolean, () => void] {
   ];
 }
 
+/** A device's head row (#894): its picture in a column of its own, the name and reading beside it, so nothing sits on the text. */
+function DevHead({ stage, children }: { stage: ReactNode; children: ReactNode }) {
+  return (
+    <div className="hv-dp-head">
+      <span className="hv-dp-stage">{stage}</span>
+      <div>{children}</div>
+    </div>
+  );
+}
+
 export function DryFeederControls({ d }: { d: DeviceReading }) {
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
@@ -268,31 +280,28 @@ export function DryFeederControls({ d }: { d: DeviceReading }) {
   const portions = Math.max(1, Math.min(n, left || 1, 6));
   const off = !d.online || busy !== null || left === 0;
   return (
-    <div className="hv-dp-dev">
-      <span className="hv-dp-stage">
-        <DryStage d={d} feeding={feeding} />
-      </span>
-      <div>
+    <section className="hv-dp-dev" aria-label="Dry feeder">
+      <DevHead stage={<DryStage d={d} feeding={feeding} />}>
         <p className="hv-dp-name">
           Dry food <span className={d.foodLow ? "is-warn" : undefined}>{!d.online ? "offline" : d.foodLow ? "food low" : "food ok"}</span>
         </p>
         <p className="hv-dp-note">
           Last fed {ago(d.lastFed)} · {d.manualToday ?? 0} of {d.manualCap ?? 2} extra today
         </p>
-        <div className="hv-dp-step">
-          <button type="button" aria-label="One portion fewer" disabled={off || portions <= 1} onClick={() => setN(portions - 1)}>
-            −
-          </button>
-          <b aria-live="polite">{portions}</b>
-          <button type="button" aria-label="One portion more" disabled={off || portions >= Math.min(6, left)} onClick={() => setN(portions + 1)}>
-            +
-          </button>
-          <button type="button" className="hv-btn is-pri" disabled={off} onClick={() => void act("feeder.feed", d.id, undefined, { portions }).then((ok) => ok && flash())}>
-            Feed {portions} portion{portions === 1 ? "" : "s"}
-          </button>
-        </div>
+      </DevHead>
+      <div className="hv-dp-step">
+        <button type="button" aria-label="One portion fewer" disabled={off || portions <= 1} onClick={() => setN(portions - 1)}>
+          −
+        </button>
+        <b aria-live="polite">{portions}</b>
+        <button type="button" aria-label="One portion more" disabled={off || portions >= Math.min(6, left)} onClick={() => setN(portions + 1)}>
+          +
+        </button>
+        <button type="button" className="hv-btn is-pri" disabled={off} onClick={() => void act("feeder.feed", d.id, undefined, { portions }).then((ok) => ok && flash())}>
+          Feed {portions} portion{portions === 1 ? "" : "s"}
+        </button>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -304,42 +313,44 @@ export function WetFeederControls({ d }: { d: DeviceReading }) {
   const open = /open|feeding|serving/i.test(d.state) && !/closed/i.test(d.state);
   const left = Math.max(0, (d.manualCap ?? 2) - (d.manualToday ?? 0));
   return (
-    <div className="hv-dp-dev">
-      <span className="hv-dp-stage">
-        <WetStage d={d} />
-      </span>
-      <div>
+    <section className="hv-dp-dev" aria-label="Wet feeder">
+      <DevHead stage={<WetStage d={d} tray={false} />}>
         <p className="hv-dp-name">
           Wet food <span>{!d.online ? "offline" : d.closesAt ? `Open, closes at ${closeClock(d.closesAt)}` : d.state}</span>
         </p>
         <p className="hv-dp-note">
           {d.plate ? `Bowl ${d.plate} in front` : "Bowl in front unknown"} · {d.manualToday ?? 0} of {d.manualCap ?? 2} opened today
         </p>
-        <div className="hv-dp-btns is-row">
-          {/* An opening from here closes itself after two hours (#713): opening again restarts them. */}
-          <button type="button" className="hv-btn is-pri" disabled={off || (d.closesAt ? false : open || left === 0)} onClick={() => void act("wet.open", d.id)}>
-            {d.closesAt ? "Two more hours" : "Open for 2 hours"}
-          </button>
-          <button type="button" className="hv-btn" disabled={off || open} onClick={() => void act("wet.rotate", d.id).then((ok) => ok && flash())}>
-            Next bowl
-          </button>
-          <button type="button" className="hv-btn" disabled={off || !open} onClick={() => void act("wet.close", d.id)}>
-            Close the lid
-          </button>
-        </div>
-        <WetTray d={d} />
+      </DevHead>
+      <div className="hv-dp-btns is-row">
+        {/* An opening from here closes itself after two hours (#713): opening again restarts them. */}
+        <button type="button" className="hv-btn is-pri" disabled={off || (d.closesAt ? false : open || left === 0)} onClick={() => void act("wet.open", d.id)}>
+          {d.closesAt ? "Two more hours" : "Open for 2 hours"}
+        </button>
+        <button type="button" className="hv-btn" disabled={off || open} onClick={() => void act("wet.rotate", d.id).then((ok) => ok && flash())}>
+          Next bowl
+        </button>
+        <button type="button" className="hv-btn" disabled={off || !open} onClick={() => void act("wet.close", d.id)}>
+          Close the lid
+        </button>
       </div>
-    </div>
+      {/* The tray from above in a column of its own beside the day's bowls; it drops above them when the pop-up is narrow (#894). */}
+      <div className="hv-dp-tray">
+        <div className="hv-dp-wheel">
+          <TrayWheel front={frontBowl(d)} />
+        </div>
+        <div className="hv-dp-bowls">
+          <WetTray d={d} />
+        </div>
+      </div>
+    </section>
   );
 }
 
 export function FountainPanel({ d }: { d: DeviceReading }) {
   return (
-    <div className="hv-dp-dev">
-      <span className="hv-dp-stage">
-        <FountainStage d={d} />
-      </span>
-      <div>
+    <section className="hv-dp-dev" aria-label="Fountain">
+      <DevHead stage={<FountainStage d={d} />}>
         <p className="hv-dp-name">
           Water <span className={typeof d.water === "number" && d.water < 25 ? "is-warn" : undefined}>{d.online ? (typeof d.water === "number" ? `${d.water}%` : d.state) : "offline"}</span>
         </p>
@@ -348,8 +359,8 @@ export function FountainPanel({ d }: { d: DeviceReading }) {
           {typeof d.cleanDays === "number" ? ` · clean ${d.cleanDays < 0 ? `${-d.cleanDays} d overdue` : `in ${d.cleanDays} d`}` : ""}
         </p>
         <p className="hv-dp-note">The fountain runs on its own; it has nothing to send.</p>
-      </div>
-    </div>
+      </DevHead>
+    </section>
   );
 }
 
@@ -374,11 +385,8 @@ export function LitterControls({ d }: { d: DeviceReading }) {
   const cycling = ran || /cycl|clean/i.test(d.state);
   const off = !d.online || busy !== null || d.state !== "ready";
   return (
-    <div className="hv-dp-dev">
-      <span className="hv-dp-stage">
-        <LitterStage d={d} flash={cycling} />
-      </span>
-      <div>
+    <section className="hv-dp-dev" aria-label="Litter-Robot">
+      <DevHead stage={<LitterStage d={d} flash={cycling} />}>
         <p className="hv-dp-name">
           Litter-Robot <span>{d.online ? d.state : "offline"}</span>
         </p>
@@ -386,11 +394,11 @@ export function LitterControls({ d }: { d: DeviceReading }) {
           Drawer {typeof d.drawer === "number" ? `${d.drawer}%` : "–"} · litter {typeof d.litter === "number" ? `${d.litter}%` : "–"} · last visit {ago(d.lastUse)}
         </p>
         {d.alerts.length > 0 && <p className="hv-dp-note is-warn">{d.alerts.join(", ")}</p>}
-        <button type="button" className="hv-btn is-pri" disabled={off} onClick={() => void act("litter.clean", d.id).then((ok) => ok && flash())}>
-          {d.online && d.state !== "ready" ? `Clean cycle waits: ${d.state}` : "Run a clean cycle"}
-        </button>
-      </div>
-    </div>
+      </DevHead>
+      <button type="button" className="hv-btn is-pri" disabled={off} onClick={() => void act("litter.clean", d.id).then((ok) => ok && flash())}>
+        {d.online && d.state !== "ready" ? `Clean cycle waits: ${d.state}` : "Run a clean cycle"}
+      </button>
+    </section>
   );
 }
 

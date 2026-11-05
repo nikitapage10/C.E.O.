@@ -1,5 +1,6 @@
 import { centreOf, type HavenPlan } from "./data.ts";
 import "./deviceart.css";
+import { matchVacuumRooms } from "./vacuumMatch.ts";
 
 /**
  * Where to send the vacuum, on the floor plan (#718): the house from above, each room the vacuum knows lit to tap
@@ -7,8 +8,14 @@ import "./deviceart.css";
  * the plan has but the vacuum's map doesn't stay dim. Drawn from the private plan, so passkey only, like the house.
  */
 
-/** The vacuum's own name for a plan room, matched without case, or null. */
-export function vacuumName(names: string[], room: { name: string; vacuum: string | null }): string | null {
+type Named = { id: string; name: string; vacuum: string | null };
+
+/**
+ * The vacuum's own name for a plan room, or null. Given the plan's rooms it matches loosely, and only when the match is
+ * unique (#894: "Master bath" is "Master Bathroom"); without them, only the same name without case.
+ */
+export function vacuumName(names: string[], room: Named, rooms?: Named[]): string | null {
+  if (rooms) return matchVacuumRooms(names, rooms).get(room.id) ?? null;
   const want = (room.vacuum ?? room.name).toLowerCase();
   return names.find((n) => n.toLowerCase() === want) ?? null;
 }
@@ -16,6 +23,7 @@ export function vacuumName(names: string[], room: { name: string; vacuum: string
 export function RoomMap({ plan, names, picked, onToggle, cleaning, disabled }: { plan: HavenPlan; names: string[]; picked: string[]; onToggle: (name: string) => void; cleaning?: boolean; disabled?: boolean }) {
   // The home's own rooms (the detached gym is never on the vacuum's map), framed snugly.
   const rooms = plan.rooms.filter((r) => !r.detached);
+  const matched = matchVacuumRooms(names, rooms);
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const r of rooms)
     for (const [x, y, w, h] of r.parts) {
@@ -37,7 +45,7 @@ export function RoomMap({ plan, names, picked, onToggle, cleaning, disabled }: {
           </pattern>
         </defs>
         {rooms.map((r) => {
-          const name = vacuumName(names, r);
+          const name = matched.get(r.id) ?? null;
           const on = !!name && picked.includes(name);
           const [cx, cy] = centreOf(r);
           const parts = r.parts.map(([x, y, w, h], i) => <rect key={i} x={x} y={y} width={w} height={h} />);

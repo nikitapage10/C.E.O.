@@ -6,7 +6,7 @@ import { Color, DoubleSide, MeshStandardMaterial, Object3D, PlaneGeometry, type 
 import { Beam, Dust, Haze } from "../fx/atmos.tsx";
 import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
-import { claimWaiting, startGreen, useGreen } from "../desk/green/league.ts";
+import { claimWaiting, startGreen, useGreen } from "../../../../rooms/green/data/league.ts";
 import { useWorld } from "../store.ts";
 import { commentatorLine, scoreRows } from "./liveBoards.ts";
 import { useLiveLines } from "./liveLines.ts";

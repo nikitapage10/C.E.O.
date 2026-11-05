@@ -8,7 +8,7 @@ import { screenMaterial } from "../fx/materials.ts";
 import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { PALETTE } from "../theme.ts";
-import { invoicesLine, startInvoices, useInvoices } from "../desk/spire/invoices.ts";
+import { invoicesLine, startInvoices, useInvoices } from "../../../../rooms/spire/data/invoices.ts";
 import { Block, FONTS, GlassWall, LightBar, Plant, Plinth, Workstation, ahead } from "./primitives.tsx";
 import { penthouseSkyMaterial } from "./sky.ts";
 
@@ -16,7 +16,7 @@ const MOODS = ["NO.", "LATER.", "DECAF?", "…"];
 
 /**
  * The KPI easel's heading, live (#279): the Spire's open-invoice count from PayPal, through the public counts only
- * (desk/spire/invoices.ts, ?view=status). Never a client, an email or an amount.
+ * (rooms/spire/data/invoices.ts, ?view=status). Never a client, an email or an amount.
  */
 function useLedgerLine(): string {
   const load = useInvoices((s) => s.load);

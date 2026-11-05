@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { readSetupAsks, useSetupAsks } from "./setupAsks.ts";
 
 /** Setup asks in the browser (#324): read only signed in, checked again, and Approve sent in the passkey session. */

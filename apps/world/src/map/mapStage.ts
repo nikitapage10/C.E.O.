@@ -2,7 +2,7 @@ import { KERNEL_PORT_RADIUS, RING_RADIUS, ROOM_HALF_D, ROOM_HALF_W, ROOM_IDS, ga
 import { clock } from "../clock.ts";
 import { Being } from "../desk/confluence/beings.ts";
 import type { FlowLine, Pt } from "../desk/flow/index.ts";
-import { HOT, RC, TAU, WHITE, spr } from "../desk/wvCanvas.ts";
+import { HOT, RC, TAU, WHITE, spr } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useCast } from "../cast/castStore.ts";
 import { useWorld } from "../store.ts";
 import { crewPoint, hexToRgb, type RoomSummary } from "./mapModel.ts";

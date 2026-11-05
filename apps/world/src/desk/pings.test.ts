@@ -5,9 +5,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { HOME_SCREEN_HINT, PingSwitchView, type PingSwitchProps } from "./PingSwitch.tsx";
+import { HOME_SCREEN_HINT, PingSwitchView, type PingSwitchProps } from "@ceo/engine/web/PingSwitch.tsx";
 import { isAppleMobile, keyBytes, pingSupport } from "./pings.ts";
-import { SignInPanel } from "./SignIn.tsx";
+import { SignInPanel } from "@ceo/engine/web/SignIn.tsx";
 
 /** The Desk on a phone (#135): the manifest, the service worker, and the "Pings on this device" switch. */
 

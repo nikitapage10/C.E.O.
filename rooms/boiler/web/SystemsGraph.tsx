@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BAD, bez, eOut, knot, Parts, Poly, RC, reducedMotion, RUN, TAU, weave, WHITE, useViz, type VizSpec } from "../../../apps/world/src/desk/wvCanvas.ts";
+import { BAD, bez, eOut, knot, Parts, Poly, RC, reducedMotion, RUN, TAU, weave, WHITE, useViz, type VizSpec } from "@ceo/engine/sigils/wvCanvas.ts";
 import { GH, GL, type Flow, type FlowId, type GEdge, type GNode, type GState } from "../data/systemsGraph.ts";
 
 /**

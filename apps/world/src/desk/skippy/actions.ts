@@ -1,7 +1,7 @@
 import { navigateTo } from "../../route.ts";
 import { expectChange } from "../../foundry.ts";
 import { fileIdea, post, type Sent } from "../IdeaCard.tsx";
-import { ensureSignedIn } from "../signin.ts";
+import { ensureSignedIn } from "@ceo/engine/web/signin.ts";
 import { actionPath, type ActionState, type SkippyAction } from "./chat.ts";
 
 /**

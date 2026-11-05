@@ -59,11 +59,11 @@ not its flat stand-in), up to 7 s. Switching is kept warm (#759):
 - **First frame:** the chamber compiles its programs before its first frame (`compileAsync`).
 
 Import a file by its subpath and name, e.g. `@ceo/engine/sigils/wvCanvas.ts`: the files carry their own CSS and fonts,
-so there is no barrel that would pull them all in. The old Desk paths re-export the engine's files unchanged (same
-names, same behaviour) until step 14, so existing imports keep working. `desk/flow/index.ts` (with `useFlow`) and
+so there is no barrel that would pull them all in. Everything imports them from the engine; the old Desk paths that
+re-exported them while the rooms moved are gone (step 14). `desk/flow/index.ts` (with `useFlow`) and
 `desk/flow/useTempo.ts` stay in the Desk until the route moves into the engine, since the tempo reads the page's
 route. The engine imports no Desk routes: the Desk hands its router to the pings with `setPingOpener` (in
-`desk/pings.ts`).
+`desk/pings.ts`, which the Desk imports the pings through for that reason).
 
 ### Rooms plug in
 
@@ -186,6 +186,13 @@ Annex followed: `web/` holds the page, Election night (`ElectionNight.tsx`) and 
 (`annex.ts`) and the election feed and model, with its test (moved unchanged apart from import paths; the Desk's council
 pulses read the pop-up store from `rooms/annex/data/annex.ts` directly, so no re-export). Every room now lives in its folder.
 
+Step 14 removed the one-line re-exports the moves left in `apps/world/src/desk` (the engine's old paths from step 2 and
+the rooms' from steps 5 to 13): every importer, in the Desk, the Lattice, the rooms and the tests, now imports the file
+where it lives, in `rooms/<id>/` or `@ceo/engine`. `desk/pings.ts` stays, since it hands the engine the Desk's router.
+The stubs had hidden the reads one room makes of another (the Boiler Room's Map and Controls reading the other rooms'
+stores, Today reading the Relay's email and the Archive's `DayStory`, the Exchange's asides reading the Green's league);
+they are listed in `KNOWN_CROSSINGS` (below, "Lint") until each room plugs in through the Desk instead.
+
 ### The manifest
 
 `defineRoom()` from `@ceo/engine/manifest` parses it on load:
@@ -228,8 +235,9 @@ room data in it.
 
 - **Errors** in `rooms/**` and `packages/engine/**`: no room imports another room; the engine imports no rooms (the
   contract test is the one exception, to load the manifests); room web code reaches lore only through
-  `@ceo/engine/lore`; no `process.env` in `rooms/*/api`.
-- **Warnings** in `apps/world/src/desk/**`: a room's folder importing another room's, or a shared kit (flow, skippy,
-  confluence, hologram, hero) importing a room. The baseline at step 1 was 15 warnings (18 by step 3, as rooms grew).
-  Step 3 cleared every kit's; the 6 left are rooms importing rooms (the Boiler Room's controls and pipes, the
-  Exchange's asides), which go as those rooms move. They become errors at step 14.
+  `@ceo/engine/lore`; no `process.env` in `rooms/*/api`. The one allowance is `KNOWN_CROSSINGS`: the reads one room
+  still makes of another, listed file by file (19 at step 14, in the Boiler Room, Today and the Exchange). The list
+  only shrinks: `scripts/eslint-rooms.test.mjs` fails on an entry whose import is gone, and a new crossing is an error.
+- **Errors** in `apps/world/src/desk/**`: a shared kit (flow, skippy, confluence, hologram, hero) importing a room.
+  This was a warning while the rooms moved out (15 at step 1, 18 by step 3, 0 by step 13) and became an error at
+  step 14, once every room had left the Desk.

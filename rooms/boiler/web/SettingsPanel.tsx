@@ -4,8 +4,8 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { handsFreeSupported } from "../../../apps/world/src/desk/roomvoice/roomVoice.ts";
 import { HandsFree } from "../../../apps/world/src/desk/roomvoice/RoomMic.tsx";
 import { PlanWatch } from "../../../apps/world/src/desk/skippy/PlanWatch.tsx";
-import { Ephemeris, IlyrReadout, useRuns } from "../../../apps/world/src/desk/TodayRail.tsx";
-import { useNow } from "../../../apps/world/src/desk/motion.tsx";
+import { Ephemeris, IlyrReadout, useRuns } from "../../today/web/TodayRail.tsx";
+import { useNow } from "@ceo/engine/sigils/motion.tsx";
 
 /**
  * Boiler Room > Controls > Settings (#666): what used to sit in the Desk's bar and on Today, moved here when Today

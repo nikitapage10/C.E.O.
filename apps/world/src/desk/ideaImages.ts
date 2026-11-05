@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PICTURE_PATH, PICTURE_ROUTE, linkWindow } from "../../../../api/_pictures.ts";
-import { useDeskAuth } from "./signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 
 export const MAX_IMAGES = 4;
 const MAX_BYTES = 4 * 1024 * 1024;

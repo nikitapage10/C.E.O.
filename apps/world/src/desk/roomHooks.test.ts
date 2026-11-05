@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { useSystems, type Link } from "../systems.ts";
-import { usePolymarket, type PmBoard } from "./exchange/polymarket.ts";
-import { greenLines } from "./green/skippy.ts";
-import { exchangeLines } from "./exchange/skippy.ts";
-import { useGreen, type GreenBoard, type GreenPlayer } from "./green/league.ts";
+import { usePolymarket, type PmBoard } from "../../../../rooms/exchange/data/polymarket.ts";
+import { greenLines } from "../../../../rooms/green/skippy.ts";
+import { exchangeLines } from "../../../../rooms/exchange/skippy.ts";
+import { useGreen, type GreenBoard, type GreenPlayer } from "../../../../rooms/green/data/league.ts";
 import "./roomHooks.ts";
 import { PAGE_LINES, PAGE_MAX, boilerLines, pageContext } from "./skippy/page.ts";
 import { pageSources, texting } from "./skippy/rooms.ts";

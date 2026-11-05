@@ -1,7 +1,7 @@
-import { moveTone, pct, type PmMarket } from "../desk/exchange/polymarket.ts";
+import { moveTone, pct, type PmMarket } from "../../../../rooms/exchange/data/polymarket.ts";
 
 /**
- * The ticker ring reads Polymarket's live public odds (#253, the board's own feed: apps/world/src/desk/exchange/
+ * The ticker ring reads Polymarket's live public odds (#253, the board's own feed: rooms/exchange/data/
  * polymarket.ts): the busiest open markets, each with its odds and the day's move. Public market data only: Nikita's
  * own positions show only on the marquee (liveBoards.ts), to a signed-in Desk session with Hide off, never on the ring
  * or anything public. Until the feed answers, the ring says so instead of making odds up.

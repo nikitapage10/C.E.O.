@@ -6,7 +6,7 @@ import { DESK_ROOMS, roomImage } from "./deskData.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { BANNERS, roomImage2x } from "./RoomBanner.tsx";
 import { ROOM_META } from "./roomPulse.ts";
-import { systemsPageOf } from "./SystemsNav.tsx";
+import { systemsPageOf } from "../../../../rooms/boiler/web/SystemsNav.tsx";
 
 const file = (src: string) => new URL(`../../public${src}`, import.meta.url);
 

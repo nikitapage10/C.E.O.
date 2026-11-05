@@ -1,5 +1,5 @@
-// Moved into the engine (#617, step 2; docs/ROOMS.md). This re-export keeps the old path working until step 14, and
-// hands the engine the Desk's router so a tapped ping moves the open Desk to its tab without a reload.
+// The device pings live in the engine (#617, step 2; docs/ROOMS.md). The Desk imports them from here, not the engine,
+// because this file hands the engine the Desk's router so a tapped ping moves the open Desk to its tab without a reload.
 import { setPingOpener } from "@ceo/engine/web/pings.ts";
 import { navigateTo } from "../route.ts";
 

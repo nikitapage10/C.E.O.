@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { PmMarket } from "../desk/exchange/polymarket.ts";
-import type { PmPosition } from "../desk/exchange/positions.ts";
-import type { GreenBoard } from "../desk/green/league.ts";
+import type { PmMarket } from "../../../../rooms/exchange/data/polymarket.ts";
+import type { PmPosition } from "../../../../rooms/exchange/data/positions.ts";
+import type { GreenBoard } from "../../../../rooms/green/data/league.ts";
 import { bookieLine, commentatorLine, marqueeChunks, oddsNow, positionChunk, scoreRows, showsBook, type BookView } from "./liveBoards.ts";
 
 const market = (question: string, prob: number, change24h: number | null = null): PmMarket => ({ id: "1", question, outcome: "Yes", prob, change24h } as PmMarket);

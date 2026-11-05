@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 
 /**
  * Setup asks (#324), browser side: what a submind's thread wants set up and is waiting on Nikita's OK for

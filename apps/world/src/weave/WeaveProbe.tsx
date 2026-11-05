@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useState } from "react";
 import { Vector3, type Camera } from "three";
 import { agentPositions } from "../clock.ts";
-import { bez, clamp, eOut, knot, Parts, Poly, reducedMotion, spr, sstep, TAU, weave, WHITE } from "../desk/wvCanvas.ts";
+import { bez, clamp, eOut, knot, Parts, Poly, reducedMotion, spr, sstep, TAU, weave, WHITE } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useOverlay } from "../hud/Hud.tsx";
 import { useWorld } from "../store.ts";
 import { PULSE_MS, roomRgb, weaveBus } from "./bus.ts";
@@ -11,7 +11,7 @@ import { derive, type Derived } from "./live.ts";
 
 /**
  * The Weave in the Lattice (#374), drawn from inside the scene's frame so it sits exactly on the world: projected 3D
- * points, painted on a 2D canvas (WeaveCanvas) with the Desk's own thread and particle helpers (desk/wvCanvas.ts).
+ * points, painted on a 2D canvas (WeaveCanvas) with the Desk's own thread and particle helpers (@ceo/engine/sigils/wvCanvas.ts).
  * No meshes, no materials: the GPU's draw calls stay what they were. All of it reads real work only:
  *
  * - a room with real work running (a task a real agent started, TaskRecord.live) carries dots in its colour along its

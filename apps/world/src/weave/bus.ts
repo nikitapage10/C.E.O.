@@ -1,5 +1,5 @@
 import type { RoomId } from "@ceo/core";
-import { RC, WHITE } from "../desk/wvCanvas.ts";
+import { RC, WHITE } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**
  * The Lattice's Weave (#374): the Desk's dots and threads of light, brought into the Lattice. One small 2D canvas over

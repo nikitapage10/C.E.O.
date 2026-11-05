@@ -3,7 +3,7 @@ import { formatDuration, useDayStory, useWeekStory, type DayPage, type DayStoryV
 import { madeAt, paragraphs, STORY_WHY, useStoryMaker } from "./DayStory.tsx";
 import { PORTRAITS } from "../../../apps/world/src/desk/portraits.ts";
 import { SKIPPY_PORTRAIT } from "../../../apps/world/src/desk/skippy/SkippyAvatar.tsx";
-import { reducedMotion } from "../../../apps/world/src/desk/wvCanvas.ts";
+import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**
  * The Archive's pieces (#366, a redesign of the Weave's Chronicle): Today in Ilyr as a broadsheet edition, Skippy's

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { useDeskAuth } from "./signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { navigateTo } from "../route.ts";
 
 /**

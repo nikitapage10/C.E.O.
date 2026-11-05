@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RC, useFlow, type FlowLayoutFn, type FlowLine } from "../../../apps/world/src/desk/flow/index.ts";
-import { BAD } from "../../../apps/world/src/desk/wvCanvas.ts";
+import { BAD } from "@ceo/engine/sigils/wvCanvas.ts";
 import { changesOf, checkLines, route, STATE_WORD, type CheckState } from "../data/checks.ts";
 import type { Explain } from "../data/explain.ts";
 import { Facts } from "./parts.tsx";

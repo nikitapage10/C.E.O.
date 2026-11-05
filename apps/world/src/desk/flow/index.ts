@@ -8,7 +8,7 @@ import "@ceo/engine/sigils/flow.css";
  * page that is itself lazy, so none of it lands in the Desk's first load. See README.md.
  */
 export { useFlow, type UseFlowOpts } from "./useFlow.ts";
-export { makeFlowField, type FlowBox, type FlowField, type FlowLayout, type FlowLayoutFn, type FlowLine, type FlowOpts, type PulseOpts } from "./field.ts";
-export { converge, fan, polyOf, samplePath, type BranchOpts, type PathSpec, type Pt } from "./path.ts";
-export { RiseField, riseSpot, safeTitle, type RiseAt, type RiseLine } from "./rise.ts";
-export { RC } from "../wvCanvas.ts";
+export { makeFlowField, type FlowBox, type FlowField, type FlowLayout, type FlowLayoutFn, type FlowLine, type FlowOpts, type PulseOpts } from "@ceo/engine/sigils/field.ts";
+export { converge, fan, polyOf, samplePath, type BranchOpts, type PathSpec, type Pt } from "@ceo/engine/sigils/path.ts";
+export { RiseField, riseSpot, safeTitle, type RiseAt, type RiseLine } from "@ceo/engine/sigils/rise.ts";
+export { RC } from "@ceo/engine/sigils/wvCanvas.ts";

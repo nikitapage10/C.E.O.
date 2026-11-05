@@ -4,8 +4,8 @@ import { HANDED_LINE, readItemReply, type FloorItem } from "../../../../../api/_
 import type { Todo } from "../../../../../api/_today/todos.ts";
 import { askSkippyAbout, handToSkippy } from "./floorTalk.ts";
 import { useDictation } from "../dictate.ts";
-import { useDeskAuth } from "../signin.ts";
-import { Icon } from "../todayIcons.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { Icon } from "../../../../../rooms/today/web/todayIcons.tsx";
 import { useTodos, type Target } from "./todos.ts";
 import "./todos.css";
 

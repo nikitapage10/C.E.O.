@@ -120,6 +120,6 @@ invoicing paths can be called; the server-side validation; the draft's exact pay
 amounts, a due date); create never calls send; send and cancel need the passkey session, the Desk's origin, JSON and
 `confirm: true`, and only reach a draft (or an open invoice); PayPal's statuses and overdue; the public counts are an
 allowlist with no client, email, number or amount, cached for five minutes, and say waiting or error rather than a
-made-up zero. `apps/world/src/desk/spire/invoices.test.ts` covers the Desk side: the counts-only line, the pipe, the
+made-up zero. `rooms/spire/data/invoices.test.ts` covers the Desk side: the counts-only line, the pipe, the
 defensive reads, the form check, that nothing is sent without the page's confirm step, and the Vercel copy showing
 "on the Azure copy".

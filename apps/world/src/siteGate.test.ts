@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { installSiteGate, isLocked, loginUrl } from "./siteGate.ts";
-import { RECOVERY, statusLine } from "./desk/SitePassword.tsx";
+import { RECOVERY, statusLine } from "@ceo/engine/web/SitePassword.tsx";
 
 /** The site lock, browser side (#236, #238): a locked API answer sends the page to the login page, once. */
 

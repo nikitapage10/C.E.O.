@@ -10,7 +10,7 @@ import { DayStory } from "./DayStory.tsx";
 import { formatWait } from "../../../apps/world/src/desk/deskData.ts";
 import { link } from "../../../apps/world/src/desk/nav.ts";
 import { PORTRAITS } from "../../../apps/world/src/desk/portraits.ts";
-import { useWidth } from "../../../apps/world/src/desk/motion.tsx";
+import { useWidth } from "@ceo/engine/sigils/motion.tsx";
 import { Avatar } from "../../../apps/world/src/desk/ui.tsx";
 
 /**

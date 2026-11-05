@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { submindOf } from "../../../../../packages/simulator/src/subminds.ts";
-import { Private } from "../Private.tsx";
-import { useDeskAuth } from "../signin.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { whenAsked } from "./asked.ts";
 import { ROUTE_LABEL, TRAIL_STEP, useSetupAsks, waiting, type DecideResult, type SetupAsk, type SetupRoom } from "./setupAsks.ts";
 import "./asked.css";

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { linkUntil } from "../../../../api/_pictures.ts";
 import { ownNames, pictureLinks } from "./ideaImages.ts";
-import { useDeskAuth } from "./signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 
 const NOW = Date.parse("2026-10-14T12:03:00Z");
 

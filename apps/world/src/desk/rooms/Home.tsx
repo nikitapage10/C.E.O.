@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { RC, useFlow, type FlowLayoutFn, type Pt } from "../flow/index.ts";
-import { Private } from "../Private.tsx";
+import { Private } from "@ceo/engine/web/Private.tsx";
 import { Waits, type Wait } from "./parts.tsx";
 
 /**

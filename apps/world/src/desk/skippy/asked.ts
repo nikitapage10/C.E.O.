@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 
 /**
  * "Asked Skippy" (#273), browser side: what Nikita asked Skippy on the Desk, kept by room. Skippy tags each answer with

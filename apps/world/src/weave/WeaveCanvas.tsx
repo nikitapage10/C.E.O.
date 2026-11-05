@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { reducedMotion } from "../desk/wvCanvas.ts";
+import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { feedLines } from "../hud/format.ts";
 import { useWorld } from "../store.ts";
 import { addPulse, weaveBus } from "./bus.ts";

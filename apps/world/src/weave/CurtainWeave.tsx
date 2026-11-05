@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { bez, clamp, eOut, Parts, Poly, RC, reducedMotion, TAU, weave, WHITE } from "../desk/wvCanvas.ts";
+import { bez, clamp, eOut, Parts, Poly, RC, reducedMotion, TAU, weave, WHITE } from "@ceo/engine/sigils/wvCanvas.ts";
 
 /**
  * The curtain's Weave (#374): while the Lattice loads, the Desk's dust drifts behind the sigil and threads of light

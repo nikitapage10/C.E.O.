@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePictureLinks } from "./ideaImages.ts";
-import { DeskSignIn } from "./SignIn.tsx";
-import { ensureSignedIn, useDeskAuth } from "./signin.ts";
+import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
+import { ensureSignedIn, useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { expectChange, pendingIdea, useFoundry, type Crate } from "../foundry.ts";
 import { FOUNDRY_THREAD } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";

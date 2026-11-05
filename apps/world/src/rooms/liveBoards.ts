@@ -1,8 +1,8 @@
 import { BOOKIE_LIVE_QUIPS, BOOKIE_MOVE_QUIPS, COMMENTATOR_LIVE_QUIPS, COMMENTATOR_PROJECTED_QUIPS, fillQuip } from "@ceo/simulator";
-import { asideLine } from "../desk/exchange/asides.ts";
-import { moveTone, pct, type PmMarket, type PmWorld } from "../desk/exchange/polymarket.ts";
-import { signedPct, type PmPosition, type PosStatus } from "../desk/exchange/positions.ts";
-import { sayNumber, type GreenBoard } from "../desk/green/league.ts";
+import { asideLine } from "../../../../rooms/exchange/data/asides.ts";
+import { moveTone, pct, type PmMarket, type PmWorld } from "../../../../rooms/exchange/data/polymarket.ts";
+import { signedPct, type PmPosition, type PosStatus } from "../../../../rooms/exchange/data/positions.ts";
+import { sayNumber, type GreenBoard } from "../../../../rooms/green/data/league.ts";
 import { tickerChunks } from "./exchangeTicker.ts";
 
 /**

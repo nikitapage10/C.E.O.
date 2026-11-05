@@ -1,5 +1,5 @@
-import { frac, Parts, Poly, ring, spr, TAU, WHITE } from "../wvCanvas.ts";
-import { Motes, NEAR } from "../flow/motes.ts";
+import { frac, Parts, Poly, ring, spr, TAU, WHITE } from "@ceo/engine/sigils/wvCanvas.ts";
+import { Motes, NEAR } from "@ceo/engine/sigils/motes.ts";
 
 const MOTES = new Motes();
 

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { readCapture, readTalkBack, fallbackChoices, didLine, type Intent, type Reading } from "../../../../../api/_today/parse.ts";
 import { isOpen, keepState, mergeState, type Mark, type Todo, type TodoState } from "../../../../../api/_today/todos.ts";
-import { useDeskAuth } from "../signin.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 
 /**
  * Today's own to-dos and talk-back (#622), browser side. What Nikita says into the capture line becomes a to-do of

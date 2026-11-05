@@ -9,7 +9,7 @@ import "./queue.css";
  * and F should all be on the line... if I put my mouse over those little circles or even on the text on the left-hand
  * side, it kind of like magnifies in this like blurry light magnification kind of way... like the glass in the new
  * Apple stuff". Every owed thread's circle sits on the line in the queue's order, its name and gist a small label left
- * of it; the pointer (or the scroll, with nothing hovering) is a magnifier: a frosted glass lens, the nearest row largest
+ * of it; the pointer (or the scroll, with nothing hovering) is a magnifier: the nearest row largest
  * and its neighbours scaled along a bell curve, as a dock does. Scrolling the codex moves the rows up the line; the
  * ones scrolled past close up toward the top and fade, but stay. A tap on one puts it in focus and opens its composer.
  * On a phone the line lies flat above the entry; a drag along it magnifies, and letting go there opens that one.
@@ -53,7 +53,6 @@ function Face({ r, hidden }: { r: WaveRow; hidden: boolean }) {
 
 export function RelayQueue({ queue, cur, now, hidden, goTo, navRef, pagesRef, narrow, still }: { queue: readonly Exchange[]; cur: string | null; now: number; hidden: boolean; goTo: (key: string) => void; navRef: RefObject<HTMLElement | null>; pagesRef: RefObject<HTMLElement | null>; narrow: boolean; still: boolean }) {
   const listRef = useRef<HTMLOListElement>(null);
-  const lensRef = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => waveRows(queue, cur, now), [queue, cur, now]);
   const at = Math.max(0, queue.findIndex((x) => x.key === cur));
 
@@ -73,7 +72,7 @@ export function RelayQueue({ queue, cur, now, hidden, goTo, navRef, pagesRef, na
     return { w, h, o: { ...LINE, half: Math.max(40, half), gap: live.current.narrow ? 40 : LINE.gap, sigma: live.current.narrow ? 34 : LINE.sigma, mag: live.current.narrow ? 0.55 : LINE.mag } };
   }, [navRef]);
 
-  /** One frame: ease the scroll place and the magnifier, place every row and the lens. True while still moving. */
+  /** One frame: ease the scroll place and the magnifier, place every row. True while still moving. */
   const draw = useCallback(
     (dt: number): boolean => {
       const g = geometry();
@@ -93,17 +92,16 @@ export function RelayQueue({ queue, cur, now, hidden, goTo, navRef, pagesRef, na
         if (!el) continue;
         const x = flat ? g.w / 2 + q.at : g.w;
         const y = flat ? FLAT_Y : g.h / 2 + q.at;
-        el.style.transform = flat ? `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -${R}px) scale(${q.scale.toFixed(3)})` : `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(calc(-100% + ${R}px), -50%) scale(${q.scale.toFixed(3)})`;
+        // The warped glass: on its rim a row squashes along the line and leans away (rotate about the line's cross axis).
+        const sc = q.scale.toFixed(3), sq = q.squash.toFixed(3), tl = q.tilt.toFixed(1);
+        el.style.transform = flat
+          ? `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -${R}px) perspective(420px) rotateY(${tl}deg) scale(${sq}, ${sc})`
+          : `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(calc(-100% + ${R}px), -50%) perspective(420px) rotateX(${(-q.tilt).toFixed(1)}deg) scale(${sc}, ${sq})`;
         el.style.opacity = q.alpha.toFixed(3);
         el.style.zIndex = String(Math.round(q.lens * 100));
         const words = el.lastElementChild as HTMLElement | null;
         // On a phone only the magnified one is named: the flat line has no room for every label.
         if (words) words.style.opacity = (flat ? Math.max(0, Math.min(1, q.lens * 2.2 - 1.2)) : q.label / Math.max(0.01, q.alpha)).toFixed(3);
-      }
-      const lens = lensRef.current;
-      if (lens) {
-        lens.style.transform = flat ? `translate3d(${(g.w / 2 + s.f).toFixed(1)}px, ${FLAT_Y}px, 0) translate(-50%, -30%)` : `translate3d(${g.w.toFixed(1)}px, ${(g.h / 2 + s.f).toFixed(1)}px, 0) translate(calc(-100% + 34px), -50%)`;
-        lens.dataset.on = s.hover || s.drag ? "1" : "";
       }
       return s.p !== s.pTo || s.f !== s.fTo;
     },
@@ -233,7 +231,6 @@ export function RelayQueue({ queue, cur, now, hidden, goTo, navRef, pagesRef, na
         kick();
       }}
     >
-      <div className="rq-lens" ref={lensRef} aria-hidden="true" />
       <ol className="rq-list" ref={listRef}>
         {rows.map((r) => {
           const on = r.k === 0;

@@ -179,8 +179,6 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   main.onended = () => finish(true);
   main.onerror = () => finish(false);
 
-  const visibility = () => voice.hold(held);
-  document.addEventListener("visibilitychange", visibility);
   // Inside the tap that turns the sound on, each player plays a moment of silence, so a phone lets it speak later.
   const unlock = () => {
     for (const a of [main, mur]) {
@@ -221,7 +219,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
         register(main, by);
         main.volume = 1;
         speaking(true);
-        if (held || document.visibilityState === "hidden") return;
+        if (held) return;
         // Blocked (no tap yet this visit, after a reload with sound on): read it instead, and ask for a tap.
         main
           .play()
@@ -264,8 +262,8 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
     },
     hold(h) {
       held = h;
-      const away = h || document.visibilityState === "hidden";
-      if (away) {
+      // Only the chamber leaving the page holds the voices; another window or tab doesn't (#898).
+      if (h) {
         if (!main.paused) main.pause();
         hushMurmur();
       } else if (end && main.paused && main.src) main.play().catch(() => finish(false));
@@ -276,7 +274,6 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       unsub();
       unlockers.delete(unlock);
       for (const ev of GESTURES) document.removeEventListener(ev, firstTap, true);
-      document.removeEventListener("visibilitychange", visibility);
       main.removeAttribute("src");
       mur.removeAttribute("src");
       for (const p of lines.values()) void p.then((u) => u && URL.revokeObjectURL(u));

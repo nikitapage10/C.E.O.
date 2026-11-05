@@ -132,6 +132,13 @@ export interface RelayState {
   photos: Record<string, string>;
   /** When the photos were last synced. */
   photosAt: number | null;
+  /** When a photo sync started that hasn't ended yet (#891): `relay check` says one is running. Null when none is. */
+  photosRun: number | null;
+  /**
+   * The last photo sync's trouble (#891), for `relay check`: when, the site's HTTP status (0 when it wasn't an HTTP
+   * answer), and how many photos the site didn't take. Numbers only. Null after a clean sync.
+   */
+  photosFail: PhotosFail | null;
   /**
    * Where the poll of BlueBubbles has read up to (#749): the newest message time taken in (ms), and a short hash of
    * each message guid taken in over the overlap window, so a message read twice is taken in once. Hashes and times
@@ -152,12 +159,18 @@ export interface RelayState {
 
 export const MAX_OLDER_ROWS = 200;
 
+export interface PhotosFail {
+  at: number;
+  status: number;
+  failed: number;
+}
+
 export interface Inbox {
   at: number;
   recent: { h: string; at: number }[];
 }
 
-export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null, photos: {}, photosAt: null, inbox: null, older: [], olderCount: 0, scannedAt: null, voice: null, relations: {} });
+export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null, photos: {}, photosAt: null, photosRun: null, photosFail: null, inbox: null, older: [], olderCount: 0, scannedAt: null, voice: null, relations: {} });
 
 export const newThreadId = () => randomBytes(8).toString("hex");
 
@@ -248,6 +261,15 @@ function readInbox(v: unknown): Inbox | null {
   return { at: o.at as number, recent };
 }
 
+function readPhotosFail(v: unknown): PhotosFail | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  const at = n(o.at);
+  const status = n(o.status);
+  const failed = n(o.failed);
+  return at !== null && status !== null && failed !== null ? { at, status: Math.max(0, Math.min(999, Math.round(status))), failed: Math.max(0, Math.min(9_999, Math.round(failed))) } : null;
+}
+
 /** The state from the file's text, each row checked; a bad row is dropped, a bad file is a fresh state. */
 export function readState(raw: string | null): RelayState {
   let o: Record<string, unknown>;
@@ -277,6 +299,8 @@ export function readState(raw: string | null): RelayState {
       return out;
     })(),
     photosAt: n(o.photosAt),
+    photosRun: n(o.photosRun),
+    photosFail: readPhotosFail(o.photosFail),
     inbox: readInbox(o.inbox),
     older: Array.isArray(o.older) ? o.older.map(readOlderRow).filter((x): x is OlderRow => x !== null).slice(0, MAX_OLDER_ROWS) : [],
     olderCount: Math.min(9_999, Math.max(0, n(o.olderCount) ?? 0)),

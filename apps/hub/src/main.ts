@@ -13,7 +13,7 @@ import { listen } from "./server.ts";
 import { siteClient } from "./site.ts";
 import { fileStore } from "./store.ts";
 import { macPhotoKey } from "../../../api/_relay/photos.ts";
-import { sipsResize } from "./photos.ts";
+import { photoSyncLine, sipsResize } from "./photos.ts";
 
 /**
  * The hub's one file on the Mac (built into relay-hub.mjs, served by the site at /relay/relay-hub.mjs). Its commands,
@@ -191,6 +191,8 @@ async function main(argv: string[]): Promise<void> {
       const photos = await bb.contactPhotos().catch(() => null);
       const synced = Object.keys(state.photos).length;
       out(photos ? `Relay: ${photos.length} contacts have a photo, ${synced} synced to the Desk.` : `Relay: BlueBubbles didn't give the contact photos in time; ${synced} synced to the Desk.`);
+      const sync = photoSyncLine(state, Date.now());
+      if (sync) out(sync);
       // The chats (#870): how many BlueBubbles returned, how many its last messages make owed, and how many the hub lists.
       const chats = await allChats(bb, CHAT_PAGE, CHAT_PAGES).catch(() => null);
       const owed = state.threads.filter((t) => t.state === "owed" || t.state === "later").length;

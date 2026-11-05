@@ -155,11 +155,19 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   }, []);
 
   // Real state into the scene as it changes.
-  useEffect(() => scene.current?.setSeats(live.current.seats), [seatSig, gl]);
-  useEffect(() => scene.current?.setDocket(link.docket), [link.docket, gl]);
-  useEffect(() => scene.current?.setAmbient(live.current.ambient), [ambientSig, gl]);
+  useEffect(() => {
+    scene.current?.setSeats(live.current.seats);
+  }, [seatSig, gl]);
+  useEffect(() => {
+    scene.current?.setDocket(link.docket);
+  }, [link.docket, gl]);
+  useEffect(() => {
+    scene.current?.setAmbient(live.current.ambient);
+  }, [ambientSig, gl]);
   const lit = hot ?? sel;
-  useEffect(() => scene.current?.setHot(lit === "kernel" ? null : lit), [lit, gl]);
+  useEffect(() => {
+    scene.current?.setHot(lit === "kernel" ? null : lit);
+  }, [lit, gl]);
   hotRef.current = setHot;
 
   useEffect(() => {

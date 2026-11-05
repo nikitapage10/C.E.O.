@@ -1123,7 +1123,9 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       // The first business of the day: start from item one rather than waiting out an interlude.
       if (!was && items.length) void session(null);
     },
-    setAmbient: (lines) => (ambient = lines),
+    setAmbient: (lines) => {
+      ambient = lines;
+    },
     bring: (key) => void session(key),
     setHot: (id) => pods.forEach((p) => (p.hot = p.s.id === id)),
     dispose: () => {

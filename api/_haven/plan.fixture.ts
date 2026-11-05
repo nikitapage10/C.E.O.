@@ -36,7 +36,7 @@ export const FAKE_PLAN: HavenPlan = {
     { k: "fridge", x: 532, y: 44, w: 62, h: 60, round: false }, { k: "island", x: 300, y: 160, w: 200, h: 60, round: false },
     { k: "stool", x: 340, y: 245, w: 22, h: 22, round: true }, { k: "stool", x: 400, y: 245, w: 22, h: 22, round: true }, { k: "stool", x: 460, y: 245, w: 22, h: 22, round: true },
     { k: "jar", x: 250, y: 300, w: 16, h: 16, round: true }, { k: "jar", x: 280, y: 300, w: 16, h: 16, round: true },
-    { k: "table", x: 250, y: 350, w: 120, h: 70, round: false }, { k: "chair", x: 270, y: 340, w: 20, h: 20, round: true }, { k: "chair", x: 340, y: 340, w: 20, h: 20, round: true },
+    { k: "table", x: 250, y: 332, w: 120, h: 60, round: false }, { k: "chair", x: 270, y: 334, w: 20, h: 20, round: true }, { k: "chair", x: 340, y: 334, w: 20, h: 20, round: true },
     { k: "console", x: 640, y: 44, w: 220, h: 16, round: false }, { k: "tv", x: 650, y: 42, w: 200, h: 5, round: false },
     { k: "sofa", x: 890, y: 120, w: 60, h: 280, round: false }, { k: "sofa", x: 660, y: 390, w: 230, h: 56, round: false },
     { k: "ctable", x: 720, y: 220, w: 90, h: 90, round: false }, { k: "lamp", x: 880, y: 420, w: 14, h: 14, round: true }, { k: "cattree", x: 630, y: 120, w: 28, h: 28, round: true },

@@ -10,7 +10,10 @@ import { takeGmailReturn, useEmail } from "../email/email.ts";
 import { useTexts } from "../texts/texts.ts";
 import { TextsSection } from "../texts/TextsSection.tsx";
 import { setRelayHandler } from "./bridge.ts";
+import { GroupFlipper } from "./GroupFlipper.tsx";
+import { groupsOf } from "./groups.ts";
 import { RelayQueue, useMedia } from "./RelayQueue.tsx";
+import { Said } from "./Said.tsx";
 import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "./sigils.ts";
 import { agoShort, askLine, codexOf, initialOf, lastRequest, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "./thread.ts";
 import { wavePoint } from "./wave.ts";
@@ -52,36 +55,6 @@ function Face({ x, hidden }: { x: Exchange; hidden: boolean }) {
     <span className="cx-init" aria-hidden="true">
       {hidden ? "·" : initialOf(x.who)}
     </span>
-  );
-}
-
-/** A group member's face beside their line (#758): their contact photo by its opaque id, else their initial. */
-function MemberFace({ name, photo, hidden }: { name: string; photo?: string; hidden: boolean }) {
-  const [bad, setBad] = useState(false);
-  if (photo && !hidden && !bad) return <img className="cx-mface" src={`/api/relay?photo=${photo}`} alt="" width={22} height={22} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBad(true)} />;
-  return (
-    <span className="cx-mface cx-minit" aria-hidden="true">
-      {hidden ? "·" : initialOf(name)}
-    </span>
-  );
-}
-
-/** Their own texts (#758): real words, oldest first; in a group each line with its sender's face and name. */
-function Said({ messages, hidden }: { messages: NonNullable<Exchange["messages"]>; hidden: boolean }) {
-  return (
-    <ol className="cx-said">
-      {messages.map((m, i) => (
-        <li key={`${m.at}-${i}`} className="cx-msg">
-          {m.from !== undefined && (
-            <span className="cx-who">
-              <MemberFace name={m.from} photo={m.photo} hidden={hidden} />
-              <Private>{m.from}</Private>
-            </span>
-          )}
-          <Private>{m.text}</Private>
-        </li>
-      ))}
-    </ol>
   );
 }
 
@@ -924,7 +897,7 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
   const rules = view?.rules ?? [];
   const older = textsView?.older ?? { count: 0, items: [] };
   const voice = textsView?.voice ?? null;
-  const groups = (textsView?.items ?? []).filter((i) => i.group && (i.summary || i.messages?.length));
+  const groups = useMemo(() => groupsOf(textsView?.items, now, t.order), [textsView?.items, now, t.order]);
   // A chore's latest request (#758): "busy" while the Mac has it, else how it ended.
   const chore = (kind: "rescan" | "learn") => {
     const r = (textsView?.requests ?? []).filter((x) => x.kind === kind).sort((a, b) => b.created - a.created)[0];
@@ -1026,23 +999,8 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
                 <span className="cx-lab">Groups</span>
               </div>
               <div className="cx-body">
-                {/* Summary-only (#758): a group joins the Texts above only when you were asked or named. */}
-                <ol className="cx-groups">
-                  {groups.map((g) => (
-                    <li key={g.id}>
-                      <h4>
-                        <Private>{g.name}</Private>
-                        {g.state !== "settled" && <span className="cx-unread"> · asks you</span>}
-                      </h4>
-                      {g.summary && (
-                        <p className="cx-gist">
-                          <Private>{g.summary.text}</Private>
-                        </p>
-                      )}
-                      {g.messages && <Said messages={g.messages} hidden={t.hidden} />}
-                    </li>
-                  ))}
-                </ol>
+                {/* The flipper (#805): one group at a time, its texts, and a reply sent exactly as typed. */}
+                <GroupFlipper groups={groups} hidden={t.hidden} unlocked={t.unlocked} />
               </div>
             </div>
           )}

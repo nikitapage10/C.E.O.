@@ -484,6 +484,39 @@ describe("the rules reach every model call (#541 review)", () => {
     expect(readSortInput(JSON.parse(JSON.stringify(sort)))).not.toBeNull();
   });
 
+  it("a listed group takes Nikita's own typed words (#805), never a draft-bound send, and never once a rule cleared it", async () => {
+    const h = setup();
+    const GROUPCHAT = "iMessage;+;chat000000000000000003";
+    h.bb.history = [{ text: "Who's in for Sunday?", fromMe: false, at: NOW - 60_000, handle: HANDLE }];
+    h.site.sortAnswer = { summary: "Member 1 asks who is in for Sunday.", asked: false };
+    await h.engine.onMessage({ chat: GROUPCHAT, group: true, groupName: "Test group", message: h.bb.history[0]! });
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    const g = h.store.load().threads[0]!;
+    expect(g).toMatchObject({ group: true, state: "settled" });
+    expect(g.summary).not.toBeNull();
+    // Bound to a draft: refused (a group never has one).
+    h.site.waiting = [req({ rid: "1".repeat(24), thread: g.id, draftAt: NOW })];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([]);
+    expect(h.site.reported.at(-1)).toEqual({ rid: "1".repeat(24), result: "refused", reason: "not-owed" });
+    // A newer text in the group doesn't stop typed words; they go exactly as typed, once.
+    const busy = { text: "Bringing snacks", fromMe: false, at: h.now() + 500, handle: "+15555550199" };
+    h.bb.history.push(busy);
+    await h.engine.onMessage({ chat: GROUPCHAT, group: true, groupName: "Test group", message: busy });
+    h.at(h.now() + 1_000);
+    h.site.waiting = [req({ rid: "2".repeat(24), thread: g.id, text: "Count me in 🙌" }, KEY, h.now())];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([{ chat: GROUPCHAT, text: "Count me in 🙌" }]);
+    expect(h.site.reported.at(-1)).toEqual({ rid: "2".repeat(24), result: "sent" });
+    // Its summary was of what came before the reply: the group leaves the Desk until it talks again.
+    expect(h.store.load().threads[0]!.summary).toBeNull();
+    h.site.waiting = [req({ rid: "3".repeat(24), thread: g.id, text: "Again" }, KEY, h.now())];
+    await h.engine.act();
+    expect(h.bb.sent).toHaveLength(1);
+    expect(h.site.reported.at(-1)!.result).toBe("refused");
+  });
+
   it("after a send that timed out but went, a resend is refused", async () => {
     const h = await owedWithDraft();
     h.bb.send = async () => {

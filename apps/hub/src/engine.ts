@@ -887,12 +887,16 @@ export class Engine {
     }
     if (!t) return refuse("gone");
     if (req.kind === "send") {
-      if (t.group || (t.state !== "owed" && t.state !== "later")) return refuse("not-owed");
+      // A group (#805) takes only Nikita's own typed words (it never has a draft), and only while the Desk lists it:
+      // owed, or settled with its summary. A rule match clears the summary, so a ruled group never takes a send.
+      const listed = t.state === "owed" || t.state === "later" || (t.group && t.state === "settled" && t.summary !== null);
+      if (!listed || (t.group && req.draftAt !== 0)) return refuse("not-owed");
       if (!req.text.trim() || req.text.length > 2_000) return refuse("bad-text");
       // Bound to what Nikita saw (#767): the request carries the text he tapped Send on, signed. A draft Blasto
       // replaced since (a restyle, a draft that landed while he typed his own) doesn't stop it; a message from them
       // newer than what he saw does. Nothing came in after the draft on screen (or, with no draft, after the tap).
-      if (req.draftAt !== (t.draft?.at ?? 0) && t.lastIn > (req.draftAt || req.created)) return refuse("new-message");
+      // A group's own words answer the room, not one text, so a busy group's newer texts don't stop them (#805).
+      if (!t.group && req.draftAt !== (t.draft?.at ?? 0) && t.lastIn > (req.draftAt || req.created)) return refuse("new-message");
       // Already answered (an earlier send that timed out but went, or a reply from the phone the webhook missed):
       // BlueBubbles shows a message of Nikita's newer than the last one in. Never send twice.
       const latest = await this.d.bb.messages(t.chat, 5).catch(() => null);
@@ -909,7 +913,10 @@ export class Engine {
       if (failed) return failed;
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
-        if (x) this.replied(s, x, this.d.now());
+        if (!x) return;
+        // As a reply from the phone does (`onMessage`): a group's summary was of what came before it.
+        if (!x.group || x.state === "owed" || x.state === "later") this.replied(s, x, this.d.now());
+        if (x.group) x.summary = null;
       });
       this.d.log.log("sent");
       return "sent";

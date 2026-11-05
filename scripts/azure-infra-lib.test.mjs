@@ -123,8 +123,10 @@ describe("the deploy workflow's infra job (#330)", () => {
     for (const m of workflow.matchAll(/uses: ([^\s]+)/g)) expect(m[1], m[1]).toMatch(/@[0-9a-f]{40}$/);
   });
 
-  it("ships the code only after the template, and re-reads the vault after applying", () => {
-    expect(workflow).toMatch(/\n {2}site:\n {4}needs: \[build, infra\]/);
+  it("ships the functions only after the template, the static site straight from the build (#863), and re-reads the vault after applying", () => {
+    // The site is static files with no Azure setting of its own; waiting on infra's what-if and apply only added
+    // about 2.5 minutes to every ship.
+    expect(workflow).toMatch(/\n {2}site:\n(?: {4}#[^\n]*\n)* {4}needs: \[build\]\n/);
     expect(workflow).toMatch(/\n {2}functions:\n {4}needs: \[build, infra\]/);
     expect(job).toContain("KEYVAULT_REFRESH=");
     expect(job).toMatch(/KEYVAULT_REFRESH=[^\n]+-o none/);

@@ -2,12 +2,17 @@ import { useState, type CSSProperties } from "react";
 import { SystemsNav } from "../SystemsNav.tsx";
 import { NIST_AI_RMF, OWASP_LLM, RISK_STATUS_LABEL, ROADMAP, SAIF, owaspTally, partsOf, refsOf, statusOf, type RiskStatus } from "./model.ts";
 import { RISK_CHECK } from "./checks.ts";
-import { ACCENT, CheckRack, Key, type Check, type Group } from "./Checks.tsx";
+import { ACCENT, type Check } from "./Checks.tsx";
+import { BoilerFrame, Panel, Ring, StackBar, useOpen } from "../boiler/frame.tsx";
+import { complianceNeeds, frameworkBars, STATUS_ORDER } from "../boiler/pages.ts";
+import { CheckList } from "./CheckList.tsx";
 import { FRAME_EXPLAIN, NIST_EXPLAIN, OWASP_EXPLAIN, SAIF_EXPLAIN, type FrameId } from "./explain.ts";
 import { Chips, DOC_URL, Facts, Out } from "./parts.tsx";
 
 /**
- * Boiler Room > Compliance (#82; on Today's flow kit since #445): each framework docs/THREAT-MODEL.md maps C.E.O. to
+ * Boiler Room > Compliance (#82; one screen since #746, the P3 concept: a coverage ring and a bar per framework, then
+ * what isn't fully in place, then each framework's controls one folded line away; an open risk goes in "Needs you").
+ * Before #746, on Today's flow kit (#445): each framework docs/THREAT-MODEL.md maps C.E.O. to
  * (the OWASP Top 10 for LLM Applications, the NIST AI RMF and Google SAIF) as a bundle of particle lines, one a
  * control, gathering into the framework's figure. A control in place flows; one covered with more planned thins out;
  * an open risk stops at a red knot; an accepted one lies dashed; one that doesn't apply is a faint bed. Each line opens
@@ -15,25 +20,12 @@ import { Chips, DOC_URL, Facts, Out } from "./parts.tsx";
  * says so.
  */
 
-const ORDER: RiskStatus[] = ["covered", "tracked", "open", "accepted", "not-applicable"];
 const FRAME_TITLE: Record<FrameId, string> = {
   owasp: "OWASP Top 10 for LLM Applications",
   nist: "NIST AI RMF",
   saif: "Google SAIF",
   regulation: "Regulation",
 };
-
-function End({ big, of, what }: { big: string; of: string; what: string }) {
-  return (
-    <p className="sx-endfig">
-      <b className="fl-num">
-        {big}
-        <small>{of}</small>
-      </b>
-      <span>{what}</span>
-    </p>
-  );
-}
 
 /** A framework's own few words, folded under its name. */
 function About({ id }: { id: FrameId }) {
@@ -132,95 +124,102 @@ export function CompliancePage() {
     detail: <Chips items={partsOf(x.inCeo)} />,
   }));
 
-  const groups: Group[] = [
-    {
-      id: "owasp",
-      title: "OWASP Top 10 for LLM Applications (2025)",
-      note: `${ORDER.filter((st) => tally[st])
-        .map((st) => `${tally[st]} ${RISK_STATUS_LABEL[st].toLowerCase()}`)
-        .join(", ")}`,
-      aside: <Out href={DOC_URL}>Threat model</Out>,
-      checks: owasp,
-      end: <End big={String(covered)} of={`/${OWASP_LLM.length}`} what="risks covered" />,
-      foot: <About id="owasp" />,
-    },
-    {
-      id: "nist",
-      title: "NIST AI RMF",
-      note: `${NIST_AI_RMF.map((x) => x.fn).join(", ")}, mapped at the function level; categories not yet`,
-      checks: nist,
-      end: <End big={String(NIST_AI_RMF.length)} of={`/${NIST_AI_RMF.length}`} what="functions mapped" />,
-      foot: <About id="nist" />,
-    },
-    {
-      id: "saif",
-      title: "Google SAIF",
-      note: "every core element mapped to something C.E.O. already does, from the supply chain to the risks in context",
-      checks: saif,
-      end: <End big={String(SAIF.length)} of={`/${SAIF.length}`} what="core elements mapped" />,
-      foot: <About id="saif" />,
-    },
-  ];
-
-  const header = (
-    <>
-      <SystemsNav />
-      <header className="sx-top">
-        <p className="fl-eyb">
-          <span>Boiler Room</span>
-          <i />
-          Compliance · frameworks and controls
-        </p>
-        <h1 className="fl-h1 desk__title">
-          Three frameworks, <em>{covered === OWASP_LLM.length ? "all in place." : "mostly in place."}</em>
-        </h1>
-        <p className="fl-say">How C.E.O. maps to the frameworks people trust for AI systems, word for word from the threat model. Each line is one control, gathering into its framework; open one for the control itself.</p>
-        <dl className="fl-ledger sx-ledger">
-          <div className={covered === OWASP_LLM.length ? "is-pass" : "is-part"}>
-            <dt>OWASP LLM</dt>
-            <dd>
-              {covered}
-              <small>/{OWASP_LLM.length}</small>
-            </dd>
-          </div>
-          <div className={tally.open ? "is-fail" : "is-pass"}>
-            <dt>Open, tracked</dt>
-            <dd>{tally.open}</dd>
-          </div>
-          <div className="is-pass">
-            <dt>NIST AI RMF</dt>
-            <dd>
-              {NIST_AI_RMF.length}
-              <small>/{NIST_AI_RMF.length}</small>
-            </dd>
-          </div>
-          <div className="is-pass">
-            <dt>Google SAIF</dt>
-            <dd>
-              {SAIF.length}
-              <small>/{SAIF.length}</small>
-            </dd>
-          </div>
-          <div>
-            <dt>Controls</dt>
-            <dd>{controls}</dd>
-          </div>
-        </dl>
-      </header>
-      <Key words={{ pass: "In place", part: "More planned", wait: "Accepted", fail: "Open" }} />
-    </>
-  );
+  const bars = frameworkBars();
+  const needs = complianceNeeds();
+  const [open, toggle] = useOpen();
+  const now = Date.now();
+  const STATUS_TONE: Record<RiskStatus, string> = { covered: "covered", tracked: "tracked", open: "open", accepted: "accepted", "not-applicable": "not-applicable" };
+  // What isn't fully in place gets the room; open risks are already in Needs you.
+  const gaps = OWASP_LLM.map((r) => ({ r, st: statusOf(r.controls, r.tracking) })).filter((x) => x.st !== "covered" && x.st !== "open");
+  const tracked = gaps.filter((x) => x.st === "tracked").length;
 
   return (
     <div className="sx-page wv-page fl-page" data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
-      <CheckRack groups={groups} header={header} label="Compliance: every control as a line" />
-      <section className="fl-below sx-law" aria-label="Regulation">
-        <p className="fl-k">
-          <span>Regulation</span> · not mapped yet
-        </p>
-        <p className="sx-lawp">No law or standard is mapped in the repo yet. Relay's privacy spec (R5, #149) is written, ahead of the hub.</p>
-        <Facts e={FRAME_EXPLAIN.regulation} />
-      </section>
+      <BoilerFrame
+        page="compliance"
+        tabs={<SystemsNav className="bx-tabs" />}
+        title={
+          <>
+            Three frameworks, <em className={tally.open ? "is-fail" : undefined}>{covered === OWASP_LLM.length ? "all in place" : "mostly in place"}</em>
+          </>
+        }
+        say={`How C.E.O. maps to the frameworks people trust for AI systems, word for word from the threat model: ${controls} controls.`}
+        needs={needs}
+        now={now}
+        onGo={() => undefined}
+      >
+        <div className="bx-cov">
+          {bars.map((f) => (
+            <section key={f.id} className="bx-panel" aria-label={`${f.name}: ${f.total ? `${f.inPlace} of ${f.total} in place` : "not mapped yet"}`}>
+              <Ring v={f.total ? f.inPlace / f.total : 0} tone={!f.total ? "none" : f.counts.open ? "open" : f.inPlace === f.total ? "covered" : "tracked"} text={f.total ? `${f.inPlace}/${f.total}` : "–"} size={64} />
+              <div>
+                <h2>{f.name}</h2>
+                <StackBar total={f.total} parts={STATUS_ORDER.map((st) => ({ n: f.counts[st], tone: STATUS_TONE[st], label: RISK_STATUS_LABEL[st].toLowerCase() }))} />
+                <p className="bx-note">
+                  {f.total
+                    ? STATUS_ORDER.filter((st) => f.counts[st])
+                        .map((st) => `${f.counts[st]} ${RISK_STATUS_LABEL[st].toLowerCase()}`)
+                        .join(" · ")
+                    : "No law or standard mapped yet"}
+                </p>
+              </div>
+            </section>
+          ))}
+        </div>
+        <section className="bx-panel" aria-labelledby="cp-gaps-h">
+            <header className="bx-ph">
+              <h2 id="cp-gaps-h">Not fully in place</h2>
+              <span className="bx-psub">
+                {gaps.length + 1}: {tracked} covered with more planned, the rest accepted, not applicable or not mapped
+              </span>
+              <span className="bx-psub" style={{ marginLeft: "auto" }}>
+                <Out href={DOC_URL}>Threat model</Out>
+              </span>
+            </header>
+            <div className="bx-gaps">
+            {gaps.map(({ r, st }) => (
+              <article key={r.id} className={`bx-gap is-${STATUS_TONE[st]}`}>
+                <h3>
+                  <span>
+                    {r.id} {r.name}
+                  </span>
+                  <small>{RISK_STATUS_LABEL[st].toLowerCase()}</small>
+                </h3>
+                <p>{r.residual}</p>
+                {st !== "not-applicable" ? (
+                  <p>
+                    <b>Tracking:</b> {r.tracking}
+                  </p>
+                ) : null}
+              </article>
+            ))}
+            <article className="bx-gap is-none">
+              <h3>
+                <span>Regulation</span>
+                <small>not mapped</small>
+              </h3>
+              <p>No law or standard is mapped in the repo yet. Relay's privacy spec (R5, #149) is written, ahead of the hub.</p>
+            </article>
+            </div>
+          </section>
+          <div className="bx-grid bx-folds is-4">
+            <Panel id="cp-owasp" title="OWASP in place" sub={`${bars[0]!.inPlace} of ${OWASP_LLM.length}${tracked ? `, ${tracked} with more planned` : ""}`} tone="covered" open={open.has("cp-owasp")} onToggle={() => toggle("cp-owasp")}>
+              <CheckList checks={owasp} label="OWASP Top 10 for LLM Applications" />
+              <About id="owasp" />
+            </Panel>
+            <Panel id="cp-nist" title="NIST AI RMF" sub={`${NIST_AI_RMF.length} functions mapped`} tone="covered" open={open.has("cp-nist")} onToggle={() => toggle("cp-nist")}>
+              <CheckList checks={nist} label="NIST AI RMF" />
+              <About id="nist" />
+            </Panel>
+            <Panel id="cp-saif" title="Google SAIF" sub={`${SAIF.length} core elements mapped`} tone="covered" open={open.has("cp-saif")} onToggle={() => toggle("cp-saif")}>
+              <CheckList checks={saif} label="Google SAIF" />
+              <About id="saif" />
+            </Panel>
+            <Panel id="cp-law" title="Regulation" sub="not mapped yet" tone="none" open={open.has("cp-law")} onToggle={() => toggle("cp-law")}>
+              <Facts e={FRAME_EXPLAIN.regulation} />
+            </Panel>
+          </div>
+      </BoilerFrame>
     </div>
   );
 }

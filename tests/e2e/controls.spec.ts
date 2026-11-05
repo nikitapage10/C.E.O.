@@ -64,6 +64,8 @@ test("signed in, Connect Nest and Connect Google Tasks are on Controls without a
   const posts = await stub(page, true);
   await page.goto(`${BASE}/boiler/controls`);
   await expect(page.locator("#ct-meters")).toContainText("$5.00");
+  // The circuits are charts first (#746): Connections opens to the house's setup.
+  await page.locator("#ct-links .bx-fold").click();
   const house = page.locator("#ct-house");
   await expect(house.getByRole("button", { name: "Connect Nest" })).toBeVisible();
   await expect(house.getByRole("button", { name: "Connect Google Tasks" })).toBeVisible();
@@ -89,6 +91,8 @@ test("signed in, King Soopers is set up on Controls: ZIP, store picker, Connect 
   });
   await page.route("https://api.kroger.com/**", (r) => r.fulfill({ body: "kroger sign-in (stubbed)" }));
   await page.goto(`${BASE}/boiler/controls`);
+  // The circuits are charts first (#746): Connections opens to the house's setup.
+  await page.locator("#ct-links .bx-fold").click();
   const house = page.locator("#ct-house");
   await house.getByRole("textbox", { name: "ZIP to find King Soopers stores near" }).fill("12345");
   await house.getByRole("button", { name: "Find stores" }).click();

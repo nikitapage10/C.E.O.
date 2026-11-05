@@ -95,7 +95,11 @@ describe("the security feed", () => {
       "dependabot-updates": "unreported",
       "private-reporting": "on",
     });
-    expect(body.alerts).toEqual({ codeScanning: { open: 2, fixed: 1, more: false }, dependabot: { open: 1, fixed: 0, more: false } });
+    expect(body.alerts).toEqual({
+      codeScanning: { open: 2, fixed: 1, more: false, severity: { critical: 0, high: 2, medium: 0, low: 0 } },
+      dependabot: { open: 1, fixed: 0, more: false, severity: { critical: 0, high: 0, medium: 0, low: 0 } },
+    });
+    expect(by.checks!.recent).toEqual([{ state: "pass", at: "2026-10-13T08:05:00Z" }]);
     expect(body.scorecard).toEqual({
       score: 5.9,
       date: "2026-10-13T19:51:30Z",
@@ -104,6 +108,34 @@ describe("the security feed", () => {
         { name: "Dangerous-Workflow", score: 10, short: "Avoids dangerous patterns." },
       ],
     });
+  });
+
+  it("gives each scan's last runs oldest first as a trend, with only a result and a time (#746)", async () => {
+    const runs = (cs: string[]) => ({
+      workflow_runs: cs.map((c, i) => ({ id: 900 + i, conclusion: c, updated_at: `2026-10-${String(20 - i).padStart(2, "0")}T08:00:00Z`, html_url: `https://github.com/nikitapage10/C.E.O./actions/runs/${900 + i}`, head_commit: { message: "fix api/foundry.ts" } })),
+    });
+    const { GET } = await load({ "/actions/workflows/checks.yml/runs": () => json(runs(["success", "failure", "cancelled", "success"])) });
+    const body = (await (await GET(new Request(URL_))).json()) as SecurityFeed;
+    const checks = body.workflows.find((w) => w.id === "checks")!;
+    expect(checks.state).toBe("pass");
+    expect(checks.recent).toEqual([
+      { state: "pass", at: "2026-10-17T08:00:00Z" },
+      { state: "other", at: "2026-10-18T08:00:00Z" },
+      { state: "fail", at: "2026-10-19T08:00:00Z" },
+      { state: "pass", at: "2026-10-20T08:00:00Z" },
+    ]);
+    expect(JSON.stringify(checks.recent)).not.toContain("runs/9");
+  });
+
+  it("counts open alerts by severity on GitHub's scale, and names nothing else (#746)", async () => {
+    const { severityOf, severityCounts } = await load();
+    expect(severityOf("code-scanning", { rule: { security_severity_level: "critical", severity: "error" } })).toBe("critical");
+    expect(severityOf("code-scanning", { rule: { severity: "warning" } })).toBe("medium");
+    expect(severityOf("code-scanning", { rule: { severity: "note" } })).toBe("low");
+    expect(severityOf("dependabot", { security_advisory: { severity: "moderate" } })).toBe("medium");
+    expect(severityOf("dependabot", { security_vulnerability: { severity: "high" } })).toBe("high");
+    expect(severityOf("dependabot", { security_advisory: { severity: "<b>" } })).toBeNull();
+    expect(severityCounts("dependabot", [{ security_advisory: { severity: "critical" } }, { security_advisory: { severity: "low" } }, {}])).toEqual({ critical: 1, high: 0, medium: 0, low: 1 });
   });
 
   it("never lets an alert's or a check's details through: no paths, rules, packages, versions or descriptions", async () => {
@@ -179,7 +211,7 @@ describe("the security feed", () => {
     const many = () => json(Array.from({ length: 100 }, () => codeAlert));
     const { GET } = await load({ "/code-scanning/alerts?state=fixed": many });
     const body = (await (await GET(new Request(URL_))).json()) as SecurityFeed;
-    expect(body.alerts.codeScanning).toEqual({ open: 2, fixed: 100, more: true });
+    expect(body.alerts.codeScanning).toEqual({ open: 2, fixed: 100, more: true, severity: { critical: 0, high: 2, medium: 0, low: 0 } });
   });
 
   it("redirects an unknown query to the bare URL with no read, and shares one set of reads within the TTL", async () => {

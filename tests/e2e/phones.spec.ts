@@ -62,7 +62,7 @@ test("the Phones panel isn't there signed out", async ({ page }) => {
   await stub(page, false);
   await page.goto(`${BASE}/boiler/controls`);
   // Wait for Controls to render first, so the absence checks below mean something.
-  await expect(page.getByText("Signed in only.", { exact: true })).toBeVisible();
+  await expect(page.locator("#ct-phones")).toContainText("signed in only");
   await expect(page.getByRole("heading", { name: "Set a key, never see one" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Phones" })).toHaveCount(0);
 });
@@ -71,6 +71,8 @@ test("signed in: add a phone shows its key once, with Copy; Revoke stops one", a
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
   const posts = await stub(page, true);
   await page.goto(`${BASE}/boiler/controls`);
+  // Phones is folded under its line on Controls (#746): open it.
+  await page.locator("#ct-phones .bx-fold").click();
   const panel = page.getByRole("region", { name: "Phones" });
   await expect(panel).toBeVisible();
   await expect(panel.getByText("Old phone")).toBeVisible();

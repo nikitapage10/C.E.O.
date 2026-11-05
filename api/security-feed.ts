@@ -2,7 +2,8 @@
  * The security posture feed for the Desk's Systems > Security page (#82), as a read-only Vercel function. The Desk
  * is public to read, so this returns posture only: each scan's last result on `main` (pass or fail, when, and a link
  * to the run), whether the repo's security features are on, how many alerts are open and fixed, and the OpenSSF
- * Scorecard score. Never an alert's details: no file paths, rules, packages, versions or descriptions, since an open
+ * Scorecard score; each scan's last twenty results (pass or fail, and when) for its trend, and the open alerts counted
+ * by severity (#746; counts only, the severity word is GitHub's own scale and names nothing). Never an alert's details: no file paths, rules, packages, versions or descriptions, since an open
  * one would be a map for an attacker (docs/THREAT-MODEL.md, TB6). Everything else from GitHub is dropped here, not
  * in the browser.
  *
@@ -36,7 +37,17 @@ export interface WorkflowState {
   conclusion: string | null;
   at: string | null;
   url: string | null;
+  /** The last finished runs, oldest first (up to RECENT): only a result and a time, for the trend. */
+  recent?: RunMark[];
 }
+
+/** One finished run in a scan's trend. */
+export interface RunMark {
+  state: "pass" | "fail" | "other";
+  at: string;
+}
+
+export type Severity = "critical" | "high" | "medium" | "low";
 
 export type FeatureState = "on" | "off" | "unreported";
 
@@ -45,6 +56,8 @@ export interface AlertCount {
   fixed: number;
   /** True when either count hit the page size, so it reads "100+". */
   more: boolean;
+  /** The open ones counted by severity (#746); absent from older answers. */
+  severity?: Record<Severity, number>;
 }
 
 export interface SecurityFeed {
@@ -82,7 +95,12 @@ async function read(path: string): Promise<unknown> {
 const obj = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const iso = (v: unknown): string | null => (typeof v === "string" && ISO.test(v) ? v : null);
 
-/** The last finished run's result, reduced to a state, a time and a link to it. */
+/** How many finished runs a scan's trend shows. */
+export const RECENT = 20;
+
+const markOf = (c: string): RunMark["state"] => (c === "success" ? "pass" : c === "failure" || c === "timed_out" || c === "startup_failure" ? "fail" : "other");
+
+/** The last finished run's result, reduced to a state, a time and a link to it, and the runs before it as a trend. */
 export function runState(body: unknown, wf: (typeof WORKFLOWS)[number]): WorkflowState {
   const base = { id: wf.id, name: wf.name, scope: wf.scope };
   const runs = obj(body)?.workflow_runs;
@@ -90,14 +108,46 @@ export function runState(body: unknown, wf: (typeof WORKFLOWS)[number]): Workflo
   const run = obj(runs[0]);
   if (!run) return { ...base, state: "none", conclusion: null, at: null, url: null };
   const c = typeof run.conclusion === "string" ? run.conclusion : "";
-  const state: RunState = c === "success" ? "pass" : c === "failure" || c === "timed_out" || c === "startup_failure" ? "fail" : "other";
+  const state: RunState = markOf(c);
+  const recent: RunMark[] = [];
+  for (const x of runs.slice(0, RECENT)) {
+    const o = obj(x);
+    const at = o ? (iso(o.updated_at) ?? iso(o.created_at)) : null;
+    if (o && at) recent.push({ state: markOf(typeof o.conclusion === "string" ? o.conclusion : ""), at });
+  }
   return {
     ...base,
     state,
     conclusion: state === "other" && /^[a-z_]{1,20}$/.test(c) ? c.replace(/_/g, " ") : null,
     at: iso(run.updated_at) ?? iso(run.created_at),
     url: typeof run.html_url === "string" && RUN_URL.test(run.html_url) ? run.html_url : null,
+    recent: recent.reverse(),
   };
+}
+
+/**
+ * An open alert's severity on GitHub's own scale, and nothing else about it. Code scanning gives a security severity
+ * for security rules and a plain one (error, warning, note) for the rest; Dependabot gives the advisory's.
+ */
+export function severityOf(kind: "code-scanning" | "dependabot", alert: unknown): Severity | null {
+  const a = obj(alert);
+  const word = (v: unknown): Severity | null => (v === "critical" || v === "high" || v === "medium" || v === "low" ? v : v === "moderate" ? "medium" : null);
+  if (kind === "dependabot") return word(obj(a?.security_advisory)?.severity) ?? word(obj(a?.security_vulnerability)?.severity);
+  const rule = obj(a?.rule);
+  const sec = word(rule?.security_severity_level);
+  if (sec) return sec;
+  const plain = rule?.severity;
+  return plain === "error" ? "high" : plain === "warning" ? "medium" : plain === "note" ? "low" : null;
+}
+
+/** Open alerts counted by severity; one GitHub gives no severity for is left out of every count. */
+export function severityCounts(kind: "code-scanning" | "dependabot", open: unknown[]): Record<Severity, number> {
+  const out: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const a of open) {
+    const s = severityOf(kind, a);
+    if (s) out[s] += 1;
+  }
+  return out;
 }
 
 /** The repo's security switches, where the token may see them. `security_and_analysis` needs admin, so it is often absent. */
@@ -124,7 +174,7 @@ async function alertCount(kind: "code-scanning" | "dependabot"): Promise<AlertCo
   try {
     const [open, fixed] = await Promise.all([read(`/${kind}/alerts?state=open&per_page=${PAGE}`), read(`/${kind}/alerts?state=fixed&per_page=${PAGE}`)]);
     if (!Array.isArray(open) || !Array.isArray(fixed)) return null;
-    return { open: open.length, fixed: fixed.length, more: open.length >= PAGE || fixed.length >= PAGE };
+    return { open: open.length, fixed: fixed.length, more: open.length >= PAGE || fixed.length >= PAGE, severity: severityCounts(kind, open) };
   } catch {
     return null;
   }
@@ -164,7 +214,7 @@ const TTL = 120;
 
 const feed = memo(TTL * 1000, async () => {
   const runReads = WORKFLOWS.map((wf) =>
-    read(`/actions/workflows/${wf.file}/runs?${wf.scope === "main" ? "branch=main&" : ""}status=completed&per_page=1`).then(
+    read(`/actions/workflows/${wf.file}/runs?${wf.scope === "main" ? "branch=main&" : ""}status=completed&per_page=${RECENT}`).then(
       (body) => ({ ok: true, state: runState(body, wf) }),
       () => ({ ok: false, state: runState(null, wf) }),
     ),

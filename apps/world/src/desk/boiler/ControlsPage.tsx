@@ -8,7 +8,7 @@ import { useWorldFeed } from "../../chronicle.ts";
 import { useFoundry } from "../../foundry.ts";
 import { navigateTo } from "../../route.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
-import { CLAUDE_USAGE_URL, codeTokensByModel, foundryJobs, formatTokens, formatUsd, monthSpend, MODELS, SPEND_CAP_USD, useUsage, workByModel } from "../../usage.ts";
+import { CLAUDE_USAGE_URL, codeTokensByModel, foundryJobs, formatTokens, formatUsd, monthSpend, MODELS, SPEND_CAP_USD, useUsage, workByModel, type Trail } from "../../usage.ts";
 import { startEmail, useEmail } from "../email/email.ts";
 import { startPolymarket } from "../exchange/polymarket.ts";
 import { ago } from "../foundryGraph.ts";
@@ -27,6 +27,8 @@ import { ACCENT } from "./Rack.tsx";
 import { SettingsPanel } from "./SettingsPanel.tsx";
 import { actionOf, actionWord, costumeState, houseRows, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD, type MeterTone, type Share } from "./controls.ts";
 import "./controls.css";
+import { BoilerFrame, CapBar, Donut, Panel, Spark, SyncStrip, useOpen } from "./frame.tsx";
+import { controlsNeeds, dailySeries, linkTally, monthSince, syncMark, type LinkRow, type MeterRead, type NeedGo } from "./pages.ts";
 
 /**
  * Boiler Room > Controls (#647): every meter, switch, link and key in one panel board. The circuits run down one bus,
@@ -36,16 +38,6 @@ import "./controls.css";
  * and Today in #666), then the Keys form and the Phones (moved here from Security). Real data only: a meter with
  * nothing to read says it's waiting. Signed out, it shows states and counts only: no money, no keys, no contacts.
  */
-
-const LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
-const CIRCUITS: { id: string; label: string }[] = [
-  { id: "ct-meters", label: "Meters" },
-  { id: "ct-breakers", label: "Breakers" },
-  { id: "ct-links", label: "Connections" },
-  { id: "ct-settings", label: "Settings" },
-  { id: "ct-keys", label: "Keys" },
-  { id: "ct-phones", label: "Phones" },
-];
 
 const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six"];
 
@@ -181,7 +173,7 @@ function RaiseCap({ name, from }: { name: string; from?: string }) {
   );
 }
 
-function Meters({ now, signedIn }: { now: number; signedIn: boolean }) {
+function useMeterSpecs(now: number, signedIn: boolean): MeterSpec[] {
   const usage = useUsage();
   const world = useWorldFeed();
   const emailView = useEmail((s) => s.view);
@@ -300,8 +292,10 @@ function Meters({ now, signedIn }: { now: number; signedIn: boolean }) {
 
   // Signed out, the mail meter gives its state from the agent's public share of its cap (a percentage, never money).
   const pct = w?.email?.budgetPct;
-  const shown = meters.map((m) => (m.id === "mail" && !signedIn && typeof pct === "number" ? { ...m, waiting: undefined, used: pct, cap: 100 } : m));
+  return meters.map((m) => (m.id === "mail" && !signedIn && typeof pct === "number" ? { ...m, waiting: undefined, used: pct, cap: 100 } : m));
+}
 
+function Meters({ shown, now, signedIn }: { shown: MeterSpec[]; now: number; signedIn: boolean }) {
   return (
     <div className="ct-meters">
       {shown.map((m, i) => (
@@ -331,7 +325,7 @@ async function sitePassword(method: "GET" | "POST", body?: unknown): Promise<{ s
   return { status: res.status, data: ((await res.json().catch(() => ({}))) ?? {}) as Record<string, unknown> };
 }
 
-function Breakers({ now, signedIn }: { now: number; signedIn: boolean }) {
+function Breakers({ now, signedIn, compact = false }: { now: number; signedIn: boolean; compact?: boolean }) {
   const pings = usePings();
   const checkPings = usePings((p) => p.check);
   const [site, setSite] = useState<SiteStatus | null>(null);
@@ -435,6 +429,23 @@ function Breakers({ now, signedIn }: { now: number; signedIn: boolean }) {
     },
   ];
 
+  if (compact)
+    return (
+      <ul className="bx-lamps" aria-label="Breakers">
+        {breakers.map((b) => (
+          <li key={b.id}>
+            <i className={`bx-dot is-${b.on === null ? "wait" : b.on ? "on" : "off"}`} aria-hidden="true" />
+            <span>
+              <b>{b.name}</b>
+              <small>
+                {b.on === null ? "–" : b.on ? "On" : "Off"} · {b.kind}
+              </small>
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+
   return (
     <ul className="ct-breakers">
       {breakers.map((b, i) => (
@@ -475,13 +486,10 @@ function Breakers({ now, signedIn }: { now: number; signedIn: boolean }) {
 
 const LAMP_WORD: Record<LinkState, string> = { ok: "Live", slow: "Under load", down: "Down", off: "Waiting" };
 
-function Connections({ now, signedIn }: { now: number; signedIn: boolean }) {
+function useLinkRows(): LinkRow[] {
   const links = useSystems((s) => s.links);
   const connected = useFoundry((s) => s.connected);
   const setup = useSetup();
-  const emailView = useEmail((s) => s.view);
-  const emailBusy = useEmail((s) => s.busy);
-  const emailError = useEmail((s) => s.error);
   const extra: { id: string; label: string; what: string; room: string; state: LinkState; lastSeen: number | null; word?: string }[] = [
     { id: "github", label: "GitHub", what: "The Desk reads the crew's work from the repo", room: "foundry", state: connected ? "ok" : "off", lastSeen: null },
     { id: "buttons", label: "Idea buttons", what: "Build, Revise and Not this one change GitHub at once", room: "foundry", state: setup === null ? "off" : setup.buttons ? "ok" : "slow", lastSeen: null, word: setup && !setup.buttons ? "Needs setup" : undefined },
@@ -493,10 +501,16 @@ function Connections({ now, signedIn }: { now: number; signedIn: boolean }) {
   const homePub = useHome((s) => s.pub);
   const homeProblems = useHome((s) => s.view?.problems);
   const house = houseRows(homePub?.vendors ?? null, homePub?.links ?? null, homeProblems);
-  const rows = [...links.map((l) => ({ id: l.id, label: l.label, what: l.what, room: l.room as string, state: l.state, lastSeen: l.lastSeen, word: undefined as string | undefined })), ...house, ...extra];
+  return [...links.map((l) => ({ id: l.id, label: l.label, what: l.what, room: l.room as string, state: l.state, lastSeen: l.lastSeen, word: undefined as string | undefined })), ...house, ...extra];
+}
+
+function Connections({ rows, now, signedIn, openKeys }: { rows: LinkRow[]; now: number; signedIn: boolean; openKeys: () => void }) {
+  const emailView = useEmail((s) => s.view);
+  const emailBusy = useEmail((s) => s.busy);
+  const emailError = useEmail((s) => s.error);
   const live = rows.filter((r) => r.state === "ok" || r.state === "slow").length;
 
-  const toKeys = () => document.getElementById("ct-keys")?.scrollIntoView({ block: "start" });
+  const toKeys = openKeys;
   const goPipe = (room: string) => (e: React.MouseEvent) => {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
@@ -589,20 +603,121 @@ function HouseSetup() {
   );
 }
 
-/* ── the page ── */
+/* ── the page (#746, the C3 concept): Needs you, then the circuits as charts, each opening to its full detail ── */
 
-function Circuit({ n, id, title, aside, children }: { n: number; id: string; title: string; aside?: ReactNode; children: ReactNode }) {
+const OPEN_FOR: Record<string, string> = { "ct-house": "ct-links", "ct-links": "ct-links", "ct-keys": "ct-keys", "ct-meters": "ct-meters", "ct-breakers": "ct-breakers", "ct-settings": "ct-settings", "ct-phones": "ct-phones" };
+const ROW_CAP = 8;
+
+function MeterChart({ shown, now, signedIn, trails }: { shown: MeterSpec[]; now: number; signedIn: boolean; trails: Trail[] | null }) {
+  const tokens = trails ? dailySeries(trails, now, "code-tokens") : null;
+  const shaping = trails ? dailySeries(trails, now, "shaping-calls") : null;
+  const since = monthSince(now);
   return (
-    <section className="ct-circuit" id={id}>
-      <header className="ct-ch">
-        <span className="ct-tap" aria-hidden="true">
-          {LETTERS[n]}
-        </span>
-        <h2>{title}</h2>
-        {aside}
-      </header>
-      {children}
-    </section>
+    <ul className="bx-rows" aria-label="Spend against each cap">
+      {shown.map((m) => {
+        const tone: MeterTone = m.body ? "wait" : meterTone(m.used, m.cap, m.warnAt);
+        const showFig = signedIn && m.used !== null && m.cap !== null && m.cap > 0;
+        const share = showFig ? m.used! / m.cap! : null;
+        const proj = showFig ? projectMonth(m.used!, now) / m.cap! : null;
+        const series = m.id === "plan" ? tokens : m.id === "claude" ? shaping : null;
+        const said =
+          m.id === "plan"
+            ? tokens
+              ? "Claude Code tokens a day, last 30 days"
+              : trails
+                ? "No shipped work with token counts in the last 30 days."
+                : "Waiting for the Foundry's trails."
+            : m.id === "claude"
+              ? shaping
+                ? `Rivet's shaping, calls a day · the world and scripts keep a month total ${since}`
+                : `Month total only, ${since}`
+              : tone === "wait"
+                ? (m.waiting ?? "Waiting.")
+                : `Month total only, ${since}; no daily history yet`;
+        return (
+          <li key={m.id} className={`is-${tone === "ok" ? "ok" : tone}`}>
+            <i className="bx-dot" aria-hidden="true" />
+            <b title={m.what}>{m.name}</b>
+            <span className="bx-chart">{m.body ? <span className="bx-note">Plan limit lives on Claude's page</span> : <CapBar share={share} proj={proj} warn={m.cap && m.warnAt ? m.warnAt / m.cap : 0.8} tone={tone} />}</span>
+            {m.body ? (
+              <span className="bx-word">{tokens ? formatTokens(tokens.reduce((a, x) => a + x, 0)) + " · 30 d" : "–"}</span>
+            ) : showFig ? (
+              <span className="bx-fig">
+                <Private>{formatUsd(m.used!)}</Private> / <Private>{formatUsd(m.cap!)}</Private>
+              </span>
+            ) : (
+              <span className="bx-word">{TONE_WORD[tone]}</span>
+            )}
+            <span className="bx-sub2">
+              {series ? <Spark values={series} /> : null}
+              <span>{said}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function LinkChart({ rows, now }: { rows: LinkRow[]; now: number }) {
+  const t = linkTally(rows);
+  const rank = (r: LinkRow) => (r.state === "down" ? 0 : r.lastSeen !== null ? 1 : r.state === "ok" || r.state === "slow" ? 2 : 3);
+  const shown = [...rows].sort((a, b) => rank(a) - rank(b) || (b.lastSeen ?? 0) - (a.lastSeen ?? 0)).slice(0, ROW_CAP);
+  const rest = rows.length - shown.length;
+  return (
+    <div className="bx-links">
+      <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
+        <Donut
+          parts={[
+            { n: t.live, tone: "live" },
+            { n: t.waiting, tone: "waiting" },
+            { n: t.down, tone: "down" },
+          ]}
+          label={
+            <>
+              <b>
+                {t.live}/{rows.length}
+              </b>
+              <small>live</small>
+            </>
+          }
+        />
+        <ul className="bx-legend" aria-label="Connections by state">
+          <li className="is-live">
+            <i className="bx-dot" aria-hidden="true" />
+            Live <b>{t.live}</b>
+          </li>
+          <li className="is-waiting">
+            <i className="bx-dot" aria-hidden="true" />
+            Waiting <b>{t.waiting}</b>
+          </li>
+          <li className="is-down">
+            <i className="bx-dot" aria-hidden="true" />
+            Down <b>{t.down}</b>
+          </li>
+        </ul>
+      </div>
+      <div style={{ minWidth: 0, display: "grid", gap: 6 }}>
+        <ul className="bx-rows" aria-label="Each link's last day">
+          {shown.map((r) => {
+            const tone = r.state === "down" ? "down" : r.state === "off" ? "waiting" : "live";
+            return (
+              <li key={r.id} className={`is-${tone}`}>
+                <i className="bx-dot" aria-hidden="true" />
+                <b title={r.what}>{r.label}</b>
+                <span className="bx-chart">
+                  <SyncStrip pos={syncMark(r.lastSeen, now)} tone={tone} />
+                </span>
+                <span className="bx-word">{r.word ?? (r.lastSeen ? ago(r.lastSeen, now) : LAMP_WORD[r.state])}</span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="bx-note">
+          Strips are the last 24 hours; the tick is when a link last answered{rest > 0 ? ` · ${rest} more in Details` : ""}. Links that report only a state have no tick.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -613,79 +728,96 @@ export function ControlsPage({ now }: { now: number }) {
   useEffect(() => startEmail(), []);
   useEffect(() => startGreen(), []);
   useEffect(() => startInvoices(), []);
-  const world = useWorldFeed().feed;
+  useEffect(() => startHome(), []);
   const usage = useUsage().feed;
+  const shown = useMeterSpecs(now, signedIn);
+  const rows = useLinkRows();
+  const [open, toggle] = useOpen();
 
-  // The headline's count: meters near or at a cap, from the data the meters read.
-  const s = world?.story;
-  const claudeUsed = world || usage ? (world?.spend.usd ?? 0) + (s?.scriptUsd ?? 0) + (usage ? monthSpend(usage.trails, now).usd : 0) : null;
-  const tones = [meterTone(claudeUsed, SPEND_CAP_USD), meterTone(s ? (s.elevenUsd ?? 0) + (s.voiceUsd ?? 0) : null, s?.elevenBudget ?? null), meterTone(typeof world?.email?.budgetPct === "number" ? world.email.budgetPct : null, 100)];
-  const hot = tones.filter((t) => t === "warn" || t === "over").length;
-  const over = tones.filter((t) => t === "over").length;
-  const reading = tones.filter((t) => t !== "wait").length;
+  const reads: MeterRead[] = shown.filter((m) => !m.body).map((m) => ({ id: m.id, name: m.name, tone: meterTone(m.used, m.cap, m.warnAt), share: signedIn && m.used !== null && m.cap ? m.used / m.cap : null }));
+  const needs = controlsNeeds(rows, reads, signedIn);
+  const reading = reads.filter((m) => m.tone !== "wait").length;
+  const hot = reads.filter((m) => m.tone === "warn" || m.tone === "over").length;
+  const over = reads.filter((m) => m.tone === "over").length;
+  const t = linkTally(rows);
 
-  const go = (id: string) => (e: React.MouseEvent) => {
-    e.preventDefault();
-    document.getElementById(id)?.scrollIntoView({ block: "start" });
+  const openTo = (id: string) => {
+    toggle(OPEN_FOR[id] ?? id, true);
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" })));
   };
+  // A deep link (#ct-house, #ct-keys, a Haven or King Soopers return) opens the circuit it points into.
+  useEffect(() => {
+    const fromHash = () => {
+      const h = window.location.hash.slice(1);
+      const q = new URLSearchParams(window.location.search);
+      if (OPEN_FOR[h]) openTo(h);
+      else if (q.get("haven") || q.get("kroger")) openTo("ct-house");
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onGo = (go: NeedGo) => {
+    if (go.kind === "circuit") openTo(go.id);
+    else if (go.kind === "gmail") void useEmail.getState().connect();
+  };
+
+  const title =
+    reading === 0 ? (
+      <>
+        Meters <em className="is-wait">waiting</em>
+      </>
+    ) : over ? (
+      <>
+        {WORDS[over] ?? over} {over === 1 ? "meter is" : "meters are"} <em className="is-over">at the cap</em>
+      </>
+    ) : hot ? (
+      <>
+        {WORDS[hot] ?? hot} {hot === 1 ? "meter is" : "meters are"} <em className="is-warn">near the cap</em>
+      </>
+    ) : (
+      <>
+        Every meter <em>under 80%</em>
+      </>
+    );
 
   return (
     <div className="ct-page sx-page wv-page fl-page" data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
-      <header className="ct-top">
-        <SystemsNav />
-        <p className="ct-eyb">
-          <span>Boiler Room</span> · Controls · usage, switches, links and keys
-        </p>
-        <h1 className="ct-h1 desk__title">
-          {reading === 0 ? (
-            <>
-              Meters <em className="is-wait">waiting.</em>
-            </>
-          ) : over ? (
-            <>
-              {WORDS[over] ?? over} {over === 1 ? "meter is" : "meters are"} <em className="is-over">at the cap.</em>
-            </>
-          ) : hot ? (
-            <>
-              {WORDS[hot] ?? hot} {hot === 1 ? "meter is" : "meters are"} <em className="is-warn">near the cap.</em>
-            </>
-          ) : (
-            <>
-              Every meter <em>under 80%.</em>
-            </>
-          )}
-        </h1>
-        <nav className="ct-index" aria-label="Circuits">
-          {CIRCUITS.map((c, i) => (
-            <a key={c.id} href={`#${c.id}`} onClick={go(c.id)}>
-              <span>{LETTERS[i]}</span>
-              {c.label}
-            </a>
-          ))}
-        </nav>
-      </header>
-
-      <div className="ct-board">
-        <Circuit n={0} id="ct-meters" title="Meters" aside={<p className="ct-sub">this month · amber at 80%, red at the cap</p>}>
-          <Meters now={now} signedIn={signedIn} />
-        </Circuit>
-        <Circuit n={1} id="ct-breakers" title="Breakers">
+      <BoilerFrame
+        page="controls"
+        tabs={<SystemsNav className="bx-tabs" />}
+        title={title}
+        say={`${t.live} of ${rows.length} links live${t.down ? `, ${t.down} down` : ""}. ${signedIn ? "Figures are yours alone." : "Signed out: states and counts only."}`}
+        needs={needs}
+        now={now}
+        onGo={onGo}
+      >
+        <div className="bx-grid">
+          <Panel id="ct-meters" title="Meters" sub="this month · amber at 80%, red at the cap" open={open.has("ct-meters")} onToggle={() => toggle("ct-meters")} chart={<MeterChart shown={shown} now={now} signedIn={signedIn} trails={usage?.trails ?? null} />}>
+            <Meters shown={shown} now={now} signedIn={signedIn} />
+          </Panel>
+          <Panel id="ct-links" title="Connections" sub={`${t.live} of ${rows.length} live`} tone={t.down ? "down" : "live"} open={open.has("ct-links")} onToggle={() => toggle("ct-links")} chart={<LinkChart rows={rows} now={now} />}>
+            {signedIn ? <HouseSetup /> : null}
+            <Connections rows={rows} now={now} signedIn={signedIn} openKeys={() => openTo("ct-keys")} />
+          </Panel>
+        </div>
+        <Panel id="ct-breakers" title="Breakers" sub="what each switch is doing" open={open.has("ct-breakers")} onToggle={() => toggle("ct-breakers")} chart={<Breakers now={now} signedIn={signedIn} compact />}>
           <Breakers now={now} signedIn={signedIn} />
-        </Circuit>
-        <Circuit n={2} id="ct-links" title="Connections">
-          {signedIn ? <HouseSetup /> : null}
-          <Connections now={now} signedIn={signedIn} />
-        </Circuit>
-        <Circuit n={3} id="ct-settings" title="Settings" aside={<p className="ct-sub">from the bar and Today · Hide, Hands-free, the clock, what's next</p>}>
-          <SettingsPanel />
-        </Circuit>
-        <Circuit n={4} id="ct-keys" title="Keys" aside={<p className="ct-sub">write-only · each one asks for your passkey</p>}>
-          {signedIn ? <KeysPanel now={now} /> : <p className="ct-note">Signed in only. Keys are set here and never shown.</p>}
-        </Circuit>
-        <Circuit n={5} id="ct-phones" title="Phones" aside={<p className="ct-sub">Hey Skippy from the iPhone</p>}>
-          {signedIn ? <PhonesPanel now={now} /> : <p className="ct-note">Signed in only.</p>}
-        </Circuit>
-      </div>
+        </Panel>
+        <div className="bx-grid is-3">
+          <Panel id="ct-settings" title="Settings" sub="Hide, Hands-free, Ilyr's clock, what's next" open={open.has("ct-settings")} onToggle={() => toggle("ct-settings")}>
+            <SettingsPanel />
+          </Panel>
+          <Panel id="ct-keys" title="Keys" sub={signedIn ? "write-only · each asks for your passkey" : "signed in only"} open={open.has("ct-keys")} onToggle={() => toggle("ct-keys")}>
+            {signedIn ? <KeysPanel now={now} /> : <p className="ct-note">Signed in only. Keys are set here and never shown.</p>}
+          </Panel>
+          <Panel id="ct-phones" title="Phones" sub={signedIn ? "Hey Skippy from the iPhone" : "signed in only"} open={open.has("ct-phones")} onToggle={() => toggle("ct-phones")}>
+            {signedIn ? <PhonesPanel now={now} /> : <p className="ct-note">Signed in only.</p>}
+          </Panel>
+        </div>
+      </BoilerFrame>
     </div>
   );
 }

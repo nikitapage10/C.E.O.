@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { CREW, crewFor, type Crate } from "../foundry.ts";
-import { DESK_ROOMS, formatWait, portrait, useDesk, type DeskAction, type DeskRoom, type OwedReply } from "./deskData.ts";
-import { ideaTitle, Mic, useIdeaChoice, type Setup } from "./IdeaCard.tsx";
-import { link } from "./nav.ts";
-import { Private } from "./Private.tsx";
-import { DeskSignIn } from "./SignIn.tsx";
+import { CREW, crewFor, type Crate } from "../../../apps/world/src/foundry.ts";
+import { DESK_ROOMS, formatWait, portrait, useDesk, type DeskAction, type DeskRoom, type OwedReply } from "../../../apps/world/src/desk/deskData.ts";
+import { ideaTitle, Mic, useIdeaChoice, type Setup } from "../../../apps/world/src/desk/IdeaCard.tsx";
+import { link } from "../../../apps/world/src/desk/nav.ts";
+import { Private } from "../../../apps/world/src/desk/Private.tsx";
+import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
 
 /**
  * What needs Nikita on Today, as the approved Weave cards: each card hangs from a thread in its room's colour with a

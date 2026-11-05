@@ -173,7 +173,11 @@ forge and progress helpers with their tests in `data/` (moved unchanged; nothing
 Foundry's store, graph and crew runs stay in `apps/world/src` because the Desk, Today and Systems share them). The Archive
 followed (step 11): `web/` holds the page, the Chronicle with its hours, tide and weave folios, Today in Ilyr's `DayStory`, the
 ship weeks folio and `archive.css`; `data/` holds the thread maths with its test (moved unchanged; `desk/DayStory.tsx`
-re-exports for Today, and `chronicle.css` stays in the Desk because the Desk's other pages share it). Every other
+re-exports for Today, and `chronicle.css` stays in the Desk because the Desk's other pages share it). Today followed
+(step 12): `web/` holds the page and its acts, docket (`TodayNow`), rail, weave and more folios, the icons and `today.css`;
+`data/` holds the schedule maths with its test (moved unchanged; `desk/Today.tsx`, `TodayNow.tsx`, `TodayRail.tsx`,
+`todayIcons.tsx` and `todaySchedule.ts` re-export for the Desk shell, the Rotunda, the Boiler Room's settings, the to-do
+bits and the council). Every other
 room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest

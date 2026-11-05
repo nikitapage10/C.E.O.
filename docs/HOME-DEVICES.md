@@ -271,8 +271,20 @@ Then **Haven → Kitchen** (or **Order at King Soopers** on Today's Kitchen chip
 3. **Match N items at this store**: each open item gets the first in-stock product at that store, with its price (the sale price
    when there is one) and stock. **Swap** shows the other matches, or searches another way; untick an item to leave it
    out. A match is kept, so an item is looked up once (again after three days unless you chose it yourself).
-4. **Send N to King Soopers** adds exactly the picks shown to your King Soopers cart and opens it. Pick pickup or
-   delivery and check out in the King Soopers app. Nothing is bought from the Desk.
+4. **Quantities are checked** (#761, `api/_haven/kroger/review.ts`): once everything is matched, one Claude Haiku call
+   reviews every pick against its list line ("garlic 30 cloves" against "Garlic · 1 ct" is ×3, "1 head ≈ 10 cloves"),
+   flags anything short, way over or the wrong product, and may suggest a better pick from the matches already fetched.
+   Only the list lines and the products' descriptions and sizes go to the model; it is counted in Skippy's month
+   (`SKIPPY_BUDGET_USD`) and costs well under a tenth of a cent a list. Without the key, past the cap or on a failed call,
+   plain unit math decides. **−/+** changes a count; **Re-check** asks again.
+5. **Send N to King Soopers** adds exactly the picks shown, in those quantities, to your King Soopers cart and opens it.
+   Pick pickup or delivery and check out in the King Soopers app. Nothing is bought from the Desk.
+
+Each Shopping tab has a two-tap **Clear** ("Clear? Yes"). On King Soopers it forgets the matches only; what was already
+sent stays in the King Soopers cart, which Kroger's API can add to but not empty. On List it clears the list and the
+matches, and the week goes back to Plan with Finalize open again. Any change to the plan after finalizing also reopens
+Finalize; matches for lines the changed plan no longer asks for are marked "plan changed" until the week is finalized
+again, which takes those lines off the list.
 
 Calls happen only on those taps (Kroger's limits: 10,000 product calls and 1,600 location calls a day, 5,000 cart calls
 a day), never on a timer. `MEALME_API_KEY` (Key Vault `haven-mealme-key`) stays on the Function App, unread, from

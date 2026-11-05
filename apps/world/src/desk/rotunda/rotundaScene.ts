@@ -1102,6 +1102,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       placeMurs();
     }
   };
+  // The programs before the first frame (#759): compiled off the main thread where the browser can
+  // (KHR_parallel_shader_compile), then one draw, still unseen (the canvas shows at data-gl="on"), so the shadow pass
+  // compiles here too and the first frame on screen doesn't stall. A warm build (warm.ts) leaves them in the browser's cache.
+  await renderer.compileAsync(scene, cam).catch(() => undefined);
+  renderer.render(scene, cam);
   raf = requestAnimationFrame(frame);
 
   const setSeats = (next: RotundaSeat[]) => {

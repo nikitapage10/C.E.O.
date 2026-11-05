@@ -10,6 +10,7 @@ import { takeGmailReturn, useEmail } from "../email/email.ts";
 import { useTexts } from "../texts/texts.ts";
 import { TextsSection } from "../texts/TextsSection.tsx";
 import { setRelayHandler } from "./bridge.ts";
+import { RelayRail } from "./RelayRail.tsx";
 import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "./sigils.ts";
 import { agoShort, askLine, codexOf, initialOf, lastRequest, weekSent, type Exchange } from "./thread.ts";
 import { errorText, useThread, type Notice } from "./useThread.ts";
@@ -665,6 +666,9 @@ export function RelayThread({ now }: { now: number }) {
         <div className="cx-pages" ref={pagesRef} tabIndex={-1}>
           {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} />) : <Waiting signedIn={t.signedIn} waiting={waiting} />}
         </div>
+
+        {/* The rail (#765): the whole queue down the left edge, Dock-style; a click jumps the codex there. */}
+        {t.queue && t.queue.length > 1 && <RelayRail queue={t.queue} cur={ex?.key ?? null} now={now} hidden={hidden} goTo={goTo} scroller={pagesRef} />}
 
         <div className="cx-dock">
           <div className="cx-dl">

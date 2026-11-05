@@ -511,6 +511,46 @@ describe("the round trip on the Desk (#341)", () => {
   });
 });
 
+describe("a yes to an item on Today's floor", () => {
+  const ORIGIN = "https://ceo.example";
+  const NOW = Date.parse("2026-11-05T04:00:00Z");
+  const ITEM = { kind: "repair", room: "Boiler Room", by: "boiler", what: "Boiler Room needs a look", cause: "Nightly browser tests is down", fix: "open Boiler Room and see what it says" };
+  async function setup() {
+    const store = new MemoryAuthStore();
+    const cookie = await signedInCookie("test-desk-key", NOW, store);
+    const log = new MemoryRoomLog();
+    let asked = 0;
+    const ask: Ask = async () => (asked++, { answer: { reply: "x", actions: [], room: "none" }, usage: { input_tokens: 1, output_tokens: 1 } });
+    const deps: ChatDeps = { deskKey: "test-desk-key", store, ledger: new MemoryChatLedger(), ask, log, world: async () => null, desk: async () => deskContext([], [], null, null), now: NOW, env: {} };
+    const post = (body: unknown, c = cookie) => chat(new Request(`${ORIGIN}/api/skippy`, { method: "POST", headers: { Cookie: c, "Content-Type": "application/json" }, body: JSON.stringify(body) }), deps);
+    return { post, log, asked: () => asked };
+  }
+
+  it("hands it to Skippy, the Magnificent with the item's context, without a model call", async () => {
+    const { post, log, asked } = await setup();
+    const res = await post({ floor: ITEM, message: "yeah, go ahead and fix this" });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { room: string; needs: string; turn: string };
+    expect(body).toMatchObject({ room: "kernel", needs: "skippy", turn: expect.stringMatching(/^[0-9a-f]{16}$/) });
+    const [kept] = await log.list("kernel", NOW, "skippy");
+    expect(kept!.id).toBe(body.turn);
+    expect(kept!.question).toMatch(/^Fix the Boiler Room: Nightly browser tests is down \(approved on Today's floor\)/);
+    expect(kept!.question).toContain("Reported by the Pessimist");
+    expect(kept!.question).toContain('Nikita said: "yeah, go ahead and fix this"');
+    expect(asked()).toBe(0);
+  });
+
+  it("refuses a duty, a malformed item, private words, and anyone signed out", async () => {
+    const { post, log } = await setup();
+    expect((await post({ floor: { ...ITEM, kind: "duty" }, message: "go ahead" })).status).toBe(400);
+    expect((await post({ floor: { ...ITEM, by: "Boiler!" }, message: "go ahead" })).status).toBe(400);
+    expect((await post({ floor: ITEM, message: "" })).status).toBe(400);
+    expect((await post({ floor: ITEM, message: "fix it and email nikita@example.com" })).status).toBe(422);
+    expect((await post({ floor: ITEM, message: "fix it" }, "")).status).toBe(401);
+    expect(await log.list("kernel", NOW)).toEqual([]);
+  });
+});
+
 describe("POST /api/skippy-answer with an answer card (#341)", () => {
   const NOW = Date.parse("2026-10-23T18:00:00Z");
   const TOKEN = "a-test-submind-feed-token-long-enough-0123456789";

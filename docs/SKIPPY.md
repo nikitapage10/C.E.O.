@@ -395,6 +395,16 @@ anything that needs real work, and anything that waits on Nikita's say-so. He fi
   a ping when the answer lands. The answer still comes into the chat while the Desk is open. With the chat closed,
   Skippy's avatar shows the dot.
 
+**From Today's floor (#779).** A reply to an item on the Rotunda's docket (its mic, or a held Space) is read in the
+item's context (`api/_today/floor.ts`), never as free capture: a yes ("go ahead", "fix it", "do it", "yes", "ship it",
+"approve") on a Repair or a Decision is `POST /api/skippy { floor, message }`, which builds the ask from the item's own
+safe words (kind, room, what, cause, fix or the suggested option, the reporting submind) and Nikita's, runs the privacy
+check and the chat's pace, and keeps it in `kernel` with `needs: "skippy"` and no model call, so the always-on responder
+files a fix for the Builder and the thread's watcher sees it. "No", "later" and "dismiss" put the item off; a note, a
+reminder, done or a to-do work as before; anything else goes into the chat with the item as its context, and Skippy
+decides. The item keeps the turn on its mark and shows "Sent to Skippy → Builder", then "Builder on it" once an answer
+names an issue, read from `room=kernel`.
+
 Kernel asks are Nikita's own words, kept and checked like every other room's: the privacy check before Claude sees
 them, and a private-looking answer is refused whole (422). The lines Skippy's thread runs:
 

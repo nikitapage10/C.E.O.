@@ -268,7 +268,7 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
         <Num v={litter ? litter.state : "–"} k="Litter-Robot" tone={litter ? (litter.state === "ready" ? "ok" : undefined) : "wait"} />
       </div>
       {/* Each device on its own plate (#766, A1 Plates): the render large, the reading drawn where it lives on it. */}
-      <div className="hv-plates">
+      <div className="hv-plates is-compact">
         <Plate
           title="Dry feeder"
           num={dry ? (!dry.online ? "offline" : dry.foodLow ? "Low" : "OK") : "–"}

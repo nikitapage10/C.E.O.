@@ -173,12 +173,12 @@ describe("dressing the rooms (#747, #764)", () => {
     const got = furnish(bare);
     const on = (segs: number[][], x0: number, y0: number, x1: number, y1: number) => segs.filter((s) => s[0]! >= x0 && s[2]! <= x1 && s[1]! >= y0 && s[3]! <= y1);
 
-    it("gives the living room windows along its longest outside wall, the balcony door at the end nearest the Studio", () => {
-      // Its outside walls: north (360 long) and east (420): the east wins. The study lies south of it.
-      const win = on(got.windows, 960, 40, 960, 460), door = on(got.balconies, 960, 40, 960, 460);
-      expect(win).toHaveLength(1);
+    it("runs the living room's balcony the whole length of its longest outside wall (#806)", () => {
+      // Its outside walls: north (360 long) and east (420): the east wins.
+      const door = on(got.balconies, 960, 40, 960, 460);
       expect(door).toHaveLength(1);
-      expect(Math.max(door[0]![1]!, door[0]![3]!)).toBeGreaterThan(Math.max(win[0]![1]!, win[0]![3]!));
+      expect(Math.abs(door[0]![3]! - door[0]![1]!)).toBeGreaterThan(380);
+      expect(on(got.windows, 960, 40, 960, 460)).toHaveLength(0);
       expect(on(got.windows, 600, 40, 960, 40)).toHaveLength(0);
     });
 
@@ -204,10 +204,10 @@ describe("dressing the rooms (#747, #764)", () => {
       expect(Math.abs(lamp.y - 130)).toBeLessThanOrEqual(2);
     });
 
-    it("gives the main bedroom windows and a balcony door on its outside wall", () => {
+    it("gives the main bedroom windows only on its outside wall, no balcony (#806)", () => {
       // The bedroom's only outside stretch is its south wall (y 800).
       expect(on(got.windows, 220, 800, 660, 800)).toHaveLength(1);
-      expect(on(got.balconies, 220, 800, 660, 800)).toHaveLength(1);
+      expect(on(got.balconies, 220, 800, 660, 800)).toHaveLength(0);
     });
 
     it("gives the hall outside the bedroom a balcony door and a window, and its nook: greenhouse, cat bed, purifier", () => {

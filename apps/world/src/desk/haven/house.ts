@@ -64,9 +64,9 @@ export interface RoomFacts {
 }
 
 const U = 100; // plan units per world unit
-const WH = 3.66; // wall height: a 12 ft ceiling at ~1 plan unit a cm (#799), so a ~2.4 m door reads as a door
-const SILL = 0.91, WIN_TOP = WH - 0.3; // windows run from a 3 ft sill to a foot below the wall top, never past it
-const DOOR_H = 2.6; // a balcony door: floor to ~8.5 ft
+const WH = 1.4; // wall height, in step with the furniture (#806): a little taller than #671's 1.15 for the 12 ft ceilings
+const SILL = WH * 0.25, WIN_TOP = WH * 0.92; // windows run from a 3 ft sill to a foot below the wall top, never past it
+const DOOR_H = WH * 0.71; // a balcony door: floor to ~8.5 ft of a 12 ft wall
 const T = 0.06; // wall thickness
 const FLY_MS = 300;
 const GLYPHS = SIGILS.slice(0, 64);
@@ -736,13 +736,14 @@ export class House {
       put(frame, L, 0.025, T + 0.02, mid, 0, tr);
       if (L > 1.1) put(frame, 0.025, tr, T + 0.02, mid, 0, tr / 2);
       // The handle, a tall bar at the meeting stile (or the door's far edge), so a door never reads as a window.
-      put(frame, 0.03, 0.4, 0.06, L > 1.1 ? mid + 0.06 : mid + L * 0.3, 0, 1.0);
+      put(frame, 0.03, WH * 0.12, 0.06, L > 1.1 ? mid + 0.06 : mid + L * 0.3, 0, WH * 0.3);
       // The balcony beyond.
       const dep = 120, wide = b - a + 80;
       put(slab, wide / U, 0.04, dep / U, mid, out * (dep / 2 + 3), -0.015);
-      put(rail, wide / U, 1.0, 0.01, mid, out * (dep + 3), 0.5, 3);
-      put(frame, wide / U, 0.03, 0.04, mid, out * (dep + 3), 1.0);
-      for (const e of [mid - wide / 2, mid + wide / 2]) put(rail, 0.01, 1.0, dep / U, e, out * (dep / 2 + 3), 0.5, 3);
+      const RH = WH * 0.3; // the balcony rail: about waist height against the wall
+      put(rail, wide / U, RH, 0.01, mid, out * (dep + 3), RH / 2, 3);
+      put(frame, wide / U, 0.02, 0.025, mid, out * (dep + 3), RH);
+      for (const e of [mid - wide / 2, mid + wide / 2]) put(rail, 0.01, RH, dep / U, e, out * (dep / 2 + 3), RH / 2, 3);
     }
   }
 

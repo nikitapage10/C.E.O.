@@ -4,7 +4,7 @@ import { CAPS, readDraft, readSort, within, type Line, type StyleProfile } from 
 import { CARD_KEEP_MS, readTapback, readTextRequest, REASONS, RID, type Reason, type TapbackState, type RequestResult, type TextCard, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
 import { maskHandle, matchContacts } from "../../../api/_relay/compose.ts";
 import { requestSigned } from "../../../api/_relay/tokens.ts";
-import { BlueBubblesError, channelOf, mediaOnly, sendReason, type BlueBubbles, type Contact, type Inbound, type Message } from "./bluebubbles.ts";
+import { bigGroup, BlueBubblesError, channelOf, isGroupChat, mediaOnly, sendReason, type BlueBubbles, type Contact, type Inbound, type Message } from "./bluebubbles.ts";
 import type { HubConfig } from "./config.ts";
 import type { Logger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
@@ -56,6 +56,21 @@ export const MEDIA_LINE = "[a photo or attachment]";
 export const MEDIA_GIST = "Sent a photo or attachment.";
 /** Why a one-to-one thread is set aside, as the Desk may see it (#870). The skip list and groups never show. */
 const ASIDE_OF: Partial<Record<string, AsideWhy>> = { "no-reply": "no-reply", closing: "closing", done: "done", money: "money", code: "code", "short-code": "short-code", promo: "promo" };
+/**
+ * A chat of several moved across the group line (#916, GROUP_MIN_PEOPLE): one that becomes a group loses its gist,
+ * sort and draft (a group is never drafted for); one that becomes a regular chat loses its summary, and a group's
+ * settle no longer holds it, so their next text makes it owed like any one-to-one thread.
+ */
+function regroup(t: Thread, group: boolean) {
+  if (t.group === group) return;
+  t.group = group;
+  if (group) Object.assign(t, { draft: null, gist: "", sort: null });
+  else {
+    t.summary = null;
+    if (t.state === "settled" && t.why === "group") t.why = null;
+  }
+}
+
 /** How long the engine waits after the latest message before it sorts, so a burst of texts is one call. */
 export const SETTLE_MS = 20_000;
 
@@ -211,6 +226,11 @@ export class Engine {
   private retryAt = new Map<string, number>();
   private tries = new Map<string, number>();
   private groupNames = new Map<string, string>();
+  /**
+   * Each chat of several's other people (#916), from the poll's and the backlog's participants: how many decides
+   * whether it is a group (GROUP_MIN_PEOPLE), their handles name a small one on the Desk and run the skip list. Memory only.
+   */
+  private people = new Map<string, string[]>();
   private skipTerms: string[] = [];
   private skipAt = 0;
   private linkMessages: "up" | "down" | "unknown" = "unknown";
@@ -342,12 +362,17 @@ export class Engine {
     const state = this.d.store.load();
     if (state.paused) return;
     await this.contactList();
-    if (m.group && m.groupName) this.groupNames.set(m.chat, m.groupName);
+    const multi = m.multi ?? m.group;
+    if (multi && m.groupName) this.groupNames.set(m.chat, m.groupName);
+    if (multi && m.members?.length) this.people.set(m.chat, m.members);
+    const group = this.groupOf(m.chat, multi);
     const at = m.message.at;
     this.change((s) => {
       let t = s.threads.find((x) => x.chat === m.chat);
+      // A chat of several whose size is known now (#916): a group from 6 others, a regular chat below.
+      if (t && multi && this.people.has(m.chat)) regroup(t, group);
       if (!t) {
-        t = { id: newThreadId(), chat: m.chat, group: m.group, state: "settled", why: null, since: at, lastIn: at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null };
+        t = { id: newThreadId(), chat: m.chat, group, state: "settled", why: null, since: at, lastIn: at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null };
         s.threads.push(t);
       }
       // Any new message moves a chat off the older-unanswered snapshot: answered, or owed again below.
@@ -402,6 +427,16 @@ export class Engine {
       this.queue.add(t.id);
       this.d.log.log("thread owed");
     });
+  }
+
+  /**
+   * Whether a chat is a group (#916): a chat of several with GROUP_MIN_PEOPLE others or more, or whose size isn't
+   * known (as before). A one-to-one chat, or a chat of several with fewer, is handled as a regular chat.
+   */
+  private groupOf(chat: string, multi = isGroupChat(chat)): boolean {
+    if (!multi) return false;
+    const members = this.people.get(chat);
+    return bigGroup(members ? members.length : null);
   }
 
   /** A send from the Desk counted for the day (#870): the reply time only for the first since their last text. */
@@ -582,10 +617,23 @@ export class Engine {
     const msgs = await this.recent(t.chat, 100);
     if (!msgs) return void this.waits.set(t.id, "messages");
     const contacts = await this.contactList();
+    // A small chat of several (#916, under 6 others): handled as a one-to-one thread, its people each "Member N" in the
+    // text a model reads (every line of theirs is "them"), each line's rules run with its own sender, and the skip list
+    // over everyone in it. Its reply goes to the chat itself, never to one of them.
+    const multi = isGroupChat(t.chat);
     // A one-to-one chat's other person from its chat id when no message of theirs carries a handle (#861).
-    const theirs = msgs.find((m) => !m.fromMe && m.handle)?.handle || chatPerson(t.chat);
-    const contact = this.contactOf(theirs);
-    const ph = new Placeholders({ contact: { names: contact?.names ?? [], handle: theirs }, others: contacts.filter((c) => c !== contact).flatMap((c) => c.names) });
+    const theirs = multi ? "" : msgs.find((m) => !m.fromMe && m.handle)?.handle || chatPerson(t.chat);
+    const contact = multi ? undefined : this.contactOf(theirs);
+    const members = multi ? [...new Set([...msgs.filter((m) => !m.fromMe && m.handle).map((m) => m.handle), ...(this.people.get(t.chat) ?? [])])] : [];
+    const ph = multi
+      ? new Placeholders({ members: members.map((h) => ({ names: this.contactOf(h)?.names ?? [], handle: h })), others: contacts.flatMap((c) => c.names), restoreMembers: true })
+      : new Placeholders({ contact: { names: contact?.names ?? [], handle: theirs }, others: contacts.filter((c) => c !== contact).flatMap((c) => c.names) });
+    // Each line's rules with its sender (a one-to-one thread's every line with the contact, as before).
+    const ruleOf = (m: Message) => {
+      const h = multi ? (m.fromMe ? "" : m.handle) : theirs;
+      return settleByRule({ handle: h, names: (multi ? this.contactOf(h)?.names : contact?.names) ?? [], text: m.text }, this.skipTerms);
+    };
+    const memberRuled = members.some((h) => settleByRule({ handle: h, names: this.contactOf(h)?.names ?? [], text: "" }, this.skipTerms) !== null);
     const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
     const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
     // Nikita's own message is the newest (#642): he answered, on his phone or here, so the thread closes. No draft.
@@ -624,7 +672,7 @@ export class Engine {
     // Nikita answered it and a harmless text came in.
     const earliest = Math.max(0, lastMine - (CAPS.draftEarlier - 1));
     const seen = msgs.slice(earliest);
-    const ruled = seen.map((m) => settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms)).find((w) => w !== null);
+    const ruled = (memberRuled ? "skip" : null) ?? seen.map(ruleOf).find((w) => w !== null);
     if (ruled) {
       this.forget(t.id);
       this.change((s) => {
@@ -636,7 +684,7 @@ export class Engine {
     }
     // Clean of every rule: the recent turns, both sides (#870: Nikita's own lines marked `me`), go to Nikita's sealed
     // list for the Desk (#758). Display only; the same window the rules just passed.
-    this.shown.set(t.id, this.shownOf(seen, false, t.id));
+    this.shown.set(t.id, this.shownOf(seen, false, t.id, multi));
     // Only photos and files, no words (#870): owed, with no model call (there is nothing for one to read). The gist is
     // the hub's own words, so the thread isn't queued again every round.
     if (unanswered.every(mediaOnly)) {
@@ -683,7 +731,7 @@ export class Engine {
     const context = within(seen.map(line), CAPS.draftEarlier + CAPS.sortMessages, CAPS.draftChars);
     // Style examples come from further back, so one that trips a rule is left out (not settled on: an old reply about
     // money shouldn't stop every draft in the thread for good); the context above is already clean.
-    const mine = msgs.filter((m) => m.fromMe && !mediaOnly(m) && settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms) === null).map((m) => m.text);
+    const mine = msgs.filter((m) => m.fromMe && !mediaOnly(m) && ruleOf(m) === null).map((m) => m.text);
     const examples: string[] = [];
     let used = 0;
     for (const e of mine.slice(-CAPS.styleExamples).reverse()) {
@@ -742,9 +790,10 @@ export class Engine {
 
   /**
    * The Desk's copy of the texts (#758): the newest SHOWN_MESSAGES with words, SHOWN_CHARS in all, oldest first. In a
-   * group each carries its sender's name and, when the site has it, their photo's opaque id.
+   * group, or a small chat of several (#916), each of theirs carries its sender's name and, when the site has it, their
+   * photo's opaque id; outside a group Nikita's own lines are marked `me`.
    */
-  private shownOf(msgs: Message[], group: boolean, thread: string): Shown[] {
+  private shownOf(msgs: Message[], group: boolean, thread: string, several = group): Shown[] {
     const photos = this.d.store.load().photos;
     const out: Shown[] = [];
     const refs = new Map<string, string>();
@@ -759,12 +808,13 @@ export class Engine {
       const text = media ? MEDIA_TEXT : clean(m.text).slice(0, SHOWN_CHARS - used).trim();
       if (!text) break;
       used += text.length;
-      const contact = group ? this.contactOf(m.handle) : undefined;
+      const named = several && !m.fromMe;
+      const contact = named ? this.contactOf(m.handle) : undefined;
       const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
       // Their line's tapback ref (#888): opaque, from the guid under the send key; the guid stays here, in `lines`.
       const ref = !m.fromMe && m.guid ? this.refOf(thread, m.guid) : "";
       if (ref && !refs.has(ref)) refs.set(ref, m.guid!);
-      out.unshift({ text, at: Math.max(Date.UTC(2026, 0, 1), Math.floor(m.at)), ...(group && { from: (contact?.names[0] || "Unknown sender").slice(0, 80) }), ...(photo && photos[photo] && { photo }), ...(media && { media: true as const }), ...(!group && m.fromMe && { me: true as const }), ...(ref && refs.get(ref) === m.guid && { ref }) });
+      out.unshift({ text, at: Math.max(Date.UTC(2026, 0, 1), Math.floor(m.at)), ...(named && { from: (contact?.names[0] || "Unknown sender").slice(0, 80) }), ...(photo && photos[photo] && { photo }), ...(media && { media: true as const }), ...(!group && m.fromMe && { me: true as const }), ...(ref && refs.get(ref) === m.guid && { ref }) });
     }
     this.lines.set(thread, refs);
     return out;
@@ -811,9 +861,10 @@ export class Engine {
       const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
       // A group's texts since Nikita's last reply; a one-to-one thread's recent turns, both sides, as `sortAndDraft` shows them (#870).
       const run = t.group ? msgs.slice(lastMine + 1).filter((m) => !m.fromMe) : msgs.slice(Math.max(0, lastMine - (CAPS.draftEarlier - 1)));
-      const handle = t.chat.split(";").pop() ?? "";
-      const ruled = run.some((m) => settleByRule({ handle: t.group ? m.handle : m.handle || handle, names: this.contactOf(t.group ? m.handle : m.handle || handle)?.names ?? [], text: m.text }, this.skipTerms) !== null);
-      this.shown.set(t.id, ruled ? [] : this.shownOf(run, t.group, t.id));
+      const multi = isGroupChat(t.chat);
+      const handle = multi ? "" : (t.chat.split(";").pop() ?? "");
+      const ruled = run.some((m) => settleByRule({ handle: multi ? m.handle : m.handle || handle, names: this.contactOf(multi ? m.handle : m.handle || handle)?.names ?? [], text: m.text }, this.skipTerms) !== null);
+      this.shown.set(t.id, ruled ? [] : this.shownOf(run, t.group, t.id, multi));
     }
   }
 
@@ -855,6 +906,8 @@ export class Engine {
       this.d.log.error("backlog failed", e);
       return null;
     }
+    // Each chat of several's people (#916), so the poll and the Desk know which are groups.
+    for (const c of chats) if ((c.multi ?? c.group) && c.members?.length) this.people.set(c.chat, c.members);
     const sorted = sortBacklog(chats, now, this.skipTerms, contactOf);
     // A reaction, a system item or a photo was last: the newest real message in that chat decides.
     for (const c of [...sorted.check].sort((a, b) => b.lastAt - a.lastAt).slice(0, CHECK_MAX)) {
@@ -871,6 +924,8 @@ export class Engine {
     sorted.older.sort((a, b) => b.at - a.at);
     let added = 0;
     this.change((s) => {
+      // A thread whose chat's size is known now (#916): a group from 6 others, a regular chat below.
+      for (const t of s.threads) if (isGroupChat(t.chat) && this.people.has(t.chat)) regroup(t, this.groupOf(t.chat));
       for (const e of sorted.owed) {
         const t = s.threads.find((x) => x.chat === e.chat);
         if (t && (t.state === "owed" || t.state === "later")) {
@@ -889,7 +944,7 @@ export class Engine {
         // Relay answered, settled or dismissed it after this message: it stays as it is.
         if (t && !revisit && Math.max(t.lastIn, t.repliedAt ?? 0, t.sortedAt ?? 0) >= e.at) continue;
         if (t) Object.assign(t, { state: "owed", why: null, since: Math.min(t.since, e.at), lastIn: Math.max(t.lastIn, e.at), sort: null, gist: "", draft: null, laterUntil: null, unread: e.unread, ...(revisit && { rechecked: e.at }) });
-        else s.threads.push({ id: newThreadId(), chat: e.chat, group: false, state: "owed", why: null, since: e.at, lastIn: e.at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null, unread: e.unread });
+        else s.threads.push({ id: newThreadId(), chat: e.chat, group: this.groupOf(e.chat), state: "owed", why: null, since: e.at, lastIn: e.at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null, unread: e.unread });
         this.queue.add(s.threads.find((x) => x.chat === e.chat)!.id);
         added++;
       }
@@ -927,7 +982,7 @@ export class Engine {
       let from = now - LEARN_WINDOW_MS;
       for (let page = 0; page < LEARN_PAGES; page++) {
         const got = await this.d.bb.since(from, LEARN_PAGE);
-        for (const p of got) if (p.inbound) all.push({ chat: p.inbound.chat, group: p.inbound.group, fromMe: p.inbound.message.fromMe, text: p.inbound.message.text, at: p.inbound.message.at, handle: p.inbound.message.handle });
+        for (const p of got) if (p.inbound) all.push({ chat: p.inbound.chat, group: p.inbound.multi ?? p.inbound.group, fromMe: p.inbound.message.fromMe, text: p.inbound.message.text, at: p.inbound.message.at, handle: p.inbound.message.handle });
         if (got.length < LEARN_PAGE) break;
         const last = got[got.length - 1]!.at;
         // A page that ends where it began (1,000 messages in one millisecond) can't move on; stop rather than loop.
@@ -1472,14 +1527,7 @@ export class Engine {
       .sort((a, b) => Number(owedState(b)) - Number(owedState(a)) || b.lastIn - a.lastIn)
       .slice(0, MAX_ITEMS)
       .map((t) => {
-        const handle = t.chat.split(";").pop() ?? "";
-        const contact = t.group ? undefined : this.contactOf(handle);
-        // Someone not in the contacts (#803: the 30-day backlog brings in many) is told apart by the number's last 4
-        // digits or a masked address, as a new-text card shows them; never the handle itself.
-        const mask = t.group || contact ? null : maskHandle(handle);
-        const name = t.group ? this.groupNames.get(t.chat) || "Group chat" : contact?.names[0] || (mask ? `Unknown (${mask})` : "Unknown sender");
-        // The contact's photo id (#642), only when that photo is on the site: an opaque id, never the handle.
-        const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
+        const { name, photo } = this.whoOf(t.chat);
         return {
           id: t.id,
           name: name.slice(0, 80),
@@ -1512,19 +1560,14 @@ export class Engine {
       .sort((a, b) => b.lastIn - a.lastIn)
       .slice(0, MAX_ASIDE)
       .map((t) => {
-        const handle = chatPerson(t.chat);
-        const contact = this.contactOf(handle);
-        const mask = contact ? null : maskHandle(handle);
-        const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
-        return { id: t.id, name: (contact?.names[0] || (mask ? `Unknown (${mask})` : "Unknown sender")).slice(0, 80), channel: channelOf(t.chat), since: Math.floor(t.lastIn), why: ASIDE_OF[t.why!] as AsideWhy, ...(photo && s.photos[photo] && { photo }) };
+        const { name, photo } = this.whoOf(t.chat);
+        return { id: t.id, name: name.slice(0, 80), channel: channelOf(t.chat), since: Math.floor(t.lastIn), why: ASIDE_OF[t.why!] as AsideWhy, ...(photo && s.photos[photo] && { photo }) };
       });
     // Older unanswered (#758): who and since when, no gist or draft. Someone not in the contacts reads as the owed ones
     // do (#861): the number's last 4 digits or a masked address, never the handle.
     const olderItems: OlderItem[] = s.older.slice(0, MAX_OLDER).map((o) => {
-      const contact = this.contactOf(chatPerson(o.chat));
-      const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
-      const mask = contact ? null : maskHandle(chatPerson(o.chat));
-      return { id: o.id, name: (contact?.names[0] || (mask ? `Unknown (${mask})` : "Unknown sender")).slice(0, 80), channel: channelOf(o.chat), since: Math.max(Date.UTC(2026, 0, 1), Math.floor(o.at)), ...(photo && s.photos[photo] && { photo }), ...(o.unread && { unread: true as const }) };
+      const { name, photo } = this.whoOf(o.chat);
+      return { id: o.id, name: name.slice(0, 80), channel: channelOf(o.chat), since: Math.max(Date.UTC(2026, 0, 1), Math.floor(o.at)), ...(photo && s.photos[photo] && { photo }), ...(o.unread && { unread: true as const }) };
     });
     // The cards (#536): who (name and mask, never the handle), the text, the choices. Newest first.
     const cards: TextCard[] = s.cards
@@ -1549,6 +1592,28 @@ export class Engine {
       })
       .filter((c) => c.state !== "choices" || c.choices.length > 0);
     return { v: 1, at: now, items, cards, older: { count: Math.max(olderItems.length, s.olderCount), items: olderItems }, scannedAt: s.scannedAt === null ? null : Math.max(Date.UTC(2026, 0, 1), Math.floor(s.scannedAt)), voice: s.voice, aside, ...(this.tapbackState && { tapbacks: this.tapbackState }) };
+  }
+
+  /**
+   * Who a chat is with, as the Desk names it: a one-to-one chat's contact (someone not in the contacts by the number's
+   * last 4 digits or a masked address, #803, never the handle) and their photo id (#642, an opaque id, only when that
+   * photo is on the site); a chat of several by its name in Messages, else a group "Group chat" and (#916) a small one its
+   * people's first names, a stranger by their mask.
+   */
+  private whoOf(chat: string): { name: string; photo: string } {
+    const photos = this.d.store.load().photos;
+    if (isGroupChat(chat)) {
+      const named = this.groupNames.get(chat);
+      if (named || this.groupOf(chat)) return { name: (named || "Group chat").slice(0, 80), photo: "" };
+      const members = this.people.get(chat) ?? [];
+      const names = members.map((h) => this.contactOf(h)?.names[0]?.split(/\s+/)[0] || maskHandle(h) || "Unknown").filter(Boolean);
+      return { name: names.length ? names.join(", ").slice(0, 80) : "Group chat", photo: "" };
+    }
+    const handle = chatPerson(chat);
+    const contact = this.contactOf(handle);
+    const mask = contact ? null : maskHandle(handle);
+    const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
+    return { name: contact?.names[0] || (mask ? `Unknown (${mask})` : "Unknown sender"), photo: photo && photos[photo] ? photo : "" };
   }
 
   /** Sends the status and the list when something changed (or `force`). */

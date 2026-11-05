@@ -182,7 +182,7 @@ export const CONTACTS_HINT =
 export interface ShownText {
   text: string;
   at: number;
-  /** A group member's name as Nikita's contacts have it ("Unknown sender"); left out in a one-to-one thread. */
+  /** A group member's name as Nikita's contacts have it ("Unknown sender"), or (#916) a small chat of several's sender; left out in a one-to-one thread. */
   from?: string;
   /** That member's photo id (#642), when the site has it. */
   photo?: string;
@@ -413,9 +413,10 @@ export function readTextItem(v: unknown): TextItem | null {
   if (o.unread !== undefined && o.unread !== true) return null;
   const messages = o.messages === undefined ? null : readShown(o.messages);
   if (o.messages !== undefined && !messages) return null;
-  // A one-to-one item's texts are only someone else's, with no sender line; a group's each name their sender.
-  // Since #870 a one-to-one item's recent turns include Nikita's own lines (`me`); a group's never do.
-  if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined) || (o.group === true && m.me))) return null;
+  // A group's texts each name their sender and are never Nikita's own. Since #870 a one-to-one item's recent turns
+  // include Nikita's own lines (`me`, never with a sender); since #916 a small chat of several (under 6 others) is a
+  // one-to-one item whose other lines name their sender.
+  if (messages && messages.some((m) => (o.group === true && (m.from === undefined || m.me)))) return null;
   if (o.wait !== undefined && !(GIST_WAITS as readonly unknown[]).includes(o.wait)) return null;
   const wait = o.wait as GistWait | undefined;
   if (o.media !== undefined && (!Number.isInteger(o.media) || (o.media as number) < 1 || (o.media as number) > 999)) return null;

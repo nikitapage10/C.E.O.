@@ -19,7 +19,8 @@ type Shown = NonNullable<Exchange["messages"]>[number];
 const mine = (m: Shown) => (m as Shown & { me?: unknown }).me === true || m.from === "me";
 
 /**
- * Their own texts (#758). In a group, each line with its sender's face and name, oldest first. In a one-to-one thread
+ * Their own texts (#758). In a group, or a small chat of several (#916, where Nikita's own lines read "you"), each
+ * line with its sender's face and name, oldest first. In a one-to-one thread
  * (#869, Nikita: "push the text message to be more prominent"; he wants context) the newest is the hero, large; the
  * lines before it recede above it, faint and blurred, and come into focus (unblur, grow, lift) on hover, a tap, keyboard
  * focus or a scroll up over them, falling back when he moves away.
@@ -32,11 +33,13 @@ export function Said({ messages, hidden }: { messages: NonNullable<Exchange["mes
       <ol className="cx-said">
         {messages.map((m, i) => (
           <li key={`${m.at}-${i}`} className="cx-msg">
-            {m.from !== undefined && (
+            {m.from !== undefined && m.from !== "me" ? (
               <span className="cx-who">
                 <MemberFace name={m.from} photo={m.photo} hidden={hidden} />
                 <Private>{m.from}</Private>
               </span>
+            ) : (
+              mine(m) && <span className="cx-lab">you</span>
             )}
             <Private>{m.text}</Private>
           </li>

@@ -42,6 +42,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { pickBlob, pickBlobIn, type BlobBackend } from "../_blob.js";
+import { builderReads } from "../_site/builderkey.js";
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
@@ -379,9 +380,11 @@ async function budgetOf(deps: PhotoDeps, now: number): Promise<PhotoBudget | nul
 
 /** GET /api/haven-photos. */
 export async function photosGet(request: Request, deps: PhotoDeps): Promise<Response> {
-  const signed = await requireSession(request, deps.desk);
-  if (!signed.ok) return signed.response;
-  const reply = (body: unknown, status = 200) => withCookie(json(body, status), signed);
+  // The Builder's read key (#800) reads without a session; nothing else does.
+  const signed = builderReads(request, deps.env) ? null : await requireSession(request, deps.desk);
+  if (signed && !signed.ok) return signed.response;
+  const cookied = (res: Response) => (signed && signed.ok ? withCookie(res, signed) : res);
+  const reply = (body: unknown, status = 200) => cookied(json(body, status));
   if (!deps.library) return reply({ error: "not-set-up" }, 503);
   const q = new URL(request.url).searchParams;
   const id = q.get("id");
@@ -394,7 +397,7 @@ export async function photosGet(request: Request, deps: PhotoDeps): Promise<Resp
       // Private to this browser; an hour, since an upload may replace a photo under the same id.
       headers: { "Content-Type": got.type, "Cache-Control": "private, max-age=3600", "Content-Length": String(got.bytes.length), "X-Content-Type-Options": "nosniff" },
     });
-    return withCookie(res, signed);
+    return cookied(res);
   }
   if (q.get("view") !== "catalog") return reply({ error: "bad-request" }, 400);
   const cat = await deps.library.catalog().catch(() => null);

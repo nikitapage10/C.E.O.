@@ -19,6 +19,7 @@
  */
 
 import { pickBlob, type BlobBackend } from "../_blob.js";
+import { builderReads } from "../_site/builderkey.js";
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
@@ -65,12 +66,14 @@ function json(body: unknown, status = 200): Response {
 
 /** GET /api/haven-plan. */
 export async function planGet(request: Request, deps: PlanDeps): Promise<Response> {
-  const signed = await requireSession(request, deps.desk);
-  if (!signed.ok) return signed.response;
-  if (!deps.blob) return withCookie(json({ error: "not-set-up" }, 503), signed);
+  // The Builder's read key (#800) reads without a session; nothing else does.
+  const signed = builderReads(request, deps.env) ? null : await requireSession(request, deps.desk);
+  if (signed && !signed.ok) return signed.response;
+  const reply = (res: Response) => (signed && signed.ok ? withCookie(res, signed) : res);
+  if (!deps.blob) return reply(json({ error: "not-set-up" }, 503));
   const plan = await new PlanStore(deps.blob).read().catch(() => undefined);
-  if (plan === undefined) return withCookie(json({ error: "store" }, 503), signed);
-  return withCookie(json({ plan }), signed);
+  if (plan === undefined) return reply(json({ error: "store" }, 503));
+  return reply(json({ plan }));
 }
 
 /** POST /api/haven-plan. */

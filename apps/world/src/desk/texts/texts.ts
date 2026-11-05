@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { readRelayStatus, type RelayStatus } from "@ceo/core";
-import { readReason, readTextCard, readTextItem, REQUEST_STATES, type Reason, type RequestState, type TextCard, type TextItem } from "../../../../../api/_relay/texts.ts";
+import { readOlder, readReason, readTextCard, readTextItem, REQUEST_STATES, type OlderItem, type Reason, type RequestState, type TextCard, type TextItem } from "../../../../../api/_relay/texts.ts";
+import { readVoice, type Voice } from "../../../../../api/_relay/voice.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "../signin.ts";
 
@@ -15,7 +16,7 @@ import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "../signi
  * send needs this device's unlock (one fresh passkey check, good 72 hours), and is single-use with 10 minutes to live.
  */
 
-export type { TextCard, TextItem };
+export type { OlderItem, TextCard, TextItem, Voice };
 
 const PATH = "/api/relay";
 const POLL_MS = 20_000;
@@ -26,7 +27,7 @@ export type TextsLoad = "idle" | "off" | "live" | "failed";
 
 export interface TextRequestView {
   rid: string;
-  kind: "send" | "later" | "done" | "restyle" | "compose";
+  kind: "send" | "later" | "done" | "restyle" | "compose" | "rescan" | "learn";
   thread: string;
   text: string;
   created: number;
@@ -46,6 +47,12 @@ export interface TextsPrivate {
   /** The texts Skippy asked Blasto to write (#536). */
   cards: TextCard[];
   textsAt: number | null;
+  /** Older unanswered chats (#758): how many, and who (no gist, no draft). */
+  older: { count: number; items: OlderItem[] };
+  /** When the Mac last read every chat (#758). */
+  scannedAt: number | null;
+  /** How Nikita texts, from "Learn from my texts" (#758). */
+  voice: Voice | null;
   requests: TextRequestView[];
   spend: { usd: number; budget: number };
 }
@@ -60,7 +67,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
   if (!st.ok || !Array.isArray(o.texts) || !Array.isArray(o.requests)) return null;
   const spend = o.spend as Record<string, unknown> | null;
   const requests: TextRequestView[] = (o.requests as Record<string, unknown>[]).flatMap((r) =>
-    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
+    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose", "rescan", "learn"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
       ? [{ rid: r.rid, kind: r.kind as TextRequestView["kind"], thread: r.thread, text: typeof r.text === "string" ? r.text.slice(0, 2_000) : "", created: r.created, until: r.until, state: r.state as RequestState, ...(readReason(r.reason) && { reason: readReason(r.reason) }) }]
       : [],
   );
@@ -74,6 +81,9 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
     items: (o.texts as unknown[]).map(readTextItem).filter((i): i is TextItem => i !== null),
     cards: (Array.isArray(o.cards) ? (o.cards as unknown[]) : []).map(readTextCard).filter((c): c is TextCard => c !== null),
     textsAt: isNum(o.textsAt) ? o.textsAt : null,
+    older: readOlder(o.older) ?? { count: 0, items: [] },
+    scannedAt: isNum(o.scannedAt) ? o.scannedAt : null,
+    voice: o.voice ? readVoice(o.voice) : null,
     requests,
     spend: { usd: isNum(spend?.usd) ? spend.usd : 0, budget: isNum(spend?.budget) ? spend.budget : 10 },
   };

@@ -1276,7 +1276,7 @@
 }
 [data-room="haven"] .mp-row {
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto auto auto;
   gap: 6px;
   min-width: 0;
   padding: 8px;
@@ -1397,6 +1397,48 @@
 }
 [data-room="haven"] .mp-row.is-hf .mp-rowMeal.is-dinner .mp-photo {
   filter: saturate(0.5) brightness(0.7);
+}
+/* Skip (#788): a skipped meal stays in its place, dimmed and struck through, its reason in the label. */
+[data-room="haven"] .mp-rowMeal.is-skipped .mp-photo,
+[data-room="haven"] .mp-rowMeal.is-skipped .mp-lunchDot {
+  filter: grayscale(1) brightness(0.55);
+}
+[data-room="haven"] .mp-rowMeal.is-skipped b,
+[data-room="haven"] .mp-dTxt h3.is-skipped {
+  color: var(--hv-mute);
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--hv-gold), 0.6);
+}
+[data-room="haven"] .mp-rowMeal.is-skipped small {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-row.is-skipped {
+  border-style: dashed;
+}
+[data-room="haven"] .mp-rowSkip {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 12px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .mp-row.is-skipped .mp-rowSkip {
+  border-color: rgba(var(--hv-gold), 0.55);
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-rowSkip:focus-visible {
+  outline: 2px solid rgba(var(--hv-gold), 0.7);
+  outline-offset: 1px;
+}
+[data-room="haven"] .mp-skipWhy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
 }
 [data-room="haven"] .mp-detail {
   min-width: 0;

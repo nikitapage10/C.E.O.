@@ -19,6 +19,8 @@
  *          "resend", rid      → a new send request for one that expired (the Mac was offline) or failed
  *          "later" | "done", thread        → a request to push a thread to the next nudge, or mark it handled
  *          "restyle", thread, text         → Nikita's dictated words, for Blasto to put in his style
+ *          "rescan"           → a request for the hub to read every chat again (#758): the backlog. Needs the session only
+ *          "learn"            → a request for the hub to learn Nikita's voice from their sent texts (#758). Session only
  *          "compose", who, gist [, card, pick] → a new text Skippy was asked for (#536): the hub finds who on the Mac
  *                                and Blasto writes it onto a card (`cards` in the GET). The relay's rules run first
  *                                (skip list, money and legal, codes: ./compose.ts). It sends nothing. A card's "send" is
@@ -31,6 +33,9 @@
  *   POST /api/relay-hub?view=sort|draft  one placeholdered, trimmed snippet for Dialtone or Blasto (./models.ts):
  *                                      Claude with the Key Vault key, under the texts line's own $10 (./budget.ts).
  *                                      The snippet is never stored or logged.
+ *   POST /api/relay-hub?view=learn     "Learn from my texts" (#758, ./voice.ts): the placeholdered, labelled sample of
+ *                                      Nikita's own texts, the rules run again here, one Sonnet call under the same cap
+ *                                      (LEARN_CEILING reserved first); style traits back, never stored or logged here
  *   GET  /api/relay-hub?view=requests  the Desk's waiting requests, each handed out once (then "taken")
  *   POST /api/relay-hub?view=results   what became of the requests it took
  *   GET  /api/relay-hub?view=skip      the private skip list's terms (EMAIL_SKIP_TERMS), memory only on the Mac
@@ -72,11 +77,13 @@ import { pickAuthStore, type AuthStore } from "../_desk/store.js";
 import { deliver, webPushSend } from "../desk-pings.js";
 import { skipTermsFrom } from "../_email/filter.js";
 import { pickBlob } from "../_blob.js";
-import { BlobSpendStore, monthSpend, relayBudget, reserveSpend, settleSpend, type SpendStore } from "./budget.js";
+import { BlobSpendStore, LEARN_CEILING, monthSpend, relayBudget, reserveSpend, settleSpend, type SpendStore } from "./budget.js";
+import { costFor } from "../_email/budget.js";
+import { learnRequest, readLearn, readLearnInput } from "./voice.js";
 import { liveClaude } from "./claude.js";
 import { claudeProvider, DRAFT_MODEL, readComposeInput, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
 import { pickRelayStore, update, type PrivateState, type RelayStore, type RequestEntry } from "./store.js";
-import { DICTATED_MAX, MAX_CARDS, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
+import { DICTATED_MAX, freshItems, MAX_CARDS, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
 import { askRuled, cleanGist, cleanWho } from "./compose.js";
 import { privateParts } from "../_privacy.js";
 import { cleanPng, emptyPhotoIndex, MAX_PHOTOS, PHOTO_ID, photoEmailKey, readPhotoIndex, readPhotoList } from "./photos.js";
@@ -91,8 +98,10 @@ export const UNLOCK_COOKIE = "__Host-ceo-relay-unlock";
 export const STEPUP_S = 120;
 /** A taken request with no result this long after it ended shows as failed. */
 export const RESULT_GRACE_MS = 5 * 60_000;
-/** The most a hub's texts list may be (bytes). */
-export const MAX_TEXTS_BYTES = 128 * 1024;
+/** The most a hub's texts list may be (bytes): 60 items with 5 shown texts each (#758), drafts, cards and the older names. */
+export const MAX_TEXTS_BYTES = 512 * 1024;
+/** The most a learn sample may be (bytes): 1,000 texts of 200 characters, emoji and all. */
+export const MAX_LEARN_BYTES = 1024 * 1024;
 
 type Env = Record<string, string | undefined>;
 
@@ -231,8 +240,11 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
         pairedAt: hub?.pairedAt ?? null,
         lastSeen: hub?.lastSeen ?? null,
         unlockedUntil: await unlockedUntil(request, deps.desk.deskKey, signed.passkey.id, deps.now),
-        texts: hub ? (priv.texts?.items ?? []) : [],
+        texts: hub ? freshItems(priv.texts?.items ?? [], deps.now) : [],
         cards: hub ? (priv.texts?.cards ?? []) : [],
+        older: hub ? (priv.texts?.older ?? { count: 0, items: [] }) : { count: 0, items: [] },
+        scannedAt: hub ? (priv.texts?.scannedAt ?? null) : null,
+        voice: hub ? (priv.texts?.voice ?? null) : null,
         textsAt: hub ? (priv.texts?.at ?? null) : null,
         requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" || e.req.kind === "compose" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now), ...(shownReason(e, deps.now) && { reason: shownReason(e, deps.now) }) })),
         spend: { usd: spent ? Math.round(monthSpend(spent, deps.now).usd * 10_000) / 10_000 : 0, budget: deps.budget },
@@ -356,6 +368,11 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
     if (made && !("error" in made)) return json({ ok: true, card: made.card, rid: made.rid, until: made.until }, 200, keep);
     return requestAnswer(made, keep);
   }
+  if (action === "rescan" || action === "learn") {
+    // The chores (#758): no thread, no text, can't send, so the session is enough. One waiting at a time.
+    const made = await update(store, (s) => makeChore(s, sendKey, action, deps.now));
+    return requestAnswer(made, keep);
+  }
   if (action === "later" || action === "done" || action === "restyle") {
     const made = await update(store, (s) => makeRequest(s, sendKey, action, { thread: body?.thread, draftAt: body?.draftAt ?? 0, text: action === "restyle" ? body?.text : "" }, deps.now));
     return requestAnswer(made, keep);
@@ -400,6 +417,14 @@ export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind,
   }
   if (s.requests.some((e) => e.req.thread === item.id && e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
   const fields = { rid: randomBytes(12).toString("hex"), kind, thread: item.id, draftAt: kind === "send" ? draftAt : 0, text: kind === "send" || kind === "restyle" ? text : "", until: now + REQUEST_MS };
+  const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
+  return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };
+}
+
+/** A chore for the hub (#758): read every chat again, or learn the voice. A fresh id, no text, one of each kind at a time. */
+export function makeChore(s: PrivateState, sendKey: Buffer, kind: "rescan" | "learn", now: number): { next: PrivateState; result: Made } {
+  if (s.requests.some((e) => e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return { next: s, result: { error: "busy" } };
+  const fields = { rid: randomBytes(12).toString("hex"), kind, thread: randomBytes(8).toString("hex"), draftAt: 0, text: "", until: now + REQUEST_MS };
   const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
   return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };
 }
@@ -498,7 +523,7 @@ async function pairHub(request: Request, deps: RelayRouteDeps): Promise<Response
 async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promise<Response> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
   const view = url.searchParams.get("view");
-  if ([...url.searchParams.keys()].length > 1 || (url.search && !["texts", "results", "sort", "draft", "unpair", "photo", "photos"].includes(view ?? ""))) return json({ error: "bad-request" }, 400);
+  if ([...url.searchParams.keys()].length > 1 || (url.search && !["texts", "results", "sort", "draft", "learn", "unpair", "photo", "photos"].includes(view ?? ""))) return json({ error: "bad-request" }, 400);
   if (!(await hubOf(request, deps)) || !deps.store) return json({ error: "unauthorized" }, 401);
   const store = deps.store;
   const raw = await request.text().catch(() => "");
@@ -547,7 +572,7 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     return json({ ok: true, have: Object.keys(ids) });
   }
 
-  if (raw.length > MAX_TEXTS_BYTES) return json({ error: "too-big" }, 413);
+  if (raw.length > (view === "learn" ? MAX_LEARN_BYTES : MAX_TEXTS_BYTES)) return json({ error: "too-big" }, 413);
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -599,6 +624,8 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     return json({ ok: true });
   }
 
+  if (view === "learn") return learnCall(body, deps);
+
   // A model call: the hub's placeholdered snippet, read again, trimmed, under the texts line's own cap. The worst case
   // is reserved on the ledger before the call (a conditional write), then settled to the real cost.
   if (!deps.claude || !deps.spend) return json({ error: "not-set-up" }, 503);
@@ -621,6 +648,31 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     // Released only when Anthropic answered with an error status (not billed). A timeout or a dropped connection may
     // have been billed, so its reservation (the worst case) stays on the ledger.
     if (typeof (e as { status?: unknown } | null)?.status === "number") await settleSpend(spend, model, null, deps.now).catch(() => undefined);
+    return json({ error: "model" }, 502);
+  }
+}
+
+/**
+ * "Learn from my texts" (#758): the hub's sample, read again against its caps, every text through the rules once more
+ * (one a rule matches is dropped), then one Sonnet call with LEARN_CEILING reserved first and settled to the real
+ * cost. Nothing of the sample is stored or logged; the answer goes back checked, with what the call cost.
+ */
+async function learnCall(body: unknown, deps: RelayRouteDeps): Promise<Response> {
+  if (!deps.claude || !deps.spend) return json({ error: "not-set-up" }, 503);
+  const input = readLearnInput(body);
+  if (!input) return json({ error: "bad-request" }, 400);
+  const clean = { contacts: input.contacts.map((c) => ({ label: c.label, texts: c.texts.filter((t) => !askRuled("", t, deps.skipTerms)) })).filter((c) => c.texts.length) };
+  if (!clean.contacts.length) return json({ error: "bad-request" }, 400);
+  const spend = deps.spend;
+  if (!(await reserveSpend(spend, DRAFT_MODEL, deps.budget, deps.now, LEARN_CEILING).catch(() => false))) return json({ ok: false, paused: true });
+  try {
+    const { answer, usage } = await deps.claude(learnRequest(clean));
+    await settleSpend(spend, DRAFT_MODEL, usage, deps.now, LEARN_CEILING).catch(() => undefined);
+    // Checked here, in the model's own shape, and again on the Mac.
+    const a = readLearn(answer, clean.contacts.map((c) => c.label));
+    return json({ ok: true, answer: a && { traits: a.traits, family: a.tones.family, friends: a.tones.friends, work: a.tones.work, relations: a.relations }, usd: Math.round(costFor(DRAFT_MODEL, usage) * 10_000) / 10_000 });
+  } catch (e) {
+    if (typeof (e as { status?: unknown } | null)?.status === "number") await settleSpend(spend, DRAFT_MODEL, null, deps.now, LEARN_CEILING).catch(() => undefined);
     return json({ error: "model" }, 502);
   }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { reducedMotion } from "../sigils/motion.tsx";
-import { GRID, pointOn, rgbOf, seats, sigilOf, sigilPath, strokeLength, type RoomSigil } from "../sigils/roomSigils.ts";
-import { clamp, eOut, spr, TAU } from "../sigils/wvCanvas.ts";
+import { GRID, pointOn, rgbOf, seats, sigilOf, sigilPath, type RoomSigil } from "../sigils/roomSigils.ts";
+import { TAU } from "../sigils/wvCanvas.ts";
 import { CAP_MS, ReadyGate, RoomReadyContext } from "./roomReady.ts";
 import "./roomLoader.css";
 
@@ -27,8 +27,6 @@ const SEEN = new Set<string>();
 
 type Phase = "cover" | "leave" | "gone";
 
-/** The Desk's gold, as on the C.E.O. mark's core. */
-const GOLD = "232,207,156";
 
 export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, children }: { room: string; name: string; accent: string; shown?: boolean; cap?: number; children: ReactNode }) {
   const [revisit] = useState(() => SEEN.has(room));
@@ -79,7 +77,7 @@ export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, chi
       {shown && phase !== "gone" && (
         <div className="room-loader" data-phase={phase} role="status" aria-label={`Opening ${name}`} style={style}>
           <div className="room-loader__mark" aria-hidden="true">
-            {reduced ? <SigilStill sigil={sigil} /> : <Swarm sigil={sigil} leaving={phase === "leave"} />}
+            {reduced ? <SigilStill sigil={sigil} /> : <Swarm sigil={sigil} />}
           </div>
           <p className="room-loader__name" aria-hidden="true">
             <i />
@@ -107,144 +105,105 @@ function SigilStill({ sigil }: { sigil: RoomSigil }) {
   );
 }
 
-interface Mote {
-  stroke: number;
-  u: number;
-  /** Drift along its stroke, in grid units a second. */
-  v: number;
-  sx: number;
-  sy: number;
-  spin: number;
-  delay: number;
-  dur: number;
-  r: number;
-  gold: boolean;
-  tw: number;
-  ph: number;
-}
-
-/** Ping-pong a position into 0..1, so a mote drifting along an open stroke turns at its ends. */
+/** Ping-pong a position into 0..1, so a drift along an open stroke turns at its ends. */
 const pingpong = (x: number) => 1 - Math.abs((((x % 2) + 2) % 2) - 1);
 
-/** The motes gathering into the sigil, on one small canvas with its own loop (it lives for a second or two). */
-function Swarm({ sigil, leaving }: { sigil: RoomSigil; leaving: boolean }) {
-  const cv = useRef<HTMLCanvasElement>(null);
-  const leaveAt = useRef<number | null>(null);
-  useEffect(() => {
-    if (leaving && leaveAt.current === null) leaveAt.current = performance.now();
-  }, [leaving]);
+/** The approach's curve: a cubic ease-out, as the hairlines draw. */
+const EASE = "cubic-bezier(0.22, 0.61, 0.24, 1)";
 
-  useEffect(() => {
-    const c = cv.current;
-    const g = c?.getContext("2d");
-    if (!c || !g) return;
-    const w = c.clientWidth || 320;
-    const h = c.clientHeight || 320;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    c.width = Math.round(w * dpr);
-    c.height = Math.round(h * dpr);
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const rgb = rgbOf(getComputedStyle(c).getPropertyValue("--rl-accent"));
+/**
+ * The motes gathering into the sigil (#784). Each mote, hairline and glint is a small element with its own Web
+ * Animation of transform and opacity only, set up once before the first paint. The browser runs those on the
+ * compositor, so they keep moving while the page behind the cover holds the main thread: a 3D scene's build, a big
+ * JSON parse, a shader compile. (The first version drew on a canvas from a requestAnimationFrame loop, which froze
+ * whenever the main thread did, mid-gather, as Today's chamber built.)
+ */
+function Swarm({ sigil }: { sigil: RoomSigil }) {
+  const host = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = host.current;
+    if (!el || typeof el.animate !== "function") return;
+    const w = el.clientWidth || 320;
+    const h = el.clientHeight || 320;
+    el.style.setProperty("--rl-rgb", rgbOf(getComputedStyle(el).getPropertyValue("--rl-accent")));
     const k = (Math.min(w, h) * BOX) / GRID;
     const ox = w / 2 - (GRID / 2) * k;
     const oy = h / 2 - (GRID / 2) * k;
-    const lens = sigil.strokes.map(strokeLength);
     const half = Math.min(w, h) / 2;
-    const n = w < 300 ? 130 : 170;
-    const motes: Mote[] = seats(sigil, n).map((s, i) => {
+    const anims: Animation[] = [];
+    const add = (node: Element, frames: Keyframe[], opts: KeyframeAnimationOptions) => anims.push(node.animate(frames, { fill: "both", ...opts }));
+    const frag = document.createDocumentFragment();
+
+    // The hairlines: one small SVG per stroke, so each fades in on the compositor, one after another.
+    const pad = (GRID / BOX - GRID) / 2;
+    sigil.strokes.forEach((s, i) => {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", `${-pad} ${-pad} ${GRID + pad * 2} ${GRID + pad * 2}`);
+      svg.setAttribute("class", "room-loader__line");
+      const d = s.map(([x, y], j) => `${j ? "L" : "M"}${x} ${y}`).join("");
+      svg.innerHTML = `<path class="room-loader__glow" d="${d}"/><path d="${d}"/>`;
+      frag.append(svg);
+      add(svg, [{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 420 + i * 110, easing: "ease-out" });
+    });
+
+    // The motes: in from the dark on a curve, then a slow drift along their stroke and a twinkle, for as long as it takes.
+    const n = w < 300 ? 110 : 140;
+    seats(sigil, n).forEach((s, i) => {
+      const stroke = sigil.strokes[s.stroke]!;
+      const [px, py] = pointOn(stroke, s.u);
+      const tx = ox + px * k;
+      const ty = oy + py * k;
       const a = Math.random() * TAU;
       const r = half * (0.62 + Math.random() * 0.4);
-      return {
-        stroke: s.stroke,
-        u: s.u,
-        v: (Math.random() - 0.5) * 1.6,
-        sx: w / 2 + Math.cos(a) * r,
-        sy: h / 2 + Math.sin(a) * r,
-        spin: (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.7),
-        // Roughly in the order the strokes are drawn, so the sigil gathers rather than snaps.
-        delay: (i / n) * 260 + Math.random() * 320,
-        dur: 760 + Math.random() * 440,
-        r: 0.9 + Math.random() * 1.2,
-        gold: Math.random() < 0.12,
-        tw: 2 + Math.random() * 3,
-        ph: Math.random() * TAU,
+      const dx = w / 2 + Math.cos(a) * r - tx;
+      const dy = h / 2 + Math.sin(a) * r - ty;
+      const spin = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.7);
+      const gold = Math.random() < 0.12;
+      const size = (0.9 + Math.random() * 1.2) * (gold ? 5.5 : 4.6);
+      // The curve's midpoint: the offset from the seat, turned and shrunk.
+      const at = (f: number) => {
+        const rot = f * spin;
+        const x = tx + (dx * Math.cos(rot) - dy * Math.sin(rot)) * f;
+        const y = ty + (dx * Math.sin(rot) + dy * Math.cos(rot)) * f;
+        return `translate(${(x - size / 2).toFixed(1)}px, ${(y - size / 2).toFixed(1)}px)`;
       };
-    });
-    const dotA = spr(rgb);
-    const dotG = spr(GOLD);
-    const start = performance.now();
-    let raf = 0;
-
-    const draw = (now: number) => {
-      const t = now - start;
-      const ts = t / 1000;
-      const out = leaveAt.current === null ? 0 : eOut((now - leaveAt.current) / 520);
-      g.clearRect(0, 0, w, h);
-
-      // The hairlines draw in under the motes, one stroke after another.
-      g.lineCap = "round";
-      g.lineJoin = "round";
-      sigil.strokes.forEach((s, i) => {
-        const f = clamp((t - 420 - i * 110) / 700, 0, 1);
-        if (!f) return;
-        g.beginPath();
-        let left = f * lens[i]!;
-        g.moveTo(ox + s[0]![0] * k, oy + s[0]![1] * k);
-        for (let j = 1; j < s.length && left > 0; j++) {
-          const [ax, ay] = s[j - 1]!;
-          const [bx, by] = s[j]!;
-          const l = Math.hypot(bx - ax, by - ay);
-          const q = l ? Math.min(1, left / l) : 1;
-          g.lineTo(ox + (ax + (bx - ax) * q) * k, oy + (ay + (by - ay) * q) * k);
-          left -= l;
-        }
-        g.strokeStyle = `rgba(${rgb},${0.07 * (1 - out)})`;
-        g.lineWidth = 3.2;
-        g.stroke();
-        g.strokeStyle = `rgba(${rgb},${0.34 * (1 - out)})`;
-        g.lineWidth = 1;
-        g.stroke();
+      const delay = (i / n) * 260 + Math.random() * 320;
+      const dur = 760 + Math.random() * 440;
+      const m = document.createElement("i");
+      m.className = gold ? "room-loader__mote is-gold" : "room-loader__mote";
+      m.style.width = m.style.height = `${size.toFixed(1)}px`;
+      const dot = document.createElement("b");
+      m.append(dot);
+      frag.append(m);
+      add(m, [{ transform: at(1), opacity: 0 }, { transform: at(0.4), opacity: 0.7, offset: 0.45 }, { transform: at(0.12), opacity: 0.85, offset: 0.75 }, { transform: at(0), opacity: gold ? 0.9 : 0.8 }], { duration: dur, delay, easing: EASE });
+      // Along the stroke a little, back and forth, and a twinkle: endless, until the cover goes.
+      const [qx, qy] = pointOn(stroke, pingpong(s.u + (Math.random() - 0.5) * 0.06));
+      add(dot, [{ transform: "translate(0, 0)", opacity: 1 }, { transform: `translate(${((qx - px) * k).toFixed(1)}px, ${((qy - py) * k).toFixed(1)}px)`, opacity: 0.45 }], {
+        duration: 1300 + Math.random() * 1700,
+        delay: delay + dur,
+        direction: "alternate",
+        iterations: Infinity,
+        easing: "ease-in-out",
       });
+    });
 
-      g.globalCompositeOperation = "lighter";
-      for (const m of motes) {
-        const e = eOut((t - m.delay) / m.dur);
-        if (e <= 0) continue;
-        const len = lens[m.stroke] || 1;
-        const [px, py] = pointOn(sigil.strokes[m.stroke]!, pingpong(m.u + (m.v * Math.max(0, ts - 1)) / len));
-        const tx = ox + px * k;
-        const ty = oy + py * k;
-        // A curving approach: the offset from the seat turns as it shrinks.
-        const rot = (1 - e) * m.spin;
-        const dx = (m.sx - tx) * (1 - e);
-        const dy = (m.sy - ty) * (1 - e);
-        let x = tx + dx * Math.cos(rot) - dy * Math.sin(rot);
-        let y = ty + dx * Math.sin(rot) + dy * Math.cos(rot);
-        if (out) {
-          x += (x - w / 2) * out * 0.12;
-          y += (y - h / 2) * out * 0.12;
-        }
-        const tw = e >= 1 ? 0.72 + 0.28 * Math.sin(ts * m.tw + m.ph) : 1;
-        const s = m.r * (m.gold ? 5.5 : 4.6);
-        g.globalAlpha = Math.min(1, e * 1.2) * tw * (m.gold ? 0.85 : 0.75) * (1 - out);
-        g.drawImage(m.gold ? dotG : dotA, x - s / 2, y - s / 2, s, s);
-      }
+    // The gold glints, once the motes are in.
+    for (const [nx, ny] of sigil.nodes) {
+      const g = document.createElement("i");
+      g.className = "room-loader__glint";
+      g.style.transform = `translate(${(ox + nx * k - 8).toFixed(1)}px, ${(oy + ny * k - 8).toFixed(1)}px)`;
+      const core = document.createElement("b");
+      g.append(core);
+      frag.append(g);
+      add(core, [{ opacity: 0, transform: "scale(0.4)" }, { opacity: 0.9, transform: "scale(1)" }], { duration: 600, delay: 1150, easing: EASE });
+      add(g, [{ opacity: 1 }, { opacity: 0.7 }], { duration: 1500, delay: 1750, direction: "alternate", iterations: Infinity, easing: "ease-in-out" });
+    }
 
-      // The gold glints, once the motes are in.
-      const glint = eOut((t - 1150) / 600);
-      if (glint > 0)
-        for (const [nx, ny] of sigil.nodes) {
-          const s = 16 + 3 * Math.sin(ts * 2.1);
-          g.globalAlpha = glint * 0.9 * (1 - out);
-          g.drawImage(dotG, ox + nx * k - s / 2, oy + ny * k - s / 2, s, s);
-        }
-      g.globalAlpha = 1;
-      g.globalCompositeOperation = "source-over";
-      raf = requestAnimationFrame(draw);
+    el.append(frag);
+    return () => {
+      for (const an of anims) an.cancel();
+      el.replaceChildren();
     };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
   }, [sigil]);
-
-  return <canvas ref={cv} />;
+  return <div ref={host} className="room-loader__swarm" />;
 }

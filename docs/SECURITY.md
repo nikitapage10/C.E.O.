@@ -43,11 +43,13 @@ from another host.
 Relay's texts line (#535), a hub on the MacBook that reads iMessage and SMS through BlueBubbles, follows
 [RELAY-PRIVACY.md](RELAY-PRIVACY.md) (#149, R5 in [THREAT-MODEL.md](THREAT-MODEL.md)). Message text stays on the
 Mac except inside one trimmed, placeholdered snippet at a time, which the site passes to Claude with its own Key
-Vault key under the texts line's own $10 and never stores; the Mac holds no model key. The hub only calls out, with
+Vault key under the texts line's own $10 and never stores (since #758 also one sample of Nikita's own sent texts per
+"Learn from my texts", which returns style traits only); the Mac holds no model key. The hub only calls out, with
 a paired token, and listens only on `127.0.0.1`, for the `relay` command (new texts are polled from BlueBubbles' local API, #749). The public site gets counts, enum states
 and timestamps only, in one allowlisted shape (`RelayStatus` and `readRelayStatus` in `packages/core/src/relay.ts`)
 that refuses an unknown key or any free string. The signed-in Desk gets a sealed who's-waiting list (names, gists,
-drafts) for 7 days at most. A send is a single-use, signed, 10-minute request made only on the Desk, after a passkey
+drafts; since #758, at Nikita's request on 2026-11-05, an owed thread's last 5 unanswered texts, a week at most, never
+from a thread a rule matches) for 30 days at most. A send is a single-use, signed, 10-minute request made only on the Desk, after a passkey
 unlock on that device that lasts 72 hours. Logs hold no content, everything has an end date, and one command wipes
 the Mac.
 
@@ -187,6 +189,7 @@ with a new value.
 | `POST /api/desk-pings` with `Authorization: Bearer <DESK_PINGS_SECRET>` | `desk-pings.yml`, which reads the secret from the Key Vault | The gate checks the secret itself, in constant time, and the function checks it again; every other ping action needs a site session and a Desk session |
 | `POST /api/skippy-answer` with `Authorization: Bearer <SUBMIND_FEED_TOKEN>` (#312) | Skippy's and the room subminds' threads, answering a question Desk Skippy handed off | The gate checks the key itself, at least 32 characters, in constant time, on that one path and method, and the function checks it again; it can only attach one plain line (700 characters at most, held back whole when it looks private) to a turn that was handed off and isn't answered yet, and the ping it sends names who answered, never what. Without the key set the route is off |
 | Any route with `x-ceo-site-bypass: <SITE_BYPASS_TOKEN>` | `live-watch.yml` (`scripts/boot-check.mjs --url`) only, since #313: the backup reads Azure's own store, and the final copy from Vercel uses Vercel's Blob token | A shared secret, at least 32 characters, compared in constant time, read from the Key Vault (`site-bypass-token`) at run time; the workflow sends it only to the site, from a file or a same-origin browser route, and never print it. Without it, the live watch only checks that the login page answers |
+| `GET` or `HEAD` of `/api/haven-plan`, `/api/haven-meals`, `/api/haven-photos` with `x-ceo-builder-key: <BUILDER_READ_KEY>` (#800) | The Builder's cloud sessions, reading Nikita's private Haven files to check a change | A shared secret, at least 32 characters, different from every other key, compared in constant time, from the Key Vault (`builder-read-key`); exactly those methods, paths and queries, read-only ([The Builder's read key](#the-builders-read-key)). Unset, the header does nothing |
 
 | GET of a room read with `x-ceo-room-key: <SUBMIND_LOG_TOKEN>` (or `Authorization: Bearer`) | The active submind threads (#281): the four active rooms' Asked Skippy logs, the Green's league, the Exchange's board and positions, the world feed (and `?day=`), the Foundry feed, the room feed | The read key, from the Key Vault only, at least 32 characters, compared in constant time; exactly the listed paths and queries, GET only (`api/_site/roomkeys.ts`), and the private handlers check the key again. See "The subminds' room keys" below |
 | `POST /api/room-feed` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a short room event (#281) | The feed key, the same way; that one write only, which answers `{ ok, id }` and nothing more |
@@ -194,7 +197,7 @@ with a new value.
 | `PUT /api/haven-plan` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The Builder thread saving Nikita's floor plan without a tap (#655) | The feed key alone (not the read key, not a passkey session without it), no query; the body is checked as untrusted data like a Desk save (`readPlan`, 96 KB at most) and the answer is `{ ok, rooms, pieces }`, counts only, never the plan. Reading the plan stays passkey-session-only: `GET /api/haven-plan` takes neither room key, and the gate's read list doesn't hold the path |
 | `PUT /api/haven-photos` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The Builder thread loading meal photos into the Kitchen's library without a tap (#687) | The feed key alone, no query; the body is one PNG or JPEG (its own magic bytes and a full decode; 4 MB at most; served back only as `image/png` or `image/jpeg` with `nosniff`) and the answer is `{ ok, id, bytes }`, never a photo or the catalog. Reading a photo stays passkey-session-only (`GET /api/haven-photos` takes neither room key) |
 | `PUT /api/haven-meals` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The Builder thread loading the Kitchen's meal planner (taste profile, catalog, first week) without a tap (#678) | The feed key alone, no query; the body is checked as untrusted data like a Desk seed (`readMeals`, 600 KB at most), it never replaces a planner already there unless `replace` is set, and the answer is `{ ok, meals, nights }`, counts only. Reading or changing the planner stays passkey-session-only (`/api/haven-meals` takes neither room key for a GET or POST) |
-| `POST /api/relay-hub` (no query, `?view=texts`, `results`, `sort`, `draft` or `unpair`) and `GET /api/relay-hub?view=requests` or `?view=skip`, with `Authorization: Bearer <a hub token>` (#535) | Relay's hub on the MacBook: its status, its who's-waiting list, its model snippets, its poll for the Desk's send requests and their results, the skip terms | The hub token is `rh1.<pairing id>.<HMAC>` with a key derived from `FOUNDRY_DESK_KEY`; the gate checks the signature on exactly those methods and views, and the route checks the token's hash against the pairing on record (Unpair ends it at once). Nothing else opens with it ([RELAY-PRIVACY.md](RELAY-PRIVACY.md), "Mac to the site") |
+| `POST /api/relay-hub` (no query, `?view=texts`, `results`, `sort`, `draft`, `learn` or `unpair`) and `GET /api/relay-hub?view=requests` or `?view=skip`, with `Authorization: Bearer <a hub token>` (#535) | Relay's hub on the MacBook: its status, its who's-waiting list, its model snippets, its poll for the Desk's send requests and their results, the skip terms | The hub token is `rh1.<pairing id>.<HMAC>` with a key derived from `FOUNDRY_DESK_KEY`; the gate checks the signature on exactly those methods and views, and the route checks the token's hash against the pairing on record (Unpair ends it at once). Nothing else opens with it ([RELAY-PRIVACY.md](RELAY-PRIVACY.md), "Mac to the site") |
 | `POST /api/relay-pair`, no query (#535) | The Relay installer, once, trading the Desk's one-time pair code for the hub token | The code is the lock: 8 characters, 10 minutes, 5 wrong tries, kept only as a hash, made only with the Desk's send unlock and never while a Mac is paired; a request with an `Origin` header is refused, so a web page can't pair |
 | `GET /api/relay?view=status`, exactly (#535) | `relay status` and `relay wipe --verify` on the Mac | Relay's public counts (`RelayStatus`: counts, enum states, timestamps), public by design; every other method or query of `/api/relay` stays behind the lock and the passkey session |
 | `GET /api/skippy-tools?read=<room>`, `POST /api/skippy-tools?act=kernel` with `x-ceo-voice-tool: <a call's tool token>` (#479) | ElevenLabs, mid-call, when Skippy or a submind looks up a live room on a Talk call | A random token per call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret), good for the call's longest plus two minutes; the gate checks the signature and expiry on that one path (GET or POST), and the route checks the token is kept with its call (as a hash) and not ended. It reaches ElevenLabs as a `secret__` dynamic variable, which is bound to tool headers only and never sent to the LLM. Reads scrubbed, and the one write is an ask filed for Skippy's own thread (privacy-checked, five per call); the book's and the bill's dollars go only to that call, Relay's only as counts |
@@ -245,6 +248,26 @@ keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
 - **If a key leaks**, give the secret a new version in the vault and restart the Function App: the old key opens
   nothing from then on ([AZURE.md](AZURE.md), step 3).
 
+
+## The Builder's read key
+
+Nikita, 2026-11-05 (#800): anything private, the Builder should be able to read, even if it isn't passkey-gated, so a Haven
+change is checked against the real floor plan and data before it ships. Setup is in [AZURE.md](AZURE.md), "The Builder's read key".
+
+- **What it opens.** `GET` and `HEAD` of `/api/haven-plan` (the floor plan), `/api/haven-meals` (the meal planner file) and
+  `/api/haven-photos` (`?id=<id>[&size=full]` one photo, `?view=catalog[&ids=a,b]` the catalog), sent with
+  `x-ceo-builder-key: <BUILDER_READ_KEY>`. Nothing else: another route, an extra or repeated query key, an encoded path or
+  any other method is refused as without the key (`api/_site/builderkey.ts`, checked by the gate and again by the three handlers).
+- **Read-only.** A write, send or action (POST, PUT, DELETE, a device action, an email, a ping) with the key gets the
+  usual refusal (401 from the gate, or the handler's own, since the key is not a session); the key never sets a cookie.
+- **Who holds it.** The Builder (Claude Code cloud sessions): a network secret for the host `ceo.nikita.page` in the
+  Claude project's cloud environment, so the egress proxy adds the header and a session never sees the value. Key Vault
+  only (`builder-read-key`), never in the repo, an issue, a test or a chat.
+- **The key itself.** At least 32 random characters, different from every other key (`FOUNDRY_DESK_KEY`,
+  `SITE_BYPASS_TOKEN`, `SITE_SESSION_SECRET`, `DESK_PINGS_SECRET`, `GMAIL_TOKEN_KEY`, the two room keys, `HOME_TOKEN_KEY`),
+  or it counts as unset; compared in constant time; never logged. Unset, the header does nothing. The room keys also refuse a
+  value equal to it.
+- **If it leaks**, give `builder-read-key` a new version in the vault and restart the Function App: the old key opens nothing.
 
 ## Hey Skippy from the iPhone
 
@@ -496,6 +519,7 @@ writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environme
 | `DESK_VAPID_SUBJECT` | Optional: an `https:` or `mailto:` contact the push services may use about the pings | The site's address |
 | `DESK_PINGS_SECRET` | Shared with the Desk pings workflow, which reads it from the vault: only a caller holding it can make the Desk scan and ping. Long and random | No scans, so no pings |
 | `SITE_BYPASS_TOKEN` | The site lock's key for the live watch (#236, #313), which reads it from the vault (`site-bypass-token`) and sends it in `x-ceo-site-bypass`. At least 32 random characters | The live watch only checks the login page |
+| `BUILDER_READ_KEY` | The Builder's read-only key (#800, "The Builder's read key" above): GET of the Haven plan, meals and photos only. At least 32 random characters, `builder-read-key` in the vault | The header does nothing |
 | `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` | The subminds' room keys (#281, "The subminds' room keys" above): read-only GETs of room data, and write-only room events. **Azure only** (`submind-log-token`, `submind-feed-token`), minted by the secrets paste. At least 32 random characters, different from each other and the site's secrets | The keys open nothing; the threads read and post nothing |
 | `SITE_SESSION_SECRET` | Optional: signs the site's sign-in cookies (#236). At least 32 random characters | Derived from `FOUNDRY_DESK_KEY` |
 | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` | Nikita's Polymarket US API key (#253), for the Exchange's private positions board. As Key Vault references (`polymarket-us-key-id`, `polymarket-us-secret-key`); never set on Vercel. Polymarket US keys have no read-only scope, so the code keeps it read-only: `api/_exchange/positions.ts` signs only GET requests to `/v1/portfolio/positions` and `/v1/portfolio/activities` (an allow-list, with a test that fails if an order, account, RFQ, combo or WebSocket path becomes reachable), never logs or returns the key, and answers only a signed-in Desk (`private, no-store`). Revoke it at polymarket.us/developer if in doubt | The positions board says it's waiting for the key |

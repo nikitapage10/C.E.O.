@@ -49,6 +49,7 @@ import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { ARMS, CHILD, fitCap, HEAD, NAVY, PHI, POSES, TH0, TH1 } from "../hologram/rig.ts";
 import type { Pose } from "../hologram/persona.ts";
 import { SKIPPY_MODEL } from "../council/live.ts";
+import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import { chairLine, COUNTER_COLOUR, MURMUR_MAX, murmurFor, type RiteItem, type RiteKind, type RiteLine } from "./rite.ts";
 import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig } from "./senateActor.ts";
 import { senatePoses, senatorOf } from "./senators.ts";
@@ -465,6 +466,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     return t;
   })();
   const seats = opts.seats;
+  // Each pod's recoloured skin is a full pixel pass over the model's texture: done here one at a time, yielding between
+  // (#784), so the build is many short tasks instead of one long one. makeCan below finds each in recolor's cache.
+  if (protoMap)
+    for (const s of seats) {
+      recolor(`rotunda-${s.colour}`, protoMap, [{ band: NAVY, color: s.colour }]);
+      await yieldNow();
+    }
   const pods: Pod[] = seats.map((s, i) => {
     const a = Math.PI / 2 + Math.PI * 0.27 + (i / Math.max(1, seats.length - 1)) * Math.PI * 1.46;
     const home = new Vector3(Math.cos(a) * R, i % 2 ? 2.7 : 1.9, Math.sin(a) * R);
@@ -1229,7 +1237,9 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // The programs before the first frame (#759): compiled off the main thread where the browser can
   // (KHR_parallel_shader_compile), then one draw, still unseen (the canvas shows at data-gl="on"), so the shadow pass
   // compiles here too and the first frame on screen doesn't stall. A warm build (warm.ts) leaves them in the browser's cache.
+  await yieldNow();
   await renderer.compileAsync(scene, cam).catch(() => undefined);
+  await yieldNow();
   renderer.render(scene, cam);
   raf = requestAnimationFrame(frame);
 

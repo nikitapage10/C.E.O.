@@ -6,7 +6,7 @@
  * Nothing new is read or stored.
  */
 
-import { DAY_NAME, DAYS, lunchDish, portionsOf, shopLine, slotDish, type Component, type Day, type Dish, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
+import { cooksDinner, DAY_NAME, DAYS, lunchDish, lunchSkipped, portionsOf, shopLine, slotDish, type Component, type Day, type Dish, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
 
 /** A run of a step's words; `swap` marks the new part's name where the recipe named the old one. */
 export interface Run {
@@ -113,23 +113,23 @@ function lineOf(i: Ingredient, k: number): CookLine {
   return { item: m ? m[1]! : line, amount: m ? m[2]! : "", pantry: !!i.pantry };
 }
 
-/** The night's dinner for cook mode, or null for a night with no meal (or a HelloFresh night: nothing to cook here). */
+/** The night's dinner for cook mode, or null for a night with no meal (or a HelloFresh or skipped night: nothing to cook here). */
 export function cookOf(f: MealsFile, s: Slot): Cook | null {
   const d = slotDish(f, s);
-  if (!d || !f.week || s.helloFresh) return null;
+  if (!d || !f.week || !cooksDinner(s)) return null;
   const i = DAYS.indexOf(s.day);
   const portions = portionsOf(f.week)[i] ?? 1;
   const why: string[] = [];
   if (s.forTwo) why.push("for two");
   f.week.slots.forEach((o, j) => {
-    if (o.lunch.leftoverOf === i) why.push(`makes ${DAY_NAME[DAYS[j]!]}'s lunch`);
+    if (o.lunch.leftoverOf === i && !lunchSkipped(o)) why.push(`makes ${DAY_NAME[DAYS[j]!]}'s lunch`);
   });
   return cookDish(d, s.day, "dinner", portions, why);
 }
 
 /** The day's quick lunch for cook mode (#719), for one; null when the lunch is leftovers or plain text. */
 export function cookLunchOf(f: MealsFile, s: Slot): Cook | null {
-  const d = lunchDish(f, s);
+  const d = lunchSkipped(s) ? null : lunchDish(f, s);
   return d ? cookDish(d, s.day, "lunch", 1, []) : null;
 }
 

@@ -35,11 +35,56 @@
 .room-loader[data-phase="leave"] .room-loader__mark {
   transform: scale(1.04);
 }
-.room-loader__mark canvas,
-.room-loader__mark svg {
+.room-loader__mark > svg {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* The swarm (#784): every mote, hairline and glint animates only transform and opacity, on the compositor, so a busy
+   main thread behind the cover can't freeze it. */
+.room-loader__swarm {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.room-loader__line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: rgba(var(--rl-rgb, 159, 210, 255), 0.34);
+  stroke-width: 0.32;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.room-loader__line .room-loader__glow {
+  stroke: rgba(var(--rl-rgb, 159, 210, 255), 0.07);
+  stroke-width: 1.1;
+}
+.room-loader__mote,
+.room-loader__glint {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.room-loader__mote b,
+.room-loader__glint b {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--rl-rgb, 159, 210, 255), 1) 0, rgba(var(--rl-rgb, 159, 210, 255), 0.62) 22%, rgba(var(--rl-rgb, 159, 210, 255), 0.13) 55%, rgba(var(--rl-rgb, 159, 210, 255), 0) 100%);
+}
+.room-loader__mote.is-gold b,
+.room-loader__glint b {
+  background: radial-gradient(circle, rgba(var(--rl-gold), 1) 0, rgba(var(--rl-gold), 0.62) 22%, rgba(var(--rl-gold), 0.13) 55%, rgba(var(--rl-gold), 0) 100%);
+}
+.room-loader__glint {
+  width: 16px;
+  height: 16px;
 }
 .room-loader__still {
   fill: none;
@@ -71,6 +116,7 @@
   /* The trailing letter-space, given back so the name sits centred between its rules. */
   margin-right: -0.26em;
   letter-spacing: 0.26em;
+  /* Opacity and a small rise only: the compositor plays it whatever the page is doing. */
   animation: room-loader-name 900ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--rl-delay, 70ms) + 160ms) both;
 }
 .room-loader__name i {
@@ -93,7 +139,7 @@
 @keyframes room-loader-name {
   from {
     opacity: 0;
-    letter-spacing: 0.4em;
+    transform: translateY(4px);
   }
 }
 @keyframes room-loader-rule {

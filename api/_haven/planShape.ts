@@ -87,6 +87,8 @@ export interface HavenPlan {
   balconies: Seg[];
   /** The wall a room's TV hangs on (#747), as a run along it; the living room is laid out facing it. */
   tv: Seg[];
+  /** True once the openings were set in the wall editor: then windows, balcony doors and TV above are exactly what is drawn. */
+  openings?: true;
   items: PlanItem[];
   devices: PlanDevice[];
   /** The walk from the front door to a detached block, as points. */
@@ -168,6 +170,7 @@ export function readPlan(v: unknown): HavenPlan | null {
     windows: arr(b.windows, LIMITS.windows).map(seg).filter((s): s is Seg => s !== null),
     balconies: arr(b.balconies, LIMITS.balconies).map(seg).filter((s): s is Seg => s !== null),
     tv: arr(b.tv, LIMITS.tv).map(seg).filter((s): s is Seg => s !== null),
+    ...(b.openings === true ? { openings: true as const } : {}),
     items,
     devices,
     path,

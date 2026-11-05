@@ -56,9 +56,23 @@ export const TOOLS: readonly RoomTool[] = [
   {
     name: "meals_night",
     room: "haven",
-    title: "Set a night: HelloFresh, for two",
-    description: "Mark a night as a HelloFresh night (nothing to cook or buy for it), cook it for two, or leave it out of the cart.",
-    input: { type: "object", properties: { day: DAY, hellofresh: { type: "boolean" }, for_two: { type: "boolean" }, in_cart: { type: "boolean" } }, required: ["day"], additionalProperties: false },
+    title: "Set a night: HelloFresh, for two, skip",
+    description:
+      "Mark a night as a HelloFresh night (nothing to cook or buy for it), cook it for two, or leave it out of the cart. skip skips that day's dinner, its lunch, or the whole day (\"skip dinner Friday\", \"I'm eating out Saturday\"): it stays planned but nothing is cooked or bought for it. reason is why, only when he says it (out: eating out; leftovers). unskip true has the skipped meal (or the day, with skip \"day\") again.",
+    input: {
+      type: "object",
+      properties: {
+        day: DAY,
+        hellofresh: { type: "boolean" },
+        for_two: { type: "boolean" },
+        in_cart: { type: "boolean" },
+        skip: { type: "string", enum: ["dinner", "lunch", "day"] },
+        reason: { type: "string", enum: ["out", "leftovers"] },
+        unskip: { type: "boolean" },
+      },
+      required: ["day"],
+      additionalProperties: false,
+    },
     effect: "write",
   },
   {

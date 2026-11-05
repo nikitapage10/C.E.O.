@@ -59,6 +59,12 @@ export interface Exchange {
   logo?: string;
   /** A text whose ready draft is folded until Reply (#642). */
   ready?: boolean;
+  /** A text whose latest message Messages shows unread (#758): a mark only; a read one is just as owed. */
+  unread?: boolean;
+  /** Their own texts (#758): the newest unanswered ones, real words, sealed; a group's with each sender. */
+  messages?: TextItem["messages"];
+  /** A group text: owed only when Nikita was asked or named, never drafted for. */
+  group?: boolean;
 }
 
 const firstName = (who: string) => who.trim().split(/\s+/)[0] || who;
@@ -73,14 +79,14 @@ export function fromEmail(i: EmailItem, canSend = false): Exchange {
 
 /** One text thread as an exchange. */
 export function fromText(i: TextItem): Exchange {
-  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group, ...(i.photo && { photo: i.photo }) };
+  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group, ...(i.photo && { photo: i.photo }), ...(i.unread && { unread: true }), ...(i.messages?.length && { messages: i.messages }), ...(i.group && { group: true }) };
 }
 
-/** The queue: email that needs Nikita and texts they owe (not groups, not settled), sooner first, then oldest; skipped and later at the back. */
+/** The queue: email that needs Nikita and texts they owe (a group only once it asked or named them, #758; never settled ones), sooner first, then oldest; skipped and later at the back. */
 export function queueOf(email: EmailItem[] | undefined, texts: TextItem[] | undefined, skipped: readonly string[] = [], canSend = false): Exchange[] {
   const all = [
     ...(email ?? []).filter((i) => !i.done && (i.kind === "needs-you" || i.kind === "unsorted")).map((i) => fromEmail(i, canSend)),
-    ...(texts ?? []).filter((i) => !i.group && i.state !== "settled").map(fromText),
+    ...(texts ?? []).filter((i) => i.state !== "settled").map(fromText),
   ];
   const back = (x: Exchange) => {
     const s = skipped.indexOf(x.key);
@@ -247,6 +253,8 @@ export interface Metrics {
   drafted: number | null;
   sent: number | null;
   filtered: number | null;
+  /** Owed texts whose latest message is unread in Messages (#758); null while the texts line isn't on. */
+  unread: number | null;
 }
 
 /**
@@ -256,12 +264,13 @@ export interface Metrics {
 export function metricsOf(email: EmailStatus | null, texts: RelayStatus | null, queue: Exchange[] | null, sentHere: number): Metrics {
   const emailOn = !!email && email.gmail === "connected" && email.agent !== "waiting";
   const textsOn = !!texts && texts.hub !== "off" && texts.hub !== "wiped";
-  if (!emailOn && !textsOn) return { waiting: null, drafted: null, sent: null, filtered: null };
+  if (!emailOn && !textsOn) return { waiting: null, drafted: null, sent: null, filtered: null, unread: null };
   const waiting = queue ? queue.length : (emailOn ? email.needsYou : 0) + (textsOn ? texts.owed : 0);
   const drafted = queue ? queue.filter((x) => x.draft).length : textsOn ? texts.draftsReady : 0;
   const sent = Math.max(textsOn ? texts.sentToday : 0, sentHere);
   const filtered = (emailOn ? email.noise + email.skipped : 0) + (textsOn ? texts.settled : 0);
-  return { waiting, drafted, sent, filtered };
+  const unread = !textsOn ? null : queue ? queue.filter((x) => x.line === "text" && x.unread).length : (texts.unread ?? null);
+  return { waiting, drafted, sent, filtered, unread };
 }
 
 /** The latest request on a thread. */

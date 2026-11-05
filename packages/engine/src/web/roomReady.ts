@@ -75,6 +75,16 @@ export function useRoomReady(ready = true): () => void {
   }, [gate]);
 }
 
+/**
+ * Give the main thread back for a moment (#784), between the slices of a long build (a scene's textures, a big parse),
+ * so input and frames get a turn. `scheduler.yield()` where the browser has it, which resumes ahead of other work;
+ * otherwise a macrotask.
+ */
+export function yieldNow(): Promise<void> {
+  const s = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  return typeof s?.yield === "function" ? s.yield() : new Promise((r) => setTimeout(r, 0));
+}
+
 /** Placed after the page inside its Suspense: it mounts once the page's chunk has loaded and rendered. */
 export function RoomMounted(): null {
   const gate = useContext(RoomReadyContext);

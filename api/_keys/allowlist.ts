@@ -65,6 +65,8 @@ export const NEVER_SETTABLE: readonly (string | RegExp)[] = [
   // The Haven's connections (#637): the Google client that reaches the thermostat; and the Kroger app (#664).
   /^haven-/,
   /^kroger-/,
+  // The Builder's read key (#800): opens private reads, so it never comes from the Desk.
+  "builder-read-key",
 ];
 
 const blocked = (name: string) => NEVER_SETTABLE.some((n) => (typeof n === "string" ? n === name : n.test(name)));

@@ -80,6 +80,10 @@ export const RelayStatusSchema = z.strictObject({
   week: z.array(RelayDaySchema).max(7),
   /** The next of Dialtone's daily nudges, or null when none is set. */
   nextNudgeAt: timestamp.nullable(),
+  /** Of the owed threads, the ones whose latest text Messages shows unread (#758). Left out by an older hub. */
+  unread: count.optional(),
+  /** One-to-one chats whose last message is someone else's but older than the 30-day owed window (#758). Left out by an older hub. */
+  older: count.optional(),
 });
 export type RelayStatus = z.infer<typeof RelayStatusSchema>;
 
@@ -88,6 +92,8 @@ export const RELAY_STATUS_KEYS = Object.keys(RelayStatusSchema.shape) as (keyof 
 
 /** The count fields, for checks that treat them alike. */
 export const RELAY_COUNT_KEYS = ["owed", "sooner", "overdue", "later", "settled", "draftsReady", "sentToday", "streakDays"] as const satisfies readonly (keyof RelayStatus)[];
+/** The counts an older hub may leave out (#758). Each is a count like the others when it is there. */
+export const RELAY_OPTIONAL_KEYS = ["unread", "older"] as const satisfies readonly (keyof RelayStatus)[];
 
 export type RelayStatusRead = { ok: true; status: RelayStatus } | { ok: false; problems: string[] };
 
@@ -107,8 +113,8 @@ export function readRelayStatus(input: unknown): RelayStatusRead {
   if (!res.success) return { ok: false, problems: [...new Set(res.error.issues.map(problemOf))] };
   const s = res.data;
   // Of the owed threads, each subset can't be larger than the whole.
-  if (s.sooner > s.owed || s.overdue > s.owed || s.later > s.owed || s.draftsReady > s.owed) return { ok: false, problems: ["status: a part is larger than owed"] };
-  if (s.hub === "wiped" && RELAY_COUNT_KEYS.some((k) => s[k] !== 0)) return { ok: false, problems: ["status: a wiped hub reports counts"] };
+  if (s.sooner > s.owed || s.overdue > s.owed || s.later > s.owed || s.draftsReady > s.owed || (s.unread ?? 0) > s.owed) return { ok: false, problems: ["status: a part is larger than owed"] };
+  if (s.hub === "wiped" && (RELAY_COUNT_KEYS.some((k) => s[k] !== 0) || RELAY_OPTIONAL_KEYS.some((k) => (s[k] ?? 0) !== 0))) return { ok: false, problems: ["status: a wiped hub reports counts"] };
   return { ok: true, status: { ...s, week: s.week.map((d) => ({ ...d })) } };
 }
 

@@ -720,6 +720,50 @@ test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all 
   ]);
 });
 
+test("signed in, phone: a meal skipped with a reason, a day skipped, and Undo (#788)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stub(page, { signedIn: true, plan: null });
+  // The made-up planner file, changed by the same edits the server runs.
+  let file: MealsFile = fakeMeals();
+  const posts: Array<Record<string, unknown>> = [];
+  await page.route(`${BASE}/api/haven-meals`, (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: { meals: file, components: allComponents(file) } });
+    const body = r.request().postDataJSON() as Record<string, unknown>;
+    posts.push(body);
+    const edit = readEdit(body.edit);
+    const got = edit ? applyEdit(file, edit, Date.now()) : null;
+    if (!got?.ok) return r.fulfill({ status: 409, json: { error: got && !got.ok ? got.error : "bad-request" } });
+    file = got.file;
+    return r.fulfill({ json: { ok: true, changes: got.changes, meals: file } });
+  });
+  await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => r.fulfill({ status: 404, json: { error: "not-found" } }));
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  const week = sheet.getByRole("list", { name: "This week's meals" });
+  await expect(week.getByRole("listitem")).toHaveCount(7);
+
+  await week.getByRole("button", { name: /^Friday's dinner/ }).click();
+  const plan = sheet.getByRole("region", { name: "Friday's dinner" });
+  await plan.getByRole("switch", { name: "Skip", exact: true }).click();
+  await plan.getByRole("group", { name: /Why it's skipped/ }).getByRole("button", { name: "Eating out" }).click();
+  await expect(week.getByRole("button", { name: "Friday's dinner: skipped, eating out" })).toBeVisible();
+  expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "night", day: "fri", skipDinner: "out" } });
+  await expect(plan.getByRole("switch", { name: "In the cart" })).toBeDisabled();
+
+  await week.getByRole("button", { name: "Skip Thursday's meals" }).click();
+  await expect(week.getByRole("button", { name: /^Thursday's lunch: skipped/ })).toBeVisible();
+  await expect(week.getByRole("button", { name: "Undo skipping Thursday" })).toBeVisible();
+  if (SHOTS) {
+    await week.getByRole("listitem").nth(3).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOTS}/haven-788-skip.png` });
+  }
+  await week.getByRole("button", { name: "Undo skipping Thursday" }).click();
+  await expect(week.getByRole("button", { name: "Skip Thursday's meals" })).toBeVisible();
+  await plan.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(week.getByRole("button", { name: /^Friday's dinner: skipped/ })).toHaveCount(0);
+});
+
 test("signed in, the Kitchen removes an item with ×, with five seconds to Undo (#673)", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   const posts: Record<string, unknown>[] = [];

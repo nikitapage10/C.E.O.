@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { JobRow } from "@ceo/desk/jobs.ts";
 import type { GNode } from "./systemsGraph.ts";
-import { gaugeOf, jobState, MAP_LINES, pipeHeadline, readPipes, STATIONS, type PipeInput } from "./pipes.ts";
+import { gaugeOf, jobCause, jobState, MAP_LINES, pipeHeadline, readPipes, STATIONS, type PipeInput } from "./pipes.ts";
 
 const NOW = Date.UTC(2026, 10, 4, 22, 0);
 const node = (id: string, state: GNode["state"]): GNode => ({ id, l: id, s: "", k: "service", state });
@@ -45,8 +45,9 @@ describe("the pipe map", () => {
     );
     expect(m.stations.petlibro!.state).toBe("leak");
     expect(m.stations.backup!.state).toBe("shut");
-    expect(m.stations.deploy!.state).toBe("late");
-    expect(m.faults.map((f) => f.kind)).toEqual(["leak", "leak", "shut", "late"]);
+    // A late start alone leaves a passed job green (2026-11-05); it is no fault.
+    expect(m.stations.deploy!.state).toBe("ok");
+    expect(m.faults.map((f) => f.kind)).toEqual(["leak", "leak", "shut"]);
     const pet = m.faults.find((f) => f.station === "petlibro")!;
     expect(pet.title).toBe("Petlibro can't sign in.");
     expect(pet.body).toMatch(/one session per account/);
@@ -54,7 +55,8 @@ describe("the pipe map", () => {
     expect(pet.steps.length).toBeGreaterThan(0);
     expect(m.faults.find((f) => f.station === "gmail")!.fix).toEqual({ kind: "gmail", label: "Reconnect Gmail" });
     expect(m.faults.find((f) => f.station === "backup")!.fix).toMatchObject({ kind: "url" });
-    expect(pipeHeadline(m.faults).text).toBe("3 faults, 1 late in the pipes");
+    expect(pipeHeadline(m.faults).text).toBe("3 faults in the pipes");
+    expect(pipeHeadline([...m.faults, { ...m.faults[0]!, kind: "late" }]).text).toBe("3 faults, 1 late in the pipes");
   });
 
   it("keeps a link never connected dry, not a fault", () => {
@@ -84,10 +86,10 @@ describe("the pipe map", () => {
     expect(jobState(undefined)).toBe("dry");
     expect(jobState(job("x", { state: "fail" }))).toBe("leak");
     expect(jobState(job("x", { missed: true }))).toBe("shut");
-    expect(jobState(job("x", { lateMin: 31 }))).toBe("late");
-    // A late start a day and more ago reads as the pass it was (#866).
-    expect(jobState(job("x", { lateMin: 490, at: NOW - 3 * 86_400_000 }), NOW)).toBe("ok");
-    expect(jobState(job("x", { lateMin: 490 }), NOW)).toBe("late");
+    // A late start never turns a passed job amber (Nikita 2026-11-05): it is a note on a green gauge.
+    expect(jobState(job("x", { lateMin: 31 }))).toBe("ok");
+    expect(jobState(job("x", { lateMin: 490 }), NOW)).toBe("ok");
+    expect(jobCause("The nightly checks", job("x", { lateMin: 490, at: NOW - 3_600_000 }), NOW).note).toMatch(/started 490 min late/);
     expect(gaugeOf("a", "leak")).toBeGreaterThan(0.8);
     expect(gaugeOf("a", "shut")).toBeLessThan(0.1);
     expect(gaugeOf("gmail", "ok")).toBeGreaterThanOrEqual(0.42);

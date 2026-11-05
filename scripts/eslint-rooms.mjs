@@ -56,7 +56,7 @@ export const KNOWN_CROSSINGS = {
   "rooms/boiler/web/HouseSetup.tsx": ["rooms/haven/web/groceries.ts"],
   "rooms/boiler/web/PipeBoard.tsx": ["rooms/relay/data/email.ts", "rooms/haven/web/groceries.ts"],
   "rooms/boiler/web/SettingsPanel.tsx": ["rooms/today/web/TodayRail.tsx"],
-  "rooms/boiler/web/Systems.tsx": ["rooms/relay/data/email.ts", "rooms/spire/data/invoices.ts", "rooms/exchange/data/polymarket.ts", "rooms/green/data/league.ts"],
+  "rooms/boiler/web/Systems.tsx": ["rooms/relay/data/email.ts", "rooms/relay/data/texts.ts", "rooms/spire/data/invoices.ts", "rooms/exchange/data/polymarket.ts", "rooms/green/data/league.ts"],
   "rooms/exchange/data/asides.ts": ["rooms/green/data/league.ts"],
   "rooms/today/web/Today.tsx": ["rooms/relay/data/email.ts"],
   "rooms/today/web/TodayNow.tsx": ["rooms/relay/web/EmailAct.tsx"],

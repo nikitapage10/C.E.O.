@@ -37,6 +37,7 @@
  */
 
 import { pickBlob, type BlobBackend } from "../_blob.js";
+import { builderReads } from "../_site/builderkey.js";
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
@@ -170,13 +171,15 @@ const view = (meals: MealsFile | null) => ({ meals, components: meals ? allCompo
 
 /** GET /api/haven-meals. */
 export async function mealsGet(request: Request, deps: MealsDeps): Promise<Response> {
-  const signed = await requireSession(request, deps.desk);
-  if (!signed.ok) return signed.response;
-  if (!deps.blob) return withCookie(json({ error: "not-set-up" }, 503), signed);
+  // The Builder's read key (#800) reads without a session; nothing else does.
+  const signed = builderReads(request, deps.env) ? null : await requireSession(request, deps.desk);
+  if (signed && !signed.ok) return signed.response;
+  const reply = (res: Response) => (signed && signed.ok ? withCookie(res, signed) : res);
+  if (!deps.blob) return reply(json({ error: "not-set-up" }, 503));
   const store = new MealsStore(deps.blob);
   const meals = await store.read().catch(() => undefined);
-  if (meals === undefined) return withCookie(json({ error: "store" }, 503), signed);
-  return withCookie(json(view(meals)), signed);
+  if (meals === undefined) return reply(json({ error: "store" }, 503));
+  return reply(json(view(meals)));
 }
 
 async function bodyOf(request: Request, max: number): Promise<Record<string, unknown> | "too-big" | null> {

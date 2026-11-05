@@ -115,6 +115,9 @@ var secrets = [
   // secret. Without one, what it opens stays off.
   { setting: 'SUBMIND_LOG_TOKEN', secret: 'submind-log-token' }
   { setting: 'SUBMIND_FEED_TOKEN', secret: 'submind-feed-token' }
+  // The Builder's read-only key (#800, api/_site/builderkey.ts): GET of the Haven plan, meals and photos only. Added by hand
+  // (docs/SECURITY.md, "The Builder's read key"); without it the header does nothing.
+  { setting: 'BUILDER_READ_KEY', secret: 'builder-read-key' }
   // Nikita's home devices (#632, docs/HOME-DEVICES.md): 32 random bytes that seal the device logins in `ceo-state` and
   // key the devices' opaque ids, and the Petlibro and Whisker accounts' email and password, typed by Nikita into the
   // vault in Cloud Shell. The functions only read these; none is settable from the Desk (api/_keys/allowlist.ts).

@@ -55,6 +55,8 @@ export const SECRET_SETTINGS = [
   // write key opens only POST /api/room-feed and POST /api/skippy-answer (a hand-off's answer coming back).
   "SUBMIND_LOG_TOKEN",
   "SUBMIND_FEED_TOKEN",
+  // The Builder's read-only key (#800, api/_site/builderkey.ts): GETs of the Haven plan, meals and photos only.
+  "BUILDER_READ_KEY",
   // The home devices (#632, docs/HOME-DEVICES.md): the key that seals their logins, and the Petlibro and Whisker
   // accounts, typed into the vault by Nikita. Never settable from the Desk.
   "HOME_TOKEN_KEY",

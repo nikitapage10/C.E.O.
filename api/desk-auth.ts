@@ -9,7 +9,8 @@
  *                                          by the call), and the enrolled devices when it is.
  * POST { action: "signin-options" }      → the passkey request for navigator.credentials.get() (fetched ahead of a
  *                                          tap; nothing checked or counted).
- * POST { action: "signin", response }    → checks the passkey's answer; opens a session.
+ * POST { action: "signin", response }    → checks the passkey's answer; opens a session, and (#870) sets Relay's
+ *                                          72-hour send unlock for that passkey on this device (api/_relay/unlock.ts).
  * POST { action: "enrol-options", key, label } → with the Desk key, the request for navigator.credentials.create().
  * POST { action: "enrol", response }     → checks the new passkey, stores its public part, opens a session.
  * POST { action: "remove", id }          → signed in: removes an enrolled device (and its sessions and pings).
@@ -50,6 +51,7 @@ import { MAX_PASSKEYS, pickAuthStore, type AuthStore, type Passkey } from "./_de
 import * as siteControl from "./_site/control.js";
 import * as siteLogin from "./_site/login.js";
 import { pickSiteStore, type SiteStore } from "./_site/state.js";
+import { clearUnlock, unlockCookie } from "./_relay/unlock.js";
 
 /** The Desk's sign-in, and (#238) the site lock it also opens: with no `site`, no site cookie is ever set. */
 export interface AuthDeps extends DeskDeps {
@@ -143,7 +145,8 @@ export async function handlePost(request: Request, deps: AuthDeps = live()): Pro
     case "signout":
       // Signing out of a device stops its pings (#135). The endpoint is the device's own: only it knows it.
       await dropEndpoint(store, body.endpoint);
-      return json({ ok: true }, 200, [clearSession()]);
+      // Relay's send unlock goes with the session it came with (#870).
+      return json({ ok: true }, 200, [clearSession(), clearUnlock()]);
 
     case "remove": {
       const signed = await requireSession(request, deps);
@@ -178,7 +181,10 @@ export async function handlePost(request: Request, deps: AuthDeps = live()): Pro
       await gate.pass(challenge.ch, challenge.e * 1000);
       await store.savePasskeys(list.map((p) => (p.id === passkey.id ? { ...p, counter: checked.counter, used: new Date(deps.now).toISOString() } : p)));
       const session = newSession(passkey.id, deps.now);
-      return json({ ok: true, device: passkey.label }, 200, [clearChallenge("signin"), await sessionCookie(deps.deskKey, session, deps.now), ...(await siteCookieFor(deps))]);
+      // The same fresh, user-verified answer also unlocks Relay sending on this device for 72 hours (#870, Nikita
+      // 2026-11-05, "Sign-in unlocks"): no second passkey prompt. Each send is still one tap, once, within 10 minutes.
+      const { cookie: relayUnlock } = await unlockCookie(deps.deskKey, passkey.id, deps.now);
+      return json({ ok: true, device: passkey.label }, 200, [clearChallenge("signin"), await sessionCookie(deps.deskKey, session, deps.now), relayUnlock, ...(await siteCookieFor(deps))]);
     }
 
     case "enrol-options": {

@@ -365,15 +365,31 @@ describe("the send unlock (one passkey check per device, 72 hours)", () => {
     expect((await d.send()).status).toBe(200);
   });
 
-  it("ends after 72 hours", async () => {
+  it("ends after 72 hours, and a fresh passkey sign-in unlocks again (#870)", async () => {
     const d = await ready();
     await d.unlock();
     d.now = NOW + UNLOCK_MS + 60_000;
+    const mine = (await d.auth.passkeys())[0]!.id;
+    expect(await unlockedUntil(new Request(`${ORIGIN}${RELAY_PATH}`, { headers: d.headers() }), DESK, mine, d.now)).toBeNull();
     await d.signIn();
     await d.hub("POST", "?view=texts", view([item({ since: d.now - HOUR })], d.now));
+    expect((await d.listed()).unlockedUntil).toBe(Math.floor((d.now + UNLOCK_MS) / 1000) * 1000);
+    expect((await d.send()).status).toBe(200);
+  });
+
+  it("comes with a passkey sign-in: no second prompt, and each send is still its own single-use request (#870)", async () => {
+    const d = await ready();
+    d.jar.delete(UNLOCK_COOKIE);
+    await d.signIn();
+    expect(d.jar.has(UNLOCK_COOKIE)).toBe(true);
     const res = await d.send();
-    expect(res.status).toBe(401);
-    expect((await d.listed()).unlockedUntil).toBeNull();
+    expect(res.status).toBe(200);
+    // A request, not a send: the hub still checks its signature, its 10 minutes and its single use.
+    expect(d.relay.privateJson).toContain('"kind":"send"');
+    expect(d.relay.privateJson).toContain('"state":"waiting"');
+    // Lock still ends it until the next sign-in or unlock.
+    await d.post({ action: "lock" });
+    expect((await d.send()).status).toBe(401);
   });
 
   it("is bound to the passkey that made it, and lock ends it", async () => {
@@ -462,6 +478,10 @@ describe("send requests (single-use, 10 minutes, Resend)", () => {
     expect((await d.send({ thread: "fedcba9876543210" })).status).toBe(409);
     expect((await d.send({ text: " " })).status).toBe(400);
     expect((await d.send()).status).toBe(200);
+    // Multi-send (#870): a second send to the same open thread is its own request.
+    expect((await d.send()).status).toBe(200);
+    // A settled one-to-one thread takes none.
+    await d.hub("POST", "?view=texts", view([item({ state: "settled" })]));
     expect((await d.send()).status).toBe(409);
   });
 
@@ -923,6 +943,35 @@ describe("contact photos from the Mac", () => {
     // Unpair forgets every photo.
     await d.post({ action: "unpair" });
     expect(d.relay.photos.size).toBe(0);
+  });
+});
+
+/* ── #870: the set-aside list, Bring back, the Photo count ── */
+
+describe("the set-aside list and Bring back (#870)", () => {
+  const ASIDE = "abcdefabcdef0123";
+  const RULED = "abcdefabcdef0456";
+  it("lists who and why with no text, and makes a single-use back request for a kind that can come back, never a rule's", async () => {
+    const d = await ready();
+    const aside = [
+      { id: ASIDE, name: "Test Person", channel: "iMessage", since: NOW - HOUR, why: "no-reply" },
+      { id: RULED, name: "Other Person", channel: "SMS", since: NOW - HOUR, why: "money" },
+    ];
+    expect((await d.hub("POST", "?view=texts", { ...view([item({ media: 2, messages: [{ text: "Photo", at: NOW - HOUR, media: true }] })]), aside })).status).toBe(200);
+    const got = (await (await d.get()).json()) as { aside: unknown[]; texts: TextItem[] };
+    expect(got.aside).toEqual(aside);
+    expect(got.texts[0]).toMatchObject({ media: 2, messages: [{ text: "Photo", media: true }] });
+    // Off the closed list, or with text, the list is refused whole.
+    expect((await d.hub("POST", "?view=texts", { ...view(), aside: [{ ...aside[0], why: "because" }] })).status).toBe(422);
+    expect((await d.hub("POST", "?view=texts", { ...view(), aside: [{ ...aside[0], text: "hi" }] })).status).toBe(422);
+    expect((await d.hub("POST", "?view=texts", { ...view([item({ messages: [{ text: "a photo of", at: NOW - HOUR, media: true }] })]) })).status).toBe(422);
+    expect((await d.post({ action: "back", thread: RULED })).status).toBe(409);
+    expect((await d.post({ action: "back", thread: ASIDE })).status).toBe(200);
+    expect((await d.post({ action: "back", thread: ASIDE })).status).toBe(409);
+    const [r] = await d.requests();
+    expect(readTextRequest(r)).toMatchObject({ kind: "back", thread: ASIDE, text: "", draftAt: 0 });
+    expect(requestSigned(Buffer.from(d.hubSendKey, "base64url"), r!, r!.sig)).toBe(true);
+    expect(readTextRequest({ ...r!, text: "hi" })).toBeNull();
   });
 });
 

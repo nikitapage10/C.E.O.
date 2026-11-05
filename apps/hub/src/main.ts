@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { emptyRelayStatus } from "@ceo/core";
 import { blueBubbles, checkBlueBubbles, CONTACTS_HINT, describeFailure, failure, redact, removeOldWebhooks } from "./bluebubbles.ts";
 import { HOST, KEYCHAIN_ITEMS, pathsFor, PORT, readConfig, SITE } from "./config.ts";
-import { Engine, POLL_MS } from "./engine.ts";
+import { CHAT_PAGE, CHAT_PAGES, Engine, POLL_MS } from "./engine.ts";
+import { allChats, sortBacklog } from "./backlog.ts";
+import { chatsFor, describeWhy, explain, whoMatches } from "./why.ts";
+import { chatPerson } from "./learn.ts";
 import { macKeychain } from "./keychain.ts";
 import { errorClass, fileLogger } from "./log.ts";
 import { listen } from "./server.ts";
@@ -21,7 +24,10 @@ import { sipsResize } from "./photos.ts";
  *   init            makes the local key if there isn't one
  *   pair            reads a pair code on stdin, trades it at the site for the hub token and send key (Keychain)
  *   unhook          removes any webhook an older hub registered with BlueBubbles (the hub polls now, #749)
- *   check           whether BlueBubbles answers with the stored password
+ *   check           whether BlueBubbles answers with the stored password; how many contacts, photos and chats it
+ *                   gives, and how many chats the hub counts owed (#870). Counts only, nothing to the site
+ *   why <who>       for one contact (a name or a number), each chat's verdict and dates (#870). On the Mac only:
+ *                   no message text printed, nothing sent to the site
  *   control <what>  pause | resume | report, to the running hub
  *   wipe-report     sends the site a final "wiped" status, then unpairs there: the token, the list and the requests go
  *   wipe-keys       removes any old BlueBubbles webhook and every Relay Keychain item
@@ -177,13 +183,63 @@ async function main(argv: string[]): Promise<void> {
       await checkBlueBubbles(password);
       out("Relay: BlueBubbles answers.");
       // How many contacts it can read (#861): none means every sender shows as "Unknown" on the Desk. A count only.
-      const contacts = await blueBubbles(password).contacts().catch(() => null);
+      const bb = blueBubbles(password);
+      const contacts = await bb.contacts().catch(() => null);
       if (contacts) out(contacts.length ? `Relay: BlueBubbles can read ${contacts.length} contacts.` : `Relay: ${CONTACTS_HINT}`);
+      const state = fileStore(pathsFor().state).load();
+      // Contact photos (#870): how many BlueBubbles gives, and how many the site holds. Counts only.
+      const photos = await bb.contactPhotos().catch(() => null);
+      const synced = Object.keys(state.photos).length;
+      out(photos ? `Relay: ${photos.length} contacts have a photo, ${synced} synced to the Desk.` : `Relay: BlueBubbles didn't give the contact photos in time; ${synced} synced to the Desk.`);
+      // The chats (#870): how many BlueBubbles returned, how many its last messages make owed, and how many the hub lists.
+      const chats = await allChats(bb, CHAT_PAGE, CHAT_PAGES).catch(() => null);
+      const owed = state.threads.filter((t) => t.state === "owed" || t.state === "later").length;
+      const aside = state.threads.filter((t) => !t.group && t.state === "settled").length;
+      if (chats) {
+        const sorted = sortBacklog(chats, Date.now(), [], () => undefined);
+        out(`Relay: BlueBubbles returned ${chats.length} chats (${chats.length - sorted.groups} one-to-one, ${sorted.groups} groups); by their last message ${sorted.owed.length} are waiting on you within 30 days, and ${sorted.check.length} more end on a photo, a reaction or an item the hub reads one by one.`);
+      } else out("Relay: BlueBubbles didn't give its chat list.");
+      out(`Relay: the hub counts ${owed} owed and ${aside} one-to-one set aside${state.scannedAt ? `; its last full scan was ${Math.max(0, Math.round((Date.now() - state.scannedAt) / 60_000))} minutes ago` : "; it hasn't scanned yet"}. For one person: relay why <name or number>`);
       process.exit(0);
     } catch (e) {
       out(redact(`Relay: BlueBubbles check failed: ${describeFailure(e) || "it didn't answer."}`));
       process.exit(4);
     }
+  }
+  if (cmd === "why") {
+    const query = argv.slice(1).join(" ").trim();
+    if (!query) return out("Relay: relay why <name or number>");
+    const bb = blueBubbles(await need("bluebubbles-password"));
+    const contacts = await bb.contacts();
+    let who = whoMatches(contacts, query);
+    if (who.length > 10) {
+      out(`Relay: ${who.length} contacts match; showing the first 10. Try a fuller name.`);
+      who = who.slice(0, 10);
+    }
+    const chats = await allChats(bb, CHAT_PAGE, CHAT_PAGES);
+    const state = fileStore(pathsFor().state).load();
+    const now = Date.now();
+    // A number that isn't in the contacts still finds its chat.
+    const digits = query.replace(/\D/g, "");
+    const loose = !who.length && digits.length >= 4 ? chats.filter((c) => !c.group && (c.handle || chatPerson(c.chat)).replace(/\D/g, "").endsWith(digits)) : [];
+    if (!who.length && !loose.length) return out(`Relay: no contact or chat matches "${query.slice(0, 40)}".`);
+    const lines: string[] = [];
+    const show = async (name: string, names: string[], list: typeof chats) => {
+      for (const c of list) {
+        const msgs = (await bb.messages(c.chat, 25)).filter((m) => m.text.trim() || m.media).sort((a, b) => a.at - b.at);
+        lines.push(...describeWhy(name, explain(c, msgs, state.threads.find((t) => t.chat === c.chat), now, names)));
+      }
+    };
+    for (const c of who) {
+      const list = chatsFor(chats, c.handles);
+      const name = c.names[0] ?? "Someone";
+      if (!list.length) lines.push(`${name}: not in BlueBubbles (no one-to-one chat with any of their numbers or addresses)`);
+      else await show(name, c.names, list);
+    }
+    if (loose.length) await show("Not in your contacts", [], loose);
+    for (const l of lines) out(l);
+    out("Relay: read on this Mac only; nothing was sent to the site. Groups aren't listed here.");
+    process.exit(0);
   }
   if (cmd === "control") {
     const what = argv[1];
@@ -216,7 +272,7 @@ async function main(argv: string[]): Promise<void> {
     for (const item of KEYCHAIN_ITEMS) await macKeychain.remove(item);
     return out(`Relay: Keychain items removed.${note}`);
   }
-  out("Relay hub: serve | init | pair | unhook | check | control | wipe-report | wipe-keys");
+  out("Relay hub: serve | init | pair | unhook | check | why <name or number> | control | wipe-report | wipe-keys");
 }
 
 void main(process.argv.slice(2)).catch((e: unknown) => {

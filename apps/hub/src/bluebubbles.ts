@@ -21,6 +21,11 @@ export interface Message {
   handle: string;
   /** Messages has a read time for it (BlueBubbles' `dateRead`, from chat.db; #758). Only meaningful for someone else's. */
   read?: boolean;
+  /**
+   * It carries a photo or another attachment (#870): Messages puts U+FFFC where one sits, and BlueBubbles marks it.
+   * Only the mark: the attachment is never asked for, and `text` keeps only the words (U+FFFC taken out).
+   */
+  media?: true;
 }
 
 /**
@@ -85,16 +90,42 @@ export interface Polled {
 }
 
 /** The most of one contact picture the hub reads (bytes): bigger ones are skipped. */
-export const AVATAR_MAX = 2 * 1024 * 1024;
+export const AVATAR_MAX = 4 * 1024 * 1024;
 
-/** A contact's avatar from BlueBubbles' contact data: base64, or a data: URL; null when there isn't a usable one. */
+/** The first bytes of a picture `sips` can read: JPEG, PNG, GIF, TIFF, HEIC/HEIF (an ISO box), WebP, BMP. */
+const looksLikeImage = (b: Uint8Array) =>
+  (b[0] === 0xff && b[1] === 0xd8) ||
+  (b[0] === 0x89 && b[1] === 0x50) ||
+  (b[0] === 0x47 && b[1] === 0x49) ||
+  (b[0] === 0x49 && b[1] === 0x49) ||
+  (b[0] === 0x4d && b[1] === 0x4d) ||
+  (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) ||
+  (b[0] === 0x52 && b[1] === 0x49 && b[8] === 0x57) ||
+  (b[0] === 0x42 && b[1] === 0x4d);
+
+/**
+ * A contact's avatar from BlueBubbles' contact data, null when there isn't a usable one (#870: no photo ever showed).
+ * BlueBubbles has sent it in more than one shape over its versions: base64, a data: URL, a Node Buffer as JSON
+ * (`{ type: "Buffer", data: [...] }`), a bare byte array, or a Uint8Array's `toString()` (bytes joined by commas).
+ * Each is read, and only bytes that start like a picture are kept.
+ */
 export function readAvatar(v: unknown): Uint8Array | null {
-  if (typeof v !== "string" || !v || v.length > (AVATAR_MAX * 4) / 3 + 64) return null;
-  const b64 = v.startsWith("data:") ? v.slice(v.indexOf(",") + 1) : v;
-  if (!/^[A-Za-z0-9+/=\s]+$/.test(b64)) return null;
-  const bytes = new Uint8Array(Buffer.from(b64, "base64"));
-  return bytes.length >= 64 && bytes.length <= AVATAR_MAX ? bytes : null;
+  let bytes: Uint8Array | null = null;
+  const fromList = (a: unknown[]) => (a.length <= AVATAR_MAX && a.every((x) => typeof x === "number" && Number.isInteger(x) && x >= 0 && x <= 255) ? new Uint8Array(a as number[]) : null);
+  if (Array.isArray(v)) bytes = fromList(v);
+  else if (v && typeof v === "object" && Array.isArray((v as { data?: unknown }).data)) bytes = fromList((v as { data: unknown[] }).data);
+  else if (typeof v === "string" && v && v.length <= AVATAR_MAX * 4 + 64) {
+    if (/^\d{1,3}(?:,\d{1,3}){63,}$/.test(v)) bytes = fromList(v.split(",").map(Number));
+    else {
+      const b64 = v.startsWith("data:") ? v.slice(v.indexOf(",") + 1) : v;
+      if (/^[A-Za-z0-9+/=\s]+$/.test(b64)) bytes = new Uint8Array(Buffer.from(b64, "base64"));
+    }
+  }
+  return bytes && bytes.length >= 64 && bytes.length <= AVATAR_MAX && looksLikeImage(bytes) ? bytes : null;
 }
+
+/** A contact's picture from whichever field BlueBubbles filled (#870): `avatar`, else the full image, else the thumbnail. */
+export const avatarOf = (c: Record<string, unknown>): Uint8Array | null => readAvatar(c.avatar) ?? readAvatar(c.contactImage) ?? readAvatar(c.contactThumbnailImage) ?? readAvatar(c.contactImageThumbnail);
 
 export { CONTACTS_HINT } from "../../../api/_relay/texts.ts";
 
@@ -127,13 +158,24 @@ export const channelOf = (chat: string): "iMessage" | "SMS" => (/^SMS;/i.test(ch
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const str = (v: unknown, max = 10_000) => (typeof v === "string" ? v.slice(0, max) : "");
 
+/** Where Messages puts an attachment inside a message's text. */
+const ATTACHMENT_MARK = /\uFFFC/g;
+
 export function readMessage(o: Record<string, unknown> | null | undefined): Message | null {
   if (!o || typeof o !== "object") return null;
   // Reactions, edits and system items carry an associated guid or a non-zero item type: not a message to answer.
   if (o.associatedMessageGuid || (typeof o.itemType === "number" && o.itemType !== 0)) return null;
   const handle = o.handle && typeof o.handle === "object" ? str((o.handle as Record<string, unknown>).address, 200) : "";
-  return { text: str(o.text), fromMe: o.isFromMe === true, at: num(o.dateCreated), handle: o.isFromMe === true ? "" : handle, read: num(o.dateRead) > 0 };
+  const raw = str(o.text);
+  // A photo or a file (#870): the mark in the text, or BlueBubbles' own flags. Never the attachment itself.
+  const media = ATTACHMENT_MARK.test(raw) || o.hasAttachments === true || (Array.isArray(o.attachments) && o.attachments.length > 0) || (typeof o.balloonBundleId === "string" && o.balloonBundleId !== "");
+  ATTACHMENT_MARK.lastIndex = 0;
+  const text = raw.replace(ATTACHMENT_MARK, "");
+  return { text: text.trim() ? text : "", fromMe: o.isFromMe === true, at: num(o.dateCreated), handle: o.isFromMe === true ? "" : handle, read: num(o.dateRead) > 0, ...(media && { media: true as const }) };
 }
+
+/** A message with no words: a photo, a file, a sticker (#870). It counts as a text that came; nothing of it is read. */
+export const mediaOnly = (m: Message) => !m.text.trim();
 
 /**
  * One chat from `/api/v1/chat/query` (#758), read: null without a guid. BlueBubbles 1.9.12 (ChatInterface.get) fills
@@ -236,6 +278,8 @@ async function body(res: Response, secrets: readonly string[]): Promise<{ data?:
 
 export const BB_TIMEOUT_MS = 15_000;
 export const BB_SEND_TIMEOUT_MS = 30_000;
+/** The contact pictures' one call (#870): every picture at once. */
+export const PHOTOS_TIMEOUT_MS = 180_000;
 
 /** Words in BlueBubbles' error that mean macOS kept it from controlling Messages (TCC Automation, error -1743). */
 const AUTOMATION = /-1743|not authori[sz]ed to send apple events|not allowed to send apple ?events|automation/i;
@@ -287,12 +331,15 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
       const data = await get(`/api/v1/chat/${encodeURIComponent(chat)}/message`, { limit: String(Math.min(100, limit)), sort: "DESC", with: "handle" });
       return Array.isArray(data) ? (data as Record<string, unknown>[]).map(readMessage).filter((m): m is Message => m !== null) : [];
     },
+    // Every contact's picture in one answer can be tens of megabytes (#870: with 1,000 contacts the 15-second timeout
+    // cut it off every time, and no photo ever synced), so this one call gets PHOTOS_TIMEOUT_MS.
     contactPhotos: async () => {
-      const data = await get("/api/v1/contact", { extraProperties: "avatar" });
+      const data = (await body(await call(fetcher, url("/api/v1/contact", { extraProperties: "avatar" }), {}, PHOTOS_TIMEOUT_MS), secrets)).data;
       if (!Array.isArray(data)) return [];
       const out: ContactPhoto[] = [];
       for (const c of data as Record<string, unknown>[]) {
-        const image = readAvatar(c.avatar);
+        if (!c || typeof c !== "object") continue;
+        const image = avatarOf(c);
         const handles = handlesOf(c);
         if (image && handles.length) out.push({ handles, image });
       }

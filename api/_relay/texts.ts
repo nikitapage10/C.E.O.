@@ -104,6 +104,42 @@ export interface TextItem {
   messages?: ShownText[];
   /** Why an owed one-to-one thread has no gist yet (#861), from the closed list GIST_WAITS. Left out once it has one. */
   wait?: GistWait;
+  /**
+   * How many of their unanswered texts are a photo or another attachment with no words (#870): a count only, never
+   * the attachment, its name or its kind. Left out at 0.
+   */
+  media?: number;
+}
+
+/**
+ * A one-to-one thread Relay set aside (#870): who, when their last text came, and why, from the closed list below.
+ * No text, no gist. The Desk lists them under "Relay set these aside"; "Bring back" (a `back` request) puts one of
+ * the first three kinds back in line and keeps it there. A rule's kind can't be brought back: its texts never reach
+ * a model. The skip list's and groups' are never listed.
+ *
+ *   no-reply    Dialtone read it as needing no reply
+ *   closing     an acknowledgement after Nikita's own closing reply ("sounds good" … "ok")
+ *   done        Nikita marked it done on the Desk
+ *   money       a money or legal text (the email line's filter), kept from the models
+ *   code        a one-time or verification code
+ *   short-code  a short-code sender (banks, carriers, alerts)
+ *   promo       marketing
+ */
+export const ASIDE_WHYS = ["no-reply", "closing", "done", "money", "code", "short-code", "promo"] as const;
+export type AsideWhy = (typeof ASIDE_WHYS)[number];
+/** The kinds "Bring back" may undo; a rule's kinds stay set aside. */
+export const BACKABLE: readonly AsideWhy[] = ["no-reply", "closing", "done"];
+export const MAX_ASIDE = 50;
+
+export interface AsideItem {
+  /** The thread's Relay id (16 hex). */
+  id: string;
+  name: string;
+  channel: "iMessage" | "SMS";
+  /** When their last text came (ms). */
+  since: number;
+  why: AsideWhy;
+  photo?: string;
 }
 
 /**
@@ -144,9 +180,15 @@ export interface ShownText {
   from?: string;
   /** That member's photo id (#642), when the site has it. */
   photo?: string;
+  /** A photo or another attachment with no words (#870): `text` is exactly MEDIA_TEXT ("Photo"). Nothing of it is sent. */
+  media?: true;
+  /** Nikita's own line (#870), in a one-to-one thread's recent turns: no `from`. */
+  me?: true;
 }
 
 export const MAX_SHOWN = 5;
+/** What a photo or file with no words reads as on the Desk (#870). */
+export const MEDIA_TEXT = "Photo";
 export const SHOWN_CHARS = 1_000;
 
 /** The texts on an item (#758), checked: closed shape, MAX_SHOWN at most, SHOWN_CHARS in all. Null for anything off. */
@@ -155,9 +197,11 @@ export function readShown(v: unknown): ShownText[] | null {
   const out: ShownText[] = [];
   let used = 0;
   for (const m of v as Record<string, unknown>[]) {
-    if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo"])) return null;
+    if (!m || typeof m !== "object" || Array.isArray(m) || !keysOnly(m, ["text", "at", "from", "photo", "media", "me"])) return null;
     const text = str(m.text, SHOWN_CHARS);
     if (text === null || !isTime(m.at)) return null;
+    if (m.media !== undefined && (m.media !== true || text !== MEDIA_TEXT)) return null;
+    if (m.me !== undefined && (m.me !== true || m.from !== undefined || m.photo !== undefined)) return null;
     // A text that is only invisible characters (a zero-width space, a lone joiner) is left out, not the whole list
     // (#803: one such text refused the hub's every push, and the Desk kept an old list without the texts).
     if (!text.trim()) continue;
@@ -169,7 +213,7 @@ export function readShown(v: unknown): ShownText[] | null {
       if (!from?.trim() || from.includes("\n")) return null;
     }
     if (m.photo !== undefined && (typeof m.photo !== "string" || !/^[0-9a-f]{32}$/.test(m.photo))) return null;
-    out.push({ text, at: m.at, ...(from !== null && { from }), ...(typeof m.photo === "string" && { photo: m.photo }) });
+    out.push({ text, at: m.at, ...(from !== null && { from }), ...(typeof m.photo === "string" && { photo: m.photo }), ...(m.media === true && { media: true as const }), ...(m.me === true && { me: true as const }) });
   }
   return out;
 }
@@ -201,6 +245,8 @@ export interface TextsView {
   scannedAt?: number | null;
   /** How Nikita texts, learned on "Learn from my texts" (#758, ./voice.ts); null before. */
   voice?: Voice | null;
+  /** One-to-one threads Relay set aside within the owed window (#870), newest first; left out by an older hub. */
+  aside?: AsideItem[];
 }
 
 /* ── New texts Skippy asks for (#536) ── */
@@ -253,7 +299,7 @@ export interface TextCard {
  * "rescan" and "learn" (#758) ask the hub to read every chat again, or to learn Nikita's voice from their sent texts:
  * chores, not about one thread, so they name a fresh random id and carry no text. Neither can send.
  */
-export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose", "rescan", "learn"] as const;
+export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back"] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** A request's state as the Desk sees it. "expired": never taken (the Mac was offline); Resend makes a new one. */
@@ -283,7 +329,7 @@ const isTime = (v: unknown): v is number => typeof v === "number" && Number.isIn
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")) : null);
 const keysOnly = (o: Record<string, unknown>, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k));
 
-const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages", "wait"] as const;
+const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages", "wait", "media"] as const;
 
 /** One item, rebuilt from the allowlist; null for anything else (an unknown key, a long string, a bad time). */
 export function readTextItem(v: unknown): TextItem | null {
@@ -315,10 +361,23 @@ export function readTextItem(v: unknown): TextItem | null {
   const messages = o.messages === undefined ? null : readShown(o.messages);
   if (o.messages !== undefined && !messages) return null;
   // A one-to-one item's texts are only someone else's, with no sender line; a group's each name their sender.
-  if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined))) return null;
+  // Since #870 a one-to-one item's recent turns include Nikita's own lines (`me`); a group's never do.
+  if (messages && messages.some((m) => (o.group === true) !== (m.from !== undefined) || (o.group === true && m.me))) return null;
   if (o.wait !== undefined && !(GIST_WAITS as readonly unknown[]).includes(o.wait)) return null;
   const wait = o.wait as GistWait | undefined;
-  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }), ...(wait && !gist && { wait }) };
+  if (o.media !== undefined && (!Number.isInteger(o.media) || (o.media as number) < 1 || (o.media as number) > 999)) return null;
+  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }), ...(wait && !gist && { wait }), ...(typeof o.media === "number" && { media: o.media }) };
+}
+
+/** One set-aside thread (#870), rebuilt from the allowlist; null for anything else. */
+export function readAsideItem(v: unknown): AsideItem | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["id", "name", "channel", "since", "why", "photo"])) return null;
+  const name = str(o.name, NAME_MAX);
+  if (typeof o.id !== "string" || !ID.test(o.id) || !name?.trim() || name.includes("\n") || !isTime(o.since) || (o.channel !== "iMessage" && o.channel !== "SMS")) return null;
+  if (!(ASIDE_WHYS as readonly unknown[]).includes(o.why)) return null;
+  if (o.photo !== undefined && (typeof o.photo !== "string" || !/^[0-9a-f]{32}$/.test(o.photo))) return null;
+  return { id: o.id, name, channel: o.channel, since: o.since, why: o.why as AsideWhy, ...(typeof o.photo === "string" && { photo: o.photo }) };
 }
 
 /** One older unanswered chat (#758), rebuilt from the allowlist; null for anything else. */
@@ -382,7 +441,7 @@ export function readTextCard(v: unknown): TextCard | null {
 /** The list, checked whole: one bad item refuses it (a hub that sends something extra has a bug). */
 export function readTextsView(v: unknown, now: number): TextsView | null {
   const o = v as Record<string, unknown> | null;
-  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["v", "at", "items", "cards", "older", "scannedAt", "voice"]) || o.v !== 1 || !isTime(o.at) || !Array.isArray(o.items) || o.items.length > MAX_ITEMS) return null;
+  if (!o || typeof o !== "object" || Array.isArray(o) || !keysOnly(o, ["v", "at", "items", "cards", "older", "scannedAt", "voice", "aside"]) || o.v !== 1 || !isTime(o.at) || !Array.isArray(o.items) || o.items.length > MAX_ITEMS) return null;
   const items = o.items.map(readTextItem);
   if (items.some((i) => i === null)) return null;
   let cards: TextCard[] = [];
@@ -398,9 +457,16 @@ export function readTextsView(v: unknown, now: number): TextsView | null {
   if (o.scannedAt !== undefined && o.scannedAt !== null && !isTime(o.scannedAt)) return null;
   const voice = o.voice === undefined || o.voice === null ? null : readVoice(o.voice);
   if (o.voice !== undefined && o.voice !== null && !voice) return null;
+  let aside: AsideItem[] = [];
+  if (o.aside !== undefined) {
+    if (!Array.isArray(o.aside) || o.aside.length > MAX_ASIDE) return null;
+    const got = o.aside.map(readAsideItem);
+    if (got.some((a) => a === null)) return null;
+    aside = (got as AsideItem[]).filter((a) => now - a.since < OWED_WINDOW_MS);
+  }
   // An owed item stays OWED_WINDOW_MS (#758); a settled one (a group's summary) a week.
   const kept = freshItems((items as TextItem[]).filter((i) => now - i.since < (i.state === "settled" ? TEXT_KEEP_MS : OWED_WINDOW_MS)), now);
-  return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice };
+  return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice, aside };
 }
 
 const REQ_KEYS = ["rid", "kind", "thread", "draftAt", "text", "who", "created", "until", "sig"] as const;
@@ -414,7 +480,8 @@ export function readTextRequest(v: unknown): TextRequest | null {
   if (o.draftAt !== 0 && !isTime(o.draftAt)) return null;
   const text = str(o.text, o.kind === "restyle" ? DICTATED_MAX : o.kind === "compose" ? GIST_IN_MAX : SEND_MAX);
   if (text === null || ((o.kind === "send" || o.kind === "restyle" || o.kind === "compose") && !text.trim())) return null;
-  if ((o.kind === "later" || o.kind === "done" || o.kind === "rescan" || o.kind === "learn") && text !== "") return null;
+  if ((o.kind === "later" || o.kind === "done" || o.kind === "rescan" || o.kind === "learn" || o.kind === "back") && text !== "") return null;
+  if (o.kind === "back" && o.draftAt !== 0) return null;
   if ((o.kind === "rescan" || o.kind === "learn") && o.draftAt !== 0) return null;
   // Only a compose names who, and it must.
   if (o.kind === "compose") {

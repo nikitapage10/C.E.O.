@@ -6,6 +6,8 @@ import { cleanLabel, handleGet, handlePost } from "./desk-auth.ts";
 import { gateRequest } from "./_site/gate.ts";
 import { SITE_COOKIE, siteSessionOf } from "./_site/session.ts";
 import { MemorySiteStore, forgetCachedState, siteKeys, type SiteStore } from "./_site/state.ts";
+import { UNLOCK_COOKIE, unlockedUntil } from "./_relay/unlock.ts";
+import { UNLOCK_MS } from "./_relay/tokens.ts";
 
 /**
  * The Desk's sign-in end to end (#132), with a software passkey standing in for Nikita's device: a P-256 key made
@@ -56,6 +58,8 @@ class Browser {
     return this.post({ action: "signin", response: passkey.get((await opts.json()) as { challenge: string; rpId: string }, flags) });
   }
 }
+
+const store0 = (deps: { store: MemoryAuthStore | null }) => deps.store!;
 
 const setup = () => {
   const store = new MemoryAuthStore();
@@ -148,6 +152,29 @@ describe("signing in with a passkey (#132)", () => {
     stranger.jar.set(CHALLENGE_COOKIE.signin, challengeCookie);
     expect((await stranger.post({ action: "signin", response: answer })).status).toBe(401);
     expect(store.keys[0]!.counter).toBe(passkey.counter);
+  });
+
+  it("also unlocks Relay sending on that device for 72 hours, for that passkey only, and sign-out ends it (#870)", async () => {
+    const { deps, browser } = setup();
+    const passkey = new SoftPasskey();
+    await browser.enrol(passkey);
+    // Enrolling opens a session but is not the sign-in: no unlock from it.
+    expect(browser.jar.has(UNLOCK_COOKIE)).toBe(false);
+    const phone = new Browser(deps);
+    const res = await phone.signIn(passkey);
+    const set = res.headers.getSetCookie().find((c) => c.startsWith(`${UNLOCK_COOKIE}=`))!;
+    expect(set).toMatch(/; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=259200$/);
+    const req = (b: Browser, extra = "") => new Request(`${ORIGIN}/api/relay`, { headers: { cookie: `${UNLOCK_COOKIE}=${b.jar.get(UNLOCK_COOKIE)}${extra}` } });
+    expect(await unlockedUntil(req(phone), DESK, store0(deps).keys[0]!.id, NOW)).toBe(Math.floor((NOW + UNLOCK_MS) / 1000) * 1000);
+    // Another passkey with this cookie copied over: not unlocked. Past 72 hours: not unlocked.
+    expect(await unlockedUntil(req(phone), DESK, "another-passkey-id", NOW)).toBeNull();
+    expect(await unlockedUntil(req(phone), DESK, store0(deps).keys[0]!.id, NOW + UNLOCK_MS + 1_000)).toBeNull();
+    // A failed sign-in sets nothing.
+    const stranger = new Browser(deps, "198.51.100.3");
+    await stranger.signIn(new SoftPasskey());
+    expect(stranger.jar.has(UNLOCK_COOKIE)).toBe(false);
+    await phone.post({ action: "signout" });
+    expect(phone.jar.has(UNLOCK_COOKIE)).toBe(false);
   });
 
   it("locks an address out after repeated failures, and says for how long", async () => {

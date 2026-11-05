@@ -2,7 +2,7 @@ import { request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
-import { CARD_KEEP_MS, readTextsView, type Reason, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
+import { CARD_KEEP_MS, OWED_WINDOW_MS, readTextsView, type Reason, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, ChatInfo, Contact, ContactPhoto, Message, Polled } from "./bluebubbles.ts";
 import type { LearnInput } from "../../../api/_relay/voice.ts";
@@ -346,9 +346,10 @@ describe("the engine", () => {
     await h.engine.report(true);
     const v = h.site.views.at(-1)!;
     expect(v.items[0]!.name).toBe("Riley Test");
-    // The Desk shows the real words (sealed, passkey-only): only what they sent since Nikita last wrote, never a chat id.
-    expect(v.items[0]!.messages?.map((m) => m.text)).toEqual(["Riley here. Can Jordan Sample come Saturday? My number is +1 555 555 0177"]);
-    expect(v.items[0]!.messages?.[0]?.from).toBeUndefined();
+    // The Desk shows the real words (sealed, passkey-only): the recent turns, Nikita's own marked `me` (#870), never a chat id.
+    expect(v.items[0]!.messages?.map((m) => m.text)).toEqual(["Running late, call me", "Riley here. Can Jordan Sample come Saturday? My number is +1 555 555 0177"]);
+    expect(v.items[0]!.messages?.map((m) => m.me === true)).toEqual([true, false]);
+    expect(v.items[0]!.messages?.[1]?.from).toBeUndefined();
     const rest = JSON.stringify({ ...v, items: v.items.map(({ messages: _m, ...i }) => i) });
     // The phone number as written, not a bare "555": ids and timestamps in the view can contain those digits by chance.
     expect(rest).not.toMatch(/Can Jordan Sample come|555 555 0177|Running late|iMessage;-;/);
@@ -372,7 +373,7 @@ describe("the engine", () => {
     h.site.waiting = [req({ thread: h.thread.id, draftAt: h.thread.draft!.at })];
     await h.engine.act();
     expect(h.store.load().seen).toHaveLength(1);
-    h.at(NOW + Math.max(SEEN_KEEP_MS, DRAFT_KEEP_MS, THREAD_KEEP_MS) + 60_000);
+    h.at(NOW + Math.max(SEEN_KEEP_MS, DRAFT_KEEP_MS, THREAD_KEEP_MS, OWED_WINDOW_MS) + 60_000);
     h.engine.sweep();
     const s = h.store.load();
     expect(s.seen).toEqual([]);
@@ -509,12 +510,18 @@ describe("the rules reach every model call (#541 review)", () => {
     await h.engine.act();
     expect(h.bb.sent).toEqual([{ chat: GROUPCHAT, text: "Count me in 🙌" }]);
     expect(h.site.reported.at(-1)).toEqual({ rid: "2".repeat(24), result: "sent" });
-    // Its summary was of what came before the reply: the group leaves the Desk until it talks again.
-    expect(h.store.load().threads[0]!.summary).toBeNull();
-    h.site.waiting = [req({ rid: "3".repeat(24), thread: g.id, text: "Again" }, KEY, h.now())];
+    // Multi-send (#870): the group stays on the Desk after a send, even once Messages shows the reply, and takes
+    // another; the same request id never acts twice.
+    await h.engine.onMessage({ chat: GROUPCHAT, group: true, groupName: "Test group", message: { text: "Count me in 🙌", fromMe: true, at: h.now() + 10, handle: "" } });
+    expect(h.store.load().threads[0]!.summary).not.toBeNull();
+    const again = req({ rid: "3".repeat(24), thread: g.id, text: "Again" }, KEY, h.now());
+    h.site.waiting = [again];
     await h.engine.act();
-    expect(h.bb.sent).toHaveLength(1);
-    expect(h.site.reported.at(-1)!.result).toBe("refused");
+    expect(h.bb.sent).toHaveLength(2);
+    h.site.waiting = [again];
+    await h.engine.act();
+    expect(h.bb.sent).toHaveLength(2);
+    expect(h.site.reported.at(-1)).toEqual({ rid: "3".repeat(24), result: "refused", reason: "replay" });
   });
 
   it("after a send that timed out but went, a resend is refused", async () => {
@@ -535,8 +542,11 @@ describe("the rules reach every model call (#541 review)", () => {
     h.site.waiting = [req({ rid: "9".repeat(24), thread: h.thread.id, draftAt: h.thread.draft!.at })];
     await h.engine.act();
     expect(h.bb.sent).toEqual([]);
-    expect(h.site.reported.at(-1)!.result).toBe("refused");
-    expect(h.store.load().threads[0]!.state).toBe("replied");
+    expect(h.site.reported.at(-1)).toMatchObject({ result: "refused", reason: "answered" });
+    // A different text to the same thread still goes (#870, multi-send).
+    h.site.waiting = [req({ rid: "8".repeat(24), thread: h.thread.id, text: "Actually, 10 min late" })];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([{ chat: CHAT, text: "Actually, 10 min late" }]);
   });
 });
 
@@ -873,7 +883,7 @@ describe("closing intent on the Mac (#642)", () => {
     await h.engine.work();
     expect(h.site.sorts).toHaveLength(0);
     expect(h.site.drafts).toHaveLength(0);
-    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "no-reply", draft: null });
+    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "closing", draft: null });
   });
 
   it("closes an owed thread when Nikita's own message is now the newest in Messages", async () => {

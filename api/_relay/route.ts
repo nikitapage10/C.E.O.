@@ -18,6 +18,7 @@
  *          "send", thread, draftAt, text   → a send request (needs the unlock; see "The send path" below)
  *          "resend", rid      → a new send request for one that expired (the Mac was offline) or failed
  *          "later" | "done", thread        → a request to push a thread to the next nudge, or mark it handled
+ *          "back", thread     → "Bring back" (#870): a thread Relay set aside (not by a rule) back in line, kept owed
  *          "restyle", thread, text         → Nikita's dictated words, for Blasto to put in his style
  *          "rescan"           → a request for the hub to read every chat again (#758): the backlog. Needs the session only
  *          "learn"            → a request for the hub to learn Nikita's voice from their sent texts (#758). Session only
@@ -51,7 +52,8 @@
  *      challenge made for this session's own passkey, spent atomically so it works once. It sets `__Host-ceo-relay-unlock`,
  *      HttpOnly, Secure, SameSite=Strict, signed with a key derived from the Desk key, naming that passkey, good 72
  *      hours. It is checked on every send together with the session: the same passkey, unexpired. Another device, or
- *      this one after 72 hours, or after "lock", has to unlock again.
+ *      this one after 72 hours, or after "lock", has to unlock again. Since #870 the Desk's passkey sign-in (the same
+ *      kind of fresh, user-verified answer) sets it too, so a signed-in device isn't asked twice (./unlock.ts).
  *   2. Send: one tap writes one request: a random id, the thread, the draft it was made from (`draftAt`), the text,
  *      10 minutes to live, signed with the pairing's send key over all of those. The thread must be on the hub's
  *      latest list, one-to-one, still owed, with that very draft. One send at a time per thread.
@@ -72,7 +74,7 @@ import { checkAssertion } from "../_desk/assert.js";
 import { deskKeyFor } from "../_desk/keys.js";
 import { addressOf, Gate } from "../_desk/limits.js";
 import { isQuiet, liveSubs, type PingText } from "../_desk/pings.js";
-import { CHALLENGE_COOKIE, challengeOf, cookie, readCookie, readToken, requireSession, signToken, withCookie, type DeskDeps, type Signed } from "../_desk/session.js";
+import { CHALLENGE_COOKIE, challengeOf, cookie, readCookie, requireSession, signToken, withCookie, type DeskDeps, type Signed } from "../_desk/session.js";
 import { pickAuthStore, type AuthStore } from "../_desk/store.js";
 import { deliver, webPushSend } from "../desk-pings.js";
 import { skipTermsFrom } from "../_email/filter.js";
@@ -83,17 +85,18 @@ import { learnRequest, readLearn, readLearnInput } from "./voice.js";
 import { liveClaude } from "./claude.js";
 import { claudeProvider, DRAFT_MODEL, readComposeInput, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
 import { pickRelayStore, update, type PrivateState, type RelayStore, type RequestEntry } from "./store.js";
-import { DICTATED_MAX, freshItems, MAX_CARDS, olderWithin, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
+import { BACKABLE, DICTATED_MAX, freshItems, MAX_CARDS, OWED_WINDOW_MS, olderWithin, readReason, readTextsView, RESENDABLE, RESULTS, RID, SEND_MAX, type Reason, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
 import { askRuled, cleanGist, cleanWho } from "./compose.js";
 import { privateParts } from "../_privacy.js";
 import { cleanPng, emptyPhotoIndex, MAX_PHOTOS, PHOTO_ID, photoEmailKey, readPhotoIndex, readPhotoList } from "./photos.js";
 import { dropPhotos } from "./store.js";
-import { bearer, hubKey, hubTokenPair, mintPairCode, mintPairing, normalCode, PAIR_CODE_MS, PAIR_TRIES, REQUEST_MS, sendKeyFor, sha256, showCode, signRequest, UNLOCK_MS } from "./tokens.js";
+import { clearUnlock, unlockCookie, unlockedUntil } from "./unlock.js";
+import { bearer, hubKey, hubTokenPair, mintPairCode, mintPairing, normalCode, PAIR_CODE_MS, PAIR_TRIES, REQUEST_MS, sendKeyFor, sha256, showCode, signRequest } from "./tokens.js";
 
 export const RELAY_PATH = "/api/relay";
 export const PAIR_PATH = "/api/relay-pair";
 export const HUB_PATH = "/api/relay-hub";
-export const UNLOCK_COOKIE = "__Host-ceo-relay-unlock";
+export { UNLOCK_COOKIE, unlockedUntil } from "./unlock.js";
 /** The unlock's passkey request is good for this long (s). */
 export const STEPUP_S = 120;
 /** A taken request with no result this long after it ended shows as failed. */
@@ -198,21 +201,6 @@ async function publicStatus(deps: RelayRouteDeps): Promise<RelayStatus> {
 
 /* ── The send unlock ── */
 
-/** Until when this device's send unlock holds for this session's passkey (ms), or null. */
-export async function unlockedUntil(request: Request, deskKey: string, passkey: string, now: number): Promise<number | null> {
-  const p = readToken(await deskKeyFor(deskKey, "relay"), readCookie(request, UNLOCK_COOKIE));
-  if (!p || p.t !== "relay-unlock" || p.c !== passkey || typeof p.e !== "number") return null;
-  const until = p.e * 1000;
-  // Never longer than the unlock's own life, whatever a cookie says.
-  return until > now && until <= now + UNLOCK_MS ? until : null;
-}
-
-async function unlockCookie(deskKey: string, passkey: string, now: number): Promise<{ cookie: string; until: number }> {
-  const e = Math.floor((now + UNLOCK_MS) / 1000);
-  const token = signToken(await deskKeyFor(deskKey, "relay"), { t: "relay-unlock", c: passkey, e });
-  return { cookie: `${UNLOCK_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${Math.floor(UNLOCK_MS / 1000)}`, until: e * 1000 };
-}
-const clearUnlock = () => `${UNLOCK_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
 
 /* ── GET ── */
 
@@ -245,6 +233,8 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
         older: hub ? olderWithin(priv.texts?.older ?? { count: 0, items: [] }, deps.now) : { count: 0, items: [] },
         scannedAt: hub ? (priv.texts?.scannedAt ?? null) : null,
         voice: hub ? (priv.texts?.voice ?? null) : null,
+        // The one-to-one threads Relay set aside (#870): who, when, why from a closed list. No text.
+        aside: hub ? (priv.texts?.aside ?? []).filter((a) => deps.now - a.since < OWED_WINDOW_MS) : [],
         textsAt: hub ? (priv.texts?.at ?? null) : null,
         requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" || e.req.kind === "compose" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now), ...(shownReason(e, deps.now) && { reason: shownReason(e, deps.now) }) })),
         spend: { usd: spent ? Math.round(monthSpend(spent, deps.now).usd * 10_000) / 10_000 : 0, budget: deps.budget },
@@ -377,7 +367,22 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
     const made = await update(store, (s) => makeRequest(s, sendKey, action, { thread: body?.thread, draftAt: body?.draftAt ?? 0, text: action === "restyle" ? body?.text : "" }, deps.now));
     return requestAnswer(made, keep);
   }
+  if (action === "back") {
+    // "Bring back" (#870): a set-aside thread back in line. It can't send, so the session is enough.
+    const made = await update(store, (s) => makeBack(s, sendKey, body?.thread, deps.now));
+    return requestAnswer(made, keep);
+  }
   return json({ error: "bad-request" }, 400, keep);
+}
+
+/** A "back" request (#870): only for a thread on the hub's set-aside list whose kind can come back (never a rule's). */
+export function makeBack(s: PrivateState, sendKey: Buffer, thread: unknown, now: number): { next: PrivateState; result: Made } {
+  const item = typeof thread === "string" ? s.texts?.aside?.find((a) => a.id === thread) : undefined;
+  if (!item || !BACKABLE.includes(item.why)) return { next: s, result: { error: "no-thread" } };
+  if (s.requests.some((e) => e.req.thread === item.id && e.req.kind === "back" && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return { next: s, result: { error: "busy" } };
+  const fields = { rid: randomBytes(12).toString("hex"), kind: "back" as const, thread: item.id, draftAt: 0, text: "", until: now + REQUEST_MS };
+  const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
+  return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };
 }
 
 type Made = { rid: string; until: number } | { error: "no-thread" | "changed" | "busy" | "bad-text" | "no-resend" };
@@ -417,7 +422,9 @@ export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind,
     // A card that already went (or one being sent) takes no second send, whatever its state shows.
     if (card && s.requests.some((e) => e.req.thread === card.id && e.req.kind === "send" && shownState(e, now) === "sent")) return no("no-thread");
   }
-  if (s.requests.some((e) => e.req.thread === item.id && e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
+  // One of each kind at a time per thread, except a thread's sends (#870, multi-send, Nikita 2026-11-05): each is its
+  // own single-use request, so a second may follow the first. A card still takes one.
+  if (!(kind === "send" && !card) && s.requests.some((e) => e.req.thread === item.id && e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
   const fields = { rid: randomBytes(12).toString("hex"), kind, thread: item.id, draftAt: kind === "send" ? draftAt : 0, text: kind === "send" || kind === "restyle" ? text : "", until: now + REQUEST_MS };
   const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
   return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };

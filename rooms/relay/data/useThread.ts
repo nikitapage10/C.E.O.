@@ -204,7 +204,8 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
     setNotice({ kind: "undo", text: `Sending to ${who}`, until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
     undo.current.start(key, () => {
       setPending(null);
-      setGone((g) => [...g, key]);
+      // A text's thread stays in the queue after a send (#870, multi-send): only Done takes it off. An email still goes.
+      if (x.line !== "text") setGone((g) => [...g, key]);
       setSentHere((n) => n + 1);
       const went = (ok: boolean, why?: string) => {
         if (ok) {

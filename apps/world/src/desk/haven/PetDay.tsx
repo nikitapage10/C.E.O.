@@ -1,5 +1,5 @@
 import type { DeviceReading, PetMeal } from "../homeDevices.ts";
-import { amount, clock, due, duration, nextOf, ounces, statusWord } from "../petDay.ts";
+import { amount, BOWL_WORD, clock, due, duration, nextOf, noPlanSay, ounces, shapeSay, statusWord, trayBowls } from "../petDay.ts";
 import "./petday.css";
 
 /**
@@ -88,11 +88,52 @@ export function WetDay({ d }: { d: DeviceReading }) {
       <Stats
         items={[has(d.visits) ? { v: d.visits, k: d.visits === 1 ? "visit today" : "visits today" } : null, has(d.visitSec) ? { v: duration(d.visitSec), k: "eating time" } : null]}
       />
-      {d.meals && d.meals.length > 0 && (
-        <>
-          <p className="pd-k">Today's bowls</p>
-          <Meals meals={d.meals} wet />
-        </>
+      <WetTray d={d} />
+    </>
+  );
+}
+
+/**
+ * The tray's three bowls, always: which one is in front (realInfo.platePosition) and each bowl's meal from the plan
+ * (served, open now, next or later, with its window and name). Without a plan it says so plainly, and the plan read's
+ * shape (counts and key names, never a value) sits folded underneath for the signed-in Desk.
+ */
+export function WetTray({ d }: { d: DeviceReading }) {
+  const bowls = trayBowls(d);
+  const meals = d.meals ?? [];
+  const loose = meals.filter((m) => !m.plate);
+  return (
+    <>
+      <p className="pd-k">
+        Today's bowls
+        <span className="pd-next">{d.plate ? `bowl ${d.plate} in front` : "bowl in front unknown"}</span>
+      </p>
+      <ol className="pd-tray" aria-label="The wet feeder's three bowls">
+        {bowls.map((b) => (
+          <li key={b.n} className={`pd-tbowl is-${b.state}${b.front ? " is-front" : ""}`} aria-current={b.front ? "true" : undefined}>
+            <span className="pd-bowl" aria-hidden="true">
+              {b.n}
+            </span>
+            <b>{BOWL_WORD[b.state]}</b>
+            {b.time && (
+              <span className="pd-when">
+                {clock(b.time)}
+                {b.end && <> – {clock(b.end)}</>}
+              </span>
+            )}
+            {b.label && <span className="pd-label">{b.label}</span>}
+            {b.front && <em>In front</em>}
+          </li>
+        ))}
+      </ol>
+      {loose.length > 0 && <Meals meals={loose} wet />}
+      {meals.length === 0 && <p className="pd-none">{noPlanSay(d)}</p>}
+      {d.heads && <p className="pd-heads">{d.heads}</p>}
+      {d.wetPlanShape && (
+        <details className="pd-diag">
+          <summary>Plan read</summary>
+          <p>{shapeSay(d.wetPlanShape)}</p>
+        </details>
       )}
     </>
   );

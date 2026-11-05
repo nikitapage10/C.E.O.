@@ -152,7 +152,8 @@ for (const [label, size] of [
     // The Petlibro day (#685): the fountain's overdue filter in ember, the wet bowls, the dry schedule's next meal.
     await expect(sheet.getByText("3 days overdue")).toBeVisible();
     await expect(sheet.getByText("Today's bowls")).toBeVisible();
-    await expect(sheet.getByText("Feeding now")).toBeVisible();
+    await expect(sheet.getByText("Feeding now").first()).toBeVisible();
+    await expect(sheet.getByText("bowl 2 in front")).toBeVisible();
     await expect(sheet.getByText("next 7:30 PM")).toBeVisible();
     await page.waitForTimeout(600);
     await shoot(page, `room-${label}`);

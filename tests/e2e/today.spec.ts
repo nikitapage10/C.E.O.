@@ -85,7 +85,7 @@ async function stub(page: Page, signedIn: boolean) {
     const meta = LISTS.map((l) => ({ id: l.id, name: l.name, open: l.items.filter((i) => !i.done).length, done: l.items.filter((i) => i.done).length }));
     if (view === "status") return r.fulfill({ json: { kitchen: { open: 2, done: 0 }, todos: 0, gym: null, meals: null, lists: meta, ready: true } });
     if (view === "lists") return signedIn ? r.fulfill({ json: { lists: LISTS } }) : r.fulfill({ status: 401, json: { error: "signed-out" } });
-    return r.fulfill({ json: { ok: true } });
+    return r.fallback();
   });
 }
 

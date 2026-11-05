@@ -164,7 +164,7 @@ export const rites = (inputs: RiteInput[], bench: string[]) => inputs.map((r, i)
 
 /** The chair's lines between the speakers. */
 export const chairLine = {
-  recognize: (by: string, label: string) => `The chair recognizes ${lower(titleOf(by))}, for ${label.replace(/\.$/, "").toLowerCase()}.`,
+  recognize: (by: string, label: string) => `The chair recognizes ${lower(titleOf(by))}, for ${label.charAt(0).toLowerCase()}${label.slice(1).replace(/\.$/, "")}.`,
   tradeoff: (by: string) => `The chair recognizes ${lower(titleOf(by))}, on a trade-off.`,
   report: (by: string) => `The chair recognizes ${lower(titleOf(by))}, to report.`,
   risk: () => "A note of risk, from the Boiler Room.",

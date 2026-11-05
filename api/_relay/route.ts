@@ -405,11 +405,13 @@ export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind,
   const draftAt = typeof given.draftAt === "number" && Number.isInteger(given.draftAt) ? given.draftAt : -1;
   const text = typeof given.text === "string" ? given.text.replace(/\r\n?/g, "\n").replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")).trim() : "";
   if (kind === "send" || kind === "restyle") {
-    if (item.group) return no("no-thread");
+    // A group is never drafted for, so never restyled; it takes only Nikita's own typed words (#805), with no draft.
+    if (item.group && (kind === "restyle" || draftAt !== 0)) return no("no-thread");
     if (!text || text.length > (kind === "send" ? SEND_MAX : DICTATED_MAX)) return no("bad-text");
   }
   if (kind === "send") {
-    if (item.state === "settled") return no("no-thread");
+    // A group shows on the Desk as settled with its summary (#758), and takes a send there; a one-to-one never.
+    if (item.state === "settled" && !(item.group && "summary" in item && item.summary)) return no("no-thread");
     // Bound to the draft on screen: a newer draft (or none) since the Desk last read the list refuses it.
     if (draftAt !== (item.draft?.at ?? 0)) return no("changed");
     // A card that already went (or one being sent) takes no second send, whatever its state shows.

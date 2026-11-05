@@ -100,6 +100,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["haven/devices", homedevices.devicesRoute],
   ["haven/devices/action", homedevices.actionRoute, { settleMs: 2_500 }],
   ["haven/devices/connect", homedevices.connectRoute],
+  // The vacuum's live run on the Hall's map (#814): the home's floor plan, passkey session only, never stored.
+  ["haven/devices/map", homedevices.mapRoute],
   // The Haven's connections (#637, docs/HOME-DEVICES.md): Connect Nest and Connect Google Tasks (passkey session
   // only; ?view=status is the public states), and where Google sends the browser back. The thermostat itself reads and
   // acts through haven/devices.

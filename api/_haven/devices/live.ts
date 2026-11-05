@@ -22,7 +22,7 @@ import { Home } from "./home.js";
 import { PetlibroClient } from "./petlibro.js";
 import { feedCap } from "./rails.js";
 import { RoborockClient } from "./roborock.js";
-import { devicesAction, devicesConnect, devicesGet, type DevicesDeps } from "./route.js";
+import { devicesAction, devicesConnect, devicesGet, devicesMap, type DevicesDeps } from "./route.js";
 import { HomeVault, homeKey } from "./vault.js";
 import { WhiskerClient } from "./whisker.js";
 import { NestClient } from "../google/nest.js";
@@ -74,6 +74,7 @@ export function devicesDeps(env: Env = process.env): DevicesDeps {
     fetch: (url, init) => fetch(url, init),
     log: (line) => console.log(line),
     links: () => linksFromEnv(env),
+    liveMap: (device) => new RoborockClient({ fetch: (url, init) => fetch(url, init), vault: blob && sealKey ? new HomeVault(blob, sealKey) : null, idKey: homeKey(env.HOME_TOKEN_KEY, "id"), now: Date.now }).liveMap(device),
   };
 }
 
@@ -88,4 +89,5 @@ export async function runWetClose(env: Env = process.env): Promise<string> {
 
 export const devicesRoute = { GET: (request: Request) => devicesGet(request, devicesDeps()) };
 export const actionRoute = { POST: (request: Request) => devicesAction(request, devicesDeps()) };
+export const mapRoute = { GET: (request: Request) => devicesMap(request, devicesDeps()) };
 export const connectRoute = { POST: (request: Request) => devicesConnect(request, devicesDeps()) };

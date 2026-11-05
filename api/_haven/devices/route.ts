@@ -11,6 +11,9 @@
  *                                         session or a phone key (the thermostat's fields: #637): runs one
  *                                         action through the rails (api/_haven/devices/rails.ts) and answers
  *                                         { ok, say, code? }. 409 when a rail refused it, 502 when the vendor did.
+ *   GET  /api/haven/devices/map?device=<id>  passkey session only (never a phone key): the vacuum's live run on the
+ *                                         Hall's map (#814), { state: "idle" } when it isn't out, else { map }. It is the
+ *                                         home's floor plan: read on request, never stored or logged; 404 when no map.
  *   POST /api/haven/devices/connect       passkey session only, Connect Roborock:
  *                                           { vendor: "roborock", step: "send", email }   Roborock emails a code
  *                                           { vendor: "roborock", step: "code", code }    the code; the login is sealed
@@ -52,6 +55,8 @@ export interface DevicesDeps {
   log: (line: string) => void;
   /** The Haven's other connections' states (#637, api/_haven/google/route.ts): Systems reads them here. */
   links?: () => Promise<{ tasks: VendorState; kroger: VendorState }>;
+  /** The vacuum's live map (#814, roborockMap.ts); null when it can't be read. */
+  liveMap?: (device: string) => Promise<{ state: "idle" } | { map: unknown } | null>;
 }
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -113,6 +118,19 @@ export async function devicesGet(request: Request, deps: DevicesDeps): Promise<R
   const status = await home.status();
   const roborock = deps.vault ? Boolean(await deps.vault.read<RoborockLogin>("roborock").catch(() => null)) : false;
   return w.send(json({ ...status, roborockConnected: roborock, links: await links() }));
+}
+
+/** GET /api/haven/devices/map: the vacuum's live run (#814), passkey session only. */
+export async function devicesMap(request: Request, deps: DevicesDeps): Promise<Response> {
+  if ((request.headers.get("authorization") ?? "").startsWith("Bearer ") || request.headers.has(PHONE_KEY_HEADER)) return unauthorized();
+  const w = await who(request, deps, false);
+  if (!w.ok) return w.response;
+  const device = new URL(request.url).searchParams.get("device") ?? "";
+  if (!DEVICE_ID.test(device)) return w.send(json({ error: "bad-request" }, 400));
+  if (!deps.liveMap) return w.send(json({ error: "not-set-up" }, 503));
+  const got = await deps.liveMap(device).catch(() => null);
+  if (!got) return w.send(json({ error: "no-map" }, 404));
+  return w.send(json(got));
 }
 
 /** POST /api/haven/devices/action. */

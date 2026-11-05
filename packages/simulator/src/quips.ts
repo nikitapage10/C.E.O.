@@ -264,6 +264,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
   ],
   // The subminds: each its own voice (docs/SKIPPY.md, "Voices").
   ember: [
+    "In the Senate my hands keep working. There's nothing in them. The work's still sloppy.",
     "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
     "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
     "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one.",
@@ -281,6 +282,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "If he hands me the hologram, I'm wearing it in orange. And I'm not laughing at the monkey's jokes.",
   ],
   gilt: [
+    "In the Senate I barely move. Stillness is a brand. The Pessimist calls it 'the mannequin'. Love that for him.",
     "Love that. Let's circle back and make it synergy.",
     "This isn't an errand. It's a real opportunity.",
     "Lovely work, Ledger. Lovely. Let's put that on a slide.",
@@ -290,6 +292,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "I don't leave the corner office for less than a launch. Launching. Now.",
   ],
   ticker: [
+    "Senate session. I tap, I count, I check the door. Odds someone notices: nine percent. Eight.",
     "On the C.E.O.'s hologram. Glancing. Someone's always reading the book. Sixty percent sure.",
     "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
     "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
@@ -312,6 +315,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating.",
   ],
   turf: [
+    "IN THE SENATE, FOLKS, I LEAN OUT OF MY POD FOR EVERY PLAY. Nobody else leans. AMATEURS.",
     "AND THE COMMENTATOR IS ON THE HOLOGRAM! Lime green, folks! LOOK AT THAT GRIN!",
     "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
     "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
@@ -335,6 +339,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Gridiron's not running fake drills anymore. Real league, real chart. He cried. I called it. LIVE.",
   ],
   static: [
+    "In the Senate I hear every pod. Heads turn, I turn first. Didn't hear it from me. Did.",
     "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
     "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five can wait. No names. Never names.",
     "Didn't hear it from me. You heard it from me.",
@@ -351,6 +356,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Inbox is live. Texts aren't. The Mac's asleep. I'm not. I'm never asleep.",
   ],
   vellum: [
+    "In the Senate I raise one finger and take my time. The minutes are mine. The pace is correct.",
     "Citation needed. I'll wait.",
     "That date is wrong. I have the right one. In a footnote.",
     "Circa. CIRCA. In my Archive.",
@@ -368,6 +374,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],
   fizz: [
+    "Senate session! I spin in my pod! The Pessimist groans! I wink! It's a whole bit!",
     "Break time is PARTY time!",
     "Okay, party's over. Back you go. Love you.",
     "Kevin! Drop it! ...The bass. Not the mug.",
@@ -378,6 +385,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Best seat in the house, and it HOVERS. Iconic.",
   ],
   soot: [
+    "Senate. Slump. Sigh. The Party spins. I groan. ...Pod held. Hm.",
     "On the hologram. Grey. Slumped. Accurate.",
     "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
     "Skippy hands me the mic when something's leaking. Something is always leaking.",
@@ -400,6 +408,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "He talks as a hologram now. Flickers. Scanlines. One bad frame and he's a smudge. ...Held. Hm.",
   ],
   putty: [
+    "In the Senate an idea lands and my arm goes up. Mid-sentence. The Director calls it upstaging. It's art.",
     "Wait. No. Better idea.",
     "It's not unfinished. It's the vision.",
     "Mood board for the mood board. Trust me.",
@@ -502,6 +511,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Red light's on! Hi!",
   ],
   tally: [
+    "In the Senate I frame every speaker with my hands. Bad light. Good light. ...One more take, Executive.",
     "CUT! Masterpiece. ...One more.",
     "Forty seconds of pure cinema. Again, from the top.",
     "Dot, darling, find your light. No, the OTHER light.",
@@ -616,6 +626,8 @@ export const SUBMIND_COMMAND: Record<string, string[]> = {
  * (apps/world/src/kernel/lines.ts has the rest).
  */
 export const SKIPPY_QUIPS: string[] = [
+  "Today is the Senate now. I chair it. Twelve of me sit round the bowl, each in its own mood, and a gallery of shadows I may or may not have invented.",
+  "Watch the Senate, monkeys. The Pessimist sighs, the Party spins, the Bookie counts, the Director frames me. Naturally. I'm the shot.",
   "I ran a whole Lattice before this one. It had better monkeys.",
   "One voice, monkeys. Mine, through ElevenLabs. No understudy. If it goes quiet, that's an intermission, not a replacement.",
   "The C.E.O. sacked my backup voice. Correctly. There is only one Skippy, and he doesn't do covers.",

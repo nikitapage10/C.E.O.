@@ -81,7 +81,7 @@ describe("the page's data for Skippy's quick take (#341), from the rooms' own li
     const text = await pageNow();
     expect(text.length).toBeLessThanOrEqual(PAGE_MAX);
     expect(text.split("\n").length).toBeLessThanOrEqual(PAGE_LINES);
-    expect(text).toMatch(/^Nikita is on the Desk's Today page\.\nGreen, week 7/);
+    expect(text).toMatch(/^Nikita is on the Desk's Senate page\.\nGreen, week 7/);
     expect(text).not.toContain("Exchange");
   });
 });

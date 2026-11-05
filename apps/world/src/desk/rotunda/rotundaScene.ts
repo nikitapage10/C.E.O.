@@ -28,6 +28,7 @@ import {
   SRGBColorSpace,
   Scene,
   ShaderMaterial,
+  SphereGeometry,
   SpotLight,
   Sprite,
   SpriteMaterial,
@@ -45,7 +46,7 @@ import { recolor } from "../../agents/bodies/recolor.ts";
 import { modelUrl } from "../../modelUrl.ts";
 import { cachedModel } from "../modelCache.ts";
 import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
-import { ARMS, CHILD, NAVY, POSES } from "../hologram/rig.ts";
+import { ARMS, CHILD, fitCap, HEAD, NAVY, PHI, POSES, TH0, TH1 } from "../hologram/rig.ts";
 import type { Pose } from "../hologram/persona.ts";
 import { SKIPPY_MODEL } from "../council/live.ts";
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
@@ -67,9 +68,11 @@ import {
   type RiteLine,
 } from "./rite.ts";
 import type { RotundaVoice } from "./voice.ts";
+import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig } from "./senateActor.ts";
+import { senatePoses, senatorOf } from "./senators.ts";
 
 /**
- * The Senate Rotunda in 3D (#740), Today's chamber: the round 3 concept (concepts/2026-11-04-today-boiler, r3/rotunda.js)
+ * The Senate in 3D (#740), Today's chamber: the round 3 concept (concepts/2026-11-04-today-boiler, r3/rotunda.js)
  * ported to the Desk. Skippy presides on the podium in a shaft of light; the Council's subminds sit round the bowl on
  * identical bronze pods, each floating on a short field of sigil glyphs and motes in its room's colour that sinks out of
  * the keel and fades well above the floor (no tethers). Pods are lit from real state (Rotunda.tsx): dim and sparse when
@@ -80,6 +83,9 @@ import type { RotundaVoice } from "./voice.ts";
  * with it off each caption holds for its reading time (rite.ts, `readMs`). Haze drifts through the bowl and up the podium's shaft; sigil nanites drift in the air and gather at the
  * podium when the chair speaks. Phones get fewer particles and 30 frames a second; reduced motion slows everything to a
  * near stop. Lazy loaded with three.js, never in the Desk's first load.
+ *
+ * Every Skippy in it is its own self (#775): its own idle, gestures, faces and reactions, played from senators.ts by
+ * senateActor.ts, with a moving face cast over the front of each can's head.
  */
 
 export interface RotundaSeat {
@@ -123,8 +129,7 @@ export interface Rotunda {
   dispose: () => void;
 }
 
-/** Each submind's stance in its pod. */
-const POSE: Record<string, Pose> = { foundry: "hands", relay: "ready", exchange: "think", green: "cheer", spire: "smug", archive: "think", boiler: "slump", breakroom: "cheer", workshop: "hands", studio: "talk", annex: "ready", haven: "rest" };
+const COUNTER_LIGHT = new Color(COUNTER_COLOUR);
 const TYPE_LIGHT: Record<RiteKind | "idle", Color> = { duty: new Color("#dfe9ff"), decision: new Color("#ffe7b8"), repair: new Color("#ffc2a8"), idle: new Color("#fff4e0") };
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const GLYPHS = [..."ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ{}<>/=;∴"];
@@ -152,9 +157,13 @@ interface Pod {
   speaking: boolean;
   hot: boolean;
   light: Spot | null;
+  /** The Skippy in it (#775). */
+  a: Actor;
 }
 interface Spot {
   l: SpotLight;
+  /** Its visible beam: a soft cone from the light down onto the Skippy it follows. */
+  beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
   on: number;
   to: number;
   pod: Pod | null;
@@ -248,16 +257,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   wall.position.y = 10.5;
   scene.add(wall);
   for (let k = 0; k < 10; k++) gold(9.4 + k * 1.15, 0.6 + k * 1.35, 0.22 - k * 0.018, 0.008);
-  // Light slanting in from the oculus.
-  const shafts: Mesh<CylinderGeometry, MeshBasicMaterial>[] = [];
-  for (let k = 0; k < 5; k++) {
-    const m = new Mesh(keep(new CylinderGeometry(0.15, 0.8, 22, 24, 1, true)), keep(new MeshBasicMaterial({ color: 0xbfd0ff, transparent: true, opacity: 0.01, blending: AdditiveBlending, depthWrite: false, side: DoubleSide })));
-    const a = k * 1.26 + 0.4;
-    m.position.set(Math.cos(a) * 6.5, 10, Math.sin(a) * 6.5);
-    m.rotation.set(Math.sin(a) * 0.32, 0, -Math.cos(a) * 0.32);
-    scene.add(m);
-    shafts.push(m);
-  }
+  // No light slants in from the oculus any more (Nikita, 2026-11-05): the only beams are the chair's shaft and a
+  // spotlight on whoever has the floor.
 
   // The gallery: hundreds of pods, instanced silhouettes with a pinprick light each.
   const N = PH0 ? 420 : 980;
@@ -325,6 +326,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   scene.add(new Points(dg, keep(new PointsMaterial({ color: 0xffe4b0, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false, blending: AdditiveBlending }))));
 
   // ---- the Skippies -----------------------------------------------------------------------------------------------
+  let shadowTick: (T: number) => void = () => {};
   const proto = gltf.scene;
   proto.updateMatrixWorld(true);
   let body: SkinnedMesh | null = null;
@@ -341,7 +343,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   });
   const bind = new Map([...bones].map(([k, b]) => [k, b.quaternion.clone()]));
   const poses = new Map<Pose, Map<string, Quaternion>>();
-  for (const id of new Set<Pose>(["talk", ...Object.values(POSE)])) {
+  for (const id of senatePoses()) {
     const aims = POSES[id];
     for (const n of ARMS) bones.get(n)?.quaternion.copy(bind.get(n) ?? new Quaternion());
     for (const n of ARMS) {
@@ -359,10 +361,21 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // The shared model goes back to its bind pose (modelCache.ts): every clone below takes its own.
   for (const [n, q] of bind) bones.get(n)?.quaternion.copy(q);
   proto.updateMatrixWorld(true);
+  // Each can's face (#775): the Talk hologram's cap, fitted once to the head at the bind pose and shared by every can.
+  let capGeo: SphereGeometry | null = null;
+  if (body) {
+    try {
+      const g = keep(new SphereGeometry(HEAD.r, 32, 16, Math.PI / 2 - PHI / 2, PHI, TH0, TH1 - TH0));
+      fitCap(g, body, 32, 16);
+      capGeo = g;
+    } catch {
+      /* no face to move: the painted one stays */
+    }
+  }
+  const rig: SenateRig = { poses, capGeo, faceW: PH0 ? 256 : 512, faceH: PH0 ? 128 : 256, reduce, budget: 0 };
 
-  const makeCan = (colour: string | null, pose: Pose, scale: number) => {
+  const makeCan = (id: string, colour: string | null, scale: number, y0: number) => {
     const model = cloneSkinned(proto);
-    model.position.copy(centre).multiplyScalar(-1);
     let mesh: SkinnedMesh | null = null;
     const bs = new Map<string, Bone>();
     model.traverse((o) => {
@@ -379,19 +392,78 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       sk.castShadow = !PH0;
       sk.frustumCulled = false;
     }
-    const P = poses.get(pose);
-    if (P) for (const n of ARMS) bs.get(n)?.quaternion.copy(P.get(n)!);
     const inner = new Group();
+    // Its face goes on while the clone still stands at the model's own origin, then it moves into place and takes its pose.
+    const a = makeActor(id, model, inner, y0, mat, rig, keep);
+    model.position.copy(centre).multiplyScalar(-1);
+    const P = poses.get(senatorOf(id).rest);
+    if (P) for (const n of ARMS) bs.get(n)?.quaternion.copy(P.get(n)!);
     inner.add(model);
     inner.scale.setScalar(scale / height);
-    return { inner, mat };
+    inner.position.y = y0;
+    return { inner, mat, a };
   };
   // Skippy, presiding.
-  const sk = makeCan(null, "talk", 1.55);
+  const sk = makeCan("kernel", null, 1.55, 0);
   const skG = new Group();
   skG.add(sk.inner);
   skG.position.set(0, 2.0, 0);
   scene.add(skG);
+
+  // The shadow senators (Nikita, 2026-11-05): the gallery's pods aren't empty. A share of them hold a dark silhouette of
+  // the can, one baked bind-pose geometry drawn instanced, with a faint rim of light and a slow sway in the shader: an
+  // audience of shadowy Skippies, never members. No rigs, no per-figure work on the CPU.
+  if (body) {
+    const src = (body as SkinnedMesh).geometry;
+    const g = keep(new BufferGeometry());
+    g.setAttribute("position", src.getAttribute("position").clone());
+    const nrm = src.getAttribute("normal");
+    if (nrm) g.setAttribute("normal", nrm.clone());
+    if (src.index) g.setIndex(src.index.clone());
+    g.applyMatrix4((body as SkinnedMesh).matrixWorld);
+    g.translate(-centre.x, -box.min.y, -centre.z);
+    if (!nrm) g.computeVertexNormals();
+    const NS = PH0 ? 70 : 190;
+    const shadowU = { t: { value: 0 } };
+    const shadowMat = keep(
+      new ShaderMaterial({
+        uniforms: shadowU,
+        vertexShader: `uniform float t; varying float vRim; varying float vH;
+          void main(){ float id = float(gl_InstanceID); vec3 p = position; float sw = sin(t*.45 + id*1.73)*.05 + sin(t*.21 + id*.61)*.03;
+            p.x += sw * p.y; vH = p.y;
+            vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.); vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+            vRim = pow(1. - abs(dot(n, normalize(-mv.xyz))), 2.6); gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `varying float vRim; varying float vH;
+          void main(){ vec3 c = vec3(.028, .03, .045) + vec3(.55, .62, .95) * vRim * .55 * smoothstep(.0, .5, vH); gl_FragColor = vec4(c, 1.); }`,
+      }),
+    );
+    const shadows = new InstancedMesh(g, shadowMat, NS);
+    const M = new Matrix4();
+    const q = new Quaternion();
+    const V = new Vector3();
+    const S = new Vector3();
+    const UP = new Vector3(0, 1, 0);
+    const sc = 0.62 / height;
+    let n = 0;
+    // Spread across the gallery: every few pods, more on the lower tiers, which the camera sees best.
+    for (let i = 0; i < N && n < NS; i++) {
+      const tier = i % 10;
+      if (tier > 6 || (i * 7919) % (tier < 3 ? 3 : 5) !== 0) continue;
+      crowd.getMatrixAt(i, M);
+      V.setFromMatrixPosition(M);
+      // None on the camera's side of the bowl, where one would loom over the floor.
+      const off = Math.atan2(Math.sin(Math.atan2(V.z, V.x) - Math.PI / 2), Math.cos(Math.atan2(V.z, V.x) - Math.PI / 2));
+      if (Math.abs(off) < 1.25) continue;
+      q.setFromAxisAngle(UP, Math.atan2(-V.x, -V.z));
+      S.setScalar(sc * (0.9 + ((i * 31) % 7) * 0.03));
+      V.y += 0.09;
+      shadows.setMatrixAt(n++, M.compose(V, q, S));
+    }
+    shadows.count = n;
+    shadows.frustumCulled = false;
+    scene.add(shadows);
+    shadowTick = (T: number) => (shadowU.t.value = T);
+  }
 
   // The pods: identical dark bronze, each floating on a field of particles in its room's colour.
   const R = 7.2;
@@ -438,25 +510,38 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     ring.position.y = 0.05;
     const glow = new PointLight(0xffe2b8, 0, 3.2, 1.6);
     glow.position.y = 0.9;
-    const can = makeCan(s.colour, POSE[s.id] ?? "rest", 0.95);
-    can.inner.position.y = 0.62;
+    const can = makeCan(s.id, s.colour, 0.95, 0.62);
     g.add(shell, rim, ring, glow, can.inner);
     const pad = new Sprite(keep(new SpriteMaterial({ map: fieldTex, color: s.colour, transparent: true, opacity: 0.1, blending: AdditiveBlending, depthWrite: false })));
     pad.position.y = -0.34;
     pad.scale.set(1.5, 0.75, 1);
     g.add(pad);
     const base = baseOf(s);
-    return { s, g, shell, ring, glow, mat: can.mat, pad, home, at: home.clone(), prev: home.clone(), vel: new Vector3(), tw: null, lit: base, litTo: base, base, dis: 0, disTo: 0, phase: Math.random() * 6, speaking: false, hot: false, light: null };
+    return { s, g, shell, ring, glow, mat: can.mat, pad, home, at: home.clone(), prev: home.clone(), vel: new Vector3(), tw: null, lit: base, litTo: base, base, dis: 0, disTo: 0, phase: Math.random() * 6, speaking: false, hot: false, light: null, a: can.a };
   });
+  const actors: Actor[] = [sk.a, ...pods.map((p) => p.a)];
+  /** Who has the floor: the last to start a line that is still going. */
+  let talker: Actor | null = null;
+  let talkerWas: string | null = null;
+  const talkFor = (text: string) => Math.min(5, 0.8 + text.length * 0.055);
   const byId = (id: string) => pods.find((p) => p.s.id === id) ?? null;
   // The floor's places: u for a duty, r for a report, a/b/c for advocates, d beside a contested advocate.
   const SPOT = { u: new Vector3(-2.3, 2.4, 2.8), r: new Vector3(2.4, 2.9, 2.4), a: new Vector3(-3.0, 2.7, 2.0), b: new Vector3(3.0, 2.7, 2.0), c: new Vector3(0, 4.7, -1.7), d: new Vector3(-4.7, 3.7, 0.2) };
   type SpotId = keyof typeof SPOT;
+  // A unit cone, narrow at the light, wide at the floor, pivoting from its top so it can be pointed and stretched.
+  const beamG = keep(new CylinderGeometry(0.12, 0.85, 1, 32, 1, true));
+  beamG.translate(0, -0.5, 0);
   const lightPool: Spot[] = [0, 1, 2, 3].map(() => {
-    const l = new SpotLight(0xffffff, 0, 10, 0.36, 0.6, 1.3);
+    const l = new SpotLight(0xffffff, 0, 12, 0.3, 0.6, 1.3);
+    l.visible = false;
     scene.add(l, l.target);
-    return { l, on: 0, to: 0, pod: null };
+    const beam = new Mesh(beamG, keep(new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide })));
+    beam.visible = false;
+    scene.add(beam);
+    return { l, beam, on: 0, to: 0, pod: null };
   });
+  const beamDir = new Vector3();
+  const beamUp = new Vector3(0, -1, 0);
 
   // ---- sizing and the camera --------------------------------------------------------------------------------------
   const phone = () => host.clientWidth < PHONE_W;
@@ -503,7 +588,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const clock = { t: 0 };
   let chairTimer = 0;
   const chair = (txt: string) => {
-    if (txt) onChair();
+    if (txt) {
+      onChair();
+      startTalk(sk.a, clock.t, clock.t + 0.25 + talkFor(txt));
+      talker = sk.a;
+    }
     chairEl.classList.remove("on");
     window.clearTimeout(chairTimer);
     chairTimer = window.setTimeout(
@@ -528,6 +617,10 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     }
     capOf[slot] = line ? p : null;
     capT[slot] = clock.t;
+    if (line && p) {
+      startTalk(p.a, clock.t, clock.t + talkFor(`${line.lead ?? ""}${line.text}`));
+      talker = p.a;
+    }
     c.classList.toggle("on", !!line);
   };
   const clearCaps = () => SLOTS.forEach((k) => say(k, null));
@@ -664,12 +757,17 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     glide(p, SPOT[spot]);
     p.litTo = 1;
     p.disTo = counter ? 1 : 0;
-    const L = lightPool.find((x) => !x.pod) ?? lightPool[0]!;
+    // Its own light if it already has one (it used to take a second and leave the first on over an empty seat); else a
+    // free one, or the one that has been fading longest.
+    let L = p.light;
+    if (!L) {
+      L = lightPool.find((x) => !x.pod) ?? lightPool.reduce((a, b) => (b.to === 0 && b.on < a.on ? b : a));
+      if (L.pod && L.pod !== p) L.pod.light = null;
+    }
     L.pod = p;
     L.to = 1;
     L.l.target = p.g;
-    L.l.color.copy(counter ? new Color(COUNTER_COLOUR) : TYPE_LIGHT[kind]);
-    L.l.position.set(SPOT[spot].x * 0.6, 9, SPOT[spot].z + 1.5);
+    L.l.color.copy(counter ? COUNTER_LIGHT : TYPE_LIGHT[kind]);
     p.light = L;
   };
   const goHome = (p: Pod) => {
@@ -678,11 +776,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     glide(p, p.home, 3000);
     p.litTo = p.base;
     p.disTo = 0;
-    if (p.light) {
-      p.light.to = 0;
-      p.light.pod = null;
-      p.light = null;
-    }
+    // Its light fades as it leaves, still on it; it lets go once dark (the frame loop).
+    if (p.light) p.light.to = 0;
   };
   const allHome = () => pods.forEach(goHome);
   let shareTo = 0;
@@ -693,9 +788,16 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
 
   // One line on the floor (#755): with the sound on, held while it is spoken and a beat after; otherwise (or when it
   // can't be spoken) held for its reading time. Then the gap before the next move.
-  const line =async (by: string, text: string, tk: number, gap = TURN_GAP_MS) => {
+  const line = async (by: string, text: string, tk: number, gap = TURN_GAP_MS) => {
     if (!text) return;
+    // Its mouth moves for as long as the line is heard (#775); unspoken, for its reading time.
+    const a = by === "kernel" ? sk.a : (byId(by)?.a ?? null);
+    if (a && voice) {
+      startTalk(a, clock.t, clock.t + 30);
+      talker = a;
+    }
     const spoke = voice ? await voice.say(by, text) : false;
+    if (a && voice) a.talkUntil = spoke ? clock.t : clock.t + talkFor(text);
     if (tk !== token || dead) throw new Error("cancel");
     await sleep((spoke ? SPOKEN_BEAT_MS : readMs(text)) + gap, tk);
   };
@@ -1129,13 +1231,36 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       (p.pad.material as SpriteMaterial).opacity = 0.1 + p.lit * 0.45 + (reduce ? 0 : Math.sin(T * 2.2 + p.phase) * 0.04 * p.lit);
     }
     skG.position.y = 2.0 + (reduce ? 0 : Math.sin(T * 0.9) * 0.05);
+    stepSenate(dt);
     const skFace = focus ? Math.atan2(focus.g.position.x, focus.g.position.z) : Math.atan2(cam.position.x, cam.position.z) * 0.8;
     let sd = skFace - skG.rotation.y;
     sd = Math.atan2(Math.sin(sd), Math.cos(sd));
     skG.rotation.y += sd * k * 0.5;
     for (const L of lightPool) {
       L.on += (L.to - L.on) * k;
-      L.l.intensity = L.on * 60;
+      const p = L.pod;
+      if (p) {
+        // Above it and toward the camera, following it wherever it goes.
+        L.l.position.set(p.g.position.x * 0.85, p.g.position.y + 6.5, p.g.position.z + 2.2);
+        if (L.to === 0 && L.on < 0.02) {
+          if (p.light === L) p.light = null;
+          L.pod = null;
+        }
+      }
+      L.on = L.pod ? L.on : 0;
+      L.l.intensity = L.on * 90;
+      L.l.visible = L.on > 0.005;
+      L.beam.visible = L.l.visible;
+      if (L.beam.visible && L.pod) {
+        // The beam runs from the light to just under the pod, in the light's colour.
+        beamDir.set(L.pod.g.position.x, L.pod.g.position.y - 0.4, L.pod.g.position.z).sub(L.l.position);
+        const len = beamDir.length();
+        L.beam.position.copy(L.l.position);
+        L.beam.quaternion.setFromUnitVectors(beamUp, beamDir.divideScalar(len));
+        L.beam.scale.set(1, len, 1);
+        L.beam.material.color.copy(L.l.color);
+        L.beam.material.opacity = 0.075 * L.on;
+      }
     }
     crowdU.t.value = T;
     crowdU.vote.value += (voteTo - crowdU.vote.value) * k * 0.5;
@@ -1152,7 +1277,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     shaft.color.copy(shaftCol);
     beamMat.opacity = 0.04 + Math.sin(T * 0.7) * 0.008;
     wallMat.uniforms.t!.value = T;
-    shafts.forEach((m, j) => (m.material.opacity = 0.006 + 0.008 * (0.5 + 0.5 * Math.sin(T * 0.25 + j * 1.7))));
+    shadowTick(reduce ? 0 : T);
     look.lerp(lookTo, k * 0.35);
     dolly += (dollyTo - dolly) * k * 0.35;
     const ph = phone();
@@ -1187,6 +1312,38 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   await yieldNow();
   renderer.render(scene, cam);
   raf = requestAnimationFrame(frame);
+
+  // ---- the Senate's manners (#775) -------------------------------------------------------------------------------
+  function stepSenate(dt: number) {
+    // Whoever has the floor; when it changes, each other Skippy takes the new speaker its own way.
+    let cur = talker && clock.t < talker.talkUntil ? talker : null;
+    if (!cur) for (const a of actors) if (clock.t < a.talkUntil) cur = a;
+    const id = cur ? cur.id : null;
+    if (id !== talkerWas) {
+      talkerWas = id;
+      if (id) for (const a of actors) onSpeaker(a, id);
+    }
+    let sx = 0;
+    let sz = 0;
+    if (cur && cur !== sk.a)
+      for (const p of pods)
+        if (p.a === cur) {
+          sx = p.g.position.x;
+          sz = p.g.position.z;
+        }
+    sk.a.look = 0;
+    for (const p of pods) {
+      p.a.amp = 0.4 + 0.6 * Math.min(1, p.lit * 1.4);
+      if (!cur || cur === p.a) p.a.look = 0;
+      else {
+        let d = Math.atan2(sx - p.g.position.x, sz - p.g.position.z) - p.g.rotation.y;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        p.a.look = Math.max(-0.7, Math.min(0.7, d)) * 0.85;
+      }
+    }
+    rig.budget = PH0 ? 3 : 6;
+    for (const a of actors) stepActor(a, dt, clock.t, rig);
+  }
 
   const setSeats = (next: RotundaSeat[]) => {
     for (const s of next) {

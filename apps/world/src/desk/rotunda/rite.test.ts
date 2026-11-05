@@ -3,7 +3,7 @@ import { MOOD, MURMURS, MURMUR_MAX, murmurFor, murmurVoice, PESSIMIST, readMs, R
 
 const BENCH = ["foundry", "relay", "exchange", "boiler", "workshop", "studio", "haven"];
 
-describe("the Rotunda's order of business (#740)", () => {
+describe("the Senate's order of business (#740)", () => {
   it("numbers the docket in roman numerals", () => {
     expect([1, 2, 3, 4, 9, 12].map(roman)).toEqual(["I", "II", "III", "IV", "IX", "XII"]);
   });

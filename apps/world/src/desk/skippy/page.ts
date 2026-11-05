@@ -53,7 +53,7 @@ export function pageContext(input: PageInput): string {
   const rest: PageLines[] = [...input.rooms.filter((r) => !r.first), { room: "boiler", lines: boilerLines(input.links) }];
   const here = /^\/([^/?#]+)/.exec(input.path)?.[1];
   const order = [...first, ...rest.filter((r) => r.room === here).map((r) => r.lines), ...rest.filter((r) => r.room !== here).map((r) => r.lines)];
-  const out: string[] = [`Nikita is on the Desk's ${input.path === "/" ? "Today" : input.path.replace(/^\//, "").split("/")[0]} page.`];
+  const out: string[] = [`Nikita is on the Desk's ${input.path === "/" ? "Senate" : input.path.replace(/^\//, "").split("/")[0]} page.`];
   let size = out[0]!.length + 1;
   for (const l of order.flat()) {
     const line = l.replace(/\s+/g, " ").trim().slice(0, LINE_MAX);

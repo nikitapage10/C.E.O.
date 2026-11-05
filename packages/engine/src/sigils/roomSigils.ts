@@ -1,7 +1,7 @@
 /**
  * The rooms' sigils (#752): one small mark per Desk room, drawn as threads on the C.E.O. mark's 48 grid (the same
  * grid as the Lattice C in scripts/desk-icons.mjs). The room loader's motes gather along these strokes and the
- * hairlines draw in under them; with reduced motion the strokes simply show. Form follows the room: Today's domed Senate
+ * hairlines draw in under them; with reduced motion the strokes simply show. Form follows the room: the Senate's domed
  * hall, the Foundry's fire on its anvil, Relay's envelope, the Boiler Room's gauge on its pipe, the Archive's
  * open book, the Spire, the Exchange's rising line, the Green's pitch, the Workshop's cube, the Studio's frame, the
  * Annex's pop-up tent and the Haven's house.

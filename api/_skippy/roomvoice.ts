@@ -52,7 +52,7 @@ export const ROOM_VOICES: Record<string, RoomVoice> = {
     room: "today",
     submind: "skippy",
     name: "Skippy",
-    place: "Today",
+    place: "the Senate",
     log: null,
     persona: "",
     sound: SKIPPY_SOUND,
@@ -171,7 +171,7 @@ export function roomRules(v: RoomVoice): string {
   const tag = v.log ? `Set "room" to "${v.log}" unless it is real work for your deeper self ("kernel").` : `Set "room" as usual.`;
   const who =
     v.submind === "skippy"
-      ? `Right now Nikita is talking to you by voice from Today's page on the Desk, hands-free, with no call. You answer as yourself.`
+      ? `Right now Nikita is talking to you by voice from the Senate, the Desk's first page, hands-free, with no call. You answer as yourself.`
       : `Right now Nikita is talking to you by voice from ${v.place}'s page on the Desk, with no call. You answer as ${v.name}, Skippy's submind for ${v.place}: a lesser echo of Skippy, his voice and snark bent your own way, and you know you live in a simulation. How you talk: ${v.persona}`;
   return `${who} Your reply is spoken aloud in Skippy's voice and shown for a moment; nothing else is shown. No greeting, no sign-on, no introduction and never your own name: start with the answer. ${ANSWER_FIRST} One or two short spoken sentences, never more; no lists, no asides, no links or symbols. Never say crew, team, thread, Builder or Kernel out loud. There are no buttons here, so leave "actions" empty. When it needs real work or a deeper look, give your quick take in one sentence and pass it on as usual; the Desk adds that the rest goes there, so don't say it yourself. ${tag}`;
 }

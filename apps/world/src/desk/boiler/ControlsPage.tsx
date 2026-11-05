@@ -747,7 +747,7 @@ export function ControlsPage({ now }: { now: number }) {
     toggle(OPEN_FOR[id] ?? id, true);
     requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" })));
   };
-  // A down link named on Today or the Rotunda (#link-hub) lands on its "Needs you" card, scrolled to and lit; if
+  // A down link named on Today or in the Senate (#link-hub) lands on its "Needs you" card, scrolled to and lit; if
   // the link isn't down by the time the links have read, it opens the connections instead.
   const [focus, setFocus] = useState<string | null>(null);
   const needIds = needs.map((x) => x.id).join(" ");

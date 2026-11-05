@@ -167,7 +167,9 @@ describe("dressing the rooms (#747, #764)", () => {
   });
 
   describe("with no windows, balcony doors or TV wall saved (#764)", () => {
-    const bare: HavenPlan = { ...base, windows: [], balconies: [], tv: [] };
+    const bare: HavenPlan = { ...base, windows: [], balconies: [], tv: [], openings: undefined };
+    // Imported openings that were never set in the editor are not trusted: the defaults replace them.
+    const imported = furnish({ ...base, openings: undefined });
     const got = furnish(bare);
     const on = (segs: number[][], x0: number, y0: number, x1: number, y1: number) => segs.filter((s) => s[0]! >= x0 && s[2]! <= x1 && s[1]! >= y0 && s[3]! <= y1);
 
@@ -241,13 +243,19 @@ describe("dressing the rooms (#747, #764)", () => {
       }
     });
 
-    it("lets what the plan saves win, and leaves a plan with openings as it is", () => {
-      // The made-up plan saves glass for every room but the hall: only the hall gains any.
+    it("draws only the defaults when the openings were never set, whatever an import carried", () => {
+      const got2 = withOpenings({ ...base, openings: undefined }).plan;
+      expect(got2.windows).toEqual(withOpenings(bare).plan.windows);
+      expect(imported.balconies).toEqual(got.balconies);
+    });
+
+    it("lets openings set in the editor win: exactly as saved, every other wall solid", () => {
       const kept = withOpenings(base).plan;
-      expect(kept.windows.slice(0, base.windows.length)).toEqual(base.windows);
-      expect(kept.balconies.slice(0, base.balconies.length)).toEqual(base.balconies);
+      expect(kept.windows).toEqual(base.windows);
+      expect(kept.balconies).toEqual(base.balconies);
       expect(kept.tv).toEqual(base.tv);
-      for (const s of [...kept.windows.slice(base.windows.length), ...kept.balconies.slice(base.balconies.length)]) expect(s[0] === 40 && s[2] === 40).toBe(true);
+      const none = withOpenings({ ...base, windows: [], balconies: [], tv: [] }).plan;
+      expect([none.windows, none.balconies, none.tv]).toEqual([[], [], []]);
     });
   });
 

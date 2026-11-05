@@ -25,13 +25,13 @@
 [data-room="haven"] .hv-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  min-height: max(620px, min(calc(100svh - 62px), 980px));
+  min-height: calc(100svh - var(--hv-navh, 62px));
   padding-top: 18px;
   padding-bottom: 18px;
 }
 [data-room="haven"] .hv-houseWrap {
   position: relative;
-  min-height: 560px;
+  min-height: max(560px, calc(100svh - var(--hv-navh, 62px) - 36px));
 }
 [data-room="haven"] .hv-house {
   position: absolute;
@@ -3104,4 +3104,31 @@
 }
 [data-room="haven"] .hv-cd-knob[data-dragging] circle:first-child {
   r: 16px;
+}
+
+/* The wall editor as a drawer over the scene (#799). */
+[data-room="haven"] .hv-wallsDrawer {
+  position: fixed;
+  top: var(--hv-navh, 62px);
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  width: min(460px, 100vw);
+  overflow-y: auto;
+  padding: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(9, 10, 14, 0.94);
+  backdrop-filter: blur(10px);
+}
+[data-room="haven"] .hv-wallsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+[data-room="haven"] .hv-editWalls {
+  border-color: transparent;
+  background: none;
+  color: var(--hv-mute);
+  text-decoration: underline;
 }

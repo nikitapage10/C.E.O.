@@ -29,6 +29,7 @@ export const FAKE_PLAN: HavenPlan = {
   balconies: [[960, 330, 960, 420], [960, 670, 960, 760]],
   // The made-up living room's TV wall: the solid wall facing its windows.
   tv: [[600, 40, 600, 300]],
+  openings: true,
   items: [
     { k: "counter", x: 224, y: 44, w: 300, h: 30, round: false }, { k: "upper", x: 224, y: 42, w: 300, h: 12, round: false },
     { k: "range", x: 360, y: 46, w: 60, h: 26, round: false }, { k: "sink", x: 260, y: 48, w: 50, h: 22, round: false },

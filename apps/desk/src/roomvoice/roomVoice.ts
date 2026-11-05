@@ -421,7 +421,7 @@ export interface MicStore {
   hfHeard: string;
   /** Who hands-free talks to: the lead of the page Nikita is on. */
   target: RoomMic | null;
-  /** A page with a listener of its own: it has Space, and while it listens hands-free waits. None since Relay moved onto its `voice` hook (#642). */
+  /** A page with a listener of its own: while it listens hands-free waits. The Senate's floor while Nikita has it (#905); Space itself is holdToTalk.ts's. */
   own: { space: boolean; listening: boolean } | null;
   set: (patch: Partial<Omit<MicStore, "set">>) => void;
 }

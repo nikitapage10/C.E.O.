@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CONNECTIONS } from "./connections.ts";
-import type { JobRow } from "../../../apps/desk/src/jobs.ts";
+import type { JobRow } from "@ceo/desk/jobs.ts";
 import { pipeRows, systemsModel } from "./systemsGraph.ts";
 import { readPipes } from "./pipes.ts";
 import { layout, roomCounts, roomFaults, roomSections, roomState, ROW, RUN, runsOf, STEP } from "./rooms.ts";

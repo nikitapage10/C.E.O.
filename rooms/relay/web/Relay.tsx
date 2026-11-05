@@ -1,4 +1,4 @@
-import type { DeskData } from "../../../apps/desk/src/deskData.ts";
+import type { DeskData } from "@ceo/desk/deskData.ts";
 import { RelayThread } from "./RelayThread.tsx";
 import { useEmail } from "../data/email.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { useHome, type ActExtra, type DeviceReading } from "../../../apps/desk/src/homeDevices.ts";
+import { useHome, type ActExtra, type DeviceReading } from "@ceo/desk/homeDevices.ts";
 
 /**
  * The Climate's held change (#718): every tap, turn or arrow on the dial or in the Climate control only moves the

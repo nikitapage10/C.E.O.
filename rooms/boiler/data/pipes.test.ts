@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { JobRow } from "../../../apps/desk/src/jobs.ts";
+import type { JobRow } from "@ceo/desk/jobs.ts";
 import type { GNode } from "./systemsGraph.ts";
 import { gaugeOf, jobState, MAP_LINES, pipeHeadline, readPipes, STATIONS, type PipeInput } from "./pipes.ts";
 

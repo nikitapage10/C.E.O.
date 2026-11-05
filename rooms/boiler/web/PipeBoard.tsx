@@ -5,7 +5,7 @@ import { navigateTo } from "../../../apps/world/src/route.ts";
 import { refreshWorldClock } from "../../../apps/world/src/worldClock.ts";
 import { useEmail } from "../../relay/data/email.ts";
 import { groceryAction, isKrogerSignIn } from "../../haven/web/groceries.ts";
-import { googleAction } from "../../../apps/desk/src/homeDevices.ts";
+import { googleAction } from "@ceo/desk/homeDevices.ts";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { pipeHeadline, sinceWords, type Fix, type StationState } from "../data/pipes.ts";
 import { layout, roomCounts, roomFaults, roomState, STATE_SAY, type RoomPipe, type RoomSection } from "../data/rooms.ts";

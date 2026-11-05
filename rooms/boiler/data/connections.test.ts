@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_FOUNDRY } from "../../../apps/world/src/foundry.ts";
 import { useSystems } from "../../../apps/world/src/systems.ts";
 import { CONNECTIONS, connectionsAt } from "./connections.ts";
-import { DESK_ROOMS } from "../../../apps/desk/src/deskData.ts";
-import { foundryGraph } from "../../../apps/desk/src/foundryGraph.ts";
+import { DESK_ROOMS } from "@ceo/desk/deskData.ts";
+import { foundryGraph } from "@ceo/desk/foundryGraph.ts";
 
 /** Anything that looks like a credential: provider key prefixes, bearer headers, long runs of hex or base64. */
 const KEY_LIKE = [/\bsk-[\w-]{8,}/i, /\bgh[pousr]_\w{8,}/, /github_pat_/i, /\bxox[abp]-/, /\bAKIA[0-9A-Z]{12,}/, /bearer\s+\S{8,}/i, /\b[0-9a-f]{32,}\b/i, /[A-Za-z0-9+/_-]{40,}/, /-----BEGIN/];

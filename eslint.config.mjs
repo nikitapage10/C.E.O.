@@ -48,4 +48,6 @@ export default tseslint.config(
   { files: ["apps/desk/src/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-boundary": "error" } },
   // The Desk's package (@ceo/desk, apps/desk): another app only for the files in WORLD_SHARED (scripts/eslint-rooms.mjs).
   { files: ["apps/desk/**/*.{ts,tsx}"], plugins: { ceo: rooms }, rules: { "ceo/desk-package": "error" } },
+  // Everything else reaches the Desk through @ceo/desk, never by a relative path into apps/desk.
+  { files: ["**/*.{ts,tsx,mts,mjs,js}"], ignores: ["apps/desk/**"], plugins: { ceo: rooms }, rules: { "ceo/desk-entry": "error" } },
 );

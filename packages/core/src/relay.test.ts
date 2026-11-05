@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   RELAY_COUNT_KEYS,
   RELAY_MAX_BYTES,
+  RELAY_OPTIONAL_KEYS,
   RELAY_STATUS_KEYS,
   RelayStatusSchema,
   emptyRelayStatus,
@@ -32,6 +33,8 @@ const good = (): RelayStatus => ({
   streakDays: 6,
   week: Array.from({ length: 7 }, (_, i) => ({ day: Date.UTC(2026, 9, 9) + i * DAY, sent: i + 2, medianMinutes: i === 3 ? null : 40 + i * 10 })),
   nextNudgeAt: NOW + 30 * 60_000,
+  unread: 2,
+  older: 7,
 });
 
 /** Things that must never cross: message text, names, phone numbers, emails, addresses, drafts, keys. */
@@ -116,7 +119,8 @@ describe("Relay's status for the site: counts and states only", () => {
   });
 
   it("lists exactly the keys the spec allows", () => {
-    expect(RELAY_STATUS_KEYS).toEqual(["v", "at", "hub", "messages", "models", "owed", "sooner", "overdue", "later", "settled", "draftsReady", "sentToday", "streakDays", "week", "nextNudgeAt"]);
+    expect(RELAY_STATUS_KEYS).toEqual(["v", "at", "hub", "messages", "models", "owed", "sooner", "overdue", "later", "settled", "draftsReady", "sentToday", "streakDays", "week", "nextNudgeAt", "unread", "older"]);
+    expect(RELAY_OPTIONAL_KEYS).toEqual(["unread", "older"]);
   });
 
   it("refuses a message, a name, a number or an address in any field", () => {
@@ -159,8 +163,9 @@ describe("Relay's status for the site: counts and states only", () => {
   });
 
   it("can't smuggle a phone number, a date of birth or text as a count or a time", () => {
-    for (const k of RELAY_COUNT_KEYS) {
+    for (const k of [...RELAY_COUNT_KEYS, ...RELAY_OPTIONAL_KEYS]) {
       for (const v of [5558675309, 15558675309, 19900412, 10_000, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, "5", "5 from Mom", true, null, undefined]) {
+        if (v === undefined && (RELAY_OPTIONAL_KEYS as readonly string[]).includes(k)) continue;
         refused({ ...good(), [k]: v });
       }
     }
@@ -174,7 +179,7 @@ describe("Relay's status for the site: counts and states only", () => {
 
   it("refuses more than seven days, and a missing field", () => {
     refused({ ...good(), week: [...good().week, good().week[0]] });
-    for (const k of RELAY_STATUS_KEYS) {
+    for (const k of RELAY_STATUS_KEYS.filter((x) => !(RELAY_OPTIONAL_KEYS as readonly string[]).includes(x))) {
       const s: Record<string, unknown> = good();
       delete s[k];
       refused(s);
@@ -186,6 +191,17 @@ describe("Relay's status for the site: counts and states only", () => {
     refused({ ...good(), sooner: 6 });
     refused({ ...good(), draftsReady: 6 });
     refused({ ...emptyRelayStatus(NOW, "wiped"), settled: 3 });
+    refused({ ...good(), unread: 6 });
+    refused({ ...emptyRelayStatus(NOW, "wiped"), older: 2 });
+  });
+
+  it("takes a status from an older hub without the unread and older counts (#758)", () => {
+    const s: Record<string, unknown> = good();
+    delete s.unread;
+    delete s.older;
+    const read = readRelayStatus(s);
+    expect(read.ok).toBe(true);
+    expect(read.ok && "unread" in read.status).toBe(false);
   });
 
   it("never repeats what it refused in its problems", () => {

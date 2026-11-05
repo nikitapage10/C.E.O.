@@ -20,7 +20,7 @@ function onScreen(over: Partial<Compose> = {}, unlocked = true) {
     if (init?.method === "POST") posts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
     return new Response(JSON.stringify({ ok: true, rid: "f".repeat(24), until: NOW + 600_000 }), { status: 200, headers: { "content-type": "application/json" } });
   });
-  useTexts.setState({ view: { ready: true, paired: true, pairedAt: NOW, lastSeen: NOW, unlockedUntil: unlocked ? Date.now() + 3_600_000 : null, items: [], cards: [card()], textsAt: NOW, requests: [], spend: { usd: 0, budget: 10 } }, refresh: async () => undefined });
+  useTexts.setState({ view: { ready: true, paired: true, pairedAt: NOW, lastSeen: NOW, unlockedUntil: unlocked ? Date.now() + 3_600_000 : null, items: [], cards: [card()], textsAt: NOW, older: { count: 0, items: [] }, scannedAt: null, voice: null, requests: [], spend: { usd: 0, budget: 10 } }, refresh: async () => undefined });
   useCompose.setState({ items: { k1: base(over) } });
   useCompose.getState().sync();
   return { posts, c: () => useCompose.getState().items.k1! };

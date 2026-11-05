@@ -156,7 +156,7 @@ function isVoiceTool(request: Request, pathname: string, env: Env, now: number):
 /** Relay's Mac hub (#535): its own calls on /api/relay-hub, with a hub token this Desk key signed. */
 function isRelayHub(request: Request, url: URL, env: Env): boolean {
   if (url.pathname !== "/api/relay-hub") return false;
-  const ok = request.method === "POST" ? ["", "?view=texts", "?view=results", "?view=sort", "?view=draft", "?view=unpair"].includes(url.search) : request.method === "GET" && ["?view=skip", "?view=requests"].includes(url.search);
+  const ok = request.method === "POST" ? ["", "?view=texts", "?view=results", "?view=sort", "?view=draft", "?view=unpair", "?view=learn"].includes(url.search) : request.method === "GET" && ["?view=skip", "?view=requests"].includes(url.search);
   if (!ok) return false;
   const auth = request.headers.get("authorization") ?? "";
   return auth.startsWith("Bearer ") && hubTokenPair(auth.slice(7).trim(), env.FOUNDRY_DESK_KEY ?? "") !== null;

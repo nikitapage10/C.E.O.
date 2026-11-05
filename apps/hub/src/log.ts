@@ -45,6 +45,10 @@ export const LOG_KINDS = [
   "photos synced",
   "photos failed",
   "thread closed",
+  "backlog scanned",
+  "backlog failed",
+  "voice learned",
+  "voice failed",
   "error",
 ] as const;
 export type LogKind = (typeof LOG_KINDS)[number];

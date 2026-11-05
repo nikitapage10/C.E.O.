@@ -19,6 +19,7 @@ import { BlobPreconditionError, type BlobBackend } from "../_blob.js";
 import { costFor, type Usage } from "../_email/budget.js";
 import { monthOf } from "../_world/budget.js";
 import { DRAFT_MAX_TOKENS, DRAFT_MODEL, SORT_MAX_TOKENS, SORT_MODEL, type RelayModel } from "./models.js";
+import { LEARN_MAX_INPUT_TOKENS, LEARN_MAX_TOKENS } from "./voice.js";
 
 export const SPEND_PATH = "relay/spend.json";
 export const DEFAULT_RELAY_BUDGET_USD = 10;
@@ -37,6 +38,9 @@ export const CEILING: Record<RelayModel, number> = {
   [SORT_MODEL]: costFor(SORT_MODEL, { input_tokens: MAX_INPUT_TOKENS, output_tokens: SORT_MAX_TOKENS }),
   [DRAFT_MODEL]: costFor(DRAFT_MODEL, { input_tokens: MAX_INPUT_TOKENS, output_tokens: DRAFT_MAX_TOKENS }),
 };
+
+/** "Learn from my texts" at its most (#758): one Sonnet call over the capped sample, about $0.065. */
+export const LEARN_CEILING = costFor(DRAFT_MODEL, { input_tokens: LEARN_MAX_INPUT_TOKENS, output_tokens: LEARN_MAX_TOKENS });
 
 export interface Month {
   usd: number;
@@ -61,8 +65,8 @@ export function readLedger(v: unknown): Ledger | null {
 export const monthSpend = (ledger: Ledger, now: number): Month => ({ ...EMPTY, ...ledger[monthOf(now)] });
 
 /** Whether one more call on `model` fits under the cap this month. */
-export function canSpend(ledger: Ledger, model: RelayModel, budget: number, now: number): boolean {
-  return monthSpend(ledger, now).usd + CEILING[model] <= budget;
+export function canSpend(ledger: Ledger, model: RelayModel, budget: number, now: number, ceiling = CEILING[model]): boolean {
+  return monthSpend(ledger, now).usd + ceiling <= budget;
 }
 
 /** The ledger with one call's cost added (and months older than a year dropped). */
@@ -137,24 +141,24 @@ const keepYear = (ledger: Ledger, now: number): Ledger => {
  * written over the version read; false (no call) when it doesn't fit, the ledger can't be read, or the write keeps
  * losing races.
  */
-export async function reserveSpend(store: SpendStore, model: RelayModel, budget: number, now: number): Promise<boolean> {
+export async function reserveSpend(store: SpendStore, model: RelayModel, budget: number, now: number, ceiling = CEILING[model]): Promise<boolean> {
   for (let i = 0; i < 6; i++) {
     const { ledger, version } = await store.load();
-    if (!ledger || !canSpend(ledger, model, budget, now)) return false;
+    if (!ledger || !canSpend(ledger, model, budget, now, ceiling)) return false;
     const m = monthSpend(ledger, now);
-    const next = { ...keepYear(ledger, now), [monthOf(now)]: { ...m, usd: m.usd + CEILING[model], calls: m.calls + 1 } };
+    const next = { ...keepYear(ledger, now), [monthOf(now)]: { ...m, usd: m.usd + ceiling, calls: m.calls + 1 } };
     if (await store.save(next, version)) return true;
   }
   return false;
 }
 
-/** Turns a reservation into the call's real cost (usage), or releases it (null: the call failed and cost nothing). */
-export async function settleSpend(store: SpendStore, model: RelayModel, usage: Usage | null, now: number): Promise<void> {
+/** Turns a reservation (of `ceiling`, the same one reserved) into the call's real cost (usage), or releases it (null: the call failed and cost nothing). */
+export async function settleSpend(store: SpendStore, model: RelayModel, usage: Usage | null, now: number, ceiling = CEILING[model]): Promise<void> {
   for (let i = 0; i < 6; i++) {
     const { ledger, version } = await store.load();
     if (!ledger) return;
     const m = monthSpend(ledger, now);
-    const delta = (usage ? costFor(model, usage) : 0) - CEILING[model];
+    const delta = (usage ? costFor(model, usage) : 0) - ceiling;
     const month = usage
       ? { usd: Math.max(0, m.usd + delta), calls: m.calls, tokensIn: m.tokensIn + usage.input_tokens, tokensOut: m.tokensOut + usage.output_tokens }
       : { ...m, usd: Math.max(0, m.usd + delta), calls: Math.max(0, m.calls - 1) };

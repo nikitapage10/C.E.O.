@@ -157,7 +157,10 @@ The Workshop and the Studio were the first in this shape (step 4): `web/Workshop
 `web/Studio.tsx` and `studio.css`, each sheet holding only its own room's rules (moved out of `desk/rooms/rooms.css`
 unchanged). The Spire followed (step 5): `web/Spire.tsx` and `spire.css`, its invoices section (`web/InvoicesSection.tsx`,
 `invoices.css`) and its invoices store in `data/invoices.ts` (the Desk's Systems, pulses and Controls, and the
-Lattice's Spire, read it through the old `desk/spire/invoices.ts`, which re-exports it until step 14). Every other
+Lattice's Spire, read it through the old `desk/spire/invoices.ts`, which re-exports it until step 14). The Green
+followed (step 6): `web/Green.tsx`, `web/stadium.ts` and `web/green.css` (its rules from `rooms.css` at the top, unchanged),
+the league store and the analysis in `data/`, and its lines for Skippy in `skippy.ts` (the old `desk/green/league.ts`
+and `desk/green/skippy.ts` re-export them). Every other
 room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest

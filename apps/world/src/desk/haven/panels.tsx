@@ -10,6 +10,7 @@ import { DryStage, FountainStage, LitterStage, Plate, VacuumStage, WetStage } fr
 import { flowing, frontBowl } from "./plates.ts";
 import { chipsBeside, useFlash, VacuumModes, type Suction, type Water } from "./DevicePops.tsx";
 import { RoomMap, vacuumName } from "./RoomMap.tsx";
+import { HallLive } from "./LiveRun.tsx";
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
@@ -184,6 +185,7 @@ export function HallTab({ devices, connected, room, plan }: { devices: DeviceRea
         <Num v={v.alerts.length} k={v.alerts.length ? v.alerts.join(", ") : "alerts"} tone={v.alerts.length ? "warn" : "ok"} />
         <Num v={rooms.length} k="rooms on its map" />
       </div>
+      {cleaning && <HallLive device={v.id} battery={v.battery} />}
       <div className="hv-grid is-hall">
         <Card title="Where to send it" tag={pick.length ? `${pick.length} picked` : "tap rooms"} wide>
           {rooms.length ? (

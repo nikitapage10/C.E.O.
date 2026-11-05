@@ -27,6 +27,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes }
 import type { Duplex } from "node:stream";
 import { callJson, VendorError, withQuery, type Fetch } from "./http.js";
 import { MqttError, requestOnce } from "./mqtt.js";
+import { liveMapOf, mapEndpoint, mapPayload, mapRequestPayload, parseMap, type LiveMap } from "./roborockMap.js";
 import { matchRooms, namedRooms, segmentPairs, type MapRoom } from "./rooms.js";
 import { obj, PLACES, str, type DeviceClient, type DeviceReading, type Found, type RunArgs, type RunResult, type Suction, type Water } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
@@ -429,6 +430,51 @@ export class RoborockClient implements DeviceClient<RoborockRef> {
     } catch (e) {
       if (e instanceof VendorError) throw e;
       throw new VendorError(e instanceof MqttError && e.code === "unauthorized" ? 401 : 0);
+    }
+  }
+
+  /**
+   * The run under way, for the Hall's live map (#814): "idle" when the vacuum isn't out, else its map decoded. Private
+   * (the home's floor plan): read on request, never stored or logged. Null when the vacuum or its map can't be read.
+   */
+  async liveMap(device: string): Promise<{ state: "idle" } | { map: LiveMap } | null> {
+    const { idKey } = this.deps;
+    const login = await this.login();
+    if (!login?.home || !idKey) return null;
+    const d = login.home.devices.find((x) => deviceId(idKey, "roborock", x.duid) === device);
+    if (!d) return null;
+    let status: unknown;
+    try {
+      status = await this.rpc(login, d.duid, d.localKey, "get_status");
+    } catch {
+      return null;
+    }
+    const code = Number(obj(Array.isArray(status) ? status[0] : status).state);
+    if (!["cleaning", "returning", "paused", "starting"].includes(STATE[code] ?? "")) return { state: "idle" };
+    const p = mqttParams(login.rriot);
+    const id = (nextId = nextId >= 32_000 ? 10_000 : nextId + 1);
+    const ts = Math.floor(this.deps.now() / 1000);
+    const nonce = randomBytes(16);
+    const endpoint = mapEndpoint(login.rriot.k);
+    const msg = encodeMessage({ seq: 100_000 + (id % 899_999), random: 10_000 + (id % 89_999), timestamp: ts, protocol: 101, payload: mapRequestPayload(id, endpoint, nonce, ts) }, d.localKey);
+    try {
+      const blob = (await requestOnce(
+        { host: p.host, port: p.port, username: p.username, password: p.password, clientId: randomBytes(8).toString("hex"), open: this.deps.open, timeoutMs: 12_000 },
+        `rr/m/i/${login.rriot.u}/${p.username}/${d.duid}`,
+        `rr/m/o/${login.rriot.u}/${p.username}/${d.duid}`,
+        msg,
+        (buf) => {
+          const m = decodeMessage(buf, d.localKey);
+          return m && m.protocol === 301 ? mapPayload(m.payload, id, endpoint, nonce) : undefined;
+        },
+      )) as Buffer;
+      const raw = parseMap(blob);
+      const names: Record<number, string> = {};
+      for (const r of login.home.maps[d.duid] ?? []) names[r.segment] = r.name;
+      const map = raw ? liveMapOf(raw, names) : null;
+      return map ? { map } : null;
+    } catch {
+      return null;
     }
   }
 

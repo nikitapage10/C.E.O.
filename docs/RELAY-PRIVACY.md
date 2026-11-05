@@ -221,7 +221,7 @@ Also on this boundary:
 Besides a contact's name, the only thing of Nikita's contacts that leaves the Mac is **a small picture**, so the Desk
 can show a face beside a text or a mail. Nothing says whose it is:
 
-- **On the Mac.** Once a day and at start the hub reads each contact's picture from BlueBubbles' contact data, shrinks
+- **On the Mac.** Every hour and at start (#907) the hub reads each contact's picture from BlueBubbles' contact data, shrinks
   it with macOS's `sips` to 96 px (in a private temp folder, deleted straight after) and keeps only the image chunks of
   the PNG (`cleanPng`: no EXIF, location, text or colour profile). It is named by an **opaque id**: an HMAC of the
   contact's normalised handle under a key derived from the hub's own local key (Keychain), which never leaves the Mac.
@@ -515,7 +515,7 @@ sealed list holds. The public site still gets counts only.
 | The site's sealed list | Replaced on each push (on every change, and at least every 5 minutes); owed items 30 days, settled ones 7 | The next push, `readTextsView`, Unpair, the wipe |
 | Requests on the site | A day after their 10 minutes end | Dropped on each read and write |
 | New-text cards (#536), on the Mac and the site | A day; a sent card loses its text at once | The hourly sweep; `readTextsView`; Unpair, the wipe |
-| Contact photos (#642), on the site | While the Mac still has them; re-sent daily | `?view=photos` drops the rest; Unpair, a new pairing, the wipe |
+| Contact photos (#642), on the site | While the Mac still has them; checked hourly, a changed one re-sent (#907) | `?view=photos` drops the rest; Unpair, a new pairing, the wipe |
 | Sender logos (#642), on the site | 30 days per domain | The tick drops older ones |
 | Snippets on the site | One call | Never written down |
 | Anthropic's copy | Anthropic's API retention (above) | Anthropic's policy |

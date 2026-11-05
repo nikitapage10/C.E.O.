@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { BACKABLE, type AsideWhy } from "../../../api/_relay/texts.ts";
-import { useTexts } from "../data/texts.ts";
+import { asideOf, requestsOf, useTexts } from "../data/texts.ts";
 import { agoShort } from "../data/thread.ts";
 
 /** Why Relay set a thread aside (#870), in the Desk's words: a kind from a closed list, never the text. */
@@ -21,10 +21,10 @@ export const ASIDE_WORDS: Record<AsideWhy, string> = {
  * reach a model, so they stay). Folded by default; names only, behind the passkey like the rest of the list.
  */
 export function SetAside({ now }: { now: number }) {
-  const aside = useTexts((s) => s.view?.aside ?? []);
+  const aside = useTexts(asideOf);
   const ask = useTexts((s) => s.ask);
   const busy = useTexts((s) => s.busy);
-  const pending = useTexts((s) => s.view?.requests ?? []);
+  const pending = useTexts(requestsOf);
   const [open, setOpen] = useState(false);
   if (!aside.length) return null;
   return (

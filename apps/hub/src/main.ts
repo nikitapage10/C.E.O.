@@ -121,7 +121,7 @@ async function serve(): Promise<void> {
   };
   setInterval(() => void round(), 15_000);
   setInterval(() => void engine.checkMessages().then(() => engine.checkTapbacks()).then(() => engine.recheck()).then(() => engine.report(true)), 5 * 60_000);
-  setInterval(() => void engine.syncPhotos().then(() => engine.report(true)), 24 * 60 * 60_000);
+  setInterval(() => void engine.syncPhotos().then(() => engine.report(true)), 60 * 60_000);
   setInterval(() => void engine.backlog().then(() => engine.report(true)), 24 * 60 * 60_000);
   setInterval(() => {
     engine.sweep();

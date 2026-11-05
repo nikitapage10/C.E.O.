@@ -14,7 +14,7 @@ import "@fontsource/ibm-plex-sans/latin-500.css";
 import "@fontsource/ibm-plex-sans/latin-600.css";
 import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Desk } from "@ceo/desk";
+import { Desk, RoomGuard } from "@ceo/desk";
 import { askedForLattice, keepLattice, startLetGo } from "./latticeWarm.ts";
 import { lastMove, loadLattice, useRoute } from "./route.ts";
 import { installSiteGate } from "./siteGate.ts";
@@ -60,7 +60,12 @@ function Root() {
           </Suspense>
         </div>
       )}
-      {!onLattice && <Desk route={route} />}
+      {/* A last net for the Desk's shell (#909): each page has its own guard, this catches the bar and the docks. */}
+      {!onLattice && (
+        <RoomGuard name="The Desk">
+          <Desk route={route} />
+        </RoomGuard>
+      )}
     </>
   );
 }

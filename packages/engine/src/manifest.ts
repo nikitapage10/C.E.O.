@@ -80,6 +80,13 @@ export type RoomLore = z.infer<typeof RoomLoreSchema>;
 
 /** The lazy page loader, resolving to `{ default: Page }`: the Desk renders and prefetches its pages from these (step 3). Today alone has none: it is in the first load. */
 const pageLoader = z.custom<() => Promise<unknown>>((v) => typeof v === "function", "a function that imports the page");
+/** One section of a room's sub-menu (`RoomSection`). */
+const SectionSchema = z.strictObject({
+  id: z.string().regex(/^[a-z][a-z-]*$/),
+  label: z.string().min(2).max(24),
+  path: z.string().regex(/^\/[a-z-]+(\/[a-z-]+)?$/, "a path such as /boiler/controls"),
+  hint: z.string().min(3).max(80),
+});
 /** A lazy loader of the room's voice intent module (`@ceo/engine/voice`, RoomVoiceModule). */
 const voiceLoader = z.custom<() => Promise<RoomVoiceModule>>((v) => typeof v === "function", "a function that imports the room's voice intent module");
 
@@ -108,6 +115,11 @@ export const RoomManifestSchema = z.strictObject({
   /** Its lazy-loaded JS budget, in raw KB, beside the Desk's 1 MB first-load budget. */
   budgetKb: z.number().int().positive().max(1024),
   page: pageLoader.optional(),
+  /**
+   * Its sub-menu (`@ceo/engine/web/sections.ts`): the sections its page splits into, each at its own address under the
+   * room's (the first at the room's own path). Optional: most rooms are one page. The Desk names the tab from them.
+   */
+  sections: z.array(SectionSchema).min(2).max(8).optional(),
   /**
    * Its voice intent handler (#638, `@ceo/engine/voice`): a lazy loader of a module exporting `intent`, which sees each
    * thing Nikita says on the room's page first and returns `{ say, actions? }`, or null to let the room's submind

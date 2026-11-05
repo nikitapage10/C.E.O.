@@ -13,9 +13,9 @@ import { startDeskTiming } from "./deskBeacon.ts";
 import { useDeskData } from "./deskData.ts";
 import { useNow } from "./motion.tsx";
 import { startDeskWorker } from "./pings.ts";
-import { PAGE_LOADERS, pageName, type DeskPage, type PageProps } from "./roomPages.ts";
+import { PAGE_LOADERS, pageName, pageSections, type DeskPage, type PageProps } from "./roomPages.ts";
+import { sectionTitle } from "@ceo/engine/web/sections.ts";
 import { startDeskAuth } from "./signin.ts";
-import { systemsTitle } from "./SystemsNav.tsx";
 import { useSkippy } from "./skippy/index.ts";
 import { loadTodayMore, Today } from "./Today.tsx";
 import { HologramCall } from "./hologram/HologramCall.tsx";
@@ -73,8 +73,12 @@ const accentOf = (route: DeskPage) => (route === "today" ? "--ice" : `--room-${r
  * on the MacBook is connected.
  */
 
-/** The tab's title: the page's name (its manifest's), the Senate's in full, the Boiler Room's by its subpage. */
-const titleOf = (route: DeskPage, pathname: string) => (route === "boiler" ? systemsTitle(pathname) : route === "today" ? "The Senate · C.E.O." : `${pageName(route)} · C.E.O.`);
+/** The tab's title: the page's name (its manifest's), the Senate's in full, and a room with a sub-menu's by its section. */
+const titleOf = (route: DeskPage, pathname: string) => {
+  if (route === "today") return "The Senate · C.E.O.";
+  const sections = pageSections(route);
+  return sections.length ? sectionTitle(pageName(route), sections, pathname) : `${pageName(route)} · C.E.O.`;
+};
 
 export function Desk({ route }: { route: DeskPage }) {
   const awaySince = useAwaySince();

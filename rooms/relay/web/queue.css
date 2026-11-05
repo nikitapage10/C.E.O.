@@ -1,15 +1,15 @@
 /*
- * Relay's queue on the wave (#803): left of the line, what comes next rides toward it; the one in focus sits on the
- * line. Lives inside .cx-stage and borrows the Codex's tokens (thread.css). Only transform and opacity move.
+ * Relay's queue on the line (#803, #869): every circle on the line, its name a small label to its left, magnified
+ * under a frosted glass lens where the pointer (or the scroll) is. Lives inside .cx-stage and borrows the Codex's
+ * tokens (thread.css). Only transform and opacity move; the lens blurs the line's glow and sigils beneath it.
  */
 .rq {
   position: absolute;
   left: 0;
-  top: 70px;
+  top: 96px;
   bottom: 118px;
   width: var(--spine);
   z-index: 32;
-  pointer-events: none;
 }
 .rq-list {
   list-style: none;
@@ -23,37 +23,32 @@
   display: flex;
   flex-direction: row-reverse;
   align-items: center;
-  gap: 11px;
-  transform-origin: calc(100% - 15px) 50%;
+  gap: 9px;
+  transform-origin: calc(100% - 10px) 50%;
   will-change: transform, opacity;
   opacity: 0;
   text-align: right;
   white-space: nowrap;
   color: var(--cx-soft);
-  pointer-events: auto;
-}
-.rq-item[data-past] .rq-row,
-.rq-item[data-cur] .rq-row {
-  pointer-events: none;
 }
 .rq-face {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   overflow: hidden;
-  font: 400 17px/1 var(--cx-serif);
+  font: 400 12px/1 var(--cx-serif);
   color: var(--cx-hi);
   background: #0c0f1a;
   box-shadow:
-    inset 0 0 0 1px rgba(134, 182, 255, 0.28),
-    0 0 14px rgba(10, 124, 255, 0.12);
+    inset 0 0 0 1px rgba(134, 182, 255, 0.4),
+    0 0 10px rgba(10, 124, 255, 0.18);
   transition: box-shadow 0.3s var(--cx-e);
 }
 .rq-item[data-line="email"] .rq-face {
-  border-radius: 7px;
+  border-radius: 5px;
 }
 .rq-face img {
   width: 100%;
@@ -64,83 +59,131 @@
 .rq-words {
   display: grid;
   justify-items: end;
-  gap: 1px;
+  gap: 0;
   min-width: 0;
 }
 .rq-top {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
 }
 .rq-top b {
   font-family: var(--cx-serif);
   font-style: italic;
   font-weight: 400;
-  font-size: 17px;
+  font-size: 13px;
+  line-height: 1.15;
   color: var(--cx-ink);
-  max-width: 150px;
+  max-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .rq-top em {
-  font: normal 9.5px/1 var(--cx-mono);
+  font: normal 8.5px/1 var(--cx-mono);
   letter-spacing: 0.04em;
   color: var(--cx-mute);
 }
 .rq-gist {
-  max-width: 190px;
+  max-width: 170px;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 11.5px;
+  font-size: 9.5px;
+  line-height: 1.3;
   color: var(--cx-mute);
 }
 .cx .rq-row:hover .rq-face,
 .cx .rq-row:focus-visible .rq-face {
   box-shadow:
     inset 0 0 0 1.5px var(--cx-hi),
-    0 0 16px rgba(10, 124, 255, 0.5);
-}
-.cx .rq-row:hover .rq-gist,
-.cx .rq-row:focus-visible .rq-gist {
-  color: var(--cx-soft);
+    0 0 14px rgba(10, 124, 255, 0.55);
 }
 .cx .rq-row:focus-visible {
-  outline-offset: 4px;
+  outline-offset: 3px;
 }
 
-/* the one in focus: a lit face on the line, its words are on the right */
-.rq-item[data-cur] .rq-words {
-  display: none;
-}
+/* the one in focus: a lit circle on the line */
 .rq-item[data-cur] .rq-face {
-  width: 30px;
-  height: 30px;
   color: #fff;
   box-shadow:
     0 0 0 1.5px var(--cx-hi),
-    0 0 18px rgba(10, 124, 255, 0.85),
-    0 0 42px rgba(10, 124, 255, 0.35);
+    0 0 14px rgba(10, 124, 255, 0.85),
+    0 0 30px rgba(10, 124, 255, 0.35);
 }
-.rq-more {
+
+/* a text just sent: a ring of white light leaves the circle (#869) */
+.rq-item[data-sent] .rq-face::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 0 16px rgba(255, 255, 255, 0.6);
+  animation: rq-ring 0.8s var(--cx-e) forwards;
+  pointer-events: none;
+}
+.rq-item[data-sent] .rq-face {
+  position: relative;
+  overflow: visible;
+}
+@keyframes rq-ring {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* the lens: frosted glass over the line where the magnifier is, a soft highlight along its top */
+.rq-lens {
   position: absolute;
   left: 0;
   top: 0;
-  font: normal 9.5px/1 var(--cx-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cx-faint);
-  white-space: nowrap;
+  width: 236px;
+  height: 66px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.14), transparent 60%),
+    linear-gradient(180deg, rgba(190, 215, 255, 0.07), rgba(190, 215, 255, 0.02));
+  -webkit-backdrop-filter: blur(7px) saturate(170%) brightness(1.12);
+  backdrop-filter: blur(7px) saturate(170%) brightness(1.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(200, 220, 255, 0.12),
+    0 10px 30px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.35s var(--cx-e);
+  will-change: transform;
+}
+.rq-lens[data-on="1"] {
+  opacity: 1;
 }
 
-/* reduced motion: still rows, no glide */
+/* reduced motion: still rows, no glide, no ring */
 .rq[data-still] .rq-row {
   will-change: auto;
 }
-.rq[data-still] .rq-face {
+.rq[data-still] .rq-face,
+.rq[data-still] .rq-lens {
   transition: none;
 }
+.rq[data-still] .rq-item[data-sent] .rq-face::after {
+  animation: none;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rq-item[data-sent] .rq-face::after {
+    animation: none;
+    opacity: 0;
+  }
+}
 
-/* a phone: the wave lies flat above the entry and runs toward the line from the right */
+/* a phone: the line lies flat above the entry; a drag along it magnifies */
 .rq[data-narrow] {
   position: relative;
   grid-row: 3;
@@ -148,23 +191,48 @@
   bottom: auto;
   left: auto;
   width: auto;
-  height: 78px;
-  margin-left: var(--spine);
+  height: 84px;
+  margin: 0 16px 0 calc(var(--spine) + 8px);
+  touch-action: pan-y;
+}
+.rq[data-narrow]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 24px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(134, 182, 255, 0.05), rgba(134, 182, 255, 0.4) 12%, rgba(134, 182, 255, 0.4) 88%, rgba(134, 182, 255, 0.05));
 }
 .cx .rq[data-narrow] .rq-row {
   flex-direction: column;
-  gap: 4px;
-  transform-origin: 50% 15px;
+  gap: 3px;
+  transform-origin: 50% 10px;
   text-align: center;
 }
 .rq[data-narrow] .rq-words {
   justify-items: center;
 }
 .rq[data-narrow] .rq-top b {
-  font-size: 13px;
-  max-width: 72px;
+  font-size: 10.5px;
+  max-width: 64px;
 }
 .rq[data-narrow] .rq-top em,
 .rq[data-narrow] .rq-gist {
   display: none;
+}
+.rq[data-narrow] .rq-lens {
+  width: 62px;
+  height: 64px;
+  border-radius: 22px;
+}
+
+/* a thread that needs no reply (#869): on the line in its place, quieter */
+.rq-item[data-settled] .rq-face {
+  background: transparent;
+  color: var(--cx-mute);
+  box-shadow: inset 0 0 0 1px rgba(134, 182, 255, 0.18);
+}
+.rq-item[data-settled] .rq-top b {
+  color: var(--cx-mute);
 }

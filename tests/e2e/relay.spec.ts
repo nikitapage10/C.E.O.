@@ -263,19 +263,21 @@ for (const width of [1440, 400]) {
     await scrollTo(page, "Jordan Test");
     await expect(focused(page)).toContainText("Jordan Test");
     await expect(focused(page).getByText("Send to Jordan?")).toHaveCount(0);
-    // R opens the ready draft.
+    // R opens the composer, Nikita's own words first; the ready draft waits beside it as a faint suggestion (#869),
+    // and Tab on the empty box takes it. Nothing sends.
     await page.keyboard.press("r");
-    await expect(focused(page).getByText("Send to Jordan?")).toBeVisible();
+    const box = focused(page).getByRole("textbox", { name: /Your reply to Jordan Test/ });
+    await expect(box).toBeFocused();
+    await expect(focused(page).locator(".cx-hint")).toContainText("haha right");
+    await box.press("Tab");
+    await expect(box).toHaveValue("haha right?? saw it and thought of you");
+    await box.blur();
     // J and K move through the codex (newest first, #803: Sam, Jordan, Priya).
     await page.keyboard.press("k");
     await expect(focused(page)).toContainText("Sam Test");
     await page.keyboard.press("j");
     await expect(focused(page)).toContainText("Jordan Test");
-    await page.keyboard.press("y");
-    await expect(undoLine(page)).toContainText("Sending to Jordan Test");
-    await page.keyboard.press("z");
-    await expect(undoLine(page)).toContainText("Not sent.");
-    await page.waitForTimeout(5_400);
+    await page.waitForTimeout(500);
     expect(sends(posts)).toEqual([]);
   });
 }
@@ -441,6 +443,9 @@ test("signed out: counts only, never a name", async ({ page }) => {
 
 test("the queue on the wave (#803): what comes next left of the line, a tap jumps there, and the order toggle", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  // The rows drift on the wave all the time, so Playwright never sees one "stable" enough to click: with reduced
+  // motion they sit still (one frame per change), which is the same queue and the same taps.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await stub(page);
   await page.goto(`${BASE}/relay`);
   const wave = page.getByRole("navigation", { name: "Up next" });

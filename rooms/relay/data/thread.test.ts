@@ -18,9 +18,13 @@ describe("the queue", () => {
       [mail(), mail({ id: "aa11bb22cc34", kind: "fyi" }), mail({ id: "aa11bb22cc35", done: true })],
       [text(), text({ id: "1123456789abcdef", group: true, state: "settled" }), text({ id: "2123456789abcdef", state: "settled" }), text({ id: "3123456789abcdef", since: NOW - 60_000, draft: null })],
     );
-    expect(q.map((x) => x.key)).toEqual(["t:3123456789abcdef", "t:0123456789abcdef", "e:aa11bb22cc33"]);
-    expect(q[2]).toMatchObject({ line: "email", sendable: false, body: "Robin asks about the picnic." });
+    // #869: a settled one-to-one stays on the line in its place, marked, with nothing to send; a group never.
+    expect(q.map((x) => x.key)).toEqual(["t:3123456789abcdef", "t:0123456789abcdef", "t:2123456789abcdef", "e:aa11bb22cc33"]);
+    expect(q[3]).toMatchObject({ line: "email", sendable: false, body: "Robin asks about the picnic." });
     expect(q[1]).toMatchObject({ line: "text", sendable: true, draft: "start without me! running 10 late", draftAt: NOW - 60_000 });
+    expect(q[2]).toMatchObject({ settled: true, sendable: false, draft: null });
+    expect(allowed("done", "incoming", q[2]!)).toBe(false);
+    expect(codexOf(q, NOW).waiting).toBe(3);
   });
 
   it("orders by the toggle on the line: newest, oldest, or priority (sooner first, then the longest waiting)", () => {
@@ -36,11 +40,10 @@ describe("the queue", () => {
     expect(olderInOrder(older, "oldest").map((o) => o.since)).toEqual([1, 2, 3]);
   });
 
-  it("holds a group once it asked or named Nikita (#758), never sendable, with its own texts", () => {
-    const messages = [{ text: "Nikita, are you coming?", at: NOW - 60_000, from: "Sam Test" }];
-    const q = queueOf([], [text({ id: "1123456789abcdef", group: true, draft: null, summary: { text: "Plans for Friday.", asked: true }, messages })]);
-    expect(q).toHaveLength(1);
-    expect(q[0]).toMatchObject({ group: true, sendable: false, body: "Plans for Friday.", messages });
+  it("keeps group chats off the line (#869): they sit on their own shelf", () => {
+    const messages = [{ text: "Are you coming?", at: NOW - 60_000, from: "Sam Test" }];
+    const q = queueOf([], [text(), text({ id: "1123456789abcdef", group: true, draft: null, summary: { text: "Plans for Friday.", asked: true }, messages })]);
+    expect(q.map((x) => x.key)).toEqual(["t:0123456789abcdef"]);
   });
 
   it("puts skipped ones at the back, in the order skipped", () => {

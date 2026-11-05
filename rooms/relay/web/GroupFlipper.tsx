@@ -23,8 +23,12 @@ interface Sending {
   until: number;
 }
 
-export function GroupFlipper({ groups, hidden, unlocked }: { groups: TextItem[]; hidden: boolean; unlocked: boolean }) {
+export function GroupFlipper({ groups, hidden, unlocked, open }: { groups: TextItem[]; hidden: boolean; unlocked: boolean; open?: { id: string; at: number } | null }) {
   const [cur, setCur] = useState<string | null>(null);
+  // The stage's Groups shelf (#869) opens a group here.
+  useEffect(() => {
+    if (open) setCur(open.id);
+  }, [open]);
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<Sending | null>(null);
   const [note, setNote] = useState<{ text: string; warn?: boolean; unlock?: boolean } | null>(null);

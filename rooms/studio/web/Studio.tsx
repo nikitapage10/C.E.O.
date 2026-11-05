@@ -1,6 +1,7 @@
-import { PORTRAITS } from "../portraits.ts";
-import { Keeper, Waits, type Wait } from "./parts.tsx";
-import "./rooms.css";
+import { PORTRAITS } from "../../../apps/world/src/desk/portraits.ts";
+import { Keeper, Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import "../../../apps/world/src/desk/rooms/rooms.css";
+import "./studio.css";
 
 /**
  * The Studio (#311, slice 1): the line that will make a series of short, tall videos teaching how the internet works

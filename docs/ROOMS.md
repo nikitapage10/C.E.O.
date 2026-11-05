@@ -150,7 +150,11 @@ rooms/green/
   tests/         unit tests and an e2e smoke test
 ```
 
-So far each room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
+The Workshop and the Studio are the first in this shape (step 4): `web/Workshop.tsx` and `workshop.css`, `web/Studio.tsx`
+and `studio.css`, each sheet holding only its own room's rules (moved out of `desk/rooms/rooms.css` unchanged). They
+still use the Desk's shared room parts (`desk/rooms/parts.tsx`, the keeper and the waits list, and `rooms.css`'s shared
+rules) until those move into the engine. Every other room has only its `room.ts` and `nav.ts`, whose `page` still
+points at its page in `apps/world/src/desk`.
 
 ### The manifest
 

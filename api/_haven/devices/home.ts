@@ -339,6 +339,17 @@ export class Home {
       const d = due && devices.find((x) => x.id === due.id && x.state === "lid open");
       if (d && due) d.closesAt = new Date(due.closeAt).toISOString();
     }
+    // The wet tray's notes (rails.ts): bowls served from here today, and a heads-up when the next meal's bowl isn't
+    // the one in front, so the card can draw the three bowls without asking.
+    const wets = devices.filter((d) => d.kind === "wet-feeder" && d.online);
+    if (this.deps.blob && wets.length) {
+      const t = await new TrayLog(this.deps.blob).read(now).catch(() => null);
+      for (const d of wets) {
+        if (t?.served.length) d.served = [...t.served];
+        const heads = trayWarning(d.plate ?? t?.front ?? null, t ?? { day: "", front: null, served: [] }, d.meals, now).trim();
+        if (heads) d.heads = heads;
+      }
+    }
     const view = { vendors, problems, devices, feedCap: this.deps.feedCap };
     if (gen === this.gen) this.cache = { at: now, view };
     return view;

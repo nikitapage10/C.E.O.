@@ -45,18 +45,19 @@ export interface Site {
   photos(keep: string[], emails: [string, string][]): Promise<string[]>;
 }
 
-const httpError = () => Object.assign(new Error("site"), { name: "HttpError" });
+/** The site answered with an error status (#861: the status tells a failed model call, 502, from the rest). */
+const httpError = (status = 0) => Object.assign(new Error("site"), { name: "HttpError", status });
 
 export function siteClient(token: string, fetcher: typeof fetch = fetch, base = SITE): Site {
   const headers = { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json" };
   const post = async (view: string, body: unknown, ms = 45_000) => {
     const res = await fetcher(`${base}/api/relay-hub${view ? `?view=${view}` : ""}`, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
-    if (!res.ok) throw httpError();
+    if (!res.ok) throw httpError(res.status);
     return (await res.json()) as Record<string, unknown>;
   };
   const get = async (view: string) => {
     const res = await fetcher(`${base}/api/relay-hub?view=${view}`, { headers, signal: AbortSignal.timeout(20_000) });
-    if (!res.ok) throw httpError();
+    if (!res.ok) throw httpError(res.status);
     return (await res.json()) as Record<string, unknown>;
   };
   return {

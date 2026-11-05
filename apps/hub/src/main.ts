@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { emptyRelayStatus } from "@ceo/core";
-import { blueBubbles, checkBlueBubbles, describeFailure, failure, redact, removeOldWebhooks } from "./bluebubbles.ts";
+import { blueBubbles, checkBlueBubbles, CONTACTS_HINT, describeFailure, failure, redact, removeOldWebhooks } from "./bluebubbles.ts";
 import { HOST, KEYCHAIN_ITEMS, pathsFor, PORT, readConfig, SITE } from "./config.ts";
 import { Engine, POLL_MS } from "./engine.ts";
 import { macKeychain } from "./keychain.ts";
@@ -173,8 +173,12 @@ async function main(argv: string[]): Promise<void> {
   }
   if (cmd === "check") {
     try {
-      await checkBlueBubbles(await need("bluebubbles-password"));
+      const password = await need("bluebubbles-password");
+      await checkBlueBubbles(password);
       out("Relay: BlueBubbles answers.");
+      // How many contacts it can read (#861): none means every sender shows as "Unknown" on the Desk. A count only.
+      const contacts = await blueBubbles(password).contacts().catch(() => null);
+      if (contacts) out(contacts.length ? `Relay: BlueBubbles can read ${contacts.length} contacts.` : `Relay: ${CONTACTS_HINT}`);
       process.exit(0);
     } catch (e) {
       out(redact(`Relay: BlueBubbles check failed: ${describeFailure(e) || "it didn't answer."}`));

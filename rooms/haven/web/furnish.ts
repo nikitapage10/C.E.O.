@@ -8,13 +8,13 @@ import { KIND_STYLE } from "./style.ts";
  *
  *   Openings      when the plan saves no window or balcony door for a room, the walls give them (withOpenings): an
  *                 edge of the room with no room on the other side is an outside wall. The living room's balcony runs
- *                 along its longest outside wall, and the TV hangs on its solid wall nearest the Gym (#860); the main
+ *                 along its longest outside wall, and the TV hangs on its back wall, across the room from the Gym (2026-11-05); the main
  *                 bedroom gets windows; the hall or landing outside the main bedroom gets a balcony over about half its
  *                 outside wall with a big window along the rest, clear of the corner by the bedroom door. A balcony
  *                 wider than a door is glazed like every other room, windows along it with one glass door out (#860).
  *                 Every other wall stays solid. What the plan does save wins. The kitchen and the hall are one open
  *                 space: no wall is drawn where they meet.
- *   Living room   the TV on its solid wall nearest the Gym (else facing the windows), a long low console under it, an L sectional facing
+ *   Living room   the TV on its back wall across from the Gym (else facing the windows), a long low console under it, an L sectional facing
  *                 it with a square coffee table on a rug between, an arc lamp behind the sofa (kept in the corner it
  *                 has always stood in when the openings come from the walls), a drinks fridge beside it, and the tall
  *                 cat tree in the corner by the balcony door: the home's only cat tree.
@@ -26,7 +26,7 @@ import { KIND_STYLE } from "./style.ts";
  *                 cabinets five tall black-and-white canvases side by side, one picture of trees and mountains; a tub
  *                 chair in a free corner of the dining area.
  *   Dining        the coffee station (#860): a low sideboard with the espresso machine on it, against the dining
- *                 room's wall on the TV's side (the wall nearest the Gym), behind the table; the espresso machine
+ *                 room's wall on the TV's side (the back wall, away from the Gym), behind the table; the espresso machine
  *                 leaves the kitchen counter for it. When no stretch of that wall is free, it stays on the counter.
  *   Balcony nook  beside a balcony door anywhere but the living room, the Studio and the main bedroom: a small lit
  *                 greenhouse in the corner on its solid side, a round cat bed by it, and an air purifier under the
@@ -136,16 +136,27 @@ function lampSpot(R: Rect, tvWall: Side, retEnd: "lo" | "hi"): [number, number] 
   return centreOfRect(inFrom(R, tvWall, lampT - 16, 32, 32, Math.min(D - 40, sofaOff + sofaDep + 14)));
 }
 
+/**
+ * The living room's TV wall. With a Gym on the plan: the back wall, across the room from the wall nearest the Gym
+ * (Nikita, 2026-11-05 21:09Z: the TV goes on the back wall, the whole room turned 180° from the gym side), else the
+ * solid wall farthest from the Gym. Without one: the wall the plan names; else across from the windows when that wall
+ * is solid, else the longest wall without glass.
+ */
+function tvWallOf(R: Rect, p: HavenPlan): Side {
+  const win = windowWall(R, p);
+  const solidSides = SIDES.filter((s) => glass(R, s, p) === 0);
+  if (gymAt(p) && solidSides.length) {
+    const near = byGym(R, p, SIDES)[0]!;
+    return solidSides.includes(OPP[near]) ? OPP[near] : byGym(R, p, solidSides).at(-1)!;
+  }
+  const named = SIDES.find((s) => runs(R, s, p.tv ?? []).length);
+  return named ?? (glass(R, OPP[win], p) === 0 ? OPP[win] : ([...solidSides].sort((a, b) => wallLen(R, b) - wallLen(R, a))[0] ?? OPP[win]));
+}
+
 /** `pinLamp`: the openings came from the walls, so the arc lamp keeps the spot it had before they did (#764). */
 function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   const win = windowWall(R, p);
-  // The TV wall: the wall without glass nearest the Gym (#860, Nikita: the TV and media stand go against the wall
-  // closest to the gym, whatever wall was saved before); else the one the plan names; else across from the windows
-  // when that wall is solid, else the longest wall without glass.
-  const named = SIDES.find((s) => runs(R, s, p.tv ?? []).length);
-  const solidSides = SIDES.filter((s) => glass(R, s, p) === 0);
-  const nearGym = gymAt(p) ? byGym(R, p, solidSides)[0] : undefined;
-  const tvWall = nearGym ?? named ?? (glass(R, OPP[win], p) === 0 ? OPP[win] : ([...solidSides].sort((a, b) => wallLen(R, b) - wallLen(R, a))[0] ?? OPP[win]));
+  const tvWall = tvWallOf(R, p);
   const L = wallLen(R, tvWall), D = depthTo(R, tvWall);
   const out: PlanItem[] = [];
   const conLen = clampLen(L * 0.6, 120, 260);
@@ -388,6 +399,24 @@ function tubChair(R: Rect, items: PlanItem[], p: HavenPlan): PlanItem[] {
 }
 
 /**
+ * The dining table and its chairs step out from wall s far enough for the coffee station and a way past it behind
+ * them (Nikita 2026-11-05 21:09Z: the coffee station on the back wall, behind the table), when the room is deep enough.
+ */
+function clearForStation(R: Rect, items: PlanItem[], s: Side): PlanItem[] {
+  const set = items.filter((it) => (it.k === "table" || it.k === "chair") && inRect(...mid(it), R));
+  if (!set.some((it) => it.k === "table")) return items;
+  const bs = set.map(boxOf);
+  const [x0, y0, x1, y1] = [Math.min(...bs.map((b) => b[0])), Math.min(...bs.map((b) => b[1])), Math.max(...bs.map((b) => b[2])), Math.max(...bs.map((b) => b[3]))];
+  const need = 42 + 56;
+  const gap = s === "n" ? y0 - R[1] : s === "s" ? R[1] + R[3] - y1 : s === "w" ? x0 - R[0] : R[0] + R[2] - x1;
+  const room = s === "n" ? R[1] + R[3] - 10 - y1 : s === "s" ? y0 - R[1] - 10 : s === "w" ? R[0] + R[2] - 10 - x1 : x0 - R[0] - 10;
+  const by = Math.min(need - gap, room);
+  if (by <= 0 || gap + by < need) return items;
+  const [dx, dy] = s === "n" ? [0, by] : s === "s" ? [0, -by] : s === "w" ? [by, 0] : [-by, 0];
+  return items.map((it) => (set.includes(it) ? { ...it, x: it.x + dx, y: it.y + dy } : it));
+}
+
+/**
  * The coffee station (#860): a low sideboard with the espresso machine on it, against the dining room's wall on the
  * living room TV's side (`first`), else its other walls nearest the Gym first; clear of doors, windows when it can be,
  * the table and chairs, and the cat's feeding station. Empty when no stretch is free.
@@ -578,7 +607,8 @@ export function furnish(stored: HavenPlan): HavenPlan {
   // The coffee station behind the dining table, on the TV's side; the espresso machine moves off the counter to it.
   const diner = home.find((x) => DINING.test(x.name));
   if (diner) {
-    const tvSide = lounge ? SIDES.find((s) => runs(mainRect(lounge), s, plan.tv ?? []).length) ?? null : null;
+    const tvSide = lounge ? tvWallOf(mainRect(lounge), plan) : null;
+    if (tvSide) items = clearForStation(mainRect(diner), items, tvSide);
     const station = coffee(mainRect(diner), plan, items, tvSide);
     if (station.length) items = [...items.filter((it) => it.k !== "espresso"), ...station];
   }
@@ -815,8 +845,9 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
     derivedLiving = true;
     const studio = home.find((x) => STUDIO.test(x.name));
     wide.push({ seg: segOn(R, o.s, o.a + 12, o.b - 12), to: studio ? centreOfRect(mainRect(studio)) : nearDoor(R, plan.doors) });
-    // The TV on the solid wall nearest the Gym (#860), else across from the balcony.
-    const tvSide = gymAt(plan) ? byGym(R, plan, SIDES.filter((s) => s !== o.s))[0]! : OPP[o.s];
+    // The TV on the back wall, across the room from the Gym (Nikita 2026-11-05 21:09Z), else across from the balcony.
+    const near = byGym(R, plan, SIDES)[0]!;
+    const tvSide = !gymAt(plan) ? OPP[o.s] : OPP[near] !== o.s ? OPP[near] : byGym(R, plan, SIDES.filter((s) => s !== o.s)).at(-1)!;
     if (!SIDES.some((s) => runs(R, s, tv).length)) tv.push(segOn(R, tvSide, 0, wallLen(R, tvSide)));
   }
   if (bed && !set) {

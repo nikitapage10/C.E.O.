@@ -5,3 +5,4 @@
  * One build and one deploy: @ceo/world's Vite build bundles it, and Deploy to Azure ships that same artifact.
  */
 export { Desk } from "./Desk.tsx";
+export { RoomGuard } from "./RoomGuard.tsx";

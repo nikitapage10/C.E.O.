@@ -23,6 +23,7 @@ import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
 import { keptAfter, SCENE_ROOMS } from "./keptRooms.ts";
+import { RoomGuard } from "./RoomGuard.tsx";
 import { canWarm, warmRotunda } from "./rotunda/warm.ts";
 import "./desk.css";
 import "./chronicle.css";
@@ -172,10 +173,12 @@ export function Desk({ route }: { route: DeskPage }) {
       {[...kept].sort((a, b) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(b)).map((r) => (
         <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} cap={SCENE_ROOMS.has(r) ? SCENE_CAP_MS : undefined}>
           <main className="desk__main" hidden={r !== route} inert={r !== route} data-room={r === "today" ? undefined : r}>
-            <Suspense fallback={null}>
-              {page(r)}
-              <RoomMounted />
-            </Suspense>
+            <RoomGuard name={pageName(r)}>
+              <Suspense fallback={null}>
+                {page(r)}
+                <RoomMounted />
+              </Suspense>
+            </RoomGuard>
           </main>
         </RoomLoader>
       ))}

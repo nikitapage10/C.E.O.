@@ -95,6 +95,17 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
   };
 }
 
+/**
+ * The set-aside threads and the requests, for a component's store selector (#909). Without a view they answer the same
+ * empty list every time: a fresh `[]` per read makes zustand's useSyncExternalStore see a new value on every check, so
+ * React re-renders until it gives up (error #185) and the whole Desk unmounts to a black page. That happened whenever
+ * the signed-in read of /api/relay came back unreadable (a 5xx, an older hub's shape, a moment between deploys).
+ */
+const NO_ASIDE: readonly AsideItem[] = [];
+const NO_REQUESTS: readonly TextRequestView[] = [];
+export const asideOf = (s: { view: TextsPrivate | null }): readonly AsideItem[] => s.view?.aside ?? NO_ASIDE;
+export const requestsOf = (s: { view: TextsPrivate | null }): readonly TextRequestView[] => s.view?.requests ?? NO_REQUESTS;
+
 /** The hub's light, from the public counts. */
 export function hubLink(status: RelayStatus | null, now: number): LinkState {
   if (!status || status.hub === "off" || status.hub === "wiped") return "off";

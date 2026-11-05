@@ -56,8 +56,15 @@ jobs:
       # Ship first, test after (#863, Nikita 2026-11-05): typecheck, lint and unit tests run on main in checks.yml
       # after the deploy and open a Foundry fix when red. The boot check alone stays in front of the upload, since a
       # site that throws at load blanks every page (#173).
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      # The runner's own Google Chrome drives the boot check: installing Playwright's Chromium with its apt deps took
+      # about 11 minutes of a deploy (2026-11-05), so it is only the fallback when the runner has no Chrome.
+      - name: Find a browser
+        run: |
+          if [ -x /usr/bin/google-chrome ]; then
+            echo "PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+          else
+            npx playwright install --with-deps chromium
+          fi
       - name: Boot check
         run: node scripts/boot-check.mjs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

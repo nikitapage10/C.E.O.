@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
+import { readTalkBack } from "../../api/_today/parse.ts";
 import { keepState, mergeState, type TodoState } from "../../api/_today/todos.ts";
 import { startDistServer } from "./dist-server.ts";
 
@@ -109,8 +110,15 @@ for (const width of [1440, 400]) {
     await expect(talk).toBeFocused();
     await talk.fill("friday");
     await talk.press("Enter");
-    await expect(setupRow.getByRole("button", { name: /^Snooze till Friday 9:00 am$/ })).toBeVisible();
-    await expect(setupRow.getByRole("button", { name: /^Remind me Friday 9:00 am$/ })).toBeVisible();
+    // The chips name the time from where today stands ("tomorrow 9:00 am" on a Thursday, "Friday 9:00 am" earlier in
+    // the week), so the labels come from the same reading the page does (api/_today/parse.ts), not a fixed weekday.
+    const reading = readTalkBack("friday", Date.now());
+    if (!reading || reading.ok) throw new Error("\"friday\" should ask: snooze it or remind you?");
+    const [snooze, remind] = reading.choices.map((c) => c.label);
+    expect(snooze).toMatch(/^Snooze till .+ 9:00 am$/);
+    expect(remind).toMatch(/^Remind me .+ 9:00 am$/);
+    await expect(setupRow.getByRole("button", { name: snooze, exact: true })).toBeVisible();
+    await expect(setupRow.getByRole("button", { name: remind, exact: true })).toBeVisible();
     if (SHOTS) await shot(page, `${SHOTS}/622-chips-${width}.png`);
     await setupRow.getByRole("button", { name: "Never mind" }).click();
 

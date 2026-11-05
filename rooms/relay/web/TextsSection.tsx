@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatWait } from "../../../apps/world/src/desk/deskData.ts";
-import { useDictation, dictationSupported } from "../../../apps/world/src/desk/dictate.ts";
+import { formatWait } from "../../../apps/desk/src/deskData.ts";
+import { useDictation, dictationSupported } from "../../../apps/desk/src/dictate.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { REASON_WORDS, RESENDABLE } from "../../../api/_relay/texts.ts";

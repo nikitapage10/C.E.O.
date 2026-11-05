@@ -22,7 +22,7 @@
  * open pull requests carry their own checks' start and finish times too. Read every ten minutes; branches every 30 s.
  *
  * GET → { issues, runs, e2e, live, pulls, commits, jobs, open, branches, timings }: the GitHub JSON the Desk parses (apps/world/src/foundry.ts,
- * apps/world/src/desk/jobs.ts).
+ * apps/desk/src/jobs.ts).
  */
 
 import { canonical, memo } from "./_feedcache.js";

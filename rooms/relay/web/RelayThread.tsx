@@ -18,7 +18,7 @@ import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "@ceo/engine/
 import { agoShort, askLine, codexOf, initialOf, lastRequest, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "../data/thread.ts";
 import { wavePoint } from "../data/wave.ts";
 import { errorText, useThread, type Notice } from "../data/useThread.ts";
-import { useRoomMic } from "../../../apps/world/src/desk/roomvoice/roomVoice.ts";
+import { useRoomMic } from "../../../apps/desk/src/roomvoice/roomVoice.ts";
 import "./thread.css";
 
 /**

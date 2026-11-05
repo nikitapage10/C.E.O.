@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { KitchenItem } from "../../../apps/world/src/desk/haven.ts";
+import type { KitchenItem } from "../../../apps/desk/src/haven.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, listCleared, loadGroceries, matchAll, money, QTY_MAX, reviewOf, shelfOf, VERDICT_BADGE, type GAction, type GLine, type GProduct, type GReply, type Groceries as View } from "./groceries.ts";

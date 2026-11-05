@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
-import { Keeper, Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import { Keeper, Waits, type Wait } from "../../../apps/desk/src/rooms/parts.tsx";
 import { Parts, Poly, TAU, useViz, weave, type VizSpec } from "@ceo/engine/sigils/wvCanvas.ts";
-import "../../../apps/world/src/desk/rooms/rooms.css";
+import "../../../apps/desk/src/rooms/rooms.css";
 import "./workshop.css";
 
 /**

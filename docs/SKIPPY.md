@@ -79,13 +79,13 @@ in the awesomeness".
 
 The same personalities show in the Senate, the Desk's first page (called Today until #775), where the Council sits in
 3D: each Skippy's idle, gestures, faces, blink rate and reactions to whoever is speaking come from one table,
-`apps/world/src/desk/rotunda/senators.ts`, played by `senateActor.ts`. Tune a submind's manner there, beside its voice
+`apps/desk/src/rotunda/senators.ts`, played by `senateActor.ts`. Tune a submind's manner there, beside its voice
 here.
 
 ## The room voice: talking to a room without a call (#638)
 
 Nikita, 2026-11-04: "I don't want to have to initiate a call every time we want to do a command." So there is no call
-and no greeting. Three pieces, one listener (shared chrome, `apps/world/src/desk/roomvoice/`; who a page reaches is
+and no greeting. Three pieces, one listener (shared chrome, `apps/desk/src/roomvoice/`; who a page reaches is
 `@ceo/engine/voice`, `packages/engine/src/voice.ts`):
 
 - **Ask Skippy**, the large button at the bottom right of every page (02:05Z: "more prominent… in the bottom right"):
@@ -200,7 +200,7 @@ server-side in a signed-in session only, so none of it ever reaches the Lattice:
 - **The ElevenLabs plan's credits** (#477, #532, `billLines` in `api/_skippy/voice.ts`): what is left of the plan's
   credits from ElevenLabs' `GET /v1/user/subscription` (read server-side with the key, signed-in only) when it answers.
   The site holds Talk to no monthly budget and no call length (#532); the plan's credits are the only limit. A call
-  ends after two minutes with nobody speaking (`apps/world/src/desk/skippy/silence.ts`, and the agent's own
+  ends after two minutes with nobody speaking (`apps/desk/src/skippy/silence.ts`, and the agent's own
   silence timeout), so a forgotten open mic doesn't burn credits. When ElevenLabs refuses for credits (402 or
   `quota_exceeded`, reported as `quota`), Skippy says so in one in-character line and Talk shows "ElevenLabs credits used up".
 
@@ -235,7 +235,7 @@ Kernel (#501), signed-in only:
   (what changed) in gold. Words only, never the data.
 - **The page follows.** Every answer that ran a tool which changed something names those tools in `wrote` (the chat's
   `/api/skippy`, a tap or a voice hook's `/api/skippy-act`, a room mic's `/api/skippy-room`), and the Desk passes it to
-  the page as one window event (`apps/world/src/desk/skippy/wrote.ts`). A page showing that data reads itself again
+  the page as one window event (`apps/desk/src/skippy/wrote.ts`). A page showing that data reads itself again
   through its own load path: the Kitchen's meal planner on any `meals_` tool, with a "Skippy changed it: …" line (#698).
 
 **Memory.** Private, in the store behind the passkey (`api/_skippy/agent/memory.ts`, `desk/skippy/memory/`): a core
@@ -305,14 +305,14 @@ the Green), he says "Checking with the Commentator…", hands it off, and the an
   by side, its rank and any tiebreak, then the Green's lineup and bench, then the other live rooms in a line each (the
   Exchange's public odds board, never Nikita's positions or an amount; the Boiler Room's links that aren't healthy).
   It is `page` on the POST, at most 1,600 characters and 24 lines (about 400 tokens, a tenth of a cent on Sonnet, so the
-  chat stays well inside its monthly share), built by `apps/world/src/desk/skippy/page.ts`, fenced as `<page>` and
+  chat stays well inside its monthly share), built by `apps/desk/src/skippy/page.ts`, fenced as `<page>` and
   checked again by `readPage` (`api/_skippy/prompt.ts`: a private-looking line is dropped), and never stored. Skippy
   answers from it first and never says he has no data when `<page>` has it; for an ask that belongs to the submind he
   gives that take *and* hands it off.
 - **The pending bubble.** A hand-off's answer carries `turn`, the kept turn's id. The chat adds "Checking with the
   Commentator…" under Skippy's take and looks for the answer in the room's log (`GET /api/skippy-log?room=`, the same
   signed-in read as the Asked Skippy panel) every 15 seconds for five minutes, then every 30, only while the tab is
-  showing, for up to two hours (`apps/world/src/desk/skippy/handoff.ts`). Past that the bubble says where the answer
+  showing, for up to two hours (`apps/desk/src/skippy/handoff.ts`). Past that the bubble says where the answer
   will show (the room's page, under Asked Skippy).
 - **The answer in place.** When the follow-up lands, it replaces the bubble: the submind's line, and its card when it
   sent one (the numbers side by side, for the Green Sleeper's and FantasyPros' projections; the verdict; the metrics
@@ -488,7 +488,7 @@ answer. But if it's something a little bit more specific to our room, then it ta
   it and stopped). Every submind has a transfer to each sibling and back to Skippy, so a named room is one hop. Openers
   fire once per hand-over, status answers are two or three sentences, and a turn has 1,024 tokens. Every agent sends
   the browser `agent_tool_response_full_payload`: agent lines carry no agent id over the socket, so the transfer's
-  result (`to_agent`) is how the hologram knows who has the mic (`apps/world/src/desk/skippy/talkSession.ts`).
+  result (`to_agent`) is how the hologram knows who has the mic (`apps/desk/src/skippy/talkSession.ts`).
 - **Talk starts fast (#496).** The start answers with a `Server-Timing` header (pace, count, desk, credits,
   agent, mint, keep, total; names and milliseconds only) and the browser marks `talk:*` for the mic, the token, the
   connection and Skippy's first word. Ended calls are settled only when the month looks full; the Desk's lines are
@@ -629,7 +629,7 @@ curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: app
 
 Refused: 422 for anything private-looking or words that ask anyone to type, paste or copy a key, password or token
 (`asks-for-secret`); 409 to finish an ask Nikita hasn't approved; 429 past five new asks an hour or eight waiting.
-The code is `api/_room/setup.ts` (Azure only) and the panel `apps/world/src/desk/skippy/SetupAsks.tsx`.
+The code is `api/_room/setup.ts` (Azure only) and the panel `apps/desk/src/skippy/SetupAsks.tsx`.
 
 ## Escalating to Skippy
 

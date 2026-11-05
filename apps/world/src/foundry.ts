@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { useSystems, type LinkState } from "./systems.ts";
-import { UPKEEP_ANCHOR_MS, UPKEEP_EVERY_MS } from "./desk/crewRuns.ts";
-import type { GhJob } from "./desk/jobs.ts";
+import { UPKEEP_ANCHOR_MS, UPKEEP_EVERY_MS } from "../../desk/src/crewRuns.ts";
+import type { GhJob } from "../../desk/src/jobs.ts";
 import { ownPictures, pictureRef } from "../../../api/_pictures.ts";
 import { keepFeed, readKept } from "./feedKeep.ts";
 

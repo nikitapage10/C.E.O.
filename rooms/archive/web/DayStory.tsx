@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { chronicleDay, formatDuration, useDayStory, type StoryState } from "../../../apps/world/src/chronicle.ts";
 import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { SKIPPY_PORTRAIT } from "../../../apps/world/src/desk/skippy/SkippyAvatar.tsx";
+import { SKIPPY_PORTRAIT } from "../../../apps/desk/src/skippy/SkippyAvatar.tsx";
 
 /**
  * The day's story (issue #95, livelier in #102, a normal voice in #107; docs/WORLD.md): the quick "today in Ilyr"

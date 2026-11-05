@@ -1,6 +1,6 @@
 import type { RoomId } from "../../../apps/world/src/chronicle.ts";
-import { nextRuns, QUEUE_MINUTES, UPKEEP_EVERY_MS } from "../../../apps/world/src/desk/crewRuns.ts";
-import { mountainHour } from "../../../apps/world/src/desk/ilyrTime.ts";
+import { nextRuns, QUEUE_MINUTES, UPKEEP_EVERY_MS } from "../../../apps/desk/src/crewRuns.ts";
+import { mountainHour } from "../../../apps/desk/src/ilyrTime.ts";
 import type { TodayIcon } from "../web/todayIcons.tsx";
 
 /**

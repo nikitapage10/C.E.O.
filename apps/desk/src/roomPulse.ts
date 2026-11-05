@@ -1,0 +1,449 @@
+import type { HistoryEntry, RoomId, WorldFeed } from "../../world/src/chronicle.ts";
+import { CREW, crewOf, openIdeas, shippedToday, type FoundryData } from "../../world/src/foundry.ts";
+import type { Link, LinkState } from "../../world/src/systems.ts";
+import type { GreenBoard, GreenStatus } from "../../../rooms/green/data/league.ts";
+import { submindOf } from "../../../packages/simulator/src/subminds.ts";
+import type { InvoiceStatus } from "../../../rooms/spire/data/invoices.ts";
+import type { EmailStatus } from "../../../rooms/relay/data/email.ts";
+
+/**
+ * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): ten threads, one per room, each in its submind's
+ * colour (docs/SKIPPY.md), with how busy it is, a short status and its submind's report for the Council. Built only
+ * from real data: the Foundry from GitHub, the Relay and the Boiler Room from the links, the Archive from the living
+ * Lattice's hours, the Green from Nikita's Sleeper league (#252). Rooms with no real work connected yet say so plainly; their only knots are the scenes the hourly
+ * step set there (real entries of the living Lattice, not samples). Deterministic templates, no API calls.
+ */
+
+export type PulseState = "busy" | "steady" | "waiting" | "down" | "sim";
+
+export interface RoomPulse {
+  id: RoomId;
+  name: string;
+  /** CSS colour (a Desk token). */
+  colour: string;
+  /** The room's submind: its portrait id, title, and whether it is active with its own thread (docs/SKIPPY.md). */
+  submind: RoomSubmind;
+  /** Whether real work is connected for this room (else it is simulated for now). */
+  real: boolean;
+  state: PulseState;
+  /** 0..1, how much is happening: the thread's weight and its particles. */
+  activity: number;
+  /** A few words for the thread's label: "Rusty is building", "Waiting on the Mac". */
+  status: string;
+  /** What the room is doing right now, when there is more to say than `status`: "Rusty on #336, Simplifying Today". */
+  doing?: string;
+  /** Fewer words, lower case, for the fan beside Today's greeting: "mid-build", "steady", "not set up". */
+  short: string;
+  /**
+   * What drives the room's motion (#262), counts only, for the small legend by the lines: "14 runs today · 2 PRs open",
+   * "6 hours written today", "nothing connected". Never a person's name, an amount or a message; a down link's public
+   * label ("Mac hub down") is allowed, since it names a system.
+   */
+  drive: string;
+  /** The submind's report, in its own voice: one or two short sentences, numbers from real data. */
+  report: string;
+  /** Times (Date.now() style) of today's real events in the room: the knots on its thread. */
+  events: number[];
+  /** Where the room opens on the Desk (or the Lattice). */
+  href: string;
+}
+
+export const ROOM_ORDER: readonly RoomId[] = ["foundry", "relay", "boiler", "archive", "breakroom", "spire", "exchange", "green", "workshop", "studio"];
+
+export interface RoomSubmind {
+  id: string;
+  title: string;
+  /** Active: the room has a real API integrated, and the submind its own thread (`active` on `SUBMINDS`). */
+  active: boolean;
+}
+
+/** A room's submind, read from the one list in the simulator (`SUBMINDS`), so every view agrees on who is active. */
+function mind(room: RoomId): RoomSubmind {
+  const m = submindOf(room);
+  return { id: m.id, title: m.name, active: m.active };
+}
+
+export const ROOM_META: Record<RoomId, { name: string; colour: string; submind: RoomSubmind; href: string }> = {
+  foundry: { name: "Foundry", colour: "var(--room-foundry)", submind: mind("foundry"), href: "/foundry" },
+  relay: { name: "Relay", colour: "var(--room-relay)", submind: mind("relay"), href: "/relay" },
+  boiler: { name: "Boiler Room", colour: "var(--room-boiler)", submind: mind("boiler"), href: "/boiler" },
+  archive: { name: "Archive", colour: "var(--room-archive)", submind: mind("archive"), href: "/archive" },
+  breakroom: { name: "Break Room", colour: "var(--room-breakroom)", submind: mind("breakroom"), href: "/lattice?room=breakroom" },
+  spire: { name: "Spire", colour: "var(--room-spire)", submind: mind("spire"), href: "/spire" },
+  exchange: { name: "Exchange", colour: "var(--room-exchange)", submind: mind("exchange"), href: "/exchange" },
+  green: { name: "Green", colour: "var(--room-green)", submind: mind("green"), href: "/green" },
+  workshop: { name: "Workshop", colour: "var(--room-workshop)", submind: mind("workshop"), href: "/workshop" },
+  studio: { name: "Studio", colour: "var(--room-studio)", submind: mind("studio"), href: "/studio" },
+};
+
+/** The simulated rooms' honest reports, each in its submind's voice: nothing real is connected there yet. */
+const SIM_REPORT: Partial<Record<RoomId, string>> = {
+  breakroom: "Nothing real to report yet. The party is simulated; the enthusiasm is not.",
+  spire: "Nothing real to report yet. The books aren't connected, which is, frankly, an untapped opportunity.",
+  green: "NOTHING REAL TO CALL YET, FOLKS. The league isn't connected, so the scoreboard stays dark.",
+  workshop: "Nothing real yet. The model pipeline isn't connected, so I'm between pieces. Suffering, beautifully.",
+  studio: "Nothing real yet. No episode is connected, so the set is dark. Every take so far is rehearsal. Masterpieces, all of them.",
+};
+
+export interface PulseInput {
+  now: number;
+  /** Midnight today, local: what "today" counts from. */
+  dayStart: number;
+  /** Where the threads' knots start (the day's strip shows the last several hours, across midnight). */
+  since?: number;
+  foundry: { connected: boolean; data: FoundryData; pending: FoundryData["crates"] };
+  links: Link[];
+  hub: LinkState;
+  /** Replies waiting on Nikita (Relay), once the hub is connected. */
+  owed: number;
+  world: WorldFeed | null;
+  /** The Exchange's public odds (#253), once Polymarket's board has answered: how many markets, and the busiest. */
+  odds?: { markets: number; lead: { question: string; prob: number } | null } | null;
+  /** The Green's league board (rooms/green/data/league.ts), once it has been asked for; left out, the Green stays simulated. */
+  green?: { status: GreenStatus; board: GreenBoard | null };
+  /** The email agent's public counts (#263, live since #322), once the Azure copy has answered; left out, Relay waits on the Mac. */
+  email?: EmailStatus | null;
+  /** The Spire's public invoice counts (#279), once PayPal has answered on the Azure copy; left out, the Spire stays simulated. */
+  invoices?: InvoiceStatus | null;
+}
+
+const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
+const clamp = (v: number) => Math.max(0, Math.min(1, v));
+
+function timeOf(ms: number): string {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/** The living Lattice's hours today, and the rooms its scenes were set in. */
+function worldToday(world: WorldFeed | null, dayStart: number): HistoryEntry[] {
+  return (world?.recent ?? []).filter((e) => Date.parse(e.at) >= dayStart);
+}
+
+/**
+ * The down links by their public labels, in the Desk's own order. The MacBook's state is mirrored from the hub's
+ * (rooms/relay/data/texts.ts), so when both are down they are one thing: the Mac hub.
+ */
+export function downNames(links: readonly Pick<Link, "id" | "label" | "state">[]): { id: string; name: string }[] {
+  const down = links.filter((l) => l.state === "down");
+  const mac = down.some((l) => l.id === "hub") && down.some((l) => l.id === "mac");
+  return down.filter((l) => !(mac && l.id === "mac")).map((l) => ({ id: l.id, name: mac && l.id === "hub" ? "Mac hub" : l.label }));
+}
+
+/** "Gmail", "Mac hub and Gmail", "Mac hub +2 more" (long: "Mac hub and 2 others"). */
+export function namesPhrase(names: readonly string[], form: "short" | "long" = "short"): string {
+  if (names.length <= 2) return names.join(" and ");
+  const rest = names.length - 1;
+  return form === "short" ? `${names[0]} +${rest} more` : `${names[0]} and ${rest} others`;
+}
+
+/** The Boiler Room's Controls, focused on one link's "Needs you" card (ControlsPage reads the #link- hash). */
+export const boilerHref = (id: string) => `/boiler/controls#link-${id}`;
+
+export function roomPulses(input: PulseInput): RoomPulse[] {
+  const { now, dayStart, foundry, links, hub, owed, world, odds } = input;
+  const since = input.since ?? dayStart;
+  const today = worldToday(world, dayStart);
+  const recent = worldToday(world, since);
+  const scenesIn = (room: RoomId) => recent.filter((e) => e.scenes.some((s) => s.room === room)).map((e) => Date.parse(e.at));
+
+  const pulse = (id: RoomId, p: Omit<RoomPulse, "id" | "name" | "colour" | "submind" | "href"> & { href?: string }): RoomPulse => ({ id, ...ROOM_META[id], ...p });
+  const out: RoomPulse[] = [];
+
+  // The Foundry: GitHub's issues and the changelog.
+  {
+    const { data, connected, pending } = foundry;
+    const crates = data.crates;
+    const working = crates.filter((c) => c.kind !== "idea" && c.state === "working");
+    const waiting = openIdeas(crates, pending).filter((c) => !c.revising).length + crates.filter((c) => c.kind !== "idea" && (c.state === "ready" || c.state === "stuck")).length;
+    const shipped = shippedToday(data.changelog, now);
+    const events = [...data.changelog.map((c) => c.at), ...working.map((c) => c.updatedAt)].filter((t) => t >= since && t <= now);
+    const who = working[0] ? CREW[crewOf(working[0], crates)].name : null;
+    const red = data.checks.state === "fail";
+    // The crew's runs today (#262): every job someone moved today and every change that shipped, counted once per issue.
+    const ran = new Set<string>();
+    for (const c of crates) if (c.kind !== "idea" && c.updatedAt >= dayStart && c.updatedAt <= now) ran.add(`#${c.number}`);
+    for (const c of data.changelog) if (c.at >= dayStart && c.at <= now) ran.add(c.issue ? `#${c.issue.number}` : c.key);
+    const runs = ran.size;
+    const prs = data.prs?.length ?? 0;
+    if (!connected) {
+      out.push(pulse("foundry", { real: true, state: "waiting", activity: 0.1, drive: "reaching GitHub", status: "Reaching GitHub", short: "reaching GitHub", report: "Can't see the shop floor yet. GitHub hasn't answered. I'll wait. I hate waiting.", events }));
+    } else {
+      const parts = [
+        working.length ? `${n(working.length, "job")} on the bench${who ? `, ${who} at the furnace` : ""}` : "Nothing on the bench",
+        waiting ? `${waiting} waiting on you` : "nothing waiting on you",
+        `${shipped} shipped today`,
+      ];
+      out.push(
+        pulse("foundry", {
+          real: true,
+          state: red ? "down" : working.length ? "busy" : "steady",
+          // Crew runs and pull requests drive the Foundry hardest (#262).
+          activity: clamp(0.15 + working.length * 0.18 + runs * 0.04 + prs * 0.07 + shipped * 0.04),
+          drive: `${n(runs, "run")} today${prs ? ` · ${n(prs, "PR")} open` : ""}`,
+          status: red ? "Checks on main are red" : who ? `${who} is building` : waiting ? `${n(waiting, "thing")} waiting on you` : "All clear",
+          ...(who && working[0] && { doing: `${who} on #${working[0].number}, ${working[0].short || working[0].title}${working.length > 1 ? `, and ${n(working.length - 1, "more job")}` : ""}` }),
+          short: red ? "checks red" : who ? "mid-build" : waiting ? `${waiting} waiting on you` : "all clear",
+          report: `${parts.join(", ")}. ${red ? "Main's red. Rivet's already on it." : "Checks are green. Don't touch anything."}`,
+          events,
+        }),
+      );
+    }
+  }
+
+  // The Relay: email from the Azure copy (#322) while the hub on the MacBook is still to come.
+  const mail = input.email ?? null;
+  const mailLive = !!mail && mail.gmail === "connected" && mail.agent !== "waiting";
+  if (hub === "off" && mailLive) {
+    const needs = mail.needsYou;
+    const broken = mail.agent === "error";
+    const checked = mail.lastCheck !== null && mail.lastCheck >= since && mail.lastCheck <= now ? [mail.lastCheck] : [];
+    out.push(
+      pulse("relay", {
+        real: true,
+        state: broken ? "down" : needs ? "busy" : "steady",
+        activity: clamp(0.2 + needs * 0.15 + mail.newToday * 0.01),
+        drive: broken ? "email check failed" : `${n(mail.newToday, "email")} today${needs ? ` · ${needs} need${needs === 1 ? "s" : ""} you` : ""}`,
+        status: broken ? "The last email check failed" : mail.agent === "paused" ? "Email paused at the cap" : needs ? `${n(needs, "email")} need${needs === 1 ? "s" : ""} you` : "Email is quiet",
+        short: broken ? "email check failed" : mail.agent === "paused" ? "email paused" : needs ? `${needs} email${needs === 1 ? "" : "s"}` : "inbox quiet",
+        report: broken
+          ? "Line's crackling, the last email check didn't land. Dialtone's redialling. Texts still wait on the Mac."
+          : `${n(mail.newToday, "new email")} today, ${needs} need${needs === 1 ? "s" : ""} you, ${mail.fyi} can wait, ${mail.noise} noise. I won't read them out. Texts still wait on the Mac.`,
+        events: checked,
+      }),
+    );
+  } else if (hub === "off") {
+    out.push(pulse("relay", { real: true, state: "waiting", activity: 0.05, drive: "nothing connected", status: "Waiting on the Mac", short: "waiting on the Mac", report: "Psst. I can't hear a thing yet: the hub on the MacBook isn't connected. The moment it is, you'll know who's waiting on you.", events: [] }));
+  } else {
+    out.push(
+      pulse("relay", {
+        real: true,
+        state: hub === "down" ? "down" : owed ? "busy" : "steady",
+        activity: clamp(0.25 + owed * 0.12),
+        drive: hub === "down" ? "hub down" : `${n(owed, "reply", "replies")} waiting`,
+        status: hub === "down" ? "The hub is down" : owed ? `${n(owed, "reply", "replies")} waiting` : "Nobody waiting",
+        short: hub === "down" ? "hub down" : owed ? `${owed} waiting` : "all quiet",
+        report: hub === "down" ? "The hub went quiet. What you see is from before. Somebody check the Mac." : owed ? `${n(owed, "person", "people")} waiting on a reply from you. I know who. I won't say it out loud.` : "Nobody's waiting on you. I checked. Twice.",
+        events: [],
+      }),
+    );
+  }
+
+  // The Boiler Room: every link the Desk watches. A down link is named by its public label, and the room opens on
+  // Controls at that link's "Needs you" card (Nikita, 2026-11-05: "it says one link down... what link?").
+  {
+    const known = links.filter((l) => l.state !== "off");
+    const up = known.filter((l) => l.state === "ok").length;
+    const down = known.filter((l) => l.state === "down").length;
+    const slow = known.filter((l) => l.state === "slow").length;
+    const off = links.length - known.length;
+    const named = downNames(links);
+    const which = namesPhrase(named.map((d) => d.name));
+    out.push(
+      pulse("boiler", {
+        real: true,
+        state: down ? "down" : known.length ? "steady" : "waiting",
+        activity: clamp(0.15 + up * 0.05),
+        drive: known.length ? `${up} of ${n(links.length, "link")} up${down ? ` · ${which} down` : ""}` : "nothing connected",
+        status: down ? (named.length === 1 ? `${which} is down` : `${which} down`) : slow ? `${n(slow, "link")} slow` : `${up} of ${links.length} links up`,
+        short: down ? `${which} down` : slow ? `${slow} slow` : known.length ? "steady" : "waiting",
+        report: down
+          ? `${namesPhrase(named.map((d) => d.name), "long")} ${named.length === 1 ? "is" : "are"} down. I said this would happen. I take no pleasure in it.`
+          : `${up} links up${slow ? `, ${slow} slow` : ""}${off ? `, ${off} not connected yet` : ""}. Nothing's burst. Yet.`,
+        events: [],
+        ...(named[0] && { href: boilerHref(named[0].id) }),
+      }),
+    );
+  }
+
+  // The Archive: the living Lattice's hours, written by the step.
+  {
+    const events = recent.map((e) => Date.parse(e.at));
+    const last = today.at(-1);
+    out.push(
+      pulse("archive", {
+        real: true,
+        state: !world ? "waiting" : today.length ? "steady" : "waiting",
+        activity: clamp(0.15 + today.length * 0.04),
+        drive: !world ? "opening the record" : `${n(today.length, "hour")} written today`,
+        status: !world ? "Opening the record" : today.length ? `${n(today.length, "hour")} written today` : "No hours yet today",
+        short: !world ? "opening the record" : today.length ? "writing it down" : "no hours yet",
+        report: !world
+          ? "The record hasn't opened yet. Patience is a scholarly virtue."
+          : last
+            ? `${n(today.length, "hour")} of Ilyr written today, the latest at ${timeOf(Date.parse(last.at))}${last.source === "claude" ? ", by Claude" : ", from the agents' own lines"}. For the record.`
+            : "No hours written today yet. The first one usually lands within the hour.",
+        events,
+      }),
+    );
+  }
+
+  // The Exchange: Polymarket's public odds (#240, #253). Never a position or a dollar figure: Today is for the room's
+  // state, and the book stays on the Exchange page behind the passkey.
+  {
+    const link = links.find((l) => l.id === "polymarket")?.state ?? "off";
+    const events = scenesIn("exchange");
+    if (link !== "off") {
+      const lead = odds?.lead ?? null;
+      const markets = odds?.markets ?? 0;
+      out.push(
+        pulse("exchange", {
+          real: true,
+          state: link === "down" ? "down" : "steady",
+          activity: clamp(0.2 + markets * 0.03 + events.length * 0.04),
+          drive: link === "down" ? "odds down" : `${n(markets, "market")} ${link === "slow" ? "from the last read" : "live"}`,
+          status: link === "down" ? "Polymarket isn't answering" : link === "slow" ? "Odds from the last good read" : "Polymarket odds live",
+          short: link === "down" ? "odds down" : link === "slow" ? "odds stale" : "odds live",
+          report:
+            link === "down"
+              ? "Polymarket stopped answering. I'm quoting stale odds at a discount. Which is to say, not at all."
+              : `${link === "slow" ? "Last good read: " : "Odds are live: "}${n(markets, "market")} on the board${lead ? `, the busiest at ${Math.round(lead.prob * 100)}%` : ""}. I'd hedge that. I'd hedge anything.`,
+          events,
+        }),
+      );
+    } else {
+      out.push(
+        pulse("exchange", {
+          real: false,
+          state: "sim",
+          activity: clamp(0.04 + events.length * 0.05),
+          drive: "nothing connected",
+          status: events.length ? `${n(events.length, "scene")} in Ilyr lately` : "No odds yet",
+          short: "no odds yet",
+          report: `The odds haven't answered yet. Odds they will? I'd rather not quote them.${events.length ? ` In Ilyr, ${n(events.length, "scene")} here lately.` : ""}`,
+          events,
+        }),
+      );
+    }
+  }
+
+  // The Green: Nikita's Sleeper league, when the board has been read (or is being read).
+  const green = input.green;
+  const greenReal = green && green.status !== "off";
+  if (greenReal) out.push(greenPulse(green, scenesIn("green"), pulse));
+
+  // The Spire: PayPal's invoices (#279), counts only. Never a client or an amount on Today.
+  const inv = input.invoices && input.invoices.paypal !== "waiting" ? input.invoices : null;
+  if (inv) out.push(spirePulse(inv, scenesIn("spire"), pulse));
+
+  for (const id of ["breakroom", "spire", "green", "workshop", "studio"] as const) {
+    if (id === "green" && greenReal) continue;
+    if (id === "spire" && inv) continue;
+    const events = scenesIn(id);
+    out.push(
+      pulse(id, {
+        real: false,
+        state: "sim",
+        activity: clamp(0.04 + events.length * 0.05),
+        drive: "nothing connected",
+        status: events.length ? `${n(events.length, "scene")} in Ilyr lately` : "Not set up yet",
+        short: "not set up",
+        report: `${SIM_REPORT[id]}${events.length ? ` In Ilyr, ${n(events.length, "scene")} here lately.` : ""}`,
+        events,
+      }),
+    );
+  }
+
+  return ROOM_ORDER.map((id) => out.find((p) => p.id === id)!);
+}
+
+type PulseFn = (id: RoomId, p: Omit<RoomPulse, "id" | "name" | "colour" | "submind" | "href">) => RoomPulse;
+
+/** The Spire's thread from the invoice counts, in the Executive's voice. */
+function spirePulse(s: InvoiceStatus, events: number[], pulse: PulseFn): RoomPulse {
+  if (s.paypal === "error") return pulse("spire", { real: true, state: "down", activity: 0.1, drive: "PayPal down", status: "PayPal isn't answering", short: "PayPal down", report: "PayPal has stepped out of the meeting. I'm calling it a strategic pause.", events });
+  const open = s.open;
+  const parts = [n(open, "open invoice"), s.overdue ? `${s.overdue} overdue` : "", s.drafts ? `${n(s.drafts, "draft")} waiting on your Send` : ""].filter(Boolean);
+  return pulse("spire", {
+    real: true,
+    state: s.overdue ? "busy" : "steady",
+    activity: clamp(0.2 + (open + s.drafts) * 0.06 + events.length * 0.04),
+    drive: `${n(open, "open invoice")}${s.drafts ? ` · ${n(s.drafts, "draft")}` : ""}`,
+    status: s.overdue ? `${s.overdue} overdue` : open ? n(open, "open invoice") : "Books balanced",
+    short: s.overdue ? "overdue" : open ? "invoices out" : "books balanced",
+    report: `${parts.join(", ")}${s.mode === "sandbox" ? ", in the sandbox" : ""}. ${s.overdue ? "Overdue is just a deal that wants a follow-up. Love that." : open ? "Every one of them a real opportunity." : "Nothing outstanding. Ledger calls that reconciled. I call it runway."}`,
+    events,
+  });
+}
+
+/** The Green's thread from the league board, in the Commentator's voice. */
+function greenPulse(green: NonNullable<PulseInput["green"]>, events: number[], pulse: PulseFn): RoomPulse {
+  const { status, board } = green;
+  if (status === "failed") return pulse("green", { real: true, state: "down", activity: 0.1, drive: "Sleeper down", status: "Sleeper isn't answering", short: "Sleeper down", report: "WE'VE LOST THE FEED, FOLKS. Sleeper isn't answering. Stay with us.", events });
+  if (status === "absent") return pulse("green", { real: true, state: "waiting", activity: 0.05, drive: "no team found", status: "No team in the league", short: "no team", report: "The Commentator can't find your team in the league. A broadcast with no home side. Unthinkable.", events });
+  if (status !== "ready" || !board) return pulse("green", { real: true, state: "waiting", activity: 0.1, drive: "reading Sleeper", status: "Reading the league", short: "reading Sleeper", report: "Warming up the booth. Sleeper's on the line.", events });
+  const m = board.matchup;
+  const win = m?.win ?? null;
+  const pctWin = win === null ? null : `${Math.round(win * 100)}%`;
+  const calls = board.swaps.length;
+  const top = board.pickups[0]?.player.name;
+  const match = !m
+    ? `No game in week ${board.week}.`
+    : !m.them
+      ? `Bye in week ${board.week}.`
+      : m.live
+        ? `LIVE: ${m.me.pts.toFixed(1)} to ${m.them.pts.toFixed(1)} against ${m.them.team}${pctWin ? `, ${pctWin} to win` : ""}.`
+        : `Week ${m.week} against ${m.them.team}: projected ${m.me.proj.toFixed(1)} to ${m.them.proj.toFixed(1)}${pctWin ? `, ${pctWin} to win` : ""}.`;
+  const lineup = calls ? `${calls === 1 ? "One lineup call" : `${calls} lineup calls`} from the booth.` : "Lineup's set.";
+  return pulse("green", {
+    real: true,
+    state: m?.live || calls ? "busy" : "steady",
+    activity: clamp(0.3 + (m?.live ? 0.35 : 0) + calls * 0.1),
+    drive: `${m?.live ? "game live" : `week ${board.week}`}${calls ? ` · ${n(calls, "lineup call")}` : ""}`,
+    status: pctWin ? `Week ${board.week}: ${pctWin} to win` : `${board.me.team}, ${board.me.record}`,
+    short: m?.live ? "game on" : pctWin ? `${pctWin} to win` : board.me.record,
+    report: `${board.me.team.toUpperCase()}, ${board.me.record}. ${match} ${lineup}${top ? ` Top pickup: ${top}.` : ""}`,
+    events,
+  });
+}
+
+/** Skippy's opening line on Today: what needs a human, said his way. */
+export function skippyLine(todo: number, pulses: RoomPulse[]): string {
+  const down = pulses.filter((p) => p.state === "down");
+  const busy = pulses.filter((p) => p.state === "busy");
+  const lead =
+    todo === 0
+      ? "Nothing needs a human right now. I handled the rest, naturally."
+      : todo === 1
+        ? "One thing needs a human. Everything else I handled while you were out."
+        : `${cap(words(todo))} things need a human, in the order I'd do them. Everything else I handled.`;
+  const tail = down.length ? ` ${down.map((p) => p.name).join(" and ")} ${down.length === 1 ? "needs" : "need"} a look.` : busy.length ? ` ${busy.map((p) => p.name).join(" and ")} ${busy.length === 1 ? "is" : "are"} hard at work.` : "";
+  return lead + tail;
+}
+
+const WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+/** A count in words up to twelve, then figures. */
+export const words = (k: number) => WORDS[k] ?? String(k);
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** The rooms with real work, said the way Skippy would in passing: "the Foundry's mid-build". */
+export function roomPhrase(p: RoomPulse): string {
+  switch (p.id) {
+    case "foundry":
+      return p.state === "down" ? "the Foundry's checks are red" : p.state === "busy" ? "the Foundry's mid-build" : p.state === "waiting" ? "the Foundry's reaching GitHub" : "the Foundry's all clear";
+    case "boiler":
+      return p.state === "down" ? `${p.short} in the Boiler Room` : p.state === "waiting" ? "the Boiler Room's waiting on its gauges" : "all quiet in the Boiler Room";
+    case "relay":
+      return p.state === "waiting" ? "the Relay's waiting on the Mac" : p.state === "down" ? "the Relay's hub is down" : p.state === "busy" ? `${p.short} in the Relay` : "the Relay's quiet";
+    case "archive":
+      return p.state === "waiting" ? "the Archive's waiting on the hours" : "the Archive's writing it down";
+    case "exchange":
+      return !p.real ? "Exchange: no odds yet" : p.state === "down" ? "the Exchange's odds are down" : p.short === "odds stale" ? "the Exchange's odds are stale" : "the Exchange's odds are live";
+    case "green":
+      if (!p.real) return `${p.name}: ${p.short}`;
+      return p.state === "down" ? "the Green's lost Sleeper" : p.state === "waiting" ? "the Green's reading the league" : p.short === "game on" ? "the Green's game is on" : p.short.endsWith("to win") ? `the Green has you at ${p.short}` : `the Green has you ${p.short}`;
+    default:
+      return `${p.name}: ${p.short}`;
+  }
+}
+
+/** "Evening, Nikita." by the hour. */
+export function greeting(now: number): string {
+  const h = new Date(now).getHours();
+  return h < 5 ? "Still up, Nikita." : h < 12 ? "Morning, Nikita." : h < 18 ? "Afternoon, Nikita." : "Evening, Nikita.";
+}
+
+/** Ilyr's part of the day, from the local hour. */
+export function partOfDay(now: number): string {
+  const h = new Date(now).getHours();
+  return h < 5 ? "night" : h < 12 ? "morning" : h < 18 ? "afternoon" : h < 22 ? "evening" : "night";
+}

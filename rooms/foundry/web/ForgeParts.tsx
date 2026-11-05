@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, recentWork, sparesAwake, type Crate, type CrewId, type FoundryData } from "../../../apps/world/src/foundry.ts";
-import { countdown, nextRuns, runTime } from "../../../apps/world/src/desk/crewRuns.ts";
-import { FOUNDRY_THREAD } from "../../../apps/world/src/desk/deskData.ts";
-import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "../../../apps/world/src/desk/IdeaCard.tsx";
-import { usePictureLinks } from "../../../apps/world/src/desk/ideaImages.ts";
-import { ROOM_META, ROOM_ORDER } from "../../../apps/world/src/desk/roomPulse.ts";
+import { countdown, nextRuns, runTime } from "../../../apps/desk/src/crewRuns.ts";
+import { FOUNDRY_THREAD } from "../../../apps/desk/src/deskData.ts";
+import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "../../../apps/desk/src/IdeaCard.tsx";
+import { usePictureLinks } from "../../../apps/desk/src/ideaImages.ts";
+import { ROOM_META, ROOM_ORDER } from "../../../apps/desk/src/roomPulse.ts";
 import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
-import { describeRun, useVisualQa } from "../../../apps/world/src/desk/visualqa/feed.ts";
+import { describeRun, useVisualQa } from "../../../apps/desk/src/visualqa/feed.ts";
 import { isBuild } from "../data/forge.ts";
 import { progressWords, type Progress } from "../data/progress.ts";
 

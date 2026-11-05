@@ -4,7 +4,7 @@
  * reaches into the recesses of his magnificent mind instead, and the line rotates so it never sounds canned.
  *
  * Shared by the voice prompts (voice.ts, voicecrew.ts), the call's tool answers (toolroute.ts), the Desk chat's prompt
- * and its hand-off line (prompt.ts), and the Desk's own pending and caption strings (apps/world/src/desk/skippy). Pure:
+ * and its hand-off line (prompt.ts), and the Desk's own pending and caption strings (apps/desk/src/skippy). Pure:
  * no I/O, safe for the browser bundle.
  */
 

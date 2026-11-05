@@ -2,7 +2,7 @@
 /**
  * Photographs every agent for the Desk: each one's own model, alone in the portrait studio (/portrait-studio?agent=<id>,
  * apps/world/src/studio), in a three-quarter turn under a key, a rim and a fill, over its room's colours. Writes
- * apps/world/public/desk/agent-<id>.webp and the list the Desk reads them by (apps/world/src/desk/portraits.ts).
+ * apps/world/public/desk/agent-<id>.webp and the list the Desk reads them by (apps/desk/src/portraits.ts).
  *
  * The cast comes from the studio itself (window.__studio.roster, from the simulator's SAMPLE_AGENTS), so a new
  * agent, submind or otherwise, gets a portrait the next time this runs, with nothing to add here.
@@ -28,7 +28,7 @@ let base = args.find((a) => !a.startsWith("--"));
 
 const ROOT = new URL("../", import.meta.url).pathname;
 const OUT = new URL("../apps/world/public/desk/", import.meta.url).pathname;
-const LIST = new URL("../apps/world/src/desk/portraits.ts", import.meta.url).pathname;
+const LIST = new URL("../apps/desk/src/portraits.ts", import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 
 /** The Desk's largest avatar is 72px; 192px covers it at 2× with room for its slight zoom. */
@@ -112,7 +112,7 @@ try {
     shots.push({ ...a, png });
     console.log(`agent-${a.id}.webp  ${(webp.length / 1024).toFixed(1)} KB  (${a.body}, ${((Date.now() - started) / 1000).toFixed(0)}s)`);
   }
-  // Skippy runs the cast and isn't in it: his portrait for the Desk's chat (apps/world/src/desk/skippy) is
+  // Skippy runs the cast and isn't in it: his portrait for the Desk's chat (apps/desk/src/skippy) is
   // public/desk/skippy.webp, shot on a full run or with --only=skippy, and never listed in PORTRAITS.
   if (!only || only.includes("skippy")) {
     await page.goto(`${base}/portrait-studio?agent=skippy`, { waitUntil: "domcontentloaded" });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from "react";
-import { THERMO_MAX_F, THERMO_MIN_F, useHome, type DeviceReading, type ThermoMode } from "../../../apps/world/src/desk/homeDevices.ts";
+import { THERMO_MAX_F, THERMO_MIN_F, useHome, type DeviceReading, type ThermoMode } from "../../../apps/desk/src/homeDevices.ts";
 import { HOLD_MS, moodOf, sameAs, shownChange, useClimateQueue, type PendingClimate } from "./climateQueue.ts";
 import { angleOf, DIAL_A0, DIAL_SWEEP, GAP_F, moveSide, setOf } from "./plinth.ts";
 

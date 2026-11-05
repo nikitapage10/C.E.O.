@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { linkOf as homeLinkOf, LINKS as HAVEN_LINKS, startHome, useHome, VENDORS as HOME_VENDORS } from "../../../apps/world/src/desk/homeDevices.ts";
+import { linkOf as homeLinkOf, LINKS as HAVEN_LINKS, startHome, useHome, VENDORS as HOME_VENDORS } from "../../../apps/desk/src/homeDevices.ts";
 import { useWorldFeed } from "../../../apps/world/src/chronicle.ts";
 import { CREW, crewOf, useFoundry } from "../../../apps/world/src/foundry.ts";
 import { useSystems, type LinkState } from "../../../apps/world/src/systems.ts";
 import { formatUsd } from "../../../apps/world/src/usage.ts";
 import { clockHeadline, clockState, nextLine, useWorldClock } from "../../../apps/world/src/worldClock.ts";
-import { foundryGraph } from "../../../apps/world/src/desk/foundryGraph.ts";
-import { nextCheck, useSetup } from "../../../apps/world/src/desk/IdeaCard.tsx";
-import { useSetupStatus } from "../../../apps/world/src/desk/SetupCard.tsx";
-import { JobBoard } from "../../../apps/world/src/desk/JobBoard.tsx";
-import { LatticeTimings } from "../../../apps/world/src/desk/LatticeTimings.tsx";
-import { DeskTimings } from "../../../apps/world/src/desk/DeskTimings.tsx";
-import { TalkTimings } from "../../../apps/world/src/desk/TalkTimings.tsx";
+import { foundryGraph } from "../../../apps/desk/src/foundryGraph.ts";
+import { nextCheck, useSetup } from "../../../apps/desk/src/IdeaCard.tsx";
+import { useSetupStatus } from "../../../apps/desk/src/SetupCard.tsx";
+import { JobBoard } from "../../../apps/desk/src/JobBoard.tsx";
+import { LatticeTimings } from "../../../apps/desk/src/LatticeTimings.tsx";
+import { DeskTimings } from "../../../apps/desk/src/DeskTimings.tsx";
+import { TalkTimings } from "../../../apps/desk/src/TalkTimings.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId, type GState } from "../data/systemsGraph.ts";
 import { SystemsNav, type TabScores } from "./SystemsNav.tsx";
@@ -19,22 +19,22 @@ import { emailLine, linkOf, startEmail, useEmail, type EmailLoad, type EmailStat
 import { startInvoices } from "../../spire/data/invoices.ts";
 import { startPolymarket } from "../../exchange/data/polymarket.ts";
 import { startGreen } from "../../green/data/league.ts";
-import { roomLink } from "../../../apps/world/src/desk/hero/roomLink.ts";
+import { roomLink } from "../../../apps/desk/src/hero/roomLink.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
-import { Home } from "../../../apps/world/src/desk/rooms/Home.tsx";
-import { SetupAsks } from "../../../apps/world/src/desk/skippy/SetupAsks.tsx";
+import { Home } from "../../../apps/desk/src/rooms/Home.tsx";
+import { SetupAsks } from "../../../apps/desk/src/skippy/SetupAsks.tsx";
 import { useSecurityFeed } from "../data/feed.ts";
 import { OWASP_LLM, owaspTally } from "../data/model.ts";
 import { ACCENT, Arrow, RoomDetail } from "./Rack.tsx";
 import { PipeBoard } from "./PipeBoard.tsx";
 import { readPipes } from "../data/pipes.ts";
 import { roomSections } from "../data/rooms.ts";
-import { jobRows } from "../../../apps/world/src/desk/jobs.ts";
+import { jobRows } from "../../../apps/desk/src/jobs.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
-import "../../../apps/world/src/desk/rooms/rooms.css";
+import "../../../apps/desk/src/rooms/rooms.css";
 import "./boiler.css";
-import { describeRun, useVisualQa } from "../../../apps/world/src/desk/visualqa/feed.ts";
+import { describeRun, useVisualQa } from "../../../apps/desk/src/visualqa/feed.ts";
 
 /**
  * The Boiler Room's Map (#732, the B4 schematic; the particle rack of #390 before it): every real link C.E.O. depends

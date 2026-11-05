@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Private } from "@ceo/engine/web/Private.tsx";
-import { closeClock, useHome, type DeviceReading } from "../../../apps/world/src/desk/homeDevices.ts";
-import { removeItem, undoRemoveItem, type KitchenItem } from "../../../apps/world/src/desk/haven.ts";
+import { closeClock, useHome, type DeviceReading } from "../../../apps/desk/src/homeDevices.ts";
+import { removeItem, undoRemoveItem, type KitchenItem } from "../../../apps/desk/src/haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Shopping } from "./Groceries.tsx";
 import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { closeClock, useHome, type ActExtra, type DeviceReading, type VendorState } from "../../../apps/world/src/desk/homeDevices.ts";
+import { closeClock, useHome, type ActExtra, type DeviceReading, type VendorState } from "../../../apps/desk/src/homeDevices.ts";
 import type { HavenPlan } from "./data.ts";
 import { VacuumArt } from "./DeviceArt.tsx";
 import { DryStage, FountainStage, LitterStage, WetStage } from "./DevicePlates.tsx";

@@ -133,7 +133,17 @@ export function rank(ids: string[], links: { a: string; b: string }[]): Map<stri
 /** Longest a column runs before it wraps into a second one beside it: a room that fans out to a dozen devices stays a grid. */
 const WRAP = { lr: 6, tb: 2 } as const;
 
-export function schematic(section: RoomSection, model: SchemModel, dir: "lr" | "tb" = "lr"): Schematic {
+/** The room's parts on a grid: a column for each step along the flow (a tall step wrapped into several), a row across it. */
+export interface SchemGrid {
+  graph: ReturnType<typeof roomGraph>;
+  rankOf: Map<string, number>;
+  colOf: Map<string, number>;
+  rowOf: Map<string, number>;
+  maxCol: number;
+  maxRow: number;
+}
+
+export function schemGrid(section: RoomSection, model: SchemModel, wrap: number): SchemGrid {
   const g = roomGraph(section, model);
   const ids = g.nodes.map((n) => n.id);
   // Links that close a loop are left out of the ranking, so the flow still reads one way.
@@ -162,7 +172,6 @@ export function schematic(section: RoomSection, model: SchemModel, dir: "lr" | "
   }
 
   // Columns and rows on one grid, a tall rank wrapped into several columns, so the channels between rows stay clear.
-  const wrap = WRAP[dir];
   const colOf = new Map<string, number>();
   const rowOf = new Map<string, number>();
   const tallest = Math.min(wrap, Math.max(...[...layer.values()].map((l) => l.length)));
@@ -182,6 +191,11 @@ export function schematic(section: RoomSection, model: SchemModel, dir: "lr" | "
   }
   const maxCol = Math.max(0, ...colOf.values());
   const maxRow = Math.max(0, ...rowOf.values());
+  return { graph: g, rankOf: r, colOf, rowOf, maxCol, maxRow };
+}
+
+export function schematic(section: RoomSection, model: SchemModel, dir: "lr" | "tb" = "lr"): Schematic {
+  const { graph: g, rankOf: r, colOf, rowOf, maxCol, maxRow } = schemGrid(section, model, WRAP[dir]);
 
   // Laid out along the flow (u) and across it (v), then turned for the screen: u is x on a desk, y on a phone.
   const su = dir === "lr" ? NODE_W : NODE_H;
@@ -240,7 +254,7 @@ export function schematic(section: RoomSection, model: SchemModel, dir: "lr" | "
 }
 
 /** A card for a part or link that has no pipe of its own: what it is and its state, from the model's own words. */
-export function cardOf(t: { node: SchemNode } | { link: SchemLink }, section: RoomSection, nodes: SchemNode[]): RoomPipe {
+export function cardOf(t: { node: Pick<SchemNode, "id" | "name" | "sub" | "state"> } | { link: Omit<SchemLink, "back" | "d" | "mid"> }, section: RoomSection, nodes: Pick<SchemNode, "id" | "name">[]): RoomPipe {
   const STATE_WHY: Record<StationState, string> = { ok: "Flowing.", late: "Running late.", shut: "Valve shut.", leak: "Broken: it stopped answering.", dry: "Not connected yet." };
   if ("node" in t) {
     const n = t.node;

@@ -80,12 +80,12 @@ export const STATIONS: readonly StationDef[] = [
   { id: "paypal", name: "PayPal", line: "money", at: [865, 590], room: "spire" },
   { id: "blob", name: "Azure Blob", line: "house", at: [385, 330], room: "boiler" },
   { id: "backup", name: "Backups", line: "house", at: [300, 330], room: "boiler" },
-  { id: "nest", name: "Nest", line: "house", at: [130, 460], room: "boiler" },
-  { id: "whisker", name: "Whisker", line: "house", at: [230, 590], room: "boiler" },
-  { id: "roborock", name: "Roborock", line: "house", at: [420, 590], room: "boiler" },
-  { id: "petlibro", name: "Petlibro", line: "pet", at: [220, 220], room: "boiler" },
-  { id: "tasks", name: "Google Tasks", line: "kitchen", at: [325, 530], room: "boiler" },
-  { id: "kroger", name: "King Soopers", line: "kitchen", at: [325, 455], room: "boiler" },
+  { id: "nest", name: "Nest", line: "house", at: [130, 460], room: "haven" },
+  { id: "whisker", name: "Whisker", line: "house", at: [230, 590], room: "haven" },
+  { id: "roborock", name: "Roborock", line: "house", at: [420, 590], room: "haven" },
+  { id: "petlibro", name: "Petlibro", line: "pet", at: [220, 220], room: "haven" },
+  { id: "tasks", name: "Google Tasks", line: "kitchen", at: [325, 530], room: "haven" },
+  { id: "kroger", name: "King Soopers", line: "kitchen", at: [325, 455], room: "haven" },
 ];
 
 /** Rooms with no real pipe yet: ghost outlines on the map. */

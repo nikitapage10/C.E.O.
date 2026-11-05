@@ -97,35 +97,35 @@ test("the faults are in the pipes: a leak, a shut valve and a late clock, worst 
   // Every room is its own section: picking one focuses it.
   const rooms = board.locator(".bp-rooms button");
   await expect(rooms.first()).toHaveText("All rooms");
-  await expect(rooms).toHaveCount(8);
+  await expect(rooms).toHaveCount(9);
+  // Every API is its room's: the house is the Haven's, and the Boiler Room keeps the shared plumbing, last (#789).
+  await expect(rooms.last()).toContainText("Boiler Room");
   // The room picker is one slim row of chips.
   const row = (await board.locator(".bp-rooms").boundingBox())!;
   expect(row.height).toBeLessThanOrEqual(44);
-  await rooms.filter({ hasText: "Boiler Room" }).click();
-  await expect(rooms.filter({ hasText: "Boiler Room" })).toHaveAttribute("aria-pressed", "true");
-  // Picking a room swaps the pipe run for the room's own schematic: its parts and links, each opening its card.
-  const schem = board.locator('[data-room-schematic="boiler"]');
-  await expect(schem).toBeVisible();
-  await expect(schem.locator(".sc-node[data-node]").first()).toBeVisible();
-  expect(await schem.locator(".sc-link").count()).toBeGreaterThan(3);
-  await expect(schem.locator('.sc-node[data-node="petlibro"]')).toHaveClass(/is-leak/);
-  await schem.locator('.sc-node[data-node="petlibro"]').click();
+  await rooms.filter({ hasText: "Haven" }).click();
+  await expect(rooms.filter({ hasText: "Haven" })).toHaveAttribute("aria-pressed", "true");
+  // Picking a room swaps the map for the room's own run in 3D: its parts and links, each opening its card.
+  const haven = board.locator('.bp-map.is-on[data-room-run="haven"]');
+  await expect(haven).toBeVisible();
+  const parts = haven.locator(".bp-lb.is-node.is-show");
+  await expect(parts.first()).toBeVisible();
+  expect(await parts.count()).toBeGreaterThan(5);
+  const pet = parts.filter({ hasText: "Petlibro" });
+  await expect(pet).toHaveClass(/is-leak/);
+  await page.waitForTimeout(1200);
+  await pet.dispatchEvent("click");
   await expect(board.locator(".bp-card h3")).toHaveText("Petlibro");
   await page.keyboard.press("Escape");
-  await schem.locator(".sc-link").first().focus();
-  await page.keyboard.press("Enter");
-  await expect(board.locator(".bp-card h3")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.mouse.move(5, 5);
   await expect(board.locator(".bp-card")).toHaveCount(0);
-  if (SHOTS) await board.screenshot({ path: `${SHOTS}/boiler-schematic-boiler-desktop.png` });
+  if (SHOTS) await board.screenshot({ path: `${SHOTS}/boiler-run-haven-desktop.png` });
   await rooms.filter({ hasText: "Relay" }).click();
-  const relay = board.locator('[data-room-schematic="relay"]');
-  await expect(relay.locator('.sc-node[data-node="bluebubbles"]')).toBeVisible();
-  if (SHOTS) await board.screenshot({ path: `${SHOTS}/boiler-schematic-relay-desktop.png` });
+  await expect(board.locator('[data-room-run="relay"] .bp-lb.is-node', { hasText: "BlueBubbles" })).toBeVisible();
+  if (SHOTS) await board.screenshot({ path: `${SHOTS}/boiler-run-relay-desktop.png` });
   await rooms.filter({ hasText: "Boiler Room" }).click();
-  // Picking Petlibro's plate made it the panel's fault; back to the clock.
+  await expect(board.locator('[data-room-run="boiler"] .bp-lb.is-node').first()).toBeVisible();
+  // Picking Petlibro made it the panel's fault; back to the clock.
   await panel.locator(".bp-queue button", { hasText: "world clock" }).click();
   // The panel opens the fault's card: what it is, its state, when it last worked, what it needs, its fix.
   await panel.locator(".bp-more").click();
@@ -191,37 +191,18 @@ test("on a phone the map sits above the panel", async ({ browser }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   // A tap on a room focuses it; the panel opens the fault's card, rising from the foot of the map.
   await page.locator(".bp-rooms button", { hasText: "Boiler Room" }).tap();
-  await expect(page.locator('[data-room-schematic="boiler"].is-tb')).toBeVisible();
+  await expect(page.locator('.bp-map.is-on[data-room-run="boiler"]')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await panel.locator(".bp-more").tap();
   await expect(page.locator(".bp-card h3")).toHaveText("Petlibro");
   if (SHOTS) {
     await page.keyboard.press("Escape");
-    for (const [room, chip] of [["relay", "Relay"], ["boiler", "Boiler Room"]] as const) {
+    for (const [room, chip] of [["haven", "Haven"], ["foundry", "Foundry"]] as const) {
       await page.locator(".bp-rooms button", { hasText: chip }).tap();
-      await expect(page.locator(`[data-room-schematic="${room}"]`)).toBeVisible();
-      // The schematic scrolls inside the map; for the shot the map grows to the whole drawing.
-      const tall = await page.evaluate(() => {
-        document.querySelectorAll("*").forEach((e) => e.scrollTop && (e.scrollTop = 0));
-        const svg = document.querySelector(".bp-schem-svg")!;
-        const m = document.querySelector<HTMLElement>(".bp-map")!;
-        const h = svg.getBoundingClientRect().bottom - m.getBoundingClientRect().top + 60;
-        m.style.height = `${h}px`;
-        (m.parentElement as HTMLElement).style.gridTemplateRows = "auto 40px auto auto";
-        document.querySelectorAll("*").forEach((e) => e.scrollTop && (e.scrollTop = 0));
-        return m.getBoundingClientRect().top + h;
-      });
-      await page.setViewportSize({ width: 390, height: Math.ceil(Math.max(844, tall + 40)) });
-      await page.waitForTimeout(600);
-      await page.evaluate(() => document.querySelectorAll("*").forEach((e) => e.scrollTop && (e.scrollTop = 0)));
+      await expect(page.locator(`.bp-map[data-room-run="${room}"]`)).toBeVisible();
+      await page.waitForTimeout(2500);
       const mb = (await page.locator(".bp-map").boundingBox())!;
-      await page.screenshot({ path: `${SHOTS}/boiler-schematic-${room}-phone.png`, clip: { x: 0, y: Math.max(0, mb.y - 50), width: 390, height: mb.height + 50 } });
-      await page.evaluate(() => {
-        const m = document.querySelector<HTMLElement>(".bp-map")!;
-        m.style.removeProperty("height");
-        (m.parentElement as HTMLElement).style.removeProperty("grid-template-rows");
-      });
-      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: `${SHOTS}/boiler-run-${room}-phone.png`, clip: { x: 0, y: Math.max(0, mb.y - 50), width: 390, height: mb.height + 50 } });
     }
     await panel.locator(".bp-more").tap();
   }

@@ -16,8 +16,13 @@ describe("each system's How it works", () => {
     for (const c of CONNECTIONS) {
       expect(c.kinds.length, c.id).toBeGreaterThan(0);
       for (const t of [c.name, c.serves, c.how, c.auth, c.when]) expect(t.trim().length, c.id).toBeGreaterThan(0);
-      expect(Object.hasOwn(DESK_ROOMS, c.room), c.id).toBe(true);
+      expect(c.room === "haven" || Object.hasOwn(DESK_ROOMS, c.room), c.id).toBe(true);
     }
+  });
+
+  it("gives every API to the room that uses it: the house devices to the Haven, shared plumbing to the Boiler Room (#789)", () => {
+    for (const id of ["roborock", "petlibro", "whisker", "nest", "google-tasks", "kroger"]) expect(CONNECTIONS.find((c) => c.id === id)?.room, id).toBe("haven");
+    for (const c of CONNECTIONS.filter((c) => c.room === "boiler")) expect(c.at.some((a) => a.system === "home"), c.id).toBe(false);
   });
 
   it("has unique ids", () => {

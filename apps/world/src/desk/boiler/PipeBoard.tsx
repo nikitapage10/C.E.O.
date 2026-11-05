@@ -7,11 +7,12 @@ import { useEmail } from "../email/email.ts";
 import { groceryAction, isKrogerSignIn } from "../haven/groceries.ts";
 import { googleAction } from "../homeDevices.ts";
 import { reducedMotion } from "../wvCanvas.ts";
-import { pipeHeadline, sinceWords, type Fix } from "./pipes.ts";
+import { pipeHeadline, sinceWords, type Fix, type StationState } from "./pipes.ts";
 import { layout, roomCounts, roomFaults, roomState, STATE_SAY, type RoomPipe, type RoomSection } from "./rooms.ts";
 import type { MapTarget, PipeScene } from "./pipeScene.ts";
 import { RoomSchematic, type SchemTarget } from "./RoomSchematic.tsx";
 import type { SchemModel } from "./schematic.ts";
+import { windRoom } from "./wind.ts";
 import "./pipes.css";
 
 /**
@@ -21,8 +22,9 @@ import "./pipes.css";
  * reads and how it signs in, any cap, what it needs from Nikita, and its Fix), and the fault panel beside it: one broken
  * thing at a time, its cause, a single Fix wired to the action the Desk already has, the steps when there's no button,
  * and the queue of the rest. Every word here is a state or a count; fixes that need a passkey ask for a sign-in.
- * All rooms is the pipe overview; picking a room swaps it for that room's own schematic (#751, boiler/RoomSchematic.tsx):
- * its parts and connections as a data-flow diagram, each opening the same card.
+ * All rooms is the pipe overview; picking a room swaps it for that room's own run in the same 3D scene (#789,
+ * boiler/wind.ts): its parts as stations and its connections as pipes in the order the data flows, wound in bands so a
+ * long room fits, each opening the same card. Without WebGL the room's flat schematic (boiler/RoomSchematic.tsx) stands in.
  */
 
 const LINE = "The Pessimist keeps the boiler. He expected this.";
@@ -203,10 +205,11 @@ export function PipeBoard({ sections, model, now, signedIn, tabs, onOpenRoom }: 
   const bad = faults.filter((f) => f.kind !== "late");
   const pipes = useMemo(() => new Map(sections.flatMap((s) => s.pipes.map((p) => [p.id, p] as const))), [sections]);
   const cardId = pin ?? hover;
-  // A schematic part or link with no pipe of its own brings its own card.
-  const [synth, setSynth] = useState<RoomPipe | null>(null);
-  const cardPipe = cardId ? (pipes.get(cardId) ?? (synth?.id === cardId ? synth : null)) : null;
   const schem = focus ? (sections.find((s) => s.id === focus) ?? null) : null;
+  // The room's own run (#789): a part or link with no pipe of its own brings its own card.
+  const wind = schem ? windRoom(schem, model) : null;
+  const roomCards = new Map((wind?.cards ?? []).map((c) => [c.id, c] as const));
+  const cardPipe = cardId ? (pipes.get(cardId) ?? roomCards.get(cardId) ?? null) : null;
   const cardRoom = cardPipe ? (sections.find((s) => s.id === cardPipe.room) ?? null) : null;
 
   const say = (t: string) => {
@@ -267,24 +270,29 @@ export function PipeBoard({ sections, model, now, signedIn, tabs, onOpenRoom }: 
   const shape = JSON.stringify(sections.map((s) => [s.id, s.pipes.map((p) => p.id + p.kind)]));
   useEffect(() => {
     if (gl !== "on" || !scene.current) return;
-    scene.current.build(
-      sections.map((s) => ({ id: s.id, name: s.name, c: s.c, pipes: s.pipes.map((p) => ({ id: p.id, name: p.name, kind: p.kind })) })),
-      layout(sections),
-    );
+    if (schem) scene.current.showRoom(schem, model);
+    else
+      scene.current.build(
+        sections.map((s) => ({ id: s.id, name: s.name, c: s.c, pipes: s.pipes.map((p) => ({ id: p.id, name: p.name, kind: p.kind })) })),
+        layout(sections),
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gl, shape]);
-  const states = JSON.stringify(sections.flatMap((s) => s.pipes.map((p) => p.state)));
+  }, [gl, shape, focus]);
+  // Every station's state: the pipes on the whole map, or the room's parts and links on its own run.
+  const stateMap: Record<string, StationState> = wind ? Object.fromEntries([...wind.nodes, ...wind.links].map((x) => [x.key, x.state])) : Object.fromEntries(sections.flatMap((s) => s.pipes.map((p) => [p.id, p.state])));
+  const states = JSON.stringify(stateMap);
   useEffect(() => {
     if (gl !== "on" || !scene.current) return;
-    // A room's schematic takes the map's place; the pipes behind it stay on the overview.
-    scene.current.set(Object.fromEntries(sections.flatMap((s) => s.pipes.map((p) => [p.id, p.state]))), null, focus ? null : (cardId ?? fault?.pipe ?? null));
+    scene.current.set(stateMap, null, cardId ?? fault?.pipe ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gl, shape, states, focus, cardId, fault?.pipe]);
   useEffect(() => {
     if (!scene.current) return;
-    scene.current.track = focus ? null : cardId;
+    scene.current.track = cardId;
     scene.current.wake();
     if (!cardId) setAt(null);
+    // A card about something this view has no station for stands at the top of the map.
+    else if (gl === "on" && !scene.current.has(cardId) && host.current) setAt({ x: host.current.clientWidth / 2, y: 40 });
   }, [cardId, gl, focus]);
 
   // The schematic's hover and pick: the card sits over the plate or pipe it's about.
@@ -295,12 +303,12 @@ export function PipeBoard({ sections, model, now, signedIn, tabs, onOpenRoom }: 
   };
   // A card opened from the panel while a room's schematic shows sits by the part or link it is about.
   useLayoutEffect(() => {
-    if (!focus || !cardId || !host.current) return;
+    if (gl === "on" || !focus || !cardId || !host.current) return;
     const q = `[data-pipe="${CSS.escape(cardId)}"]`;
     const el = host.current.querySelector(`.sc-node${q}`) ?? host.current.querySelector(`.sc-link${q}`);
     if (el) schemAt(el);
     else setAt({ x: host.current.clientWidth / 2, y: 40 });
-  }, [focus, cardId]);
+  }, [focus, cardId, gl]);
   const schemHover = (t: SchemTarget | null) => {
     window.clearTimeout(hoverTimer.current);
     if (!t) {
@@ -308,12 +316,10 @@ export function PipeBoard({ sections, model, now, signedIn, tabs, onOpenRoom }: 
       return;
     }
     if (pin) return;
-    if (!pipes.has(t.pipe.id)) setSynth(t.pipe);
     setHover(t.pipe.id);
     schemAt(t.el);
   };
   const schemPick = (t: SchemTarget) => {
-    if (!pipes.has(t.pipe.id)) setSynth(t.pipe);
     setPin(t.pipe.id);
     schemAt(t.el);
     if (faults.some((f) => f.id === t.pipe.id)) setCur(t.pipe.id);
@@ -428,9 +434,9 @@ export function PipeBoard({ sections, model, now, signedIn, tabs, onOpenRoom }: 
           );
         })}
       </nav>
-      <div className={`bp-map is-${gl}${schem ? " is-schem" : ""}`} ref={host}>
+      <div className={`bp-map is-${gl}${schem && gl === "none" ? " is-schem" : ""}`} ref={host} data-room-run={schem && gl === "on" ? schem.id : undefined}>
         {gl === "none" && !schem ? <p className="bp-nogl">The 3D map needs WebGL. Every fault is still in the panel.</p> : null}
-        {schem ? <RoomSchematic key={schem.id} section={schem} model={model} current={cardId} onHover={schemHover} onPick={schemPick} /> : null}
+        {schem && gl === "none" ? <RoomSchematic key={schem.id} section={schem} model={model} current={cardId} onHover={schemHover} onPick={schemPick} /> : null}
         <div className={`bp-toast${toast ? " is-on" : ""}`} role="status">
           {toast}
         </div>

@@ -305,7 +305,10 @@ test("Talk plays hold music on a long wait, ducks it the moment anyone speaks, a
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await startCall(page);
-  await page.goto(BASE + "/");
+  // Called from a page with no 3D scene behind it. On the Senate ("/"), the chamber's software-rendered frames on a CI
+  // runner (SwiftShader) hold the main thread for seconds at a time, so the call's 120 ms hold check (skippy/hold.ts)
+  // can go 4 s without a tick and the music never gets its turn: the waits below would time the runner, not the rules.
+  await page.goto(BASE + "/foundry");
   await page.locator(".desk__skippy").click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
   await chat.getByRole("button", { name: /live voice call/ }).click();

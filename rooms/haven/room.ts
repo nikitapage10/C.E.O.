@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 import { TOOLS } from "./tools.ts";
 
 /**
@@ -10,7 +11,7 @@ import { TOOLS } from "./tools.ts";
  */
 export default defineRoom({
   id: "haven",
-  name: "Haven",
+  ...nav,
   path: "/haven",
   navKey: "2",
   accent: "--room-haven",

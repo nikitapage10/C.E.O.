@@ -1,18 +1,19 @@
 import "./roomHooks.ts";
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, type ComponentType } from "react";
 import { startFoundry } from "../foundry.ts";
 import { warmLattice } from "../latticeWarm.ts";
-import { navigate, renamedPath, usePathname, type Route } from "../route.ts";
+import { navigate, renamedPath, usePathname } from "../route.ts";
 import { useSystems } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
 import { useAwaySince } from "./awaySince.ts";
 import { useHide } from "./hide.ts";
-import { DeskNav, KEY_ORDER, labelOf, ROOM_TABS } from "./DeskNav.tsx";
+import { DeskNav, KEY_ORDER } from "./DeskNav.tsx";
 import { DeskSky } from "./DeskSky.tsx";
 import { startDeskTiming } from "./deskBeacon.ts";
 import { useDeskData } from "./deskData.ts";
 import { useNow } from "./motion.tsx";
 import { startDeskWorker } from "./pings.ts";
+import { PAGE_LOADERS, pageName, type DeskPage, type PageProps } from "./roomPages.ts";
 import { startDeskAuth } from "./signin.ts";
 import { systemsTitle } from "./SystemsNav.tsx";
 import { useSkippy } from "./skippy/index.ts";
@@ -27,34 +28,14 @@ import "./weave.css";
 import "./wv.css";
 
 // Today is in the first load; every other page loads the first time it is opened (and is fetched in the idle time
-// after the first paint, so switching stays instant).
+// after the first paint, so switching stays instant). The pages' loaders come from the room manifests (roomPages.ts).
 const loaders = {
-  relay: () => import("./Relay.tsx"),
-  foundry: () => import("./FoundryPage.tsx"),
-  boiler: () => import("./SystemsHub.tsx"),
-  archive: () => import("./Archive.tsx"),
-  spire: () => import("./rooms/Spire.tsx"),
-  exchange: () => import("./rooms/Exchange.tsx"),
-  green: () => import("./rooms/Green.tsx"),
-  workshop: () => import("./rooms/Workshop.tsx"),
-  studio: () => import("./rooms/Studio.tsx"),
-  annex: () => import("./rooms/Annex.tsx"),
-  haven: () => import("./rooms/Haven.tsx"),
+  ...PAGE_LOADERS,
   // Not pages, but kept out of the first load the same way: Skippy's open dialogue and the rest of Today.
   skippy: () => import("./skippy/SkippyDialog.tsx"),
   more: loadTodayMore,
 };
-const Relay = lazy(() => loaders.relay().then((m) => ({ default: m.Relay })));
-const FoundryPage = lazy(() => loaders.foundry().then((m) => ({ default: m.FoundryPage })));
-const BoilerRoom = lazy(() => loaders.boiler().then((m) => ({ default: m.SystemsHub })));
-const Archive = lazy(() => loaders.archive().then((m) => ({ default: m.Archive })));
-const Spire = lazy(() => loaders.spire().then((m) => ({ default: m.Spire })));
-const Exchange = lazy(() => loaders.exchange().then((m) => ({ default: m.Exchange })));
-const Green = lazy(() => loaders.green().then((m) => ({ default: m.Green })));
-const Workshop = lazy(() => loaders.workshop().then((m) => ({ default: m.Workshop })));
-const Studio = lazy(() => loaders.studio().then((m) => ({ default: m.Studio })));
-const Annex = lazy(() => loaders.annex().then((m) => ({ default: m.Annex })));
-const Haven = lazy(() => loaders.haven().then((m) => ({ default: m.Haven })));
+const PAGES: Partial<Record<DeskPage, ComponentType<PageProps>>> = Object.fromEntries(Object.entries(PAGE_LOADERS).map(([id, load]) => [id, lazy(load)]));
 const SkippyChat = lazy(() => loaders.skippy().then((m) => ({ default: m.SkippyChat })));
 
 /** Fetch the other pages once the browser is idle after first paint. Failures are ignored: opening the page retries. */
@@ -66,7 +47,7 @@ function prefetchTabs() {
 }
 
 /** Each page's colour, as its manifest names it (rooms/<id>/room.ts `accent`): the room loader's motes wear it. */
-const accentOf = (route: Exclude<Route, "lattice">) => (route === "today" ? "--ice" : `--room-${route}`);
+const accentOf = (route: DeskPage) => (route === "today" ? "--ice" : `--room-${route}`);
 
 /**
  * The Desk: the Lattice's control room as a flat, fast page, where the C.E.O. acts on what the agents bring in.
@@ -75,11 +56,10 @@ const accentOf = (route: Exclude<Route, "lattice">) => (route === "today" ? "--i
  * on the MacBook is connected.
  */
 
-type DeskTab = Exclude<Route, "lattice">;
+/** The tab's title: the page's name (its manifest's), Today's the Desk's own, the Boiler Room's by its subpage. */
+const titleOf = (route: DeskPage, pathname: string) => (route === "boiler" ? systemsTitle(pathname) : route === "today" ? "C.E.O. — Desk" : `${pageName(route)} · C.E.O.`);
 
-const TITLES: Partial<Record<DeskTab, string>> = { relay: "Relay", foundry: "Foundry", archive: "Archive", spire: "Spire", exchange: "Exchange", green: "Green", workshop: "Workshop", studio: "Studio", annex: "Annex", haven: "Haven" };
-
-export function Desk({ route }: { route: DeskTab }) {
+export function Desk({ route }: { route: DeskPage }) {
   const awaySince = useAwaySince();
   const data = useDeskData(awaySince);
   const now = useNow(30_000);
@@ -133,11 +113,12 @@ export function Desk({ route }: { route: DeskTab }) {
 
   const pathname = usePathname();
   useEffect(() => {
-    document.title = route === "boiler" ? systemsTitle(pathname) : TITLES[route] ? `${TITLES[route]} · C.E.O.` : "C.E.O. — Desk";
+    document.title = titleOf(route, pathname);
   }, [route, pathname]);
 
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
   const connected = hub !== "off";
+  const Page = PAGES[route];
 
   return (
     <div className="desk" data-route={route} data-hide={hide || undefined}>
@@ -146,34 +127,10 @@ export function Desk({ route }: { route: DeskTab }) {
 
       {/* The room loader (#752, @ceo/engine): covers the page while its code, scene and first data come in, then fades.
           Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. */}
-      <RoomLoader key={route} room={route} name={labelOf(route)} accent={accentOf(route)}>
-        <main className="desk__main" data-room={route in ROOM_TABS || route === "foundry" || route === "relay" ? route : undefined}>
+      <RoomLoader key={route} room={route} name={pageName(route)} accent={accentOf(route)}>
+        <main className="desk__main" data-room={route === "today" ? undefined : route}>
           <Suspense fallback={null}>
-            {route === "relay" ? (
-              <Relay data={data} now={now} connected={connected} />
-            ) : route === "foundry" ? (
-              <FoundryPage now={now} />
-            ) : route === "archive" ? (
-              <Archive now={now} awaySince={awaySince} />
-            ) : route === "boiler" ? (
-              <BoilerRoom now={now} />
-            ) : route === "spire" ? (
-              <Spire />
-            ) : route === "exchange" ? (
-              <Exchange />
-            ) : route === "green" ? (
-              <Green />
-            ) : route === "workshop" ? (
-              <Workshop />
-            ) : route === "studio" ? (
-              <Studio />
-            ) : route === "annex" ? (
-              <Annex />
-            ) : route === "haven" ? (
-              <Haven />
-            ) : (
-              <Today data={data} now={now} connected={connected} awaySince={awaySince} />
-            )}
+            {Page ? <Page data={data} now={now} connected={connected} awaySince={awaySince} /> : <Today data={data} now={now} connected={connected} awaySince={awaySince} />}
             <RoomMounted />
           </Suspense>
         </main>

@@ -1,9 +1,10 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 
 /** The Studio: short videos that explain the internet (#311). Not live yet. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "studio",
-  name: "Studio",
+  ...nav,
   path: "/studio",
   accent: "--room-studio",
   submind: "tally",

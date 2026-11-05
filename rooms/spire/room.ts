@@ -1,9 +1,10 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 
 /** The Spire: invoices and the idea scout (docs/PAYPAL.md). Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "spire",
-  name: "Spire",
+  ...nav,
   path: "/spire",
   navKey: "9",
   accent: "--room-spire",

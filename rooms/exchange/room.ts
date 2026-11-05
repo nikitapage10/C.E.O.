@@ -1,10 +1,11 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 import { TOOLS } from "./tools.ts";
 
 /** The Exchange: markets, research and money. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "exchange",
-  name: "Exchange",
+  ...nav,
   path: "/exchange",
   navKey: "6",
   accent: "--room-exchange",

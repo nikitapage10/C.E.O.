@@ -7,9 +7,12 @@ folder and is free to work however it needs inside it. The room contract below w
 tests and lint enforce it. The site keeps one address and one deploy.
 
 The rooms are moving in over 14 steps (the plan is on #617). Step 1 added the engine's skeleton, a manifest for each of
-the ten rooms, the contract test and the lint boundaries; nothing imports the manifests yet. Step 2 moved the shared
+the ten rooms, the contract test and the lint boundaries. Step 2 moved the shared
 kits into the engine (below). Step 3 turned the backwards imports round: the shared kits no longer import rooms, and
-the rooms plug into them instead (below, "Rooms plug in"). Until a room's own step lands, its code stays where it is in
+the rooms plug into them instead (below, "Rooms plug in"); and the Desk's bar names and page loaders now come from
+the rooms: each room's `rooms/<id>/nav.ts` holds its `name` and `page`, its `room.ts` takes them in, and the Desk's
+shell loads only those small files (`desk/roomPages.ts`; the full manifests would add about 40 kB to the first load).
+The bar's order stays route.ts `NAV_ORDER`. Until a room's own step lands, its code stays where it is in
 `apps/world/src/desk` and `api/`.
 
 ## What the engine holds
@@ -137,7 +140,7 @@ rooms/green/
   tests/         unit tests and an e2e smoke test
 ```
 
-So far each room has only its `room.ts`.
+So far each room has only its `room.ts` and `nav.ts`, whose `page` still points at its page in `apps/world/src/desk`.
 
 ### The manifest
 
@@ -152,7 +155,7 @@ So far each room has only its `room.ts`.
 | `keys`, `usesClaude` | The secret settings only it reads, and whether any endpoint calls Claude. |
 | `threat` | Its THREAT-MODEL.md ids (`TB1`, `R5`). |
 | `budgetKb` | Its lazy-loaded JS budget, in raw KB. |
-| `page` | Optional: the lazy page loader. |
+| `name`, `page` (from `nav.ts`) | `page` is the lazy page loader, resolving to `{ default: Page }`; the Desk renders and prefetches it and hands it `{ data, now, connected, awaySince }`. Every room but Today has one (Today is in the first load). |
 | `purpose` | `goal` (one sentence, at most 200 characters), `agents` (its real integrations: `{ name, use }`, named as THREAT-MODEL.md names them) and `measure`. |
 | `tools` | Optional (#646): the room's tools for Skippy, data only, from `rooms/<id>/tools.ts` (`RoomTool[]`, `@ceo/engine/tools`). Names are unique across rooms and each has a server executor in `api/_skippy/agent/tools.ts`; anything that sends, spends or deletes needs Nikita's tap (a contract test holds both). |
 | `lore` | `submind`, `agents`, `house`, `section` (a heading in `lore/syntherion.md`) and `lines` (the flavour pool: a `ROOM_QUIPS` room, or `skippy`). |

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadLattice, NAV_ORDER, type Route, type RoomRoute } from "../route.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { link } from "./nav.ts";
+import { pageName } from "./roomPages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { useDeskAuth } from "./signin.ts";
 import { useHide } from "./hide.ts";
@@ -19,27 +20,22 @@ import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
  * Hands-free is on the bar shows who it is listening for, with a tap to stop it.
  */
 
-export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "foundry", label: "Foundry" },
-  { id: "relay", label: "Relay" },
-];
-
-export const ROOM_TABS: Record<RoomRoute, { label: string; line: string }> = {
-  boiler: { label: "Boiler Room", line: "Every connection, security and the house" },
-  archive: { label: "Archive", line: "The day as a story, and the Tide" },
-  spire: { label: "Spire", line: "Invoices and the idea scout" },
-  exchange: { label: "Exchange", line: "Markets, research and money" },
-  green: { label: "Green", line: "The fantasy league" },
-  workshop: { label: "Workshop", line: "From a prompt to a print" },
-  studio: { label: "Studio", line: "Short videos that explain the internet" },
-  annex: { label: "Annex", line: "Pop-ups: short-run projects, election night first" },
-  haven: { label: "Haven", line: "Home and health: the house, the pets, the kitchen" },
+/** Each room tab's line, shown when pointed at. The pages' names come from their manifests (roomPages.ts, `pageName`). */
+export const ROOM_TABS: Record<RoomRoute, { line: string }> = {
+  boiler: { line: "Every connection, security and the house" },
+  archive: { line: "The day as a story, and the Tide" },
+  spire: { line: "Invoices and the idea scout" },
+  exchange: { line: "Markets, research and money" },
+  green: { line: "The fantasy league" },
+  workshop: { line: "From a prompt to a print" },
+  studio: { line: "Short videos that explain the internet" },
+  annex: { line: "Pop-ups: short-run projects, election night first" },
+  haven: { line: "Home and health: the house, the pets, the kitchen" },
 };
 
 /** Every page in the bar's order (route.ts NAV_ORDER): keys 1 to 9, then 0, open the first ten. */
 export const KEY_ORDER: Exclude<Route, "lattice">[] = [...NAV_ORDER];
-export const labelOf = (id: Exclude<Route, "lattice">) => MAIN_TABS.find((t) => t.id === id)?.label ?? ROOM_TABS[id as RoomRoute].label;
+export const labelOf = pageName;
 
 export const pathOf = (id: Exclude<Route, "lattice">) => (id === "today" ? "/" : `/${id}`);
 

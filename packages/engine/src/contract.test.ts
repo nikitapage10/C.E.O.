@@ -65,9 +65,6 @@ const byId = new Map(manifests.map((m) => [m.id, m]));
 /** The Desk's key order: the bar's order (route.ts NAV_ORDER, read by DeskNav.tsx's KEY_ORDER). */
 const KEY_ORDER: readonly string[] = NAV_ORDER;
 const NAV_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
-/** The Desk bar's labels (MAIN_TABS and ROOM_TABS in DeskNav.tsx, read as text so the test loads no React). */
-const deskNav = readRepoFile("apps/world/src/desk/DeskNav.tsx") ?? "";
-const tabLabel = (id: string) => deskNav.match(new RegExp(`(?:id: "${id}", |\\b${id}: \\{ )label: "([^"]+)"`))?.[1];
 
 const isRoomId = (id: string): id is RoomId => (ROOM_IDS as readonly string[]).includes(id);
 const threatModel = readRepoFile("docs/THREAT-MODEL.md");
@@ -113,12 +110,15 @@ describe("the room manifests", () => {
     expect(manifests.map((m) => m.id).sort()).toEqual(routes.sort());
   });
 
-  it("nav keys follow the Desk's key order, and names its labels (DeskNav.tsx)", () => {
+  it("nav keys follow the Desk's key order", () => {
     // Ten keys: a page past the tenth (the Studio and the Boiler Room since 2026-11-04) has none.
     expect(KEY_ORDER.length).toBeGreaterThanOrEqual(NAV_KEYS.length);
     KEY_ORDER.forEach((id, i) => expect(byId.get(id)?.navKey, id).toBe(NAV_KEYS[i]));
     expect(new Set(KEY_ORDER).size, "each page once").toBe(manifests.length);
-    for (const m of manifests) expect(m.name, m.id).toBe(tabLabel(m.id));
+  });
+
+  it("each page past Today loads from its manifest's `page` (the Desk's bar and loaders read the manifests, step 3)", () => {
+    for (const m of manifests) expect(typeof m.page, m.id).toBe(m.id === "today" ? "undefined" : "function");
   });
 
   it("each room past Today, the Foundry and Relay is one of the Desk's room tabs (ROOM_TABS)", () => {

@@ -1,10 +1,11 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 import { TOOLS } from "./tools.ts";
 
 /** The Green: the fantasy league. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "green",
-  name: "Green",
+  ...nav,
   path: "/green",
   navKey: "5",
   accent: "--room-green",

@@ -1,10 +1,11 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 import { TOOLS } from "./tools.ts";
 
 /** The Boiler Room: every connection, security and the house. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "boiler",
-  name: "Boiler Room",
+  ...nav,
   path: "/boiler",
   accent: "--room-boiler",
   submind: "soot",

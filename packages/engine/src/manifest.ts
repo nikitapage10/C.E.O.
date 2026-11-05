@@ -78,7 +78,7 @@ export const RoomLoreSchema = z.strictObject({
 });
 export type RoomLore = z.infer<typeof RoomLoreSchema>;
 
-/** A lazy page loader. Optional at step 1: the Desk still loads its pages itself until step 3. */
+/** The lazy page loader, resolving to `{ default: Page }`: the Desk renders and prefetches its pages from these (step 3). Today alone has none: it is in the first load. */
 const pageLoader = z.custom<() => Promise<unknown>>((v) => typeof v === "function", "a function that imports the page");
 /** A lazy loader of the room's voice intent module (`@ceo/engine/voice`, RoomVoiceModule). */
 const voiceLoader = z.custom<() => Promise<RoomVoiceModule>>((v) => typeof v === "function", "a function that imports the room's voice intent module");

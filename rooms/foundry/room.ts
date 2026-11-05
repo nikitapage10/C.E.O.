@@ -1,10 +1,11 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 import { TOOLS } from "./tools.ts";
 
 /** The Foundry: the coding crew (docs/FOUNDRY.md). Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "foundry",
-  name: "Foundry",
+  ...nav,
   path: "/foundry",
   navKey: "3",
   accent: "--room-foundry",

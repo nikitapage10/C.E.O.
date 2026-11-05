@@ -1,10 +1,11 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { nav } from "./nav.ts";
 import { TOOLS } from "./tools.ts";
 
 /** Relay: email and texts (docs/GMAIL.md, docs/RELAY-PRIVACY.md). Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "relay",
-  name: "Relay",
+  ...nav,
   path: "/relay",
   navKey: "4",
   accent: "--room-relay",

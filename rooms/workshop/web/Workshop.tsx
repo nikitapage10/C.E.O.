@@ -1,7 +1,8 @@
 import { useMemo, useRef } from "react";
-import { Keeper, Waits, type Wait } from "./parts.tsx";
-import { Parts, Poly, TAU, useViz, weave, type VizSpec } from "../wvCanvas.ts";
-import "./rooms.css";
+import { Keeper, Waits, type Wait } from "../../../apps/world/src/desk/rooms/parts.tsx";
+import { Parts, Poly, TAU, useViz, weave, type VizSpec } from "@ceo/engine/sigils/wvCanvas.ts";
+import "../../../apps/world/src/desk/rooms/rooms.css";
+import "./workshop.css";
 
 /**
  * The Workshop (#225): from a sentence to a thing on the shelf, as a maker's bench on blueprint paper. A style preset

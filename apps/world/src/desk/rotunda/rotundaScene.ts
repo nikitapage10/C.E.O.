@@ -917,12 +917,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   );
   motes.frustumCulled = false;
   scene.add(motes);
+  // The halo round the Chair's head stays up once formed (Nikita, 2026-11-05): it used to scatter 3.2 s after each
+  // line, which read as the nanites exploding every few seconds. A line now only brightens it for a moment.
   let gather = 0;
-  let gatherTo = 0;
-  let gatherUntil = 0;
+  const gatherTo = 1;
+  let glowUntil = 0;
   function onChair() {
-    gatherTo = 1;
-    gatherUntil = clock.t + 3.2;
+    glowUntil = clock.t + 1.6;
   }
   const tmp3 = new Vector3();
   const stepAtmos = (dt: number, T: number) => {
@@ -942,8 +943,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       }
       mat.rotation += u.rot * dt * calm;
     }
-    if (clock.t > gatherUntil) gatherTo = 0;
-    gather += (gatherTo - gather) * (1 - Math.pow(0.2, dt));
+    gather += (gatherTo - gather) * (1 - Math.pow(0.6, dt));
+    const glow = clock.t < glowUntil ? 1.6 : 1;
     for (let i = 0; i < NA; i++) {
       const m = amb[i]!;
       m.a += m.w * dt * calm;
@@ -963,7 +964,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       np[i * 3] = x;
       np[i * 3 + 1] = y;
       np[i * 3 + 2] = z;
-      na[i] = (0.3 + 0.18 * Math.sin(T * 1.3 + i)) * (1 + g * 1.6) * Math.min(1, m.y / 1.2);
+      na[i] = (0.3 + 0.18 * Math.sin(T * 1.3 + i)) * (1 + g * 0.9 * glow) * Math.min(1, m.y / 1.2);
     }
     // The suspension fields: glyphs and motes sinking out of each pod's keel in a narrowing cone and fading well above
     // the floor; denser, brighter and faster while the pod works, and left trailing behind a pod in flight.

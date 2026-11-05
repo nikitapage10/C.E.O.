@@ -1,6 +1,6 @@
 import { MAX_ITEMS, OLDER_WINDOW_MS, OWED_WINDOW_MS } from "../../../api/_relay/texts.ts";
 import { onlyAcks } from "../../../api/_email/intentWords.ts";
-import type { ChatInfo, Contact } from "./bluebubbles.ts";
+import type { BlueBubbles, ChatInfo, Contact } from "./bluebubbles.ts";
 import { settleByRule } from "./rules.ts";
 
 /**
@@ -49,15 +49,16 @@ export function verdictOf(c: ChatInfo, now: number, skipTerms: readonly string[]
   const m = c.last;
   if (!m) return c.lastAt && now - c.lastAt < OWED_WINDOW_MS ? "check" : "empty";
   if (m.fromMe) return "answered";
-  // A photo or a sticker with no words may still want an answer: the chat's latest messages decide.
-  if (!m.text.trim()) return now - m.at < OWED_WINDOW_MS ? "check" : "empty";
+  // No words and no attachment mark: the chat's latest messages decide. A photo or a file with no words (#870) is a
+  // text that came like any other: their sender's rules (the skip list, a short code) still run, on the handle alone.
+  if (!m.text.trim() && !m.media) return now - m.at < OWED_WINDOW_MS ? "check" : "empty";
   const handle = m.handle || c.handle;
   if (settleByRule({ handle, names: contactOf(handle)?.names ?? [], text: m.text }, skipTerms)) return "settled";
   if (now - m.at < OWED_WINDOW_MS) return "owed";
   // Past 60 days (#803): let go on purpose, neither named nor counted.
   if (now - m.at >= OLDER_WINDOW_MS) return "empty";
   // No model reads an older chat, so its closing intent is judged here: an "ok" or a "thanks" owes nothing.
-  return onlyAcks([m.text]) ? "settled" : "older";
+  return m.text.trim() && onlyAcks([m.text]) ? "settled" : "older";
 }
 
 /** Every chat sorted; owed oldest first (capped at BACKLOG_MAX, the rest join the older ones), older newest first. */
@@ -78,4 +79,18 @@ export function sortBacklog(chats: readonly ChatInfo[], now: number, skipTerms: 
   out.owed.sort((a, b) => a.at - b.at);
   out.older.sort((a, b) => b.at - a.at);
   return out;
+}
+
+/**
+ * Every chat BlueBubbles has, page by page until an empty page (#870: a page can come back short of the limit before
+ * the end, and stopping at the first short page left every older chat unread), `pages` pages at most.
+ */
+export async function allChats(bb: Pick<BlueBubbles, "chatList">, page: number, pages: number): Promise<ChatInfo[]> {
+  const chats: ChatInfo[] = [];
+  for (let i = 0; i < pages; i++) {
+    const got = await bb.chatList(i * page, page);
+    chats.push(...got);
+    if (!got.length) break;
+  }
+  return chats;
 }

@@ -74,6 +74,31 @@ describe("relay wipe", () => {
   });
 });
 
+describe("relay check and relay why reach the hub (#870)", () => {
+  const withHub = () => {
+    const f = fixture();
+    const node = join(f.home, "Library/Application Support/CEO Relay/runtime/node");
+    mkdirSync(join(node, ".."), { recursive: true });
+    writeFileSync(node, '#!/bin/bash\nshift\necho "hub $*"\n');
+    chmodSync(node, 0o755);
+    return f;
+  };
+
+  it("runs the hub's check", () => {
+    expect(withHub().run("check").stdout).toBe("hub check\n");
+  });
+
+  it("passes the name or number on to the hub's why, and asks for one when there is none", () => {
+    const f = withHub();
+    expect(f.run("why", "Sam", "Example").stdout).toBe("hub why Sam Example\n");
+    expect(f.run("why").stdout).toContain("relay why <name or number>");
+  });
+
+  it("names both in its usage line", () => {
+    expect(fixture().run("nope").stdout).toContain("check | why <name or number>");
+  });
+});
+
 describe("relay status checks BlueBubbles is closed to the network", () => {
   it("says so when it listens on loopback only", () => {
     const out = fixture("127.0.0.1:1234").run("status");

@@ -324,8 +324,15 @@ main() {
       if [ "${2:-}" = "--verify" ]; then verify_relay; else wipe_relay "${2:-}"; fi
       ;;
     verify) verify_relay ;;
+    # On the Mac only (#870): what BlueBubbles answers and how many chats the hub counts owed; and, for one contact,
+    # why their chat is or isn't on the Desk's line. Neither sends anything to the site, nor prints a message's text.
+    check) hub check ;;
+    why)
+      shift
+      if [ "$#" -gt 0 ]; then hub why "$@"; else say "relay why <name or number>"; fi
+      ;;
     print-command) write_command ;;
-    *) say "relay: install | status | on | off | wipe [--all] | wipe --verify" ;;
+    *) say "relay: install | status | check | why <name or number> | on | off | wipe [--all] | wipe --verify" ;;
   esac
 }
 

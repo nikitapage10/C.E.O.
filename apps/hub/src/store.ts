@@ -14,7 +14,7 @@ import { RELATIONS, readVoice, type Relation, type Voice } from "../../../api/_r
 
 export type ThreadState = "owed" | "later" | "settled" | "replied";
 /** Why a thread needs nothing, from a closed list (never words from a message). */
-export type SettledWhy = "group" | "code" | "short-code" | "promo" | "money" | "skip" | "no-reply" | "done";
+export type SettledWhy = "group" | "code" | "short-code" | "promo" | "money" | "skip" | "no-reply" | "closing" | "done";
 export type Sort = "sooner" | "normal";
 
 export interface Draft {
@@ -53,6 +53,12 @@ export interface Thread {
   repliedAt: number | null;
   /** Their latest text has no read time in Messages (#758): a mark on the Desk, never a reason to hide it. */
   unread?: boolean;
+  /** How many of their unanswered texts are a photo or attachment with no words (#870). A count only. */
+  media?: number;
+  /** Nikita brought it back from "set aside" (#870): Dialtone's "no reply needed" doesn't settle it again until he replies. */
+  kept?: true;
+  /** The time of their text a scan last reopened this thread for (#870): a model's or closing verdict is revisited once per text. */
+  rechecked?: number;
 }
 
 /** An older unanswered chat (#758): last message someone else's, past the 30-day window. A snapshot from the last scan. */
@@ -151,7 +157,7 @@ export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [],
 export const newThreadId = () => randomBytes(8).toString("hex");
 
 const STATES: ThreadState[] = ["owed", "later", "settled", "replied"];
-const WHYS: SettledWhy[] = ["group", "code", "short-code", "promo", "money", "skip", "no-reply", "done"];
+const WHYS: SettledWhy[] = ["group", "code", "short-code", "promo", "money", "skip", "no-reply", "closing", "done"];
 const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const s = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v : null);
 
@@ -182,6 +188,9 @@ function readThread(v: unknown): Thread | null {
     summary: g && s(g.text, 400) !== null && n(g.at) !== null ? { text: g.text as string, asked: g.asked === true, at: g.at as number } : null,
     repliedAt: n(o.repliedAt),
     ...(o.unread === true && { unread: true }),
+    ...(typeof o.media === "number" && Number.isInteger(o.media) && o.media > 0 && { media: Math.min(999, o.media) }),
+    ...(o.kept === true && { kept: true as const }),
+    ...(n(o.rechecked) !== null && { rechecked: o.rechecked as number }),
   };
 }
 

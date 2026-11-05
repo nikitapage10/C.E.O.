@@ -225,6 +225,10 @@ can show a face beside a text or a mail. Nothing says whose it is:
   the PNG (`cleanPng`: no EXIF, location, text or colour profile). It is named by an **opaque id**: an HMAC of the
   contact's normalised handle under a key derived from the hub's own local key (Keychain), which never leaves the Mac.
   The site can't turn an id back into a number. A photo already sent and unchanged isn't sent again.
+- **Reading them (#870).** Every picture comes in one BlueBubbles answer, tens of megabytes with a thousand contacts,
+  so that one call gets 3 minutes (the 15 seconds every other call gets cut it off, and no photo ever synced). The
+  picture is read from whichever shape and field BlueBubbles used (base64, a data: URL, a Buffer as JSON, bytes;
+  `avatar`, the full image or the thumbnail), and only bytes that start like a picture go on to `sips`.
 - **What goes.** `POST /api/relay-hub?view=photo` with `{ id, png }` and nothing else; the site cleans the PNG again
   and refuses anything over 40 KB or larger than 144 px. `POST /api/relay-hub?view=photos` with the ids the Mac has now
   (the rest are deleted) and an email map. **Names, numbers and addresses never travel with photos.**
@@ -258,7 +262,12 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
    once. The answer sets `__Host-ceo-relay-unlock`: HttpOnly, Secure, SameSite=Strict, signed with a key derived from
    the Desk key, naming that passkey, good for **72 hours**. Every send checks it server-side together with the
    session: the same passkey, unexpired. Another device has to unlock on its own, as does this one after 72 hours or
-   after "Lock". The site never accepts an unlock longer than 72 hours, whatever the cookie says.
+   after "Lock". The site never accepts an unlock longer than 72 hours, whatever the cookie says. **Since #870**
+   (Nikita, 2026-11-05, "Sign-in unlocks") the Desk's passkey sign-in sets the same cookie for the same 72 hours on
+   that device and for that passkey (`api/desk-auth.ts`, `api/_relay/unlock.ts`): a sign-in is the same kind of fresh,
+   user-verified passkey answer, spent once, so a signed-in device isn't asked a second time. Enrolling a device
+   doesn't set it, Sign out and Lock clear it, and nothing else changes: each send is still one tap, one single-use
+   request with 10 minutes to live, and nothing ever sends on its own.
 2. **Send: one tap, one request.** A request has a random id, the thread, the draft it was made from (its time), the
    text, and 10 minutes to live. It is signed with the pairing's send key over all of those. The site makes it only for
    a thread on the hub's latest list that is one-to-one and still owed, with that very draft, and only one send at a
@@ -288,7 +297,7 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
    confirmed: it may have sent. Check Messages before you resend", with Resend; the check in step 3 refuses a resend
    once Messages shows the reply went.
 
-"Later", "Done" and "Put it in my style" are requests the same way (single-use, 10 minutes, signed). They need the
+"Later", "Done", "Bring back" (#870) and "Put it in my style" are requests the same way (single-use, 10 minutes, signed). They need the
 session but not the send unlock, because none of them can send. "Say it" uses the browser's own speech recognition:
 in Chrome and Edge, the audio goes to the browser maker's speech service (Google, Microsoft); in Safari, to Apple's,
 or it stays on the device. The words land in the text box. Nothing goes anywhere else until Nikita taps Send or "Put
@@ -377,6 +386,30 @@ sealed list holds. The public site still gets counts only.
   chats (30 to 60 days) are display only: the Desk shows "N older unanswered" and, on "show them", their names and when. They get no
   model call, no gist and no shown text, and the hub forgets the snapshot after 7 days or the next scan. A chat past
   60 days is left out entirely, neither named nor counted (#803). Groups are never part of the backlog.
+- **Photos and files (#870).** A text that is only a photo, a file or a sticker counts as a text that came: it makes
+  the person owed (it used to be dropped before the sort, so a photo-only text never reached the line, and one from
+  them after Nikita's reply even closed the thread as answered). The hub reads only that there was an attachment
+  (Messages' U+FFFC mark in the text, or BlueBubbles' `hasAttachments` and balloon flags), never the attachment, its
+  name or its kind; attachments are still never asked for. The sealed list carries a count (`media` on an owed
+  one-to-one item) and a shown line with no text (`{ text: "", media: true }`, the Desk writes "Photo"). A model sees
+  the marker line `[a photo or attachment]` in its place, and a thread that is only attachments gets no model call
+  (its gist is the hub's own "Sent a photo or attachment.").
+- **Set aside, and back (#870).** The sealed list also names every other one-to-one thread with a text from them in
+  the last 30 days that isn't in the line (`aside`: Relay id, name, channel, when, and why from the closed list
+  `ASIDE_WHYS`: no-reply, closing, done, money, code, short-code, promo; never the text, never a gist, and never the
+  skip list's or a group's). "Bring back" (a signed, single-use `back` request, session only, it can't send) puts a
+  thread Dialtone, closing intent or Nikita's Done set aside back in line, and it stays owed whatever Dialtone reads
+  until he replies. A rule's kind can't be brought back: its texts never reach a model. A scan also revisits, once per
+  text, a thread a model or closing intent set aside when their text is still the last word (an earlier hub's wrong
+  verdict used to stay for good); a rule's settle, the skip list and Done stay. The scan reads every page of
+  BlueBubbles' chat list until an empty one (it used to stop at the first short page).
+- **On the Mac only (#870).** `relay check` prints counts: contacts, contacts with a photo and photos synced, chats
+  BlueBubbles returned (one-to-one and groups), how many its last messages make owed, and how many the hub counts
+  owed and set aside. `relay why <name or number>` prints, for each one-to-one chat of the matching contacts, the
+  verdict by the hub's own rules (owed, answered, group, set aside by a rule and which kind, closing intent, older
+  than the window, nothing to answer, not in BlueBubbles), the dates of their last text and Nikita's, the count of
+  unanswered attachments and the state file's row. Names and masked numbers go to the Terminal only; no message text
+  is printed and nothing is sent to the site (the skip list lives on the site, so the state file's verdict shows it).
 - **Unread.** BlueBubbles serialises each message's `dateRead` (from `chat.db`, no Private API needed). The hub keeps
   only "unread or not" for an owed thread, the Desk marks the row, and the public status counts it. Read state never
   hides or settles anything.
@@ -428,7 +461,7 @@ sealed list holds. The public site still gets counts only.
 
 | What | Kept for | How it ends |
 | --- | --- | --- |
-| A thread's row on the Mac | While owed or later, within 30 days of its oldest unanswered text (then it counts as older); settled ones 7 days after the last message or reply | Hourly sweep |
+| A thread's row on the Mac | While owed or later, within 30 days of its oldest unanswered text (then it counts as older); a settled or answered one-to-one row 30 days after the last message or reply (#870: the Desk lists recent set-aside ones), a group's 7 | Hourly sweep |
 | Shown texts (#758), on the Mac | The hub's memory, until the thread closes or a rule matches | Never written down |
 | Shown texts (#758), on the site | Until the thread closes (the next push), a week after each came at most | The next push; `readTextsView` and every Desk read; Unpair, the wipe |
 | Older unanswered snapshot (#758) | Until the next scan; 7 days at most | Hourly sweep; Rescan |
@@ -533,7 +566,9 @@ Run by `npm test`:
     owed one after 30, and a shown text after a week;
   - the sealed store holds no name or draft in the clear, and another key can't open it;
   - the send unlock: needed, fresh, single-use, 2 minutes, HttpOnly and Strict, 72 hours and not a minute more,
-    bound to its passkey and the Desk key, ended by Lock;
+    bound to its passkey and the Desk key, ended by Lock; and (#870, also `api/desk-auth.test.ts`) set by a passkey
+    sign-in for that passkey only, never by a failed one or an enrolment, cleared by Sign out, each send still its own
+    single-use request;
   - requests: single-use, signed over every field, 10 minutes then expired, Resend only for expired or failed and
     only with the unlock, bound to the thread and the draft, a group only as typed words (never a draft, a restyle
     or a group whose summary a rule cleared, #805), results only for taken requests;
@@ -582,6 +617,12 @@ Run by `npm test`:
   backoff; every gist-less owed thread in line after a restart, a few a round), `rooms/relay/data/thread.test.ts`
   (the Desk's words for each reason, a reason off the list refused, the Contacts hint) and `packages/core/src/relay.test.ts`
   (`contacts` is a count).
+- **Missing texts (#870)**: `apps/hub/src/relay870.test.ts` (a photo-only text makes the person owed at the top with
+  a Photo line and a count and no model call, a marker only beside words, and never closes a thread as answered; a
+  set-aside thread that gets a new text is re-opened and listed first; a scan revisits a model's or closing verdict
+  once per text and never a rule's; the set-aside list carries no text; Bring back keeps a thread owed and refuses a
+  rule's; `relay why`'s verdicts and lines hold no text or number; contact pictures in every shape), and
+  `apps/hub/src/install.test.ts` (`relay check` and `relay why` reach the hub).
 - **`apps/hub/src/install.test.ts`** runs `relay wipe` and `relay wipe --verify` on a made-up home folder with
   macOS's commands stubbed: every file, the job, the four Keychain items and the PATH line go, and the check passes.
   It does nothing without "wipe" typed, and the check names what is left. `relay status` warns when BlueBubbles is

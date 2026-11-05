@@ -14,6 +14,7 @@ import { GroupFlipper } from "./GroupFlipper.tsx";
 import { groupsOf } from "../data/groups.ts";
 import { RelayQueue, useMedia } from "./RelayQueue.tsx";
 import { Said } from "./Said.tsx";
+import { SetAside } from "./SetAside.tsx";
 import { ghost, ghosted, quill, rise, SigilStage, sink } from "@ceo/engine/sigils/sigils.ts";
 import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGistLine, olderInOrder, ORDERS, weekSent, type Exchange, type Order } from "../data/thread.ts";
 import { wavePoint } from "../data/wave.ts";
@@ -1008,6 +1009,7 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
                   ))}
                 </ol>
               )}
+              <SetAside now={now} />
               {rescan === "failed" && <p className="cx-warn">The Mac couldn&apos;t read the chats. Is BlueBubbles running?</p>}
               {rescan === "expired" && <p className="cx-warn">Not rescanned: the Mac was offline.</p>}
             </div>

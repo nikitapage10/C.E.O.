@@ -45,6 +45,7 @@ export const LOG_KINDS = [
   "photos synced",
   "photos failed",
   "thread closed",
+  "thread back",
   "backlog scanned",
   "backlog failed",
   "voice learned",

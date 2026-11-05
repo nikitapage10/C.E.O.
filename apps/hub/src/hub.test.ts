@@ -2,7 +2,7 @@ import { request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
-import { CARD_KEEP_MS, readTextsView, type Reason, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
+import { CARD_KEEP_MS, OWED_WINDOW_MS, readTextsView, type Reason, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, ChatInfo, Contact, ContactPhoto, Message, Polled } from "./bluebubbles.ts";
 import type { LearnInput } from "../../../api/_relay/voice.ts";
@@ -372,7 +372,7 @@ describe("the engine", () => {
     h.site.waiting = [req({ thread: h.thread.id, draftAt: h.thread.draft!.at })];
     await h.engine.act();
     expect(h.store.load().seen).toHaveLength(1);
-    h.at(NOW + Math.max(SEEN_KEEP_MS, DRAFT_KEEP_MS, THREAD_KEEP_MS) + 60_000);
+    h.at(NOW + Math.max(SEEN_KEEP_MS, DRAFT_KEEP_MS, THREAD_KEEP_MS, OWED_WINDOW_MS) + 60_000);
     h.engine.sweep();
     const s = h.store.load();
     expect(s.seen).toEqual([]);
@@ -873,7 +873,7 @@ describe("closing intent on the Mac (#642)", () => {
     await h.engine.work();
     expect(h.site.sorts).toHaveLength(0);
     expect(h.site.drafts).toHaveLength(0);
-    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "no-reply", draft: null });
+    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "closing", draft: null });
   });
 
   it("closes an owed thread when Nikita's own message is now the newest in Messages", async () => {

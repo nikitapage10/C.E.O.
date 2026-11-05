@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { readRelayStatus, type RelayStatus } from "@ceo/core";
-import { readOlder, readReason, readTextCard, readTextItem, REQUEST_STATES, type OlderItem, type Reason, type RequestState, type TextCard, type TextItem } from "../../../api/_relay/texts.ts";
+import { readAsideItem, readOlder, readReason, readTextCard, readTextItem, REQUEST_STATES, type AsideItem, type OlderItem, type Reason, type RequestState, type TextCard, type TextItem } from "../../../api/_relay/texts.ts";
 import { readVoice, type Voice } from "../../../api/_relay/voice.ts";
 import { useSystems, type LinkState } from "../../../apps/world/src/systems.ts";
 import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "@ceo/engine/web/signin.ts";
@@ -16,7 +16,7 @@ import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "@ceo/eng
  * send needs this device's unlock (one fresh passkey check, good 72 hours), and is single-use with 10 minutes to live.
  */
 
-export type { OlderItem, TextCard, TextItem, Voice };
+export type { AsideItem, OlderItem, TextCard, TextItem, Voice };
 
 const PATH = "/api/relay";
 const POLL_MS = 20_000;
@@ -27,7 +27,7 @@ export type TextsLoad = "idle" | "off" | "live" | "failed";
 
 export interface TextRequestView {
   rid: string;
-  kind: "send" | "later" | "done" | "restyle" | "compose" | "rescan" | "learn";
+  kind: "send" | "later" | "done" | "restyle" | "compose" | "rescan" | "learn" | "back";
   thread: string;
   text: string;
   created: number;
@@ -53,6 +53,8 @@ export interface TextsPrivate {
   scannedAt: number | null;
   /** How Nikita texts, from "Learn from my texts" (#758). */
   voice: Voice | null;
+  /** One-to-one threads Relay set aside (#870): who, when, why from a closed list. No text. */
+  aside?: AsideItem[];
   requests: TextRequestView[];
   spend: { usd: number; budget: number };
 }
@@ -67,7 +69,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
   if (!st.ok || !Array.isArray(o.texts) || !Array.isArray(o.requests)) return null;
   const spend = o.spend as Record<string, unknown> | null;
   const requests: TextRequestView[] = (o.requests as Record<string, unknown>[]).flatMap((r) =>
-    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose", "rescan", "learn"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
+    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
       ? [{ rid: r.rid, kind: r.kind as TextRequestView["kind"], thread: r.thread, text: typeof r.text === "string" ? r.text.slice(0, 2_000) : "", created: r.created, until: r.until, state: r.state as RequestState, ...(readReason(r.reason) && { reason: readReason(r.reason) }) }]
       : [],
   );
@@ -84,6 +86,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
     older: readOlder(o.older) ?? { count: 0, items: [] },
     scannedAt: isNum(o.scannedAt) ? o.scannedAt : null,
     voice: o.voice ? readVoice(o.voice) : null,
+    aside: (Array.isArray(o.aside) ? (o.aside as unknown[]) : []).map(readAsideItem).filter((a): a is AsideItem => a !== null),
     requests,
     spend: { usd: isNum(spend?.usd) ? spend.usd : 0, budget: isNum(spend?.budget) ? spend.budget : 10 },
   };

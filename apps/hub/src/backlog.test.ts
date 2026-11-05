@@ -220,7 +220,7 @@ describe("the engine's backlog scan", () => {
     await h.engine.work();
     s = h.store.load();
     // Blake's "thanks!" after Nikita's "no worries" settles with no model call; Avery is sorted and drafted.
-    expect(s.threads.find((t) => t.chat === chatOf(B))).toMatchObject({ state: "settled", why: "no-reply" });
+    expect(s.threads.find((t) => t.chat === chatOf(B))).toMatchObject({ state: "settled", why: "closing" });
     expect(s.threads.find((t) => t.chat === chatOf(A))).toMatchObject({ state: "owed" });
     expect(h.site.sorts).toHaveLength(1);
     expect(h.site.drafts).toHaveLength(1);
@@ -238,6 +238,11 @@ describe("the engine's backlog scan", () => {
     await h.engine.backlog();
     // The sort never ran (the model was down, say): the next scan queues it again instead of leaving "No gist" for good.
     expect(h.engine.pending()).toBeGreaterThan(0);
+    while (h.engine.pending()) await h.engine.work().catch(() => undefined);
+    h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => (t.chat === chatOf(stranger) ? { ...t, gist: "" } : t)) });
+    await h.engine.backlog();
+    // The stranger again, and Blake's closing verdict looked at once more for that same text (#870), only once.
+    expect(h.engine.pending()).toBe(2);
     while (h.engine.pending()) await h.engine.work().catch(() => undefined);
     h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => (t.chat === chatOf(stranger) ? { ...t, gist: "" } : t)) });
     await h.engine.backlog();
@@ -323,7 +328,8 @@ describe("the engine's backlog scan", () => {
     const h = setup();
     h.bb.chatsList = Array.from({ length: 1_500 }, (_, i) => chat(`+1555${String(1_000_000 + i)}`, msg("old one", NOW - 90 * DAY, true)));
     await h.engine.backlog();
-    expect(h.bb.pages).toEqual([0, 1_000]);
+    // Until an empty page (#870): a short page is not taken as the end.
+    expect(h.bb.pages).toEqual([0, 1_000, 2_000]);
     expect(h.log.lines.join("\n")).not.toMatch(/555|old one|iMessage/);
   });
 });

@@ -733,11 +733,11 @@ C.E.O. gave Gmail its leave. Dialtone, who sorts, can turn away a sender for goo
 the list where any of them can be taken back. At the back of the codex is its index: what waits, who has waited
 longest, what shouldn't wait. The money and the legal letters still never reach the room.
 
-Far behind the codex, so faint you see it only when you stop reading, stands the Relay's mast (#933): a lattice
-tower strung in signal blue, its dish turning slowly at the head, white sigils drifting up its legs and its crown
-coming undone into wire and code against the dark. Dialtone climbed it once to tune the dish and came down humming
-something with a lot of bass. It never says who wrote. When something new waits on the C.E.O., a pulse runs up the
-tower and rings out once from the dish, and that is all it knows: that someone did.
+Behind the codex, so faint you see it only when you stop reading, the Relay's dark is a field (#950; the old mast,
+#933, came down): signal-blue wire laid out to a far horizon like the Senate's floor, only quieter, and white sigils
+drifting through it at every depth, the slowest ones the furthest away. Dialtone says it is the room listening. The
+older letters in a thread sit out of focus above the newest, and come apart at their far edge into the same white
+sigils, which drift off the page and are gone.
 
 ## The ledger by PayPal
 

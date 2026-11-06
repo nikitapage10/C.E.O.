@@ -1,10 +1,7 @@
-import { CAPS } from "../../../api/_relay/models.ts";
 import { maskHandle, matchContacts } from "../../../api/_relay/compose.ts";
-import { closingReply, onlyAcks } from "../../../api/_email/intentWords.ts";
-import { OLDER_WINDOW_MS, OWED_WINDOW_MS } from "../../../api/_relay/texts.ts";
-import { channelOf, mediaOnly, type ChatInfo, type Contact, type Message } from "./bluebubbles.ts";
+import { judgeChat, scanWants } from "./backlog.ts";
+import { channelOf, isGroupChat, mediaOnly, type ChatInfo, type Contact, type Message } from "./bluebubbles.ts";
 import { chatPerson } from "./learn.ts";
-import { settleByRule } from "./rules.ts";
 import type { SettledWhy, Thread } from "./store.ts";
 
 /**
@@ -14,7 +11,7 @@ import type { SettledWhy, Thread } from "./store.ts";
  * printed (the rule's kind only, never the words that matched).
  */
 
-export type WhyVerdict = "owed" | "answered" | "group" | "settled" | "closing" | "older" | "empty" | "missing";
+export type WhyVerdict = "owed" | "answered" | "group" | "settled" | "closing" | "ender" | "older" | "empty" | "missing";
 
 export interface WhyLine {
   chat: string;
@@ -25,6 +22,8 @@ export interface WhyLine {
   myLast: number | null;
   /** Their unanswered photos or files with no words. */
   media: number;
+  /** Whether Messages on this Mac shows their newest text unread (#950); null with none. */
+  unread: boolean | null;
   /** What the state file holds for this chat, or null when the hub has no row for it. */
   stored: { state: Thread["state"]; why: Thread["why"]; kept: boolean } | null;
 }
@@ -47,47 +46,60 @@ export function whoMatches(contacts: readonly Contact[], query: string): Contact
 /** The one-to-one chats with any of these handles (a number or an address), from BlueBubbles' chat list. */
 export const chatsFor = (chats: readonly ChatInfo[], handles: readonly string[]) => chats.filter((c) => !(c.multi ?? c.group) && handles.some((h) => same(h, c.handle || chatPerson(c.chat))));
 
+/** Chats of several whose name in Messages holds the query (#950: groups in `relay why`), 10 at most. */
+export const groupsFor = (chats: readonly ChatInfo[], query: string): ChatInfo[] => {
+  const q = query.trim().toLowerCase();
+  return q.length < 2 ? [] : chats.filter((c) => (c.multi ?? c.group) && c.name.toLowerCase().includes(q)).slice(0, 10);
+};
+
 /**
- * One chat's verdict, by the hub's own rules: `msgs` its latest messages (oldest first, words or attachments), as the
- * engine reads them. The skip list lives on the site and isn't read here; the state file's verdict shows it.
+ * One chat's verdict (#950): the same code path the full scan uses (./backlog.ts, judgeChat), so `why` and the scan
+ * agree. `msgs` are its latest messages (oldest first, words or attachments), as the engine reads them. The skip list
+ * lives on the site and isn't read here; the state file's verdict shows it.
  */
 export function explain(chat: ChatInfo, msgs: readonly Message[], stored: Thread | undefined, now: number, names: readonly string[]): WhyLine {
   const theirs = msgs.filter((m) => !m.fromMe);
   const mine = msgs.filter((m) => m.fromMe);
+  const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
+  const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
+  const newest = theirs.length ? theirs[theirs.length - 1]! : null;
   const base = {
     chat: chat.chat,
     rule: null,
-    theirLast: theirs.length ? theirs[theirs.length - 1]!.at : null,
+    theirLast: newest ? newest.at : null,
     myLast: mine.length ? mine[mine.length - 1]!.at : null,
-    media: 0,
+    media: unanswered.filter(mediaOnly).length,
+    unread: newest ? newest.read !== true : null,
     stored: stored ? { state: stored.state, why: stored.why, kept: stored.kept === true } : null,
   };
-  if (chat.group) return { ...base, verdict: "group" };
-  if (!msgs.length) return { ...base, verdict: "empty" };
-  const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
-  const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
-  if (!unanswered.length) return { ...base, verdict: "answered" };
-  const media = unanswered.filter(mediaOnly).length;
-  const handle = unanswered.find((m) => m.handle)?.handle || chat.handle || chatPerson(chat.chat);
-  // Every rule over what a model call would carry: the unanswered run and the turns before it (as the engine does).
-  const seen = msgs.slice(Math.max(0, lastMine - (CAPS.draftEarlier - 1)));
-  const rule = seen.map((m) => settleByRule({ handle, names: [...names], text: m.text }, [])).find((w) => w !== null) ?? null;
-  const last = unanswered[unanswered.length - 1]!.at;
-  if (rule) return { ...base, media, rule, verdict: "settled" };
-  if (now - last >= OLDER_WINDOW_MS) return { ...base, media, verdict: "empty" };
-  // Kept unread in Messages (#924): owed for 60 days, whatever closing intent reads.
-  if (unanswered[unanswered.length - 1]!.read === false) return { ...base, media, verdict: "owed" };
-  if (now - last >= OWED_WINDOW_MS) return { ...base, media, verdict: "older" };
-  if (!media && lastMine >= 0 && closingReply(msgs[lastMine]!.text) && onlyAcks(unanswered.map((m) => m.text))) return { ...base, media, verdict: "closing" };
-  return { ...base, media, verdict: "owed" };
+  const contactOf = (h: string) => (names.length && h ? { names: [...names], handles: [h] } : undefined);
+  const { judged } = judgeChat(chat, msgs, now, [], contactOf);
+  switch (judged.verdict) {
+    case "group":
+      return { ...base, verdict: "group" };
+    case "answered":
+      return { ...base, verdict: "answered" };
+    case "owed":
+      return { ...base, verdict: "owed" };
+    case "older":
+      return { ...base, verdict: "older" };
+    case "settled":
+      return judged.why === "ender" ? { ...base, verdict: "ender" } : { ...base, rule: judged.why ?? null, verdict: "settled" };
+    default:
+      return { ...base, verdict: "empty" };
+  }
 }
 
+/** Whether the full scan reads this chat at all (#950): `why` says so when it doesn't. */
+export { scanWants };
+
 const WORDS: Record<WhyVerdict, string> = {
-  owed: "owed: their text is the last word, within 30 days (60 while it is unread in Messages)",
+  owed: "waiting: unread in Messages (any age), or read within 30 days and not only an ok",
   answered: "answered: your message is the newest",
-  group: "a group (groups are summarised, not listed one by one)",
+  group: "a group, read: summarised on the shelf, waiting only when you are asked or named",
   settled: "set aside by a rule",
   closing: "closing intent: only an acknowledgement after your closing reply",
+  ender: "set aside: their last text only ends the conversation (an ok, a lol, a tapback)",
   older: "read, and older than the 30-day window (shown in the older count)",
   empty: "nothing to answer (no messages, or past 60 days)",
   missing: "not in BlueBubbles",
@@ -103,6 +115,7 @@ const RULE_WORDS: Record<SettledWhy, string> = {
   "no-reply": "Dialtone read it as needing no reply",
   closing: "closing intent",
   done: "you marked it done",
+  ender: "only an ok, a lol or a tapback",
 };
 
 /** A local date and time, minutes only. */
@@ -115,7 +128,8 @@ const when = (t: number | null) => {
 
 /** The Terminal's lines for one chat: who (name, channel, last 4 digits or a masked address), the verdict, the dates. */
 export function describeWhy(name: string, w: WhyLine): string[] {
-  const mask = maskHandle(chatPerson(w.chat)) ?? "no number";
+  const several = isGroupChat(w.chat);
+  const mask = several ? "a chat of several" : (maskHandle(chatPerson(w.chat)) ?? "no number");
   const verdict = w.verdict === "settled" && w.rule ? `${WORDS.settled}: ${RULE_WORDS[w.rule]}` : WORDS[w.verdict];
   const stored = w.stored
     ? `${w.stored.state}${w.stored.why ? ` (${RULE_WORDS[w.stored.why]})` : ""}${w.stored.kept ? ", brought back" : ""}`
@@ -123,9 +137,16 @@ export function describeWhy(name: string, w: WhyLine): string[] {
   return [
     `${name} (${channelOf(w.chat)}, ${mask})`,
     `  verdict: ${verdict}`,
-    `  their last text: ${when(w.theirLast)}; yours: ${when(w.myLast)}${w.media ? `; ${w.media} photo or file${w.media === 1 ? "" : "s"} unanswered` : ""}`,
+    `  their last text: ${when(w.theirLast)}${w.unread === null ? "" : w.unread ? " (unread on this Mac)" : " (read on this Mac)"}; yours: ${when(w.myLast)}${w.media ? `; ${w.media} photo or file${w.media === 1 ? "" : "s"} unanswered` : ""}`,
     `  the hub's state: ${stored}`,
   ];
 }
 
 export { WORDS as WHY_WORDS };
+
+/** The one-to-one threads set aside, by kind (#950: `relay check`), counts only: "4 money or legal, 2 a code"; "" for none. */
+export function asideKinds(threads: readonly Pick<Thread, "group" | "state" | "why">[]): string {
+  const n = new Map<SettledWhy, number>();
+  for (const t of threads) if (!t.group && t.state === "settled" && t.why) n.set(t.why, (n.get(t.why) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1]).map(([k, c]) => `${c} ${RULE_WORDS[k]}`).join(", ");
+}

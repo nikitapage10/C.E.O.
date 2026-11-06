@@ -38,8 +38,12 @@ class FakeBB implements BlueBubbles {
   async messages(c: string, limit: number) {
     return [...(this.byChat.get(c) ?? [])].sort((a, b) => b.at - a.at).slice(0, limit);
   }
-  async send(): Promise<boolean> {
-    throw new Error("a tapback never sends a text");
+  sent: { chat: string; text: string; replyTo?: string }[] = [];
+  sendError: Error | null = null;
+  async send(chat: string, text: string, _temp: string, replyTo?: string): Promise<boolean> {
+    if (this.sendError) throw this.sendError;
+    this.sent.push({ chat, text, ...(replyTo && { replyTo }) });
+    return true;
   }
   async react(chat: string, guid: string, tapback: Tapback) {
     if (this.reactError) throw this.reactError;
@@ -213,6 +217,55 @@ describe("tapbacks on the Mac (#888)", () => {
     site.waiting = [tapback("a".repeat(24), item.id, `love:${item.messages![2]!.ref}`, now)];
     await engine.act();
     expect(site.reported.at(-1)).toMatchObject({ result: "failed", reason: "bb-timeout" });
+  });
+});
+
+/** A signed inline reply (#950): a send that names their line's ref. */
+const reply = (rid: string, thread: string, draftAt: number, text: string, ref: string, now: number) => {
+  const f = { rid, kind: "send" as const, thread, draftAt, text, reply: ref, until: now + REQUEST_MS };
+  return { ...f, created: now, sig: signRequest(KEY, f) };
+};
+
+describe("inline replies (#950)", () => {
+  it("sends an inline reply through the Private API on the very message picked, by its ref", async () => {
+    const { bb, site, engine, item, now } = await owed();
+    const draftAt = item.draft?.at ?? 0;
+    site.waiting = [reply("b".repeat(24), item.id, draftAt, "yes, 9am at the trailhead", item.messages![0]!.ref!, now)];
+    await engine.act();
+    expect(site.reported.at(-1)).toEqual({ rid: "b".repeat(24), result: "sent" });
+    expect(bb.sent).toEqual([{ chat: CHAT, text: "yes, 9am at the trailhead", replyTo: "guid-fake-1" }]);
+  });
+
+  it("refuses a reply whose signature leaves the ref out, a ref it never gave, and any while the Private API is off", async () => {
+    const { bb, site, engine, item, now } = await owed();
+    const draftAt = item.draft?.at ?? 0;
+    // Signed without the ref, then a ref added in the store: refused.
+    const plain = { rid: "c".repeat(24), kind: "send" as const, thread: item.id, draftAt, text: "on it", until: now + REQUEST_MS };
+    site.waiting = [{ ...plain, reply: item.messages![2]!.ref!, created: now, sig: signRequest(KEY, plain) }];
+    await engine.act();
+    expect(site.reported.at(-1)).toMatchObject({ result: "refused", reason: "signature" });
+    site.waiting = [reply("d".repeat(24), item.id, draftAt, "on it", "0badc0de", now)];
+    await engine.act();
+    expect(site.reported.at(-1)).toMatchObject({ result: "refused", reason: "no-line" });
+    bb.on = false;
+    await engine.checkTapbacks();
+    site.waiting = [reply("e".repeat(24), item.id, draftAt, "on it", item.messages![2]!.ref!, now)];
+    await engine.act();
+    expect(site.reported.at(-1)).toMatchObject({ result: "refused", reason: "tapbacks-off" });
+    expect(bb.sent).toEqual([]);
+  });
+
+  it("posts the reply with method private-api, selectedMessageGuid and partIndex 0; a plain text stays on AppleScript", async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    const fetcher = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : null });
+      return new Response(JSON.stringify({ status: 200, data: {} }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    const b = blueBubbles("fake-bb-password", fetcher, "http://127.0.0.1:1234");
+    await b.send(CHAT, "see you", "relay-temp-1", "guid-fake-3");
+    await b.send(CHAT, "see you", "relay-temp-2");
+    expect(calls[0]!.body).toEqual({ chatGuid: CHAT, tempGuid: "relay-temp-1", message: "see you", method: "private-api", selectedMessageGuid: "guid-fake-3", partIndex: 0 });
+    expect(calls[1]!.body).toEqual({ chatGuid: CHAT, tempGuid: "relay-temp-2", message: "see you", method: "apple-script" });
   });
 });
 

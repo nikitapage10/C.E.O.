@@ -57,6 +57,13 @@ export interface ChatInfo {
   last: Message | null;
   /** When the last item of any kind came (ms); 0 for none. */
   lastAt: number;
+  /**
+   * The last item of any kind, as Messages' Unread filter reads it (#950): whose it is, whether it is a reaction (a
+   * tapback), and whether Messages has a read time for it. Left out when the chat query gave no last item. Memory only.
+   */
+  lastItem?: { fromMe: boolean; read: boolean; at: number; reaction: boolean };
+  /** Messages' "Hide Alerts" for this chat (#950), when BlueBubbles' chat properties carry it. A mark only. */
+  muted?: true;
 }
 
 export interface Contact {
@@ -91,7 +98,8 @@ export interface BlueBubbles {
   /** The chat's latest messages, newest first. */
   messages(chat: string, limit: number): Promise<Message[]>;
   /** Sends one text: true when BlueBubbles took it; otherwise it throws a BlueBubblesError (sendReason says why). */
-  send(chat: string, text: string, tempGuid: string): Promise<boolean>;
+  /** `replyTo` (#950): the message guid this text answers inline, sent through the Private API. */
+  send(chat: string, text: string, tempGuid: string, replyTo?: string): Promise<boolean>;
   /** The guids of Messages' one-to-one chats (iMessage;-;… and SMS;-;…), for finding the chat a new text goes in (#536). */
   chats(): Promise<string[]>;
   /** The contacts that have a picture (#642), with it: read for one photo sync and dropped. */
@@ -250,7 +258,18 @@ export function readChat(o: Record<string, unknown> | null | undefined): ChatInf
   const lm = o.lastMessage && typeof o.lastMessage === "object" ? (o.lastMessage as Record<string, unknown>) : null;
   const read = readMessage(lm);
   const last = read ? { ...read, handle: read.fromMe ? "" : read.handle || handle } : null;
-  return { chat, ...sizeOf(multi, o.participants), name: multi ? str(o.displayName, 80) : "", handle, last, lastAt: num(lm?.dateCreated) };
+  const lastItem = lm && num(lm.dateCreated) ? { fromMe: lm.isFromMe === true, read: num(lm.dateRead) > 0, at: num(lm.dateCreated), reaction: !!lm.associatedMessageGuid } : undefined;
+  return { chat, ...sizeOf(multi, o.participants), name: multi ? str(o.displayName, 80).trim() : "", handle, last, lastAt: num(lm?.dateCreated), ...(lastItem && { lastItem }), ...(mutedOf(o.properties) && { muted: true as const }) };
+}
+
+/**
+ * Whether a chat is muted (#950: Messages' "Hide Alerts"). BlueBubbles serialises chat.db's `properties` plist as
+ * it is; macOS keeps the mute there as `ignoreAlertsFlag` on the versions that have it. Anything else reads as not
+ * muted, so a BlueBubbles or macOS that doesn't carry it only loses the mark.
+ */
+export function mutedOf(props: unknown): boolean {
+  const list = Array.isArray(props) ? props : props && typeof props === "object" ? [props] : [];
+  return list.some((p) => !!p && typeof p === "object" && ((p as Record<string, unknown>).ignoreAlertsFlag === true || (p as Record<string, unknown>).ignoreAlertsFlag === 1));
 }
 
 /** One message from `/api/v1/message/query` (with its chats), read: null when it has no guid or time. */
@@ -428,8 +447,11 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
     // AppleScript sends (Private API off) need a tempGuid; BlueBubbles answers once Messages has the message, or
     // with an error (500) that names why, such as macOS refusing it Automation access to Messages (#767). The error
     // goes up, so the hub can say why instead of only "failed".
-    send: async (chat, text, tempGuid) => {
-      await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
+    // An inline reply (#950, like iMessage's): BlueBubbles' text route with `selectedMessageGuid` and `partIndex`, which
+    // only the Private API sends (messageValidator.sendTextRules; AppleScript can't reply to a message).
+    send: async (chat, text, tempGuid, replyTo) => {
+      const body = replyTo ? { chatGuid: chat, tempGuid, message: text, method: "private-api", selectedMessageGuid: replyTo, partIndex: 0 } : { chatGuid: chat, tempGuid, message: text, method: "apple-script" };
+      await post("/api/v1/message/text", body, BB_SEND_TIMEOUT_MS);
       return true;
     },
     // BlueBubbles Server's react route (messageValidator.sendReactionRules: chatGuid, selectedMessageGuid, reaction

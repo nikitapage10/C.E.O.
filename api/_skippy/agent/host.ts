@@ -60,7 +60,16 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
       const { homeFromEnv } = await import("../../_haven/devices/live.js");
       const home = homeFromEnv(env);
       if (!home) return { ok: false, say: "The home devices aren't set up on this copy yet." };
-      return home.act({ action: req.action as ActionId, via: "desk", ...(req.rooms && { rooms: req.rooms }), ...(req.portions !== undefined && { portions: req.portions }) });
+      return home.act({
+        action: req.action as ActionId,
+        via: req.via ?? "desk",
+        ...(req.said && { said: req.said }),
+        ...(req.rooms && { rooms: req.rooms }),
+        ...(req.portions !== undefined && { portions: req.portions }),
+        ...(req.plate !== undefined && { plate: req.plate }),
+        ...(req.suction && { suction: req.suction }),
+        ...(req.water && { water: req.water }),
+      });
     },
     lights: {
       view: async () => (await lightsOf(env)).view(),

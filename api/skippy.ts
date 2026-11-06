@@ -75,7 +75,7 @@ import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, handoffTo, isLogRoom, 
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
-import { LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb, type SkippyReply } from "./_skippy/prompt.js";
+import { CALL_RULES, LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb, type SkippyReply } from "./_skippy/prompt.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
 import { elevenFromEnv } from "./_world/story.js";
@@ -90,7 +90,9 @@ import { claudeModel, runAgent, type AgentCtx } from "./_skippy/agent/loop.js";
 import { liveHost, livePending } from "./_skippy/agent/host.js";
 import { BlobMemory, coreBlock, type MemoryStore } from "./_skippy/agent/memory.js";
 import type { PendingStore } from "./_skippy/agent/pending.js";
-import type { TextAction, ToolHost } from "./_skippy/agent/tools.js";
+import { callTool, type CallResult, type TextAction, type ToolHost } from "./_skippy/agent/tools.js";
+import { directAsk } from "./_skippy/agent/words.js";
+import { spokenOf } from "./_haven/classify.js";
 
 /** Sonnet answers; Opus takes the questions Sonnet marks "deeper"; Sonnet with web search runs a lookup. */
 export const SKIPPY_MODEL = "claude-sonnet-5-5";
@@ -112,7 +114,7 @@ export type Ask = (
   system: string,
   input: string,
   ctx?: AgentCtx,
-) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction }>;
+) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction; tier?: string; deeper?: "talk" | "hard" | "floor" }>;
 
 /** The live answer (#646): the agent loop when the turn brings its tools, else the one-shot chat. */
 export function agentChat(key: string): Ask {
@@ -492,14 +494,21 @@ async function floorTurn(body: unknown, deps: ChatDeps, store: AuthStore, passke
   return json({ reply: FLOOR_REPLY, actions: [], room: "kernel", needs: "skippy", turn: id });
 }
 
-/** Where Nikita is talking from: the Desk's chat, the iPhone's "Skippy" shortcut (#627), or a room's mic (#638). */
-export type Surface = "desk" | "phone" | "room";
+/**
+ * Where Nikita is talking from: the Desk's chat, the iPhone's "Skippy" shortcut (#627), a room's mic or hold Space on
+ * any page (#638, #905), or a Talk call's ask (#926). One brain answers them all, with the same tools and memory.
+ */
+export type Surface = "desk" | "phone" | "room" | "call";
 
 /** A room's voice (#638, api/_skippy/roomvoice.ts): the extra rules, the room its turns are kept under, who answers. */
 export interface RoomTurn {
   rules: string;
   log: LogRoom | null;
   by: Needs | null;
+  /** What the page shows (#926): a hint for "this" and "that one", never a limit on what he can do. */
+  page?: string;
+  /** On the Senate's floor: a remark on the debate is given back to the members (`floor` in the answer). */
+  floor?: boolean;
 }
 
 /**
@@ -508,9 +517,9 @@ export interface RoomTurn {
  * so the phone gets the same prompt, router, caps and hand-offs as the Desk. `paceId` names who is paced (a passkey's
  * id, or "phone:<id>").
  */
-async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: ChatDeps, store: AuthStore, paceId: string, surface: Surface, room?: RoomTurn): Promise<Response> {
+async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: ChatDeps, store: AuthStore, paceId: string, surface: Surface, room?: RoomTurn, opts?: { agent?: Partial<AgentCtx>; keep?: boolean }): Promise<Response> {
   const passkey = paceId;
-  if (!deps.ask || !deps.ledger) return json({ error: "not-set-up" }, 503);
+  if (!deps.host && (!deps.ask || !deps.ledger)) return json({ error: "not-set-up" }, 503);
   // The privacy check (#127), on everything that would reach Claude: text that looks private is held back whole.
   const held = [...new Set([said.message, ...said.history.map((t) => t.text)].flatMap((t) => privateParts(t)))];
   if (held.length) return json({ error: "private", held: held.map((k) => PRIVATE_LABEL[k]) }, 422);
@@ -524,6 +533,15 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
     return json({ error: "slow-down", wait: s }, 429, { "Retry-After": String(s) });
   }
   await store.saveLimits(countChat(limits, tag, deps.now));
+
+  // The quick tier, by rules (#926, api/_skippy/agent/words.ts): the thermostat and the home devices need no model, so
+  // they answer in the time the device takes, on every surface, even with the month's budget spent.
+  const direct = deps.host ? directAsk(said.message) : null;
+  if (direct && deps.host) {
+    const got = await callTool(direct.tool, direct.input, deps.host(), { pending: deps.pending ?? null, surface: surface === "desk" ? "desk" : "spoken", said: said.message, via: surface === "phone" ? "phone" : "desk" });
+    return json(directReply(got, surface));
+  }
+  if (!deps.ask || !deps.ledger) return json({ error: "not-set-up" }, 503);
 
   // Skippy's month (#646): the chat's ledger and the Kernel responder's, under his one cap, a hard stop. Unreadable
   // means no call (fail closed).
@@ -540,15 +558,25 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
     return json({ reply: OVER_BUDGET[Math.floor(deps.now / 60_000) % OVER_BUDGET.length], actions: [], capped: true, spend: meter(spent) });
   }
 
-  const [desk, rooms, bill, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.rooms ? deps.rooms(world).catch(() => "") : Promise.resolve(""), deps.bill ? deps.bill().catch(() => "") : Promise.resolve(""), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
+  // What the turn starts knowing. Typed on the Desk: the Desk's lines, the live rooms, the bill and the stack. Spoken
+  // (#926): nothing up front, so the first word comes fast; the tools read what the ask needs, room by room.
+  const typed = surface === "desk";
+  const [desk, rooms, bill, stack] = typed
+    ? await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.rooms ? deps.rooms(world).catch(() => "") : Promise.resolve(""), deps.bill ? deps.bill().catch(() => "") : Promise.resolve(""), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")])
+    : [EMPTY_CONTEXT, "", "", ""];
   // The agent's turn (#646): the core card of Nikita's memory, the rooms' tools and the taps' store.
   const core = deps.memory ? coreBlock(await deps.memory.load().catch(() => ({ core: "", pages: [], facts: [] }))) : "";
-  const ctx: AgentCtx | undefined = deps.host ? { surface, message: said.message, core, host: deps.host(), pending: deps.pending ?? null } : undefined;
+  const ctx: AgentCtx | undefined = deps.host ? { surface, message: said.message, core, host: deps.host(), pending: deps.pending ?? null, ...(surface === "phone" && { via: "phone" as const }), ...opts?.agent } : undefined;
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page), ctx);
+    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : surface === "call" ? `${SKIPPY_PROMPT}\n${CALL_RULES}` : SKIPPY_PROMPT, chatInput(typed ? [contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n") : "", said.history, said.message, stack, said.page), ctx);
   } catch {
     return json({ error: "model" }, 502);
+  }
+  // A call's quick pass that handed up (#926): the deeper run goes on its own; nothing is kept yet.
+  if (got.deeper && !got.answer) {
+    if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd, got.parts).catch(() => undefined);
+    return json({ deeper: got.deeper, spend: meter(spent + (got.usd ?? 0)) });
   }
   // Every call that answered counts against the month, usable or not.
   if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd, got.parts).catch(() => undefined);
@@ -559,6 +587,7 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
     // Which tools changed something (#698): the Kitchen's planner reads itself again when a meal tool did.
     ...(got.wrote?.length && { wrote: got.wrote.slice(0, 8) }),
     ...(got.confirm?.length && { confirm: got.confirm.slice(0, 3) }),
+    ...(got.tier && { tier: got.tier }),
     spend: meter(spent + (got.usd ?? 0)),
   };
   // A text the agent had drafted (draft_text) goes through the same checks as the chat's own "text" action.
@@ -580,16 +609,46 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const at = new Date(deps.now).toISOString();
   const id = turnId(at, said.message);
   let kept = false;
+  // A call's deeper run answers a turn already kept (#926): nothing new is kept for it.
+  if (opts?.keep === false) return json({ ...reply, ...extra });
   if (deps.log) {
     kept = await deps.log
-      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }), ...(surface === "phone" && { via: "phone" as const }), ...(surface === "room" && { via: "room" as const, ...(room?.by && { by: room.by }) }) }, deps.now)
+      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }), ...(surface === "phone" && { via: "phone" as const }), ...(surface === "call" && { via: "voice" as const }), ...(surface === "room" && { via: "room" as const, ...(room?.by && { by: room.by }) }) }, deps.now)
       .then(() => true)
       .catch(() => false);
   }
   // The journal of Skippy's memory (#646): the turn, trimmed; one that trips the memory's rules is left out whole.
-  if (deps.memory) await deps.memory.journal({ at, via: surface, q: said.message, a: reply.reply }, deps.now).catch(() => false);
+  if (deps.memory) await deps.memory.journal({ at, via: surface === "call" ? "talk" : surface, q: said.message, a: reply.reply }, deps.now).catch(() => false);
   // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
   return json({ ...(reply.needs && kept ? { ...reply, turn: id } : reply), ...extra });
+}
+
+/** Where the quick tier's tools belong. */
+const DIRECT_ROOM = "haven";
+
+/**
+ * The quick tier's answer (#926): the tool's own words (the thermostat's line, the device's spoken confirmation, or
+ * what failed), shaped like any reply. Typed on the Desk, a device waits for the Yes tap as it always has. A finished
+ * device action from the phone is quiet (#652): a notification, not a voice.
+ */
+function directReply(got: CallResult, surface: Surface): Record<string, unknown> {
+  const tool = got.tool;
+  if (got.ok && "confirm" in got) {
+    return { reply: `Tap Yes and it goes: ${got.confirm.summary}.`, actions: [], room: DIRECT_ROOM, confirm: [got.confirm], tier: "rules" };
+  }
+  const reply = plainLine(got.text, 700) || "That didn't answer just now.";
+  const changed = got.ok && tool && tool.effect !== "read";
+  const quiet = surface === "phone" && changed && !got.warned && !/wet food feeder's lid is open|closing itself/i.test(reply);
+  return {
+    reply,
+    actions: [],
+    room: DIRECT_ROOM,
+    tier: "rules",
+    ...(got.ok && tool?.effect === "read" && { looked: [tool.title] }),
+    ...(changed && "did" in got && got.did && { did: [got.did] }),
+    ...(changed && tool && { wrote: [tool.name] }),
+    ...(quiet && { quiet: true }),
+  };
 }
 
 /** A reply refiled under a room: the room, and a hand-off to "the submind" re-pointed at that room's. */
@@ -608,6 +667,12 @@ export interface PhoneTurn {
   /** The tools that changed something, and what they did (#698), for the page to read itself again. */
   wrote?: string[];
   did?: string[];
+  /** A finished device action from the phone (#652): shown, not spoken. */
+  quiet?: boolean;
+  /** Which tier answered (#926): "rules", "fast", "talk" or "hard". */
+  tier?: string;
+  /** On the Senate's floor: the words were a remark on the debate, for the members to answer. */
+  floor?: boolean;
 }
 
 /**
@@ -632,15 +697,16 @@ export async function phoneAnswer(message: string, phoneId: string, history: { w
  */
 export async function roomAnswer(message: string, history: { who: "nikita" | "skippy"; text: string }[], passkey: string, room: RoomTurn, deps: ChatDeps = defaultDeps()): Promise<PhoneTurn> {
   if (!deps.deskKey || !deps.store) return { reply: "", handedOff: false, error: "not-set-up" };
-  const said = readChat({ message, history });
+  const said = readChat({ message, history, ...(room.page && { page: room.page }) });
   if (!said) return { reply: "", handedOff: false, error: "model" };
-  const res = await skippyTurn(said, deps, deps.store, passkey, "room", room);
+  const res = await skippyTurn(said, deps, deps.store, passkey, "room", room, room.floor ? { agent: { floor: true } } : undefined);
   return turnOf(res);
 }
 
 /** A turn's answer as the phone and a room's voice read it. */
 async function turnOf(res: Response): Promise<PhoneTurn> {
-  const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[]; wrote?: unknown; did?: unknown };
+  const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[]; wrote?: unknown; did?: unknown; quiet?: unknown; tier?: unknown; deeper?: unknown };
+  if (res.ok && body.deeper === "floor") return { reply: "", handedOff: false, floor: true };
   if (res.status === 422) return { reply: "", handedOff: false, error: "private" };
   if (res.status === 429) return { reply: "", handedOff: false, error: "slow-down" };
   if (res.status === 503) return { reply: "", handedOff: false, error: "not-set-up" };
@@ -649,5 +715,52 @@ async function turnOf(res: Response): Promise<PhoneTurn> {
   if (Array.isArray(body.actions) && body.actions.some((a) => a?.kind === "text")) return { reply: body.reply, handedOff: false, error: "text" };
   const words = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 8) : []);
   const wrote = words(body.wrote);
-  return { reply: body.reply, handedOff: typeof body.needs === "string", ...(body.capped === true && { capped: true }), ...(wrote.length && { wrote, did: words(body.did) }) };
+  return {
+    reply: body.reply,
+    handedOff: typeof body.needs === "string",
+    ...(body.capped === true && { capped: true }),
+    ...(wrote.length && { wrote, did: words(body.did) }),
+    ...(body.quiet === true && { quiet: true }),
+    ...(typeof body.tier === "string" && { tier: body.tier }),
+  };
+}
+
+/* ── A Talk call's asks (#926): the same brain, quick on the call, deeper on its own ── */
+
+/** What a call's ask comes back as: the answer, or how deep the rest must go (the deeper run answers into the call). */
+export type CallTurn = { reply: string; tier?: string } | { deeper: "talk" | "hard" } | { error: NonNullable<PhoneTurn["error"]> };
+
+/**
+ * A Talk call's ask (api/_skippy/toolroute.ts, `hand_to_kernel`): the call's tool token is bound to the passkey that
+ * started the call, so this is that passkey's own turn, paced with the Desk's chat: the rules, then the fast tier only.
+ * When the fast tier hands up, the answer says how deep, and the caller starts the deeper run (`deepAnswer`).
+ */
+export async function callAnswer(message: string, passkey: string, deps: ChatDeps = defaultDeps()): Promise<CallTurn> {
+  if (!deps.deskKey || !deps.store) return { error: "not-set-up" };
+  const said = readChat({ message, history: [] });
+  if (!said) return { error: "model" };
+  const res = await skippyTurn(said, deps, deps.store, passkey, "call", undefined, { agent: { fastOnly: true } });
+  const body = (await res.clone().json().catch(() => ({}))) as { deeper?: unknown };
+  if (res.ok && (body.deeper === "talk" || body.deeper === "hard")) return { deeper: body.deeper };
+  const turn = await turnOf(res);
+  if (turn.error) return { error: turn.error };
+  return { reply: spokenOf(turn.reply, false), ...(turn.tier && { tier: turn.tier }) };
+}
+
+/**
+ * The deeper run of a call's ask (#926): Sonnet, or Opus for judgment, with every room's tools, the core card and the
+ * memory's pages on demand, under Skippy's month; no Desk lines up front and no days of turns. It answers the call's
+ * kept turn (api/_skippy/kernelroute.ts, from the hand-off's own trigger). A failure says what failed.
+ */
+export async function deepAnswer(message: string, depth: "talk" | "hard" = "talk", deps: ChatDeps = defaultDeps()): Promise<string> {
+  if (!deps.deskKey || !deps.store) return "My deeper mind isn't switched on here, so that one has to wait for the Desk.";
+  const said = readChat({ message, history: [] });
+  if (!said) return "That ask didn't come through whole; say it again.";
+  const res = await skippyTurn(said, { ...deps, store: deps.store }, deps.store, "call:deep", "call", undefined, { agent: { start: depth }, keep: false });
+  const turn = await turnOf(res);
+  if (turn.error === "private") return "That had something private in it, so it went nowhere.";
+  if (turn.error === "slow-down") return "Too many asks at once; that one has to wait a minute.";
+  if (turn.error) return "My deeper mind's model didn't answer just now; ask again in a minute.";
+  if (turn.capped) return turn.reply;
+  return spokenOf(turn.reply, false);
 }

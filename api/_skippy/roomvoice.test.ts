@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
-import type { Home } from "../_haven/devices/home.ts";
 import { KitchenList } from "../_haven/list.ts";
 import { PhoneTodos } from "../_haven/todos.ts";
 import { MemoryStoryStore } from "../_world/story.ts";
@@ -245,7 +244,6 @@ describe("POST /api/skippy-room (#638)", () => {
   function deps(over: Partial<RoomRouteDeps> = {}, store = new MemoryAuthStore()) {
     const lines: string[] = [];
     const told: { text: string; room: string }[] = [];
-    const acted: unknown[] = [];
     const { calls, fetcher } = fakeEleven();
     const blob = memoryBlob();
     const d: RoomRouteDeps = {
@@ -261,15 +259,11 @@ describe("POST /api/skippy-room (#638)", () => {
         }
       ),
       todos: (b) => new PhoneTodos(b),
-      devices: () =>
-        ({
-          act: async (r: unknown) => (acted.push(r), { ok: true, say: "Fed the cat one portion." }),
-        }) as unknown as Home,
       fetcher,
       log: (l) => lines.push(l),
       ...over,
     };
-    return { d, lines, told, acted, calls, blob, store };
+    return { d, lines, told, calls, blob, store };
   }
   const post = (body: unknown, cookie: string, url = `${ORIGIN}/api/skippy-room`, type = "application/json") =>
     new Request(url, {
@@ -346,23 +340,19 @@ describe("POST /api/skippy-room (#638)", () => {
     expect((await roomVoicePost(post({ room: "relay", speak: "x".repeat(301) }, cookie), d)).status).toBe(400);
   });
 
-  it("in the Haven, a device ask takes Hey Skippy's no-model fast path through the devices' rails", async () => {
-    const { d, told, acted, store } = deps();
-    const cookie = await signedInCookie(DESK, NOW, store);
-    const body = (await (await roomVoicePost(post({ room: "haven", text: "feed the cat" }, cookie), d)).json()) as { say: string; kind: string };
-    expect(body).toMatchObject({
-      say: "Fed the cat one portion.",
-      kind: "device",
+  it("sends a device ask to the one brain on every page, the Haven's too (#926), and says it as a device ask", async () => {
+    const { d, told, store } = deps({
+      skippy: async (text, _h, _p, room) => (told.push({ text, room: room.log ?? "" }), { reply: "The wet food feeder's lid is open.", handedOff: false, tier: "rules", wrote: ["home_device"], did: ["Open the wet feeder for 2 hours"] }),
     });
-    expect(acted).toEqual([
-      {
-        action: "feeder.feed",
-        rooms: undefined,
-        via: "desk",
-        said: "feed the cat",
-      },
+    const cookie = await signedInCookie(DESK, NOW, store);
+    for (const room of ["haven", "green"]) {
+      const body = (await (await roomVoicePost(post({ room, text: "open the wet food feeder" }, cookie), d)).json()) as { say: string; kind: string };
+      expect(body).toMatchObject({ say: "The wet food feeder's lid is open.", kind: "device" });
+    }
+    expect(told).toEqual([
+      { text: "open the wet food feeder", room: "haven" },
+      { text: "open the wet food feeder", room: "green" },
     ]);
-    expect(told).toEqual([]);
   });
 
   it("in the Haven, shopping goes on the Kitchen list; elsewhere the same words go to the submind", async () => {
@@ -396,18 +386,17 @@ describe("POST /api/skippy-room (#638)", () => {
     expect((await roomVoicePost(post("nope", cookie, undefined, "text/plain"), d)).status).toBe(415);
   });
 
-  it("says why when the chat can't answer, with its status and no audio", async () => {
+  it("says why when the chat can't answer, with its status, in his voice too (#926)", async () => {
     const { d, store, calls } = deps({
       skippy: async () => ({ reply: "", handedOff: false, error: "slow-down" }),
     });
     const cookie = await signedInCookie(DESK, NOW, store);
     const res = await roomVoicePost(post({ room: "green", text: "who do I start" }, cookie), d);
     expect(res.status).toBe(429);
-    expect(await res.json()).toEqual({
-      say: ROOM_SAYS["slow-down"],
-      kind: "skippy",
-    });
-    expect(calls).toEqual([]);
+    const body = (await res.json()) as { say: string; kind: string; audio?: string };
+    expect(body).toMatchObject({ say: ROOM_SAYS["slow-down"], kind: "skippy" });
+    expect(body.audio).toBeTruthy();
+    expect(calls.some((c) => c.url.includes("text-to-speech"))).toBe(true);
   });
 
   it("takes a clip from a browser without speech recognition: Scribe writes the words, then the same path", async () => {

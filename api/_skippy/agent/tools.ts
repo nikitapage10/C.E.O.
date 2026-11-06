@@ -7,14 +7,16 @@
  *   - once anything fetched from the web is in the turn, only reads run (`tainted`): fetched content never triggers
  *     an action, even one that would still wait for a tap;
  *   - a tool that sends, spends or deletes, or asks for it, is kept as a pending call with exactly its input
- *     (./pending.ts) and runs only on Nikita's Yes tap (`confirmTool`); the spoken surfaces, which can't show a button,
- *     don't get those tools at all;
+ *     (./pending.ts) and runs only on Nikita's Yes tap (`confirmTool`). The spoken surfaces (a room's mic, hold Space,
+ *     the phone, a call), which can't show a button, get every tool too (#926: Skippy never says he can't do what a
+ *     tool does): a home device runs there when Nikita's own words asked for that very action (`spokenAsked`, the
+ *     phone's rule since #632), and anything else that waits for the tap says so, by name;
  *   - what a tool writes goes through the privacy check (and the memory's own rules) first.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { checkInput, needsConfirm, spokenSafe, type PendingConfirm, type RoomTool, type ToolOutcome } from "@ceo/engine/tools";
+import { checkInput, needsConfirm, type PendingConfirm, type RoomTool, type ToolOutcome } from "@ceo/engine/tools";
 import { TOOLS as BOILER } from "../../../rooms/boiler/tools.js";
 import { TOOLS as EXCHANGE } from "../../../rooms/exchange/tools.js";
 import { TOOLS as FOUNDRY } from "../../../rooms/foundry/tools.js";
@@ -26,9 +28,11 @@ import { PRIVATE_LABEL, privateParts } from "../../_privacy.js";
 import { cleanGist, cleanWho } from "../../_relay/compose.js";
 import { plainLine } from "../../foundry.js";
 import type { ReadName } from "../voicereads.js";
+import { climateOf } from "../../_haven/devices/homeread.js";
 import type { Lights } from "../../_haven/lights/lights.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
+import { spokenAsked } from "./words.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, mealNamed, readEdit, ROLES, weekWords, type Day, type EditResult, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
@@ -58,7 +62,11 @@ export interface ToolHost {
     now: () => Promise<{ picks: { key: string; productId: string }[]; unmatched: number; connected: boolean; store: boolean } | null>;
     send: (picks: { key: string; productId: string }[]) => Promise<{ result: string; items?: number }>;
   } | null;
-  homeAct: ((req: { action: string; rooms?: string[]; portions?: number }) => Promise<{ ok: boolean; say: string }>) | null;
+  /**
+   * The home devices' rails (api/_haven/devices/home.ts). `via` and `said` are for the Council: where the ask came from
+   * and the words as said (a spoken ask), else the button's label.
+   */
+  homeAct: ((req: HomeAsk) => Promise<{ ok: boolean; say: string; warned?: boolean }>) | null;
   /** The lights (#931, api/_haven/lights): SwitchBot and Govee; absent or null where their keys aren't set. */
   lights?: Pick<Lights, "view" | "byName" | "set" | "scene"> | null;
   /** Files an issue labelled foundry and foundry:chat; its number, or null. */
@@ -66,6 +74,18 @@ export interface ToolHost {
   /** The skip list's terms (EMAIL_SKIP_TERMS), which never go in memory. */
   skipTerms: readonly string[];
   now: number;
+}
+
+/** One home device ask, as the rails take it. */
+export interface HomeAsk {
+  action: string;
+  rooms?: string[];
+  portions?: number;
+  plate?: number;
+  suction?: "quiet" | "max";
+  water?: "off" | "on";
+  via?: "desk" | "phone";
+  said?: string;
 }
 
 /** A text for Relay's Blasto (#536): the same action the chat's closed schema has, shown as Relay's card. */
@@ -76,7 +96,7 @@ export interface TextAction {
   text: string;
 }
 
-type Ran = { ok: boolean; text: string; did?: string; action?: TextAction };
+type Ran = { ok: boolean; text: string; did?: string; action?: TextAction; warned?: boolean };
 type Prepared = { ok: true; label: string; summary: string } | { ok: false; text: string };
 
 interface Executor {
@@ -405,12 +425,32 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   meals_next_week: { run: async (_i, host) => mealEdit(host, { op: "next-week" }) },
+  home_status: {
+    run: async (i, host) => {
+      // What's in the wet tray is the rails' own summary (the bowls, today's serves, the schedule): a read, no vendor call.
+      if (i.about === "wet-feeder" && host.homeAct) {
+        const r = await host.homeAct({ action: "wet.status" });
+        return { ok: r.ok, text: r.say };
+      }
+      const text = (await host.read("haven").catch(() => "")) || "The home devices didn't answer just now.";
+      return { ok: true, text: i.about === "climate" ? climateOf(text) : text };
+    },
+  },
   home_device: {
     prepare: async (i) => ({ ok: true, label: "Do it", summary: `${homeLine(i)} (the Haven's rails still apply)` }),
     run: async (i, host) => {
       if (!host.homeAct) return { ok: false, text: "The home devices aren't set up on this copy." };
-      const r = await host.homeAct({ action: str(i.action), ...(Array.isArray(i.rooms) && { rooms: i.rooms as string[] }), ...(typeof i.portions === "number" && { portions: i.portions }) });
-      return r.ok ? { ok: true, text: r.say, did: plainLine(homeLine(i), 40) } : { ok: false, text: r.say };
+      const r = await host.homeAct({
+        action: str(i.action),
+        ...(Array.isArray(i.rooms) && { rooms: i.rooms as string[] }),
+        ...(typeof i.portions === "number" && { portions: i.portions }),
+        ...(typeof i.plate === "number" && { plate: i.plate }),
+        ...((i.suction === "quiet" || i.suction === "max") && { suction: i.suction }),
+        ...((i.water === "off" || i.water === "on") && { water: i.water }),
+        ...((i.via === "desk" || i.via === "phone") && { via: i.via }),
+        ...(typeof i.said === "string" && { said: i.said }),
+      });
+      return r.ok ? { ok: true, text: r.say, did: plainLine(homeLine(i), 40), ...(r.warned && { warned: true }) } : { ok: false, text: r.say };
     },
   },
   lights_list: { run: async (_i, host) => ({ ok: true, text: await lightsText(host) }) },
@@ -443,11 +483,16 @@ const EXECUTORS: Record<string, Executor> = {
 /** Every declared tool has its executor and every executor its declaration (a test holds them together). */
 export const EXECUTOR_NAMES = Object.keys(EXECUTORS);
 
-/** Where a call comes from: the Desk's chat (buttons can show), or a spoken surface (the phone, a room's mic). */
+/** Where a call comes from: the Desk's chat (buttons can show), or a spoken surface (the phone, a room's mic, a call). */
 export type CallSurface = "desk" | "spoken";
 
-/** The tools a surface gets, in the registry's fixed order. */
-export const toolsFor = (surface: CallSurface): readonly RoomTool[] => (surface === "desk" ? ALL_TOOLS : ALL_TOOLS.filter(spokenSafe));
+/**
+ * The tools a surface gets, in the registry's fixed order: every one, on every surface (#926). What a spoken surface
+ * can't finish without a tap says so when called (`callTool`), instead of the tool being missing, which is how Skippy
+ * came to say "I don't have that ability" for the wet feeder.
+ */
+export const toolsFor = (_surface: CallSurface): readonly RoomTool[] => ALL_TOOLS;
+
 
 export interface CallOpts {
   pending: PendingStore | null;
@@ -456,9 +501,13 @@ export interface CallOpts {
   tainted?: boolean;
   /** The voice hook, not the agent: it can't show Relay's card. */
   direct?: boolean;
+  /** Nikita's own words this turn (a spoken surface), for the home devices' words check. */
+  said?: string;
+  /** Where a spoken ask came from, for the Council (the phone, else the Desk). */
+  via?: "desk" | "phone";
 }
 
-export type CallResult = ToolOutcome & { action?: TextAction; tool?: RoomTool };
+export type CallResult = ToolOutcome & { action?: TextAction; tool?: RoomTool; warned?: boolean };
 
 /** One tool call, from the agent or a room's voice hook, through every check. Never throws. */
 export async function callTool(name: string, rawInput: unknown, host: ToolHost, opts: CallOpts): Promise<CallResult> {
@@ -475,7 +524,15 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
       return ran.ok ? { ok: true, text: ran.text, ...(ran.action && { action: ran.action }), tool } : { ok: false, text: ran.text, tool };
     }
     if (needsConfirm(tool)) {
-      if (opts.surface !== "desk" && !opts.direct) return { ok: false, text: "That waits for a tap on the Desk; say it in Skippy's chat there.", tool };
+      if (opts.surface !== "desk" && !opts.direct) {
+        // Spoken: a home device runs on Nikita's own words for it, through its rails, as the phone always has.
+        if (name === "home_device") {
+          if (!spokenAsked(opts.said, checked.value)) return { ok: false, text: `Nothing ran: the home devices act on Nikita's own words for them. Ask him to say it plainly ("${homeLine(checked.value).toLowerCase()}") and it runs.`, tool };
+          const ran = await ex.run({ ...checked.value, via: opts.via ?? "desk", said: opts.said }, host);
+          return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), ...(ran.warned && { warned: true }), tool } : { ok: false, text: ran.text, tool };
+        }
+        return { ok: false, text: `Nothing ran: "${tool.title}" waits for Nikita's Yes tap, so it goes from Skippy's chat on the Desk. Say that in one line.`, tool };
+      }
       if (!opts.pending) return { ok: false, text: "Taps aren't set up on this copy.", tool };
       const prep = ex.prepare ? await ex.prepare(checked.value, host) : { ok: true as const, label: "Yes, do it", summary: tool.title };
       if (!prep.ok) return { ok: false, text: prep.text, tool };
@@ -486,7 +543,7 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
     const ran = await ex.run(checked.value, host);
     return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), tool } : { ok: false, text: ran.text, tool };
   } catch {
-    return { ok: false, text: "That didn't work just now.", tool };
+    return { ok: false, text: `${tool.title} failed just now: its service didn't answer.`, tool };
   }
 }
 

@@ -44,16 +44,16 @@ function host(): ToolHost & { switched: [string, boolean][]; scenes: string[] } 
 
 describe("Skippy's lights tools (#931)", () => {
   it("reads the lights on every surface, and switches only on the Desk after a Yes", async () => {
-    const spoken = toolsFor("spoken").map((t) => t.name);
-    expect(spoken).toContain("lights_list");
-    expect(spoken).not.toContain("lights_set");
-    expect(spoken).not.toContain("lights_scene");
+    expect(toolsFor("spoken").map((t) => t.name)).toEqual(expect.arrayContaining(["lights_list", "lights_set", "lights_scene"]));
     expect(toolNamed("lights_set")?.confirm).toBe(true);
+    expect(toolNamed("lights_scene")?.confirm).toBe(true);
     const h = host();
     const list = await callTool("lights_list", {}, h, { pending: null, surface: "spoken" });
     expect(list).toMatchObject({ ok: true, text: expect.stringMatching(/Study on; Porch off.*All off.*Beamer/) });
     expect(list.ok && "text" in list ? list.text : "").not.toMatch(/aaaa|cccc/);
-    expect(await callTool("lights_set", { name: "Study", on: false }, h, { pending: new MemoryPending(), surface: "spoken" })).toMatchObject({ ok: false });
+    // Said out loud, even in Nikita's own words, a switch waits for his Yes on the Desk.
+    expect(await callTool("lights_set", { name: "Study", on: false }, h, { pending: new MemoryPending(), surface: "spoken", said: "turn the study light off", via: "phone" })).toMatchObject({ ok: false, text: expect.stringMatching(/Yes tap/) });
+    expect(await callTool("lights_scene", { name: "All off" }, h, { pending: new MemoryPending(), surface: "spoken", said: "all off" })).toMatchObject({ ok: false });
     expect(h.switched).toEqual([]);
   });
 

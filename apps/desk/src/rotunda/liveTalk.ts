@@ -93,28 +93,6 @@ export async function fetchDebate(facts: ChamberFacts, doFetch: typeof fetch = f
   }
 }
 
-/** The members' answers to Nikita on the floor, in kind (#910); null when they can't come live. */
-export async function fetchFloorReply(said: string, seated: string[], topic: { motion: string; lines: { by: string; text: string }[] } | null, doFetch: typeof fetch = fetch): Promise<{ by: string; text: string }[] | null> {
-  try {
-    const res = await doFetch("/api/skippy-room", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ room: "today", senate: "reply", said: said.slice(0, 300), seated, ...(topic && { motion: topic.motion, lines: topic.lines.slice(-6) }) }),
-    });
-    if (!res.ok) return null;
-    const body = (await res.json().catch(() => ({}))) as { lines?: unknown };
-    const lines = (Array.isArray(body.lines) ? body.lines : [])
-      .map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}))
-      .map((l) => ({ by: str(l.by, 20), text: str(l.text, 300) }))
-      .filter((l) => l.by && l.text)
-      .slice(0, 2);
-    return lines.length ? lines : null;
-  } catch {
-    return null;
-  }
-}
-
 /** The argument on the floor, as the chamber hands it to the floor (#910, #925). */
 export interface FloorTopic {
   motion: string;
@@ -151,22 +129,55 @@ export function readJoined(v: unknown): Joined | null {
   return answers.length && close ? { answers, rest, close } : null;
 }
 
+/** Skippy's own answer on the floor (#926), said as the chair; `wrote` names the tools that changed something. */
+export interface ChairAnswer {
+  say: string;
+  audio?: string;
+  wrote?: unknown;
+  did?: unknown;
+}
+
+/** What the floor hears back: Skippy's own answer, his words joined to the argument, or the members' answer in kind. */
+export type FloorHeard = { chair: ChairAnswer } | { join: Joined } | { lines: { by: string; text: string }[] };
+
 /**
- * Nikita's words join the argument on the floor (#925): the members who were speaking answer him, perhaps one more
- * chimes in, and the argument carries on with his point in it. Null when that can't come live (the cap, the privacy
- * check, the model); the floor then answers him as before.
+ * Nikita's words on the floor (#926), one call: Skippy's one brain hears them first, with the argument as context, and
+ * judges them itself (no word lists). An ask or a question ("can you dispense one portion of dry food?") is his: the tool
+ * runs and his answer comes back as the chair's. A remark on the debate goes on to the members: joined to the argument
+ * on the floor (#925, `join`: the members who were speaking answer him, perhaps one more chimes in, and the argument
+ * carries on with his point in it), or, with none on, answered in kind (#910). Null when nothing came (signed out, the
+ * cap, the privacy check, the model); the chair then answers through Skippy's own route.
  */
-export async function fetchJoin(said: string, seated: string[], topic: FloorTopic, doFetch: typeof fetch = fetch): Promise<Joined | null> {
+export async function fetchFloor(said: string, seated: string[], topic: FloorTopic | null, join: boolean, doFetch: typeof fetch = fetch): Promise<FloorHeard | null> {
   try {
     const res = await doFetch("/api/skippy-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ room: "today", senate: "join", said: said.slice(0, 300), seated, motion: topic.motion, lines: topic.lines.slice(-8), ...(topic.cast && { cast: topic.cast }) }),
+      body: JSON.stringify({
+        room: "today",
+        senate: join && topic ? "join" : "reply",
+        said: said.slice(0, 300),
+        seated,
+        ...(topic && { motion: topic.motion, lines: topic.lines.slice(join ? -8 : -6), ...(join && topic.cast && { cast: topic.cast }) }),
+      }),
     });
     if (!res.ok) return null;
-    const body = (await res.json().catch(() => ({}))) as { join?: unknown };
-    return readJoined(body.join);
+    const body = (await res.json().catch(() => ({}))) as { lines?: unknown; join?: unknown; skippy?: unknown; audio?: unknown; wrote?: unknown; did?: unknown };
+    const lines = (Array.isArray(body.lines) ? body.lines : [])
+      .map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}))
+      .map((l) => ({ by: str(l.by, 20), text: str(l.text, 300) }))
+      .filter((l) => l.by && l.text)
+      .slice(0, 2);
+    if (body.skippy === true) {
+      const say = lines[0]?.text ?? "";
+      if (!say) return null;
+      const audio = typeof body.audio === "string" && /^[A-Za-z0-9+/=]{100,}$/.test(body.audio) ? body.audio : undefined;
+      return { chair: { say, ...(audio && { audio }), ...(body.wrote !== undefined && { wrote: body.wrote, did: body.did }) } };
+    }
+    const joined = readJoined(body.join);
+    if (joined) return { join: joined };
+    return lines.length ? { lines } : null;
   } catch {
     return null;
   }

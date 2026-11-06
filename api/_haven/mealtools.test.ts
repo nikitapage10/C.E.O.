@@ -215,15 +215,15 @@ describe("King Soopers waits for Nikita's tap (#698)", () => {
     expect(h.sent).toEqual([picks]);
   });
 
-  it("isn't on a spoken surface, and says what's missing before it asks", async () => {
-    expect(toolsFor("spoken").map((t) => t.name)).not.toContain("meals_cart");
+  it("never sends from a spoken surface, saying it waits for the tap (#926), and says what's missing before it asks", async () => {
+    expect(toolsFor("spoken").map((t) => t.name)).toContain("meals_cart");
     expect(toolsFor("spoken").map((t) => t.name)).toEqual(expect.arrayContaining(["meals_swap", "meals_customize", "meals_avoid", "meals_taste", "meals_undo"]));
     expect(toolNamed("meals_cart")).toMatchObject({ effect: "send", confirm: true });
     const pending = new MemoryPending();
     expect(await callTool("meals_cart", {}, mealsHost(fakeMeals(), { picks, unmatched: 0, connected: false, store: true }), { pending, surface: "desk" })).toMatchObject({ ok: false, text: expect.stringContaining("isn't connected") });
     expect(await callTool("meals_cart", {}, mealsHost(fakeMeals(), { picks: [], unmatched: 3, connected: true, store: true }), { pending, surface: "desk" })).toMatchObject({ ok: false, text: expect.stringContaining("tap Match") });
     expect(await callTool("meals_cart", {}, mealsHost(fakeMeals(), null), { pending, surface: "desk" })).toMatchObject({ ok: false });
-    expect(await callTool("meals_cart", {}, mealsHost(fakeMeals(), { picks, unmatched: 0, connected: true, store: true }), { pending, surface: "spoken" })).toMatchObject({ ok: false });
+    expect(await callTool("meals_cart", {}, mealsHost(fakeMeals(), { picks, unmatched: 0, connected: true, store: true }), { pending, surface: "spoken", said: "send the week to King Soopers" })).toMatchObject({ ok: false, text: expect.stringContaining("waits for Nikita's Yes tap") });
     expect(pending.items).toEqual([]);
   });
 });

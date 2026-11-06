@@ -23,7 +23,7 @@ import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import { installHoldToTalk } from "./holdToTalk.ts";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
-import { keptAfter, SCENE_ROOMS } from "./keptRooms.ts";
+import { ALWAYS_KEPT, keptAfter, SCENE_ROOMS } from "./keptRooms.ts";
 import { focusPage } from "./pageFocus.ts";
 import { RoomGuard } from "./RoomGuard.tsx";
 import { canWarm, warmRotunda } from "./rotunda/warm.ts";
@@ -150,11 +150,20 @@ export function Desk({ route }: { route: DeskPage }) {
   }, [route, pathname]);
 
   // The rooms kept mounted (#759, #934, keptRooms.ts): the one on screen, and the Senate, the Haven and Relay hidden and
-  // paused, all three once the Desk is idle after its first paint.
-  const [warm, setWarm] = useState(false);
-  useEffect(() => idle(() => setWarm(true), 5000), []);
+  // paused, mounted one at a time in the Desk's idle time after its first paint.
+  const [warmed, setWarmed] = useState(0);
+  useEffect(() => {
+    if (warmed >= ALWAYS_KEPT.length || !keepLattice()) return;
+    let gone = false;
+    // A few seconds after first paint, so the room just opened settles first; then one room per idle slot.
+    const t = window.setTimeout(() => idle(() => !gone && setWarmed((n) => n + 1), 5000), warmed ? 2000 : 4000);
+    return () => {
+      gone = true;
+      window.clearTimeout(t);
+    };
+  }, [warmed]);
   const [kept, setKept] = useState<DeskPage[]>([route]);
-  const want = keptAfter(kept, route, keepLattice(), warm);
+  const want = keptAfter(kept, route, keepLattice(), warmed);
   if (want.join() !== kept.join()) setKept(want);
 
   // A change of page moves focus to it (#934, pageFocus.ts): a held Space then talks, not presses the bar's link.

@@ -54,10 +54,17 @@ or tap and sends it once, with Cancel and Send now while it waits.
   `get_map_v1` ([`roborockMap.ts`](../api/_haven/devices/roborockMap.ts)). It is the home's floor plan: read on request
   while the Hall is open and the vacuum is out (every 4 s), never stored or logged. The Hall draws it
   ([`LiveRun.tsx`](../rooms/haven/web/LiveRun.tsx)) and shows nothing when there is no run.
-- Hey Skippy on the phone ([`api/_haven/classify.ts`](../api/_haven/classify.ts)) turns "vacuum the kitchen",
-  "vacuum, go home", "pause the vacuum", "feed the cat", "feed the cat 2 portions", "give the cat wet food", "next
-  bowl", "switch the wet feeder to tray 2", "what's in the wet feeder", "open the wet food tray", "close the wet feeder", "clean the kitchen on
-  max, vacuum only" and "run a litter clean cycle" into the same actions, with no model call. Everything else goes to Skippy's chat as before.
+- Every surface reaches the devices through Skippy's one brain (#926, [SKIPPY.md](SKIPPY.md), "One brain on every
+  surface"): the phone, hold Space or the mic on any Desk page, the Senate's floor and a Talk call. Plain words ("vacuum
+  the kitchen", "vacuum, go home", "pause the vacuum", "feed the cat 2 portions", "dispense one portion of dry food",
+  "give the cat wet food", "next bowl", "switch the wet feeder to tray 2", "what's in the wet feeder", "open the
+  wet-food feeder", "close the wet feeder", "clean the kitchen on max, vacuum only", "run a litter clean cycle") run
+  with no model call (the rules tier, [`api/_skippy/agent/words.ts`](../api/_skippy/agent/words.ts), from Hey Skippy's
+  [`classify.ts`](../api/_haven/classify.ts)); anything else is the fast pass's `home_device` tool, which runs on
+  Nikita's own spoken words. Typed in the Desk's chat, a device still waits for the Yes tap.
+- `home_status` (and `read_haven` on a Talk call) reads the home in a few lines, the thermostat first ("It's 71°F
+  inside with 40% humidity; the heat is set to 70°F"): the live view inside 1.5 s, else the last good lines kept in the
+  private store (`haven/devices/home-lines.json`, at most once a minute), said with their age past two minutes.
 
 ## Safety rails
 

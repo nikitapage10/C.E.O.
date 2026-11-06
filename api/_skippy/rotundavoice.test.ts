@@ -148,7 +148,6 @@ describe("the Rotunda's voices (#755)", () => {
         ledger: new MemoryStoryStore(),
         skippy: async () => ({ reply: "unused", handedOff: false }),
         todos: (b) => new PhoneTodos(b),
-        devices: () => null,
         fetcher,
         log: (l) => lines.push(l),
       };

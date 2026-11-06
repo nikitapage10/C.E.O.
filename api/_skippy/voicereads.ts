@@ -15,6 +15,9 @@
  *                      world clock, Gmail, Sleeper, FantasyPros and Polymarket.
  *   foundry            the Foundry's board (api/_skippy/context.ts, the typed chat's own read) and its open pull
  *                      requests with their checks.
+ *   haven              the home devices (#926, api/_haven/devices/homeread.ts): the thermostat's temperature,
+ *                      humidity and set point first, then the vacuum, the feeders, the fountain and the Litter-Robot,
+ *                      in fixed words; the last good reading, with its age, when the vendors are slow.
  *   voice_bill         the ElevenLabs plan's credits left this cycle (#532: the site caps the talk at nothing
  *                      of its own). Private, like the positions.
  *
@@ -34,7 +37,7 @@ import type { JobRun, OpenPull } from "../foundry-feed.js";
 import type { ElevenCredits } from "./voice.js";
 
 /** The reads the tools offer, by the name the webhook passes (`?read=`). */
-export const READS = ["green", "exchange", "exchange_positions", "relay", "boiler", "foundry", "voice_bill"] as const;
+export const READS = ["green", "exchange", "exchange_positions", "relay", "boiler", "foundry", "voice_bill", "haven"] as const;
 export type ReadName = (typeof READS)[number];
 export const isRead = (v: unknown): v is ReadName => typeof v === "string" && (READS as readonly string[]).includes(v);
 

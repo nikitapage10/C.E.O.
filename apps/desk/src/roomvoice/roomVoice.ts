@@ -58,6 +58,8 @@ export async function askRoom(
   doFetch: typeof fetch = fetch,
 ): Promise<RoomAnswer> {
   try {
+    // Where he is, so "this" and "that one" resolve (#926): a hint for the one brain, never a filter.
+    const page = "text" in said ? await pageHint() : "";
     const res =
       "text" in said
         ? await doFetch("/api/skippy-room", {
@@ -69,6 +71,7 @@ export async function askRoom(
               text: said.text.slice(0, TEXT_MAX),
               history,
               ...(last && { last }),
+              ...(page && { page }),
             }),
           })
         : await doFetch(`/api/skippy-room?room=${encodeURIComponent(room)}`, {
@@ -87,14 +90,16 @@ export async function askRoom(
     if (res.ok) announceWrote(readWrote(body));
     const say = typeof body.say === "string" ? body.say.replace(/\s+/g, " ").trim().slice(0, 400) : "";
     const kind = typeof body.kind === "string" ? body.kind : "skippy";
+    // Every answer comes in his voice when the sound is on (#926), a refusal or a failure too.
+    const audio = typeof body.audio === "string" && /^[A-Za-z0-9+/=]{100,}$/.test(body.audio) ? body.audio : undefined;
     if (!res.ok)
       return {
         ok: false,
         say: say || SAYS[res.status] || "That didn't go through. Try again.",
         kind,
+        ...(audio && say && { audio }),
       };
     if (!say) return { ok: false, say: "That didn't go through. Try again.", kind };
-    const audio = typeof body.audio === "string" && /^[A-Za-z0-9+/=]{100,}$/.test(body.audio) ? body.audio : undefined;
     return { ok: true, say, kind, ...(audio && { audio }) };
   } catch {
     return {
@@ -154,6 +159,17 @@ export function intentFor(
 export const forgetIntents = () => intents.clear();
 
 /** One call to the rooms' tool registry (#646), the same server and checks as Desk Skippy's agent. */
+/** The page he's on, read the way the Ask Skippy panel reads it; empty when it can't be read. */
+async function pageHint(): Promise<string> {
+  try {
+    return (await (await import("../skippy/roundtrip.ts")).pageNow()).slice(0, PAGE_MAX);
+  } catch {
+    return "";
+  }
+}
+
+const PAGE_MAX = 1_600;
+
 async function postAct(body: Record<string, unknown>, doFetch: typeof fetch): Promise<ToolOutcome> {
   try {
     const res = await doFetch("/api/skippy-act", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" });

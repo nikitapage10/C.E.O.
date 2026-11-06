@@ -64,8 +64,8 @@ export interface RotundaVoice {
   murmur: (by: string, text: string) => Promise<number | null>;
   /** Stops whatever is playing (a new item brought to the floor). */
   stop: () => void;
-  /** Holds the sound while the chamber is out of view. */
-  hold: (held: boolean) => void;
+  /** Holds the sound while the chamber is out of view ("view"), or while Nikita has the floor ("floor", #905). */
+  hold: (held: boolean, why?: "view" | "floor") => void;
   dispose: () => void;
 }
 
@@ -120,6 +120,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   let gone = false;
   let dead = false;
   let held = false;
+  const holds = new Set<"view" | "floor">();
   const main = new Audio();
   const mur = new Audio();
   main.preload = mur.preload = "auto";
@@ -209,7 +210,13 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       finish(false);
       hushMurmur();
       return new Promise<boolean>((res) => {
-        const t = window.setTimeout(() => end === done && finish(true), LINE_MAX_MS);
+        // A line held (out of view, or Nikita has the floor) isn't let go for it: the clock starts again.
+        const giveUp = () => {
+          if (end !== done) return;
+          if (held) t = window.setTimeout(giveUp, LINE_MAX_MS);
+          else finish(true);
+        };
+        let t = window.setTimeout(giveUp, LINE_MAX_MS);
         const done = (ok: boolean) => {
           window.clearTimeout(t);
           res(ok);
@@ -260,7 +267,10 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       finish(false);
       hushMurmur();
     },
-    hold(h) {
+    hold(h, why = "view") {
+      if (h) holds.add(why);
+      else holds.delete(why);
+      h = holds.size > 0;
       held = h;
       // Only the chamber leaving the page holds the voices; another window or tab doesn't (#898).
       if (h) {

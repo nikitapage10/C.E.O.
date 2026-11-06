@@ -1,13 +1,15 @@
 import { useEffect } from "react";
-import { roomMicOf, voiceTargetOf } from "@ceo/engine/voice";
+import { roomMicOf, SKIPPY_VOICE, voiceTargetOf } from "@ceo/engine/voice";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { useTalk } from "../skippy/talk.ts";
+import { holdHint, PRIORITY, registerHoldToTalk, useHoldToTalk } from "../holdToTalk.ts";
 import {
   handsFreeOff,
   handsFreeOn,
   handsFreeSupported,
+  micFinish,
   micPress,
   micRelease,
   micReset,
@@ -22,7 +24,7 @@ import "./roommic.css";
  * The rooms' voice (#638), shared chrome on every Desk page (docs/ROOMS.md, "The room voice"). Bottom right, the dock:
  * Ask Skippy, large, which opens his chat and Talk (Nikita, 02:05Z: "a little bit more prominent… in the bottom right,
  * not in the top"), and on every room's page but Today a mic in the room's submind's colour. Press the mic (or hold
- * Space) and it listens at once; release, or tap and pause, and the words go to the room's submind; the answer plays in
+ * Space on any page, holdToTalk.ts) and it listens at once; release, or tap and pause, and the words go to the room's submind; the answer plays in
  * Skippy's voice and its line shows for a moment. Escape stops it. In the bar, `HandsFree`: one tap and it keeps
  * listening, page to page, each thing said going to whoever leads the page Nikita is on. One listener for both
  * (roomVoice.ts). Not an "Ask Skippy" panel on a room: the exchanges live in the Council on Today.
@@ -42,12 +44,43 @@ export function VoiceDock({ route }: { route: string }) {
     if (auth === "out") handsFreeOff();
   }, [auth]);
 
-  if (chatOpen) return null;
+  // Hold Space on any page (#905, holdToTalk.ts): the page's lead listens while it is held, and the words go on release.
+  // The page's default; the Senate in session and a room's own handler take Space over while they are mounted.
+  useEffect(
+    () =>
+      registerHoldToTalk(
+        {
+          start: () => {
+            const said = holdBlocked(auth, chatOpen, calling);
+            if (said) return holdHint(said);
+            micPress((roomMicOf(route) ?? voiceTargetOf(route) ?? SKIPPY_VOICE).room);
+          },
+          end: () => {
+            if (useRoomMic.getState().phase === "listening") void micFinish();
+          },
+          cancel: () => {
+            if (useRoomMic.getState().phase === "listening") micReset();
+          },
+          ownIndicator: true,
+        },
+        PRIORITY.page,
+      ),
+    [route, auth, chatOpen, calling],
+  );
+  // Escape stops whatever the voice is doing, on every page.
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && useRoomMic.getState().phase !== "idle" && micReset();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, []);
+
+  if (chatOpen) return <HoldPill />;
   const mic = roomMicOf(route);
   const showMic = !!mic && signedIn && !calling && micSupported();
   const lead = voiceTargetOf(route);
   return (
     <div className="vdock" style={{ "--mic": (mic ?? lead)?.colour ?? "#8fd8ff" } as React.CSSProperties}>
+      <HoldPill />
       <HandsFreeChip />
       <VoiceLine name={lead?.name ?? "Skippy"} />
       <div className="vdock__row">
@@ -69,6 +102,38 @@ export function VoiceDock({ route }: { route: string }) {
           <span>Ask Skippy</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Why a held Space can't listen here, in a short line, or null when it can (#905): signed out, a browser that can't hear,
+ * Skippy's chat or a call already has the floor.
+ */
+export function holdBlocked(auth: string, chatOpen: boolean, calling: boolean, supported: boolean = micSupported()): string | null {
+  if (auth !== "in") return auth === "out" ? "Sign in on the Desk to talk to Skippy." : "Checking your sign-in…";
+  if (!supported) return "This browser can't hear you here.";
+  if (calling) return "You're on a call with Skippy.";
+  if (chatOpen) return "Skippy's chat is open: type, or use Talk.";
+  return null;
+}
+
+/** The held Space's small pill (#905): listening while it is held (when the handler shows nothing of its own), or a hint. */
+export function HoldPill() {
+  const held = useHoldToTalk((s) => s.held && !s.own);
+  const heard = useHoldToTalk((s) => s.heard);
+  const hint = useHoldToTalk((s) => s.hint);
+  if (!held && !hint) return null;
+  return (
+    <div className={`vdock__hold${hint ? " is-hint" : ""}`} role="status" aria-live="polite">
+      {hint ? (
+        hint
+      ) : (
+        <>
+          <i aria-hidden="true" />
+          {heard ? <Private>{heard}</Private> : "Listening… let go of Space to send"}
+        </>
+      )}
     </div>
   );
 }
@@ -125,8 +190,6 @@ function VoiceLine({ name }: { name: string }) {
   );
 }
 
-const editable = (t: EventTarget | null) => !!(t as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
-
 function MicButton({ room, name }: { room: string; name: string }) {
   const phase = useRoomMic((s) => s.phase);
 
@@ -136,26 +199,6 @@ function MicButton({ room, name }: { room: string; name: string }) {
     return () => micReset(null);
   }, [room]);
 
-  // Space: hold to talk, anywhere on the page but a text field. Escape stops everything.
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && useRoomMic.getState().phase !== "idle") return micReset();
-      if (e.code !== "Space" || e.metaKey || e.ctrlKey || e.altKey || editable(e.target) || useRoomMic.getState().own?.space) return;
-      e.preventDefault();
-      if (!e.repeat) micPress(room);
-    };
-    const up = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || editable(e.target) || useRoomMic.getState().own?.space) return;
-      e.preventDefault();
-      micRelease();
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, [room]);
 
   const label = phase === "listening" ? `Listening for ${name}: release or tap to send` : `Talk to ${name} (hold Space)`;
   return (

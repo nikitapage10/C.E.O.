@@ -314,6 +314,36 @@ describe("multi-send (#870, Nikita 2026-11-05)", () => {
     expect(h.store.load().threads[0]?.sentHere).toBeUndefined();
   });
 
+  it("#914: Done stays done through a rescan and the sweep, even for a text the hub's lastIn missed; a newer text brings it back", async () => {
+    const { h, id, now: t0 } = await owedOne();
+    // A text of theirs the poll never read (the hub was asleep), after Dialtone's sort: Messages has it, lastIn doesn't.
+    const missed = msg("also, bring the charger", t0 + 30 * 60_000);
+    h.bb.byChat.get(chatOf(A))!.push(missed);
+    const info = (last: Message): ChatInfo => ({ chat: chatOf(A), group: false, name: "", handle: A, last, lastAt: last.at });
+    h.bb.chatsList = [info(missed)];
+    // Nikita sees it on the Desk an hour later and presses Done.
+    const now = t0 + 60 * 60_000;
+    h.at(now);
+    h.site.waiting = [done("6".repeat(24), id, now)];
+    await h.engine.act();
+    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "done", doneAt: now });
+    // A rescan (each hub start and each day): their latest text is older than the Done, so it stays done.
+    await h.engine.backlog();
+    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "done" });
+    expect(readTextsView(h.engine.texts(), now)!.items).toEqual([]);
+    // The sweep keeps the row through the owed window from the Done, so no rescan re-lists it as a new thread.
+    h.at(missed.at + 30 * DAY + 60_000);
+    h.engine.sweep();
+    expect(h.store.load().threads.map((t) => t.id)).toEqual([id]);
+    // A newer text from them after the Done: back in line.
+    const later = msg("you there?", missed.at + 30 * DAY + 120_000);
+    h.at(later.at + 1);
+    h.bb.byChat.get(chatOf(A))!.push(later);
+    h.bb.chatsList = [info(later)];
+    await h.engine.backlog();
+    expect(h.store.load().threads[0]?.state).toBe("owed");
+  });
+
   it("never acts on one request id twice, and a Resend of a text Messages already shows is refused", async () => {
     const { h, sent, id, now } = await owedOne();
     const once = send("4".repeat(24), id, "Yes!", now);

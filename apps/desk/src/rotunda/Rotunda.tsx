@@ -9,9 +9,15 @@ import { modelReady } from "../modelCache.ts";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import type { ChamberLink } from "../../../../rooms/today/web/TodayNow.tsx";
 import type { Rotunda as Scene, RotundaSeat } from "./rotundaScene.ts";
+import { SUBMIND_TITLE } from "./rite.ts";
 import { createVoice, setSound, useRotundaSound, type RotundaVoice } from "./voice.ts";
 import { isArchived, isSaid, useSenateMemory } from "./heard.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { PRIORITY, registerHoldToTalk } from "../holdToTalk.ts";
+import { useSkippy } from "../skippy/chat.ts";
+import { useTalk } from "../skippy/talk.ts";
+import { floorCancel, floorEnd, floorStart, setFloorScene, useFloor } from "./senateFloor.ts";
 import "./rotunda.css";
 
 /**
@@ -191,6 +197,36 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   }, [lit, gl]);
   hotRef.current = setHot;
 
+  // Hold Space to take the floor (#905, senateFloor.ts): the Senate's handler, above the page's own while the chamber is up.
+  useEffect(() => {
+    setFloorScene({
+      hold: (on) => scene.current?.hold(on),
+      talk: (by, seconds) => scene.current?.talk(by, seconds),
+      seated: () => live.current.seats.map((s) => s.id),
+      light: (id) => setHot(id),
+    });
+    const off = registerHoldToTalk(
+      {
+        start: floorStart,
+        end: () => void floorEnd(),
+        cancel: floorCancel,
+        ownIndicator: true,
+        // Kept mounted out of sight on another page (#759, keptRooms.ts), the Senate leaves Space to that page.
+        // Skippy's chat or a call has the floor: the page's own handler says so instead.
+        when: () => !!stage.current?.getClientRects().length && !useSkippy.getState().open && useTalk.getState().phase === "idle",
+      },
+      PRIORITY.senate,
+    );
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && useFloor.getState().phase !== "idle" && floorCancel();
+    window.addEventListener("keydown", esc);
+    return () => {
+      off();
+      window.removeEventListener("keydown", esc);
+      setFloorScene(null);
+    };
+  }, []);
+  const floorOn = useFloor((s) => s.phase !== "idle");
+
   useEffect(() => {
     if (!sel) return;
     const key = (e: KeyboardEvent) => e.key === "Escape" && setSel(null);
@@ -211,7 +247,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   const point = (id: string | null) => setHot(id);
 
   return (
-    <div ref={stage} className="rt-stage" data-gl={gl} role="group" aria-label={`The Senate, the Council of Skippies in session: ${active} of ${pulses.length} subminds active`}>
+    <div ref={stage} className={`rt-stage${floorOn ? " is-floor" : ""}`} data-gl={gl} role="group" aria-label={`The Senate, the Council of Skippies in session: ${active} of ${pulses.length} subminds active`}>
       <div className="rt-flat" aria-hidden="true">
         <i className="rt-flat-shaft" />
         <i className="rt-flat-podium" />
@@ -267,7 +303,38 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
         );
       })}
       <SoundButton />
+      <FloorCaption />
       {sel && <MemberCard id={sel} pulses={pulses} now={now} since={since} held={held} skippySays={skippySays} active={active} phone={phone} onClose={() => setSel(null)} />}
+    </div>
+  );
+}
+
+/**
+ * Nikita's floor (#905): his words as the floor's caption while he holds Space, the chair's word on who answers, and the
+ * answer being heard. Only this is written large while he has the floor; the session's own lines wait, dimmed.
+ */
+function FloorCaption() {
+  const phase = useFloor((s) => s.phase);
+  const question = useFloor((s) => s.question);
+  const chair = useFloor((s) => s.chair);
+  const turn = useFloor((s) => s.turn);
+  if (phase === "idle") return null;
+  const by = turn ? (turn.by === "kernel" ? "Skippy, the Magnificent" : (SUBMIND_TITLE[turn.by] ?? turn.by)) : "";
+  return (
+    <div className="rt-ask" role="status" aria-live="polite">
+      <div className="rt-ask-q">
+        <span className="rt-ask-who">{phase === "listening" ? "Nikita has the floor" : "Nikita"}</span>
+        <p>{question ? <Private>{question}</Private> : "Listening… let go of Space to ask."}</p>
+      </div>
+      {chair && !turn && <p className="rt-ask-chair">{chair}</p>}
+      {turn && (
+        <div className={`rt-ask-a${turn.failed ? " is-failed" : ""}`} style={{ "--c": turn.by === "kernel" ? "143,216,255" : (RC[turn.by] ?? "200,200,220") } as CSSProperties}>
+          <span className="rt-ask-who">{by}</span>
+          <p>
+            <Private>{turn.say}</Private>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -152,6 +152,13 @@ export interface Rotunda {
   /** Bring an item to the floor now. */
   bring: (key: string) => void;
   setHot: (id: string | null) => void;
+  /**
+   * Nikita has the floor (#905): the session holds where it is (its clock and its voice stop), and picks up the same
+   * line when he gives it back.
+   */
+  hold: (on: boolean) => void;
+  /** A member (or "kernel", the chair) talks for this many seconds while it answers him; 0 stops it. */
+  talk: (by: string, seconds: number) => void;
   dispose: () => void;
 }
 
@@ -716,6 +723,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const actors: Actor[] = [sk.a, ...pods.map((p) => p.a)];
   /** Who has the floor: the last to start a line that is still going. */
   let talker: Actor | null = null;
+  let heldTalker: { a: Actor; left: number } | null = null;
   let talkerWas: string | null = null;
   const talkFor = (text: string) => Math.min(5, 0.8 + text.length * 0.055);
   const byId = (id: string) => pods.find((p) => p.s.id === id) ?? null;
@@ -780,6 +788,9 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const capOf: Record<Slot, Pod | null> = { a: null, b: null, c: null, d: null };
   const capT: Record<Slot, number> = { a: 0, b: 0, c: 0, d: 0 };
   const clock = { t: 0 };
+  // The session's own clock (#905): it stops while Nikita has the floor, so the session picks up where it was.
+  const sclock = { t: 0 };
+  let floorHeld = false;
   // Whose line is being heard (or read) now (#856). Nikita: "the primary text ... should only be the one talking. Any other
   // text, like anyone concurring or dissent or anything like that, should be very minimal, subliminal, kind of in the
   // background." Only that line is written large; every other caption still up, and the chair's line while a member
@@ -970,10 +981,10 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // The session runs on the scene's own clock, so it pauses with the chamber (out of view, a hidden tab) and picks up where it was.
   const sleep = (ms: number, tk: number) =>
     new Promise<void>((res, rej) => {
-      const end = clock.t + (reduce ? ms * 0.6 : ms) / 1000;
+      const end = sclock.t + (reduce ? ms * 0.6 : ms) / 1000;
       const f = () => {
         if (tk !== token || dead) return rej(new Error("cancel"));
-        if (clock.t >= end) return res();
+        if (sclock.t >= end) return res();
         window.setTimeout(f, 50);
       };
       f();
@@ -1705,7 +1716,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   let bgAt = performance.now();
   const bg = window.setInterval(() => {
     const now = performance.now();
-    if (document.visibilityState === "hidden" && visible) clock.t += Math.min(2, Math.max(0, (now - bgAt) / 1000));
+    if (document.visibilityState === "hidden" && visible) {
+      const step = Math.min(2, Math.max(0, (now - bgAt) / 1000));
+      clock.t += step;
+      if (!floorHeld) sclock.t += step;
+    }
     bgAt = now;
   }, 1000);
   const frame = (now: number) => {
@@ -1722,6 +1737,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     // The session's clock keeps near real time on a slow device (a frame counts for up to half a second), so the story
     // still moves; a stall longer than that (a background tab) doesn't skip it ahead.
     clock.t += Math.min(0.5, raw);
+    if (!floorHeld) sclock.t += Math.min(0.5, raw);
     const k = 1 - Math.pow(0.04, dt);
     for (const p of pods) {
       if (p.tw) {
@@ -1818,7 +1834,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     placeCaps();
     place();
     if (!reduce) {
-      if (clock.t > nextMur) {
+      if (clock.t > nextMur && !floorHeld) {
         murmur();
         nextMur = clock.t + (kind === "idle" ? 2.6 : 1.4) + Math.random() * 2.2;
       }
@@ -1892,6 +1908,28 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     },
     bring: (key) => void session(key),
     setHot: (id) => pods.forEach((p) => (p.hot = p.s.id === id)),
+    hold: (on) => {
+      if (on === floorHeld) return;
+      floorHeld = on;
+      voice?.hold(on, "floor");
+      if (on) {
+        // Whoever was mid-line stops talking; the rest of the line is theirs again on the way back.
+        heldTalker = talker && clock.t < talker.talkUntil ? { a: talker, left: talker.talkUntil - clock.t } : null;
+        for (const a of actors) a.talkUntil = Math.min(a.talkUntil, clock.t);
+      } else if (heldTalker) {
+        startTalk(heldTalker.a, clock.t, clock.t + heldTalker.left);
+        talker = heldTalker.a;
+        heldTalker = null;
+      }
+    },
+    talk: (by, seconds) => {
+      const a = by === "kernel" ? sk.a : (byId(by)?.a ?? null);
+      if (!a) return;
+      if (seconds > 0) {
+        startTalk(a, clock.t, clock.t + seconds);
+        talker = a;
+      } else a.talkUntil = Math.min(a.talkUntil, clock.t);
+    },
     dispose: () => {
       dead = true;
       token++;

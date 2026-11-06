@@ -41,10 +41,17 @@ export interface Message {
  */
 export interface ChatInfo {
   chat: string;
+  /** A group (#916): GROUP_MIN_PEOPLE others or more, or a chat of several whose size BlueBubbles didn't give. */
   group: boolean;
-  /** A group's name, or "". */
+  /** A chat with more than one other person (iMessage;+;chat…), a group or not (#916). Left out, it is `group`. */
+  multi?: boolean;
+  /** How many other people a chat of several has (BlueBubbles' participants, never Nikita); null when not given. */
+  people?: number | null;
+  /** A chat of several's other people (their handles), for the Desk's name and the rules. Memory only. */
+  members?: string[];
+  /** A chat of several's name, or "". */
   name: string;
-  /** A one-to-one chat's other person (a number or address); "" for a group. */
+  /** A one-to-one chat's other person (a number or address); "" for a chat of several. */
   handle: string;
   /** The last message, read like any other; null for a reaction, a system item or a chat with none. */
   last: Message | null;
@@ -65,7 +72,14 @@ export interface ContactPhoto {
 
 export interface Inbound {
   chat: string;
+  /** A group (#916): see ChatInfo's `group`. */
   group: boolean;
+  /** A chat with more than one other person, a group or not (#916). Left out, it is `group`. */
+  multi?: boolean;
+  /** How many other people it has, when BlueBubbles gave its participants; else null or left out. */
+  people?: number | null;
+  /** Their handles, memory only. */
+  members?: string[];
   /** The group's name as Messages shows it, or "" (memory only, for the Desk's list). */
   groupName: string;
   message: Message;
@@ -164,8 +178,39 @@ export function readContact(c: Record<string, unknown>): Contact {
   return { names, handles: contactHandles(c) };
 }
 
-/** Whether a chat id is a group's (iMessage;+;chat…) rather than one person's (iMessage;-;+1…). */
+/** Whether a chat id is a chat of several (iMessage;+;chat…) rather than one person's (iMessage;-;+1…). */
 export const isGroupChat = (chat: string) => /;\+;/.test(chat);
+
+/**
+ * The fewest other people (never counting Nikita) that make a chat a group (#916, Nikita 2026-11-05: "group chats
+ * should only be designated as ... 6 or more users. Anything underneath that is less of a group chat and still more of
+ * a regular chat"). A chat of several with fewer is handled as a one-to-one thread: it can be owed, gets a gist and a
+ * draft, and its replies go to that chat. A group keeps the group handling: summary only, owed when Nikita is asked
+ * or named, never drafted for.
+ */
+export const GROUP_MIN_PEOPLE = 6;
+
+/** Whether a chat of several with this many other people is a group (#916). An unknown size stays a group, as before. */
+export const bigGroup = (people: number | null | undefined) => people === null || people === undefined || people >= GROUP_MIN_PEOPLE;
+
+/** A chat's other people from BlueBubbles' `participants` (#916): their handles, in order, each once. */
+export function membersOf(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const p of v as unknown[]) {
+    const h = p && typeof p === "object" ? str((p as Record<string, unknown>).address, 200).trim() : "";
+    if (h && !out.includes(h)) out.push(h);
+  }
+  return out.slice(0, 200);
+}
+
+/** What a chat of several is (#916): its other people, how many, and whether that makes it a group. */
+function sizeOf(multi: boolean, participants: unknown): { group: boolean; multi?: true; people?: number | null; members?: string[] } {
+  if (!multi) return { group: false };
+  const members = membersOf(participants);
+  const people = members.length ? members.length : null;
+  return { group: bigGroup(people), multi: true, people, members };
+}
 export const channelOf = (chat: string): "iMessage" | "SMS" => (/^SMS;/i.test(chat) ? "SMS" : "iMessage");
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -199,13 +244,13 @@ export function readChat(o: Record<string, unknown> | null | undefined): ChatInf
   if (!o || typeof o !== "object") return null;
   const chat = str(o.guid, 300);
   if (!chat) return null;
-  const group = isGroupChat(chat) || o.style === 43;
+  const multi = isGroupChat(chat) || o.style === 43;
   const parts = Array.isArray(o.participants) ? (o.participants as Record<string, unknown>[]) : [];
-  const handle = group ? "" : str(parts[0]?.address, 200) || chat.split(";").pop() || "";
+  const handle = multi ? "" : str(parts[0]?.address, 200) || chat.split(";").pop() || "";
   const lm = o.lastMessage && typeof o.lastMessage === "object" ? (o.lastMessage as Record<string, unknown>) : null;
   const read = readMessage(lm);
   const last = read ? { ...read, handle: read.fromMe ? "" : read.handle || handle } : null;
-  return { chat, group, name: group ? str(o.displayName, 80) : "", handle, last, lastAt: num(lm?.dateCreated) };
+  return { chat, ...sizeOf(multi, o.participants), name: multi ? str(o.displayName, 80) : "", handle, last, lastAt: num(lm?.dateCreated) };
 }
 
 /** One message from `/api/v1/message/query` (with its chats), read: null when it has no guid or time. */
@@ -217,7 +262,7 @@ export function readPolled(o: Record<string, unknown> | null | undefined): Polle
   const chat = Array.isArray(o.chats) ? (o.chats[0] as Record<string, unknown> | undefined) : undefined;
   const chatGuid = str(chat?.guid, 300);
   const message = readMessage(o);
-  return { guid, at, inbound: chatGuid && message ? { chat: chatGuid, group: isGroupChat(chatGuid), groupName: str(chat?.displayName, 80), message } : null };
+  return { guid, at, inbound: chatGuid && message ? { chat: chatGuid, ...sizeOf(isGroupChat(chatGuid), chat?.participants), groupName: str(chat?.displayName, 80), message } : null };
 }
 
 /* ── Calls, and failing in plain words (#749) ── */
@@ -364,10 +409,11 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
       return Array.isArray(data) ? (data as Record<string, unknown>[]).map((c) => str(c?.guid, 300)).filter((g) => /^(?:iMessage|SMS);-;/i.test(g)) : [];
     },
     // BlueBubbles 1.9.12's message query (messageValidator.queryBodyRules): `after` is ms since 1970 and matches
-    // message.date >= after, `with: ["chat"]` joins each message's chats (the handle always comes), ASC is oldest
+    // message.date >= after, `with: ["chat"]` joins each message's chats (the handle always comes) and
+    // "chat.participants" their people (#916: how many make a group), ASC is oldest
     // first, `limit` is 1 to 1000. Attachments are never asked for.
     since: async (after, limit) => {
-      const data = await post("/api/v1/message/query", { with: ["chat"], sort: "ASC", after: Math.max(0, Math.floor(after)), limit: Math.max(1, Math.min(1000, Math.floor(limit))) });
+      const data = await post("/api/v1/message/query", { with: ["chat", "chat.participants"], sort: "ASC", after: Math.max(0, Math.floor(after)), limit: Math.max(1, Math.min(1000, Math.floor(limit))) });
       if (!Array.isArray(data)) throw new BlueBubblesError("not-json", 200);
       return (data as Record<string, unknown>[]).map(readPolled).filter((p): p is Polled => p !== null);
     },
@@ -375,7 +421,7 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
     // `limit` 1 to 1000. A page is the chats in Messages' own order (newest made first), sorted by last message
     // within the page only, so the scan reads every page and sorts for itself.
     chatList: async (offset, limit) => {
-      const data = await post("/api/v1/chat/query", { with: ["lastmessage"], sort: "lastmessage", offset: Math.max(0, Math.floor(offset)), limit: Math.max(1, Math.min(1000, Math.floor(limit))) }, 60_000);
+      const data = await post("/api/v1/chat/query", { with: ["lastmessage", "participants"], sort: "lastmessage", offset: Math.max(0, Math.floor(offset)), limit: Math.max(1, Math.min(1000, Math.floor(limit))) }, 60_000);
       if (!Array.isArray(data)) throw new BlueBubblesError("not-json", 200);
       return (data as Record<string, unknown>[]).map(readChat).filter((c): c is ChatInfo => c !== null);
     },

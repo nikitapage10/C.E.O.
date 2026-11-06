@@ -274,8 +274,11 @@ describe("the hub's token", () => {
     expect(one.items[0]!.messages?.map((m) => m.text)).toEqual(["three weeks", "new one"]);
     const gone = readTextsView(view([item({ since: at(25), messages: [{ text: "old one", at: at(31) }] })]), NOW)!;
     expect(gone.items[0]!.messages).toBeUndefined();
-    // A one-to-one item names no sender; a group's lines each must.
-    expect(readTextsView(view([item({ messages: [{ text: "hi", at: NOW, from: "Riley Test" }] })]), NOW)).toBeNull();
+    // A group's lines each name their sender; since #916 a regular item may too (a small chat of several), never on
+    // Nikita's own line.
+    expect(readTextsView(view([item({ messages: [{ text: "hi", at: NOW, from: "Riley Test" }] })]), NOW)?.items[0]?.messages?.[0]?.from).toBe("Riley Test");
+    expect(readTextsView(view([item({ messages: [{ text: "hi", at: NOW, from: "Riley Test", me: true }] })]), NOW)).toBeNull();
+    expect(readTextsView(view([item({ group: true, messages: [{ text: "hi", at: NOW, me: true }] })]), NOW)).toBeNull();
     expect(readTextsView(view([item({ group: true, messages: [{ text: "hi", at: NOW }] })]), NOW)).toBeNull();
     expect(readTextsView(view([item({ messages: [{ text: "x".repeat(1001), at: NOW }] })]), NOW)).toBeNull();
   });

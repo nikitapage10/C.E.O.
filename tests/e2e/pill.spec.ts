@@ -32,7 +32,7 @@ test.beforeAll(async () => {
 test.afterAll(() => new Promise<void>((done) => server.close(() => done())));
 
 /** The Desk's tabs, in the bar's order (NAV_ORDER in apps/world/src/route.ts), and the Boiler Room's subpages. */
-const PAGES = ["/", "/haven", "/foundry", "/relay", "/green", "/exchange", "/archive", "/annex", "/spire", "/workshop", "/studio", "/boiler", "/boiler/controls", "/boiler/security", "/boiler/compliance"];
+const PAGES = ["/", "/haven", "/relay", "/green", "/exchange", "/archive", "/annex", "/spire", "/workshop", "/studio", "/foundry", "/boiler", "/boiler/controls", "/boiler/security", "/boiler/compliance"];
 
 const FEED = { issues: [], runs: { workflow_runs: [] }, e2e: { workflow_runs: [] }, pulls: [], commits: [] };
 

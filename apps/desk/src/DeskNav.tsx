@@ -15,8 +15,8 @@ import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
  * with a thread under the one you're on: the Senate (once Today, #775), the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Hands-free (#638), the way into
  * the Lattice, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
- * Keys 1 to 9 open them in order, 0 the tenth. The order is route.ts NAV_ORDER, by what actually works (Nikita,
- * 2026-11-04 07:06Z), the Boiler Room last, far right. Ask Skippy moved to the bottom right of every page (#638,
+ * Keys 1 to 9 open them in order, 0 the tenth. The order is route.ts NAV_ORDER: the Senate, the Haven and Relay first
+ * (Nikita, 2026-11-06, #934), the Foundry beside the Boiler Room, last, far right. Ask Skippy moved to the bottom right of every page (#638,
  * roomvoice/RoomMic.tsx). Since the Iris (#666) the bar keeps only the pages, the account button and the way into the
  * Lattice: Ilyr's clock, Hide and Hands-free moved to the Boiler Room's Settings (/boiler/controls), and while
  * Hands-free is on the bar shows who it is listening for, with a tap to stop it. A room with tabs (its manifest's

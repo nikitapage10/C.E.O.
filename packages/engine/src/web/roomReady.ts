@@ -55,6 +55,15 @@ export class ReadyGate {
 export const RoomReadyContext = createContext<ReadyGate | null>(null);
 
 /**
+ * Whether the room is on screen (#934). The Desk keeps some rooms mounted out of sight, hidden and paused (#759,
+ * apps/desk/src/keptRooms.ts); the room loader says which. A kept room's window-wide listeners (keys, hold-to-talk,
+ * the room voice's ear) check this and stay quiet while it is false. Outside a loader, always on screen.
+ */
+export const RoomShownContext = createContext(true);
+/** Whether this room is the one on screen (`RoomShownContext`). */
+export const useRoomShown = (): boolean => useContext(RoomShownContext);
+
+/**
  * Hold the room loader until `ready` is true. Returns a function that opens the gate by hand (for a callback, such as
  * a scene's first frame); once opened that way it stays open. Outside a room loader it does nothing.
  */

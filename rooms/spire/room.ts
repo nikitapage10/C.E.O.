@@ -6,7 +6,7 @@ export default defineRoom({
   id: "spire",
   ...nav,
   path: "/spire",
-  navKey: "9",
+  navKey: "8",
   accent: "--room-spire",
   submind: "gilt",
   live: false,

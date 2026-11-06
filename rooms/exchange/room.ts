@@ -7,7 +7,7 @@ export default defineRoom({
   id: "exchange",
   ...nav,
   path: "/exchange",
-  navKey: "6",
+  navKey: "5",
   accent: "--room-exchange",
   submind: "ticker",
   live: true,

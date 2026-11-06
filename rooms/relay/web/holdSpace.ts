@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PRIORITY, registerHoldToTalk } from "@ceo/desk/holdToTalk.ts";
 import { listen, setOwnVoice, type Listener } from "@ceo/desk/roomvoice/roomVoice.ts";
+import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
 
 /**
  * Hold Space to talk into the reply box (#904, Nikita: "no mic button"). The Desk's one hold-to-talk listener
@@ -8,7 +9,8 @@ import { listen, setOwnVoice, type Listener } from "@ceo/desk/roomvoice/roomVoic
  * hands a hold to the highest handler. While the reply box is on screen Relay registers at room priority, above the
  * page's Messenger mic, and a hold dictates into the box with the browser's own speech recognition (the path the old
  * mic button took); letting go ends it. Nothing is sent: the words wait in the box for Send. While it listens,
- * hands-free waits (`setOwnVoice`).
+ * hands-free waits (`setOwnVoice`). Kept mounted out of sight (#934, apps/desk/src/keptRooms.ts), Relay leaves Space
+ * to the page on screen (`when`).
  */
 export function useHoldSpace(on: boolean, write: (words: string) => void, base: () => string): { hearing: boolean; note: string } {
   const [hearing, setHearing] = useState(false);
@@ -16,6 +18,9 @@ export function useHoldSpace(on: boolean, write: (words: string) => void, base: 
   const ear = useRef<Listener | null>(null);
   const cb = useRef({ write, base });
   cb.current = { write, base };
+  const shown = useRoomShown();
+  const onScreen = useRef(shown);
+  onScreen.current = shown;
 
   useEffect(() => {
     if (!on) return;
@@ -33,6 +38,7 @@ export function useHoldSpace(on: boolean, write: (words: string) => void, base: 
     const off = registerHoldToTalk(
       {
         ownIndicator: true,
+        when: () => onScreen.current,
         start: () => {
           if (ear.current) return;
           const start = cb.current.base().trimEnd();

@@ -6,7 +6,7 @@ export default defineRoom({
   id: "workshop",
   ...nav,
   path: "/workshop",
-  navKey: "0",
+  navKey: "9",
   accent: "--room-workshop",
   submind: "putty",
   live: false,

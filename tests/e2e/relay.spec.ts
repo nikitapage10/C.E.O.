@@ -67,7 +67,7 @@ const FAKE_SPEECH = () => {
   };
 };
 
-async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; order?: string | null; group?: boolean } = {}) {
+async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; order?: string | null; group?: boolean; failSends?: number[]; tapbacks?: "on" | "off" } = {}) {
   const signedIn = opts.signedIn ?? true;
   // Longest waiting first is the page's default (#904); most tests here walk the queue newest first (Sam, Jordan,
   // Priya), as a device that picked Newest would. null leaves the default.
@@ -76,6 +76,8 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; o
   const posts: Record<string, unknown>[] = [];
   let samDraft: { text: string; at: number } | null = null;
   let requests: Record<string, unknown>[] = [];
+  let rids = 0;
+  let sendsMade = 0;
   const now = Date.now();
   await page.route("https://api.github.com/**", (r) => r.fulfill({ json: [] }));
   await page.route(`${BASE}/api/foundry-feed`, (r) => r.fulfill({ json: { issues: [], runs: { workflow_runs: [] }, e2e: { workflow_runs: [] }, pulls: [], commits: [] } }));
@@ -150,15 +152,22 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; o
         // An unnamed big group (#923): the hub names it by its people, the shelf counts what is new.
         ...(opts.group ? [{ id: "9999999999999999", name: "Alex, Sam +5", channel: "iMessage", group: true, state: "settled", sort: null, since: now - 30 * 60_000, laterUntil: null, gist: "", draft: null, summary: { text: "They plan a picnic on Sunday.", asked: false }, messages: Array.from({ length: 5 }, (_, i) => ({ text: `picnic line ${i}`, at: now - (30 - i) * 60_000, from: i % 2 ? "Alex Test" : "Sam Other" })) }] : []),
       ];
-      return r.fulfill({ json: { ok: true, status: textsStatus(), ready: true, paired: true, pairedAt: now - 86_400_000, lastSeen: now, unlockedUntil: now + 3_600_000, texts, cards: [], textsAt: now, requests, spend: { usd: 0.03, budget: 10 } } });
+      return r.fulfill({ json: { ok: true, status: textsStatus(), ready: true, paired: true, pairedAt: now - 86_400_000, lastSeen: now, unlockedUntil: now + 3_600_000, texts, cards: [], textsAt: now, requests, ...(opts.tapbacks && { tapbacks: opts.tapbacks }), spend: { usd: 0.03, budget: 10 } } });
     }
     const body = r.request().postDataJSON() as Record<string, unknown>;
     posts.push({ line: "texts", ...body });
     if (body.action === "restyle" || body.action === "draft") samDraft = { text: SAM_DRAFT, at: Date.now() };
-    if (body.action === "send") requests = [{ rid: "b".repeat(24), kind: "send", thread: body.thread, text: body.text, created: Date.now(), until: Date.now() + 600_000, state: "sent" }];
+    // Each request its own id (#950: the outbox follows each send by it); a send listed as sent, or failed when asked.
+    const rid = (++rids).toString(16).padStart(24, "0");
+    if (body.action === "send" || body.action === "resend") {
+      const fail = opts.failSends?.includes(++sendsMade);
+      // A resend names only the old request (the site copies its thread and text).
+      const old = body.action === "resend" ? requests.find((q) => q.rid === body.rid) : undefined;
+      requests = [...requests.filter((q) => q.kind !== "done"), { rid, kind: "send", thread: old?.thread ?? body.thread, text: old?.text ?? body.text, created: Date.now(), until: Date.now() + 600_000, state: fail ? "failed" : "sent", ...(fail && { reason: "bb-down" }) }, ...requests.filter((q) => q.kind === "done")];
+    }
     // The site holds a Done until the Mac takes it (#914).
-    if (body.action === "done") requests = [...requests, { rid: "e".repeat(24), kind: "done", thread: body.thread, text: "", created: Date.now(), until: Date.now() + 600_000, state: "waiting" }];
-    return r.fulfill({ json: { ok: true, rid: "c".repeat(24), until: Date.now() + 600_000 } });
+    if (body.action === "done") requests = [...requests, { rid, kind: "done", thread: body.thread, text: "", created: Date.now(), until: Date.now() + 600_000, state: "waiting" }];
+    return r.fulfill({ json: { ok: true, rid, until: Date.now() + 600_000 } });
   });
   return posts;
 }
@@ -245,10 +254,13 @@ for (const width of [1440, 400]) {
     await page.waitForTimeout(5_600);
     expect(sends(posts)).toEqual([]);
 
-    // Y on the keyboard: sealed, and the send goes only after the window, bound to the draft on screen.
+    // Y on the keyboard: the draft goes into the outbox under the box (#950), and the send goes only after the window,
+    // bound to the draft on screen. The box stays open for the next text.
     await page.keyboard.press("y");
     await expect(undoLine(page)).toContainText("Sending to Sam Test");
-    await expect(focused(page)).toContainText("Sealed");
+    await expect(focused(page).locator(".cx-outmsg")).toContainText(SAM_DRAFT);
+    await expect(focused(page).locator(".cx-outmsg")).toContainText("sending");
+    await expect(focused(page).getByRole("textbox", { name: /Your reply to Sam Test/ })).toBeVisible();
     if (SHOTS) await page.waitForTimeout(500);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-seal-${width}.png` });
     await page.waitForTimeout(1_500);
@@ -257,6 +269,7 @@ for (const width of [1440, 400]) {
     // Once, and only once; the thread stays in the queue after the send (#870) and leaves on Done (#904's row).
     await page.waitForTimeout(1_000);
     expect(sends(posts)).toHaveLength(1);
+    await expect(focused(page).locator(".cx-outmsg")).toContainText("sent", { timeout: 8_000 });
     await expect(focused(page)).toContainText("Sam Test");
     await focused(page).getByRole("button", { name: /^Done/ }).click();
     await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
@@ -481,7 +494,8 @@ test("Done, skip and \"already did it\" leave at once, Undo brings one back, and
   await expect(focused(page)).toContainText("Sam Test");
   await say(page, "already did it");
   await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
-  await expect.poll(() => posts.filter((p) => p.action === "done"), { timeout: 8_000 }).toEqual([{ line: "texts", action: "done", thread: SAM }]);
+  // The 5-second window, plus room for a busy software renderer's late timers.
+  await expect.poll(() => posts.filter((p) => p.action === "done"), { timeout: 12_000 }).toEqual([{ line: "texts", action: "done", thread: SAM }]);
   expect(posts.filter((p) => p.action === "intent")).toEqual([]);
   // "not this one" on a mail is skip: gone like Done until Priya writes again.
   await page.locator(".cx-rows button", { hasText: "Priya Madeup" }).click();
@@ -521,7 +535,8 @@ test("a rule from a sentence, said with Space held (#950: no type box): \"invite
   await expect(page.locator("#cx-words")).toHaveCount(0);
   await expect(page.getByText(/tell Blasto what to say/)).toHaveCount(0);
   await expect(page.locator(".cx-dock").getByRole("button", { name: "Keys" })).toHaveCount(0);
-  await expect(page.locator(".cx-dock")).toContainText(/hold Space to reply/i);
+  // #950: the "hold Space to talk, or type" row is gone too; the dock only names the mic while it is live.
+  await expect(page.locator(".cx-dock")).not.toContainText(/hold Space/i);
   // Holding Space (outside a field or a button) hands the open email's words to the Thread.
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.down("Space");
@@ -597,4 +612,95 @@ test("the queue on the wave (#803): a face, a first name and the wait; a tap jum
   await page.locator(".cx-order summary").click();
   await expect(page.getByRole("radio", { name: "Newest" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: /Oldest/ })).toHaveAttribute("aria-checked", "false");
+});
+
+test("#950: the box stays open while texts queue in order; Done moves on at once; a failed one comes back with Resend", async ({ page }) => {
+  test.setTimeout(90_000);
+  const posts = await stub(page, { failSends: [2] });
+  await page.goto(`${BASE}/relay`);
+  await expect(page.locator(".cx-rows button", { hasText: "Jordan Test" })).toBeVisible();
+  await page.locator(".cx-rows button", { hasText: "Jordan Test" }).click();
+  await expect(focused(page)).toContainText("Jordan Test");
+  const box = focused(page).getByRole("textbox", { name: /Your reply to Jordan Test/ });
+  // Three texts, one after another: the box clears at once each time and stays open and editable.
+  for (const words of ["ha that cat", "ok one more", "see you sunday"]) {
+    await box.fill(words);
+    await box.press("Enter");
+    await expect(box).toHaveValue("");
+    await expect(box).toBeEditable();
+  }
+  const out = focused(page).locator(".cx-outmsg");
+  await expect(out).toHaveCount(3);
+  await expect(out.nth(0)).toContainText("sending");
+  // They go in the order sent; the second fails at the Mac and says so, with Resend.
+  await expect.poll(() => sends(posts).map((p) => p.text), { timeout: 20_000 }).toEqual(["ha that cat", "ok one more", "see you sunday"]);
+  await expect(out.nth(0)).toContainText("sent", { timeout: 10_000 });
+  await expect(out.nth(1)).toContainText("not sent", { timeout: 10_000 });
+  await expect(undoLine(page)).toContainText("Not sent to Jordan Test");
+  await out.nth(1).getByRole("button", { name: "Resend" }).click();
+  await expect.poll(() => posts.filter((p) => p.action === "resend" || p.action === "send").length, { timeout: 10_000 }).toBe(4);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/950-queue.png` });
+
+  // Done while a text is still on its way: the card moves on at once; the text still goes; then the Done.
+  await box.fill("last one, promise");
+  await box.press("Enter");
+  await focused(page).getByRole("button", { name: /^Done/ }).click();
+  await expect(page.locator(".cx-entry", { hasText: "Jordan Test" })).toHaveCount(0);
+  await expect.poll(() => sends(posts).at(-1)?.text, { timeout: 15_000 }).toBe("last one, promise");
+  await expect.poll(() => posts.filter((p) => p.action === "done").map((p) => p.thread), { timeout: 20_000 }).toEqual([JORDAN]);
+  const lastSend = posts.findIndex((p) => p.text === "last one, promise");
+  const done = posts.findIndex((p) => p.action === "done");
+  expect(done).toBeGreaterThan(lastSend);
+});
+
+test("#950: any of their earlier bubbles takes a tapback, and Reply answers it inline through the same send", async ({ page }) => {
+  test.setTimeout(60_000);
+  const posts = await stub(page, { tapbacks: "on" });
+  await page.goto(`${BASE}/relay`);
+  await expect(page.locator(".cx-rows button", { hasText: "Jordan Test" })).toBeVisible();
+  await page.locator(".cx-rows button", { hasText: "Jordan Test" }).click();
+  await expect(focused(page)).toContainText("Jordan Test");
+  // Their latest by default; a tap on an earlier bubble of theirs picks it.
+  await expect(focused(page).locator(".cx-tbwhich")).toHaveText("on their latest");
+  const earlier = focused(page).locator(".cx-ctx .cx-bub[data-pick]", { hasText: "did you see what I sent" });
+  // The codex may still be settling its scroll onto Jordan: pick once it has.
+  await expect(async () => {
+    if ((await earlier.getAttribute("data-picked")) !== "true") await earlier.click();
+    await expect(earlier).toHaveAttribute("data-picked", "true", { timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
+  await expect(focused(page).locator(".cx-tbwhich")).toContainText("did you see what I sent");
+  // His own line can't be picked.
+  await expect(focused(page).locator(".cx-ctx .cx-bub[data-me][data-pick]")).toHaveCount(0);
+  await focused(page).getByRole("button", { name: "Heart" }).click();
+  await expect.poll(() => posts.filter((p) => p.action === "react")).toEqual([{ line: "texts", action: "react", thread: JORDAN, ref: "0000000a", tapback: "love" }]);
+  // Reply: the quoted line shows above the box, and the send names that line.
+  await focused(page).getByRole("button", { name: "Inline reply to this message" }).click();
+  await expect(focused(page).locator(".cx-quote")).toContainText("did you see what I sent");
+  const box = focused(page).getByRole("textbox", { name: /Your reply to Jordan Test/ });
+  await expect(box).toBeFocused();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/950-reply.png` });
+  await box.fill("yes, the cat one");
+  await box.press("Enter");
+  await expect(focused(page).locator(".cx-quote")).toHaveCount(0);
+  await expect.poll(() => sends(posts), { timeout: 15_000 }).toEqual([{ line: "texts", action: "send", thread: JORDAN, draftAt: expect.any(Number), text: "yes, the cat one", reply: "0000000a" }]);
+});
+
+test("#950: Relay refreshes by itself while it shows, keeping the card and the words being typed", async ({ page }) => {
+  test.setTimeout(60_000);
+  await stub(page);
+  let reads = 0;
+  page.on("request", (r) => {
+    if (r.method() === "GET" && /\/api\/relay$/.test(r.url())) reads++;
+  });
+  await page.goto(`${BASE}/relay`);
+  await expect(page.locator(".cx-rows button", { hasText: "Jordan Test" })).toBeVisible();
+  await page.locator(".cx-rows button", { hasText: "Jordan Test" }).click();
+  const box = focused(page).getByRole("textbox", { name: /Your reply to Jordan Test/ });
+  await box.fill("half a thought");
+  const before = reads;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => reads, { timeout: 5_000 }).toBeGreaterThan(before);
+  await expect.poll(() => reads, { timeout: 25_000 }).toBeGreaterThan(before + 1);
+  await expect(focused(page)).toContainText("Jordan Test");
+  await expect(box).toHaveValue("half a thought");
 });

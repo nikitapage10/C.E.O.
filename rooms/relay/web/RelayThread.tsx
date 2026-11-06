@@ -7,7 +7,7 @@ import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { gmailHref } from "./EmailSection.tsx";
 import { takeGmailReturn, useEmail } from "../data/email.ts";
-import { useTexts, type TextItem } from "../data/texts.ts";
+import { textsShown, useTexts, type TextItem } from "../data/texts.ts";
 import { TextsSection } from "./TextsSection.tsx";
 import { setRelayHandler } from "../data/bridge.ts";
 import { GroupFlipper } from "./GroupFlipper.tsx";
@@ -16,6 +16,7 @@ import { RelayQueue, useMedia } from "./RelayQueue.tsx";
 import { isTyping } from "@ceo/engine/web/wasdPan.ts";
 import { Said } from "./Said.tsx";
 import { EmojiPicker, Tapbacks } from "./Tapbacks.tsx";
+import { outOf, useOutbox } from "../data/outbox.ts";
 import { SetAside } from "./SetAside.tsx";
 import { ghost, ghosted, quill, rise, SigilStage, sink } from "@ceo/engine/sigils/sigils.ts";
 import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGistLine, olderInOrder, weekSent, type Exchange, type Order } from "../data/thread.ts";
@@ -223,6 +224,51 @@ function More({ x, t }: { x: Exchange; t: ReturnType<typeof useThread> }) {
   );
 }
 
+/**
+ * The texts on their way from this box (#950): Nikita's own lines, right-aligned like his sent bubbles, in the order
+ * they go, each with its state: sending (with Undo while its few seconds last), sent, or not sent with why and Resend.
+ */
+function Outbox({ thread, hidden }: { thread: string; hidden: boolean }) {
+  const list = useOutbox((s) => s.list);
+  const mine = useMemo(() => outOf(list, thread), [list, thread]);
+  if (!mine.length) return null;
+  return (
+    <ol className="cx-out" aria-label="Your texts on their way" aria-live="polite">
+      {mine.map((m) => (
+        <li key={m.id} className="cx-outmsg" data-state={m.state}>
+          {m.reply && (
+            <span className="cx-outq">
+              <Private>{m.reply.text}</Private>
+            </span>
+          )}
+          <span className="cx-outtext">{hidden ? "·" : <Private>{m.text}</Private>}</span>
+          <span className="cx-outstate">
+            {m.state === "held" ? (
+              <>
+                sending…{" "}
+                <button type="button" onClick={() => useOutbox.getState().drop(m.id)}>
+                  Undo
+                </button>
+              </>
+            ) : m.state === "sent" ? (
+              "sent"
+            ) : m.state === "failed" ? (
+              <>
+                not sent: {m.why ?? "it didn't go."}{" "}
+                <button type="button" onClick={() => useOutbox.getState().retry(m.id)}>
+                  Resend
+                </button>
+              </>
+            ) : (
+              "sending…"
+            )}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /** Opens a text's reply box and puts the cursor in it (#869, #904): a tap on its circle on the line, R or Enter. */
 const WRITE_EVENT = "relay:write";
 const openComposer = (key: string) => window.dispatchEvent(new CustomEvent(WRITE_EVENT, { detail: key }));
@@ -235,8 +281,20 @@ const openComposer = (key: string) => window.dispatchEvent(new CustomEvent(WRITE
  * in the box and Send is pressed. Esc leaves the box so the page's keys work again. Holding Space (outside a text
  * field) talks into it (./holdSpace.ts).
  */
-function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: ReturnType<typeof useThread>; focus: boolean; start?: string; launch: (el: HTMLElement | null) => void; children?: ReactNode }) {
+function Own({ x, t, focus, start = "", launch, reply = null, clearReply, children }: { x: Exchange; t: ReturnType<typeof useThread>; focus: boolean; start?: string; launch: (el: HTMLElement | null) => void; reply?: { ref: string; text: string } | null; clearReply?: () => void; children?: ReactNode }) {
   const [text, setText] = useState(start);
+  // Z took a queued text back (#950): its words return to this box.
+  const back = t.takenBack;
+  const clearBack = t.clearTakenBack;
+  useEffect(() => {
+    if (!back || back.key !== x.key) return;
+    clearBack();
+    setText((now) => (now.trim() ? `${back.text}\n${now}` : back.text));
+  }, [back, clearBack, x.key]);
+  // An inline reply picked (#950): the cursor goes to the box.
+  useEffect(() => {
+    if (reply) ref.current?.focus({ preventScroll: true });
+  }, [reply]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const textRef = useRef(text);
   textRef.current = text;
@@ -290,15 +348,30 @@ function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: Re
       onSubmit={(e) => {
         e.preventDefault();
         if (locked) return;
-        if (t.sendOwn(text)) {
+        // #950: the box clears at once and stays open and editable; the text queues and goes in order (Outbox below).
+        if (t.sendOwn(text, x.line === "text" ? reply : null)) {
           launch(ref.current);
           setText("");
+          clearReply?.();
+          ref.current?.focus({ preventScroll: true });
         }
       }}
     >
+      {x.line === "text" && <Outbox thread={x.id} hidden={t.hidden} />}
       <label className="cx-sr" htmlFor={id}>
         Your reply to {who}, sent exactly as you type it
       </label>
+      {reply && (
+        <p className="cx-quote">
+          <span className="cx-lab">Replying to</span>{" "}
+          <q>
+            <Private>{reply.text}</Private>
+          </q>
+          <button type="button" className="cx-quotex" onClick={() => clearReply?.()} aria-label="Cancel the inline reply" title="Cancel the inline reply">
+            ×
+          </button>
+        </p>
+      )}
       <div className="cx-box">
         <textarea
           id={id}
@@ -360,9 +433,22 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
   const reading = t.reading === x.key;
   /** An email's own-words box, or a spoken draft taken into the box by Edit: closed, empty, or started from a draft. */
   const [own, setOwn] = useState<string | null>(null);
+  /** Their line picked on the card (#950): tapbacks go on it, and Reply answers it inline. Their latest by default. */
+  const [picked, setPicked] = useState<string | null>(null);
+  const [reply, setReply] = useState<{ ref: string; text: string } | null>(null);
   useEffect(() => {
-    if (!focus) setOwn(null);
+    if (!focus) {
+      setOwn(null);
+      setPicked(null);
+      setReply(null);
+    }
   }, [focus]);
+  // A line that left the card (the list moved on) can't be picked or answered any more.
+  useEffect(() => {
+    if (picked && !x.messages?.some((m) => m.ref === picked)) setPicked(null);
+    if (reply && !x.messages?.some((m) => m.ref === reply.ref)) setReply(null);
+  }, [x.messages, picked, reply]);
+  const pickable = focus && x.line === "text" && !x.group && x.sendable;
   const textLine = x.line === "text" && x.sendable;
   const open = phase === "incoming" || phase === "ask";
   /** A text's reply box is open whenever it is in focus (#904); an email's only on Write or Edit. */
@@ -396,7 +482,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
               </span>
             </header>
             {x.messages?.length ? (
-              <Said messages={x.messages} hidden={hidden} />
+              <Said messages={x.messages} hidden={hidden} picked={pickable ? picked : null} onPick={pickable ? (r) => setPicked((p) => (p === r ? null : r)) : undefined} />
             ) : (
               <p className="cx-bub cx-bub-hero">
                 <span className="cx-msg cx-hero">
@@ -405,7 +491,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
               </p>
             )}
             {/* Tapbacks (#888): small, under their words, on the card in focus. */}
-            {focus && x.line === "text" && x.messages?.length ? <Tapbacks thread={x.id} messages={x.messages} hidden={hidden} /> : null}
+            {focus && x.line === "text" && x.messages?.length ? <Tapbacks thread={x.id} messages={x.messages} hidden={hidden} picked={picked} onReply={pickable ? (m) => setReply({ ref: m.ref!, text: m.text }) : undefined} /> : null}
             {x.line === "email" && x.advice && (
               <p className="cx-adv">
                 <span className="cx-lab">Blasto</span> <Private>{x.advice}</Private>
@@ -428,7 +514,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
                 </p>
               )}
               {writing ? (
-                <Own x={x} t={t} focus={focus} start={own ?? ""} launch={launch}>
+                <Own x={x} t={t} focus={focus} start={own ?? ""} launch={launch} reply={reply} clearReply={() => setReply(null)}>
                   {rest}
                 </Own>
               ) : focus && reading ? (
@@ -639,6 +725,10 @@ export function RelayThread({ now }: { now: number }) {
 
   // Kept mounted out of sight (#934, apps/desk/src/keptRooms.ts), the Thread's keys and ear stay quiet.
   const onScreen = useRoomShown();
+
+  // Relay refreshes by itself (#950, Nikita 02:26Z): every 15 seconds while it shows, at once on showing it again and on
+  // the window's focus; slower while kept out of sight. The card in focus and the box being typed in stay as they are.
+  useEffect(() => textsShown(onScreen), [onScreen]);
 
   // One listener (#638): the room voice hands what's said on /relay to this Thread (rooms/relay/voice.ts), while it is
   // on screen.
@@ -1063,18 +1153,17 @@ export function RelayThread({ now }: { now: number }) {
           {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} launch={launch} />) : <Waiting signedIn={t.signedIn} waiting={waiting} />}
         </div>
 
-        {/* The dock (#950, Nikita: no type box): hold Space answers whatever text or email is open, into its reply box or
-            to the Thread; one small hint, the notice line, and the ear at the spine's foot. "?" still lists the keys. */}
+        {/* The dock (#950, Nikita: no type box, no hint row): hold Space answers whatever text or email is open, into its
+            reply box or to the Thread; the notice line, and the ear at the spine's foot. "?" still lists the keys. */}
         <div className="cx-dock">
           <div className="cx-dl">
             {/* The mic is the Desk's room mic (#638): one listener for every room. What's said here reaches the Thread. */}
-            <span className="cx-lab" data-live={micPhase !== "idle" || undefined}>
-              {micPhase === "listening" ? "Listening" : micPhase === "thinking" ? "Reading that…" : (
-                <>
-                  hold <kbd>Space</kbd> to reply
-                </>
-              )}
-            </span>
+            {/* #950 (Nikita: remove the "hold Space to talk, or type" row): only while the room mic is live. */}
+            {micPhase !== "idle" && (
+              <span className="cx-lab" data-live="">
+                {micPhase === "listening" ? "Listening" : "Reading that…"}
+              </span>
+            )}
           </div>
           <div className="cx-dr">
             <UndoLine n={t.notice} now={now} sg={engine} />

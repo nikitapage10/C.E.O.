@@ -211,6 +211,11 @@ describe("rules settle on the Mac", () => {
     expect(settleByRule({ handle: "+15555550123", names: ["Private Person"], text: "hey" }, ["private person"])).toBe("skip");
     expect(settleByRule({ handle: "+15555550123", names: [], text: "The court date for the settlement moved to Friday" }, [])).toBe("money");
     expect(settleByRule({ handle: "+15555550123", names: ["Riley Test"], text: "Dinner Saturday?" }, [])).toBeNull();
+    // #950 audit: everyday texts between people are no longer money by the email line's subject words.
+    for (const text of ["I paid for the tickets, we're square", "rent's done, thanks for the transfer", "meet at the basketball court at 6", "did your order come yet", "my balance on the beam was terrible lol"]) expect(settleByRule({ handle: "+15555550123", names: ["Riley Test"], text }, []), text).toBeNull();
+    for (const text of ["Your rent payment of $1,450 is past due", "I owe you $20 for pizza", "Your card ending 4321 was charged", "my lawyer says the contract is fine"]) expect(settleByRule({ handle: "+15555550123", names: ["Riley Test"], text }, []), text).toBe("money");
+    // A bank's address is money whatever it says.
+    expect(settleByRule({ handle: "alerts@chase.com", names: [], text: "hello" }, [])).toBe("money");
   });
 });
 

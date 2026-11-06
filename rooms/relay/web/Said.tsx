@@ -1,5 +1,5 @@
 import { Private } from "@ceo/engine/web/Private.tsx";
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { initialOf, type Exchange } from "../data/thread.ts";
 
 /** A group member's face beside their line (#758): their contact photo by its opaque id, else their initial. */
@@ -44,8 +44,37 @@ function Words({ m }: { m: Shown }) {
  * take away from the current message") sit darkened and blurred above it, dissolving into Relay's white nanites, and
  * come clear on hover, on keyboard focus, or on a tap (a phone has no hover; a second tap lets them fade again).
  */
-export function Said({ messages, hidden }: { messages: NonNullable<Exchange["messages"]>; hidden: boolean }) {
+export function Said({ messages, hidden, picked = null, onPick }: { messages: NonNullable<Exchange["messages"]>; hidden: boolean; picked?: string | null; onPick?: (ref: string) => void }) {
   const [clear, setClear] = useState(false);
+  /**
+   * Any of their lines can be picked (#950, Nikita: tapbacks on any earlier message, and an inline reply like iMessage's):
+   * a tap (or Enter) on the bubble picks it for the tapbacks and Reply under the card; a second tap lets it go. Picking an
+   * older line brings the older lines clear, so the one picked reads.
+   */
+  const pickProps = (m: Shown) => {
+    const ref = (m as Shown & { ref?: string }).ref;
+    if (!onPick || !ref || mine(m)) return {};
+    const go = (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      setClear(true);
+      onPick(ref);
+    };
+    return {
+      role: "button",
+      tabIndex: 0,
+      "aria-pressed": picked === ref,
+      "data-pick": "",
+      "data-picked": picked === ref || undefined,
+      title: "Pick this message: a tapback, or Reply to it",
+      onClick: go,
+      onKeyDown: (e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          go(e);
+        }
+      },
+    };
+  };
   const group = messages.some((m) => m.from !== undefined && m.from !== "me");
   if (group) {
     return (
@@ -79,7 +108,7 @@ export function Said({ messages, hidden }: { messages: NonNullable<Exchange["mes
           onClick={() => setClear((c) => !c)}
         >
           {before.map((m, i) => (
-            <li key={`${m.at}-${i}`} className="cx-bub" data-me={mine(m) || undefined} style={{ ["--d" as string]: Math.min(4, before.length - i) }}>
+            <li key={`${m.at}-${i}`} className="cx-bub" data-me={mine(m) || undefined} style={{ ["--d" as string]: Math.min(4, before.length - i) }} {...pickProps(m)}>
               <span className="cx-sr">{mine(m) ? "You: " : "Them: "}</span>
               <span className="cx-msg cx-ctxline">
                 <Words m={m} />
@@ -88,7 +117,7 @@ export function Said({ messages, hidden }: { messages: NonNullable<Exchange["mes
           ))}
         </ol>
       )}
-      <p className="cx-bub cx-bub-hero" data-me={mine(hero) || undefined}>
+      <p className="cx-bub cx-bub-hero" data-me={mine(hero) || undefined} {...pickProps(hero)}>
         <span className="cx-sr">{mine(hero) ? "You, last: " : "Their latest: "}</span>
         <span className="cx-msg cx-hero">
           <Words m={hero} />

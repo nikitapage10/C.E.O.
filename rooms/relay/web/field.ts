@@ -7,7 +7,7 @@ import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
  * through it at three depths, the far ones slow, small and dim. It never competes with the words: everything sits under
  * 8% alpha, and the page masks it down further behind the cards (thread.css, `.cx-field`).
  *
- * Plain 2D canvas, no three.js: about 120 particles and some 40 lines a frame, at most 30 frames a second, at a capped
+ * Plain 2D canvas, no three.js: about 120 particles and some 40 lines a frame, at most 24 frames a second, at a capped
  * pixel ratio. The component (./RelayField.tsx) pauses it while Relay is kept out of sight (#934), the tab is hidden
  * or the page is scrolled away, and draws one still frame under reduced motion.
  */
@@ -46,15 +46,15 @@ export function createField(cv: HTMLCanvasElement, opts: { phone: boolean }): Fi
   if (!c) return null;
   const rnd = rng(950);
   const count = opts.phone ? 60 : 120;
-  const motes: Mote[] = Array.from({ length: count }, () => ({ x: rnd(), y: rnd(), z: rnd() ** 1.6, g: rnd() < 0.22 ? Math.floor(rnd() * SIGILS.length) : -1, phase: rnd() * Math.PI * 2 }));
+  const motes: Mote[] = Array.from({ length: count }, () => ({ x: rnd(), y: rnd(), z: rnd() ** 1.6, g: rnd() < 0.22 ? Math.floor(rnd() * SIGILS.length) : -1, phase: rnd() * Math.PI * 2 })).sort((a, b) => Math.round(a.z * 2) - Math.round(b.z * 2));
   let W = 0;
   let H = 0;
   let D = 1;
+  let cols: HTMLCanvasElement | null = null;
 
   const floor = (t: number) => {
     // The horizon a little above the middle; the floor below it, in perspective, its rows drifting toward the viewer.
     const hy = H * 0.52;
-    const vx = W * 0.58;
     const depth = H - hy;
     c.lineWidth = 1;
     // Rows: spaced by 1/z, so they crowd toward the horizon.
@@ -70,19 +70,10 @@ export function createField(cv: HTMLCanvasElement, opts: { phone: boolean }): Fi
       c.lineTo(W, Math.round(y) + 0.5);
       c.stroke();
     }
-    // Columns: lines from the vanishing point out to the floor's front edge.
-    const COLS = opts.phone ? 14 : 26;
-    for (let j = -COLS; j <= COLS; j++) {
-      const fx = vx + (j / COLS) * W * 1.6;
-      const g = c.createLinearGradient(vx, hy, fx, H);
-      g.addColorStop(0, `rgba(${LINE}, 0)`);
-      g.addColorStop(1, `rgba(${LINE}, ${0.045 * (1 - Math.abs(j / COLS) * 0.5)})`);
-      c.strokeStyle = g;
-      c.beginPath();
-      c.moveTo(vx, hy);
-      c.lineTo(fx, H);
-      c.stroke();
-    }
+    // Columns: lines from the vanishing point out to the floor's front edge. They never move, so they are drawn once
+    // per size onto their own canvas (`cols`) and only copied here: a gradient per line per frame is costly on a
+    // software renderer.
+    if (cols) c.drawImage(cols, 0, 0, W, H);
     // A faint ceiling: the same rows mirrored above, dimmer, so the field has depth both ways.
     for (let i = 0; i < 8; i++) {
       const k = (i + drift) / 8;
@@ -95,9 +86,36 @@ export function createField(cv: HTMLCanvasElement, opts: { phone: boolean }): Fi
     }
   };
 
+  const drawCols = () => {
+    if (typeof document === "undefined") return null;
+    const off = document.createElement("canvas");
+    off.width = Math.max(1, Math.round(W * D));
+    off.height = Math.max(1, Math.round(H * D));
+    const o = off.getContext("2d");
+    if (!o) return null;
+    o.setTransform(D, 0, 0, D, 0, 0);
+    const hy = H * 0.52;
+    const vx = W * 0.58;
+    const COLS = opts.phone ? 14 : 26;
+    o.lineWidth = 1;
+    for (let j = -COLS; j <= COLS; j++) {
+      const fx = vx + (j / COLS) * W * 1.6;
+      const g = o.createLinearGradient(vx, hy, fx, H);
+      g.addColorStop(0, `rgba(${LINE}, 0)`);
+      g.addColorStop(1, `rgba(${LINE}, ${0.045 * (1 - Math.abs(j / COLS) * 0.5)})`);
+      o.strokeStyle = g;
+      o.beginPath();
+      o.moveTo(vx, hy);
+      o.lineTo(fx, H);
+      o.stroke();
+    }
+    return off;
+  };
+
   const nanites = (t: number) => {
     c.textAlign = "center";
     c.textBaseline = "middle";
+    let font = "";
     for (const m of motes) {
       // Up and a little sideways, the near ones faster: parallax.
       const speed = 0.004 + m.z * 0.014;
@@ -111,7 +129,9 @@ export function createField(cv: HTMLCanvasElement, opts: { phone: boolean }): Fi
       if (a < 0.01) continue;
       c.fillStyle = `rgba(${WHITE}, ${a.toFixed(3)})`;
       if (m.g >= 0) {
-        c.font = `${Math.round((6 + m.z * 5) * D) / D}px "Geist Mono Variable", ui-monospace, monospace`;
+        // Three sizes only (the motes are sorted by them), so the font is set a few times a frame, not per glyph.
+        const f = `${6 + Math.round(m.z * 2) * 2.5}px "Geist Mono Variable", ui-monospace, monospace`;
+        if (f !== font) c.font = font = f;
         c.fillText(SIGILS[m.g]!, px, py);
       } else {
         const r = 0.5 + m.z * 0.9;
@@ -130,6 +150,7 @@ export function createField(cv: HTMLCanvasElement, opts: { phone: boolean }): Fi
       cv.width = Math.max(1, Math.round(w * dpr));
       cv.height = Math.max(1, Math.round(h * dpr));
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cols = drawCols();
     },
     frame(t) {
       if (!W || !H) return;

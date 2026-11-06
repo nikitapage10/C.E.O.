@@ -3,8 +3,8 @@ import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
 import { createField } from "./field.ts";
 
-/** At most this many frames a second: the field drifts slowly, so 30 is plenty. */
-const FPS = 30;
+/** At most this many frames a second: the field drifts slowly, so 24 is plenty. */
+const FPS = 24;
 
 /**
  * Relay's background field (#950, ./field.ts): a fixed canvas behind the whole page. It runs only while Relay is on

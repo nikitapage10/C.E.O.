@@ -98,7 +98,8 @@ export interface BlueBubbles {
   /** The chat's latest messages, newest first. */
   messages(chat: string, limit: number): Promise<Message[]>;
   /** Sends one text: true when BlueBubbles took it; otherwise it throws a BlueBubblesError (sendReason says why). */
-  send(chat: string, text: string, tempGuid: string): Promise<boolean>;
+  /** `replyTo` (#950): the message guid this text answers inline, sent through the Private API. */
+  send(chat: string, text: string, tempGuid: string, replyTo?: string): Promise<boolean>;
   /** The guids of Messages' one-to-one chats (iMessage;-;… and SMS;-;…), for finding the chat a new text goes in (#536). */
   chats(): Promise<string[]>;
   /** The contacts that have a picture (#642), with it: read for one photo sync and dropped. */
@@ -446,8 +447,11 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
     // AppleScript sends (Private API off) need a tempGuid; BlueBubbles answers once Messages has the message, or
     // with an error (500) that names why, such as macOS refusing it Automation access to Messages (#767). The error
     // goes up, so the hub can say why instead of only "failed".
-    send: async (chat, text, tempGuid) => {
-      await post("/api/v1/message/text", { chatGuid: chat, tempGuid, message: text, method: "apple-script" }, BB_SEND_TIMEOUT_MS);
+    // An inline reply (#950, like iMessage's): BlueBubbles' text route with `selectedMessageGuid` and `partIndex`, which
+    // only the Private API sends (messageValidator.sendTextRules; AppleScript can't reply to a message).
+    send: async (chat, text, tempGuid, replyTo) => {
+      const body = replyTo ? { chatGuid: chat, tempGuid, message: text, method: "private-api", selectedMessageGuid: replyTo, partIndex: 0 } : { chatGuid: chat, tempGuid, message: text, method: "apple-script" };
+      await post("/api/v1/message/text", body, BB_SEND_TIMEOUT_MS);
       return true;
     },
     // BlueBubbles Server's react route (messageValidator.sendReactionRules: chatGuid, selectedMessageGuid, reaction

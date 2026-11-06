@@ -15,7 +15,7 @@ import { settleByRule } from "./rules.ts";
 import { isEnder, UNREAD_ENDER_MS } from "./enders.ts";
 import type { Site } from "./site.ts";
 import { MAX_OLDER_ROWS, newThreadId, type Held, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
-import { MAX_ASIDE, MAX_ITEMS, MEDIA_TEXT, MAX_OLDER, OLDER_WINDOW_MS, OWED_WINDOW_MS, owedWindow, SHOWN_KEEP_MS, UNREAD_WINDOW_MS, type AsideItem, type AsideWhy, type GistWait, type OlderItem } from "../../../api/_relay/texts.ts";
+import { MAX_ASIDE, MAX_ITEMS, MEDIA_TEXT, MAX_OLDER, OLDER_WINDOW_MS, OWED_WINDOW_MS, owedWindow, SHOWN_KEEP_MS, type AsideItem, type AsideWhy, type GistWait, type OlderItem } from "../../../api/_relay/texts.ts";
 import { readLearn, type DraftVoice, type Relation, type Voice } from "../../../api/_relay/voice.ts";
 import { allChats, emptySort, finish, judgeChat, place, scanWants } from "./backlog.ts";
 import { chatPerson, handleKey, LEARN_MIN, LEARN_WINDOW_MS, sampleSent, voiceStats, type Said } from "./learn.ts";
@@ -1309,11 +1309,20 @@ export class Engine {
       // Never the same text twice (#870, multi-send): a request id acts once (`seen`, above), and a Resend of one that
       // timed out but went is refused when Messages already shows that very text of Nikita's after their last one.
       // Another text to the same thread goes: Nikita may send more than one.
+      // An inline reply (#950): their line, by the ref the Desk was shown; the guid only from this Mac's own memory
+      // (`lines`), as for a tapback. BlueBubbles sends a reply only through the Private API.
+      let replyTo: string | undefined;
+      if (req.reply) {
+        if (this.tapbackState === "off") return refuse("tapbacks-off");
+        const shown = this.shown.get(t.id) ?? [];
+        replyTo = shown.some((m) => m.ref === req.reply && !m.me) ? this.lines.get(t.id)?.get(req.reply) : undefined;
+        if (!replyTo) return refuse("no-line");
+      }
       const latest = await this.d.bb.messages(t.chat, 10).catch(() => null);
       if (!latest) return refuse("messages-down");
       const same = (a: string) => a.trim().replace(/\s+/g, " ") === req.text.trim().replace(/\s+/g, " ");
       if (latest.some((m) => m.fromMe && m.at > t.lastIn && same(m.text))) return refuse("answered");
-      const failed = await this.sendVia(t.chat, req.text);
+      const failed = await this.sendVia(t.chat, req.text, replyTo);
       if (failed) return failed;
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
@@ -1554,12 +1563,19 @@ export class Engine {
    * The one BlueBubbles send (#767): null when it went, else "failed" with why (a timeout may still have sent; the
    * Desk says so). The log gets the reason's number and BlueBubbles' HTTP status, never its words.
    */
-  private async sendVia(chat: string, text: string): Promise<{ result: "failed"; reason: Reason } | null> {
+  private async sendVia(chat: string, text: string, replyTo?: string): Promise<{ result: "failed"; reason: Reason } | null> {
     let reason: Reason | null = null;
     let status = 0;
     try {
-      if (!(await this.d.bb.send(chat, text, `relay-${randomUUID()}`))) reason = "bb-refused";
+      if (!(await this.d.bb.send(chat, text, `relay-${randomUUID()}`, replyTo))) reason = "bb-refused";
     } catch (e) {
+      // A reply with the Private API off (or its helper gone) since the last check (#950): said so, like a tapback.
+      if (replyTo && e instanceof BlueBubblesError && e.kind === "http" && /private api|helper/i.test(e.detail)) {
+        this.tapbackState = "off";
+        this.dirty = true;
+        this.d.log.log("send failed", { reason: REASONS.indexOf("tapbacks-off"), status: e.status });
+        return { result: "failed", reason: "tapbacks-off" };
+      }
       reason = sendReason(e);
       status = e instanceof BlueBubblesError ? e.status : 0;
     }

@@ -12,14 +12,14 @@ import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "@ceo/eng
  *   (no query)     the signed-in Texts panel: the pairing, the who's-waiting list (names, Dialtone's gist, Blasto's
  *                  drafts), the requests and whether this device's send unlock is on. Passkey session only.
  *
- * Every 20 seconds while the tab shows. Every action is a request the Mac hub picks up within about 15 seconds; a
+ * Every 15 seconds while Relay shows (#950), less often elsewhere, and on the window's focus. Every action is a request the Mac hub picks up within about 15 seconds; a
  * send needs this device's unlock (one fresh passkey check, good 72 hours), and is single-use with 10 minutes to live.
  */
 
 export type { AsideItem, OlderItem, TextCard, TextItem, Voice };
 
 const PATH = "/api/relay";
-const POLL_MS = 20_000;
+const POLL_MS = 15_000;
 /** A status this old means the Mac stopped reporting (it reports every few minutes at least). */
 export const STALE_MS = 15 * 60_000;
 
@@ -159,6 +159,11 @@ interface TextsStore {
   lock: () => Promise<void>;
   /** One request; false (with `error` set) when the site refused it. */
   ask: (body: Record<string, unknown>) => Promise<boolean>;
+  /**
+   * One send (or resend) for the outbox (#950): the request's id, to follow its state on later reads, or the site's
+   * error in the Desk's words. Unlike `ask` it sets no `busy` and no shared `error`, so several can queue.
+   */
+  post: (body: Record<string, unknown>) => Promise<{ rid: string } | { error: string }>;
   /** A new text for Blasto to write (#536): the card's id, or the site's error code. */
   compose: (body: { who: string; gist: string; card?: string; pick?: string }) => Promise<{ card: string } | { error: string }>;
 }
@@ -180,7 +185,7 @@ const ERRORS: Record<string, string> = {
   "off-limits": "Relay keeps that one from Blasto (money, legal, a code or the skip list). Text it yourself.",
   private: "That has a number, address or key in it. Say it another way.",
   "no-line": "That message isn't on the list any more. Try the newest one.",
-  "tapbacks-off": "Tapbacks need BlueBubbles' Private API on the Mac.",
+  "tapbacks-off": "Tapbacks and inline replies need BlueBubbles' Private API on the Mac.",
 };
 
 /** What the site said about a request, in the Desk's words. */
@@ -298,6 +303,19 @@ export const useTexts = create<TextsStore>((set, get) => ({
       await get().refresh();
     }
   },
+  post: async (body) => {
+    try {
+      const res = await post(body);
+      const got = isJson(res) ? ((await res.json().catch(() => ({}))) as { rid?: unknown; error?: unknown }) : {};
+      if (res.status === 401 && got.error === "signed-out") useDeskAuth.getState().lost();
+      if (res.ok && typeof got.rid === "string" && /^[0-9a-f]{24}$/.test(got.rid)) return { rid: got.rid };
+      return { error: (typeof got.error === "string" && ERRORS[got.error]) || "That didn't go through. Try again." };
+    } catch {
+      return { error: "That didn't go through. Try again." };
+    } finally {
+      void get().refresh();
+    }
+  },
   compose: async (body) => {
     try {
       const res = await post({ action: "compose", ...body });
@@ -314,8 +332,29 @@ export const useTexts = create<TextsStore>((set, get) => ({
 }));
 
 let started = false;
+/** How many Relay pages are on screen now (#950): the Relay page reads at POLL_MS, the rest of the Desk less often. */
+let active = 0;
+let ticks = 0;
+/** Away from Relay (the Lattice's counts, Today, Systems) the read runs every this many ticks. */
+const IDLE_TICKS = 3;
 
-/** Start reading (once per page): every 20 seconds while the tab shows, and on sign-in or out. */
+/**
+ * Relay on screen or not (#950, Nikita: "Relay must refresh by itself"): while it shows, the list, new chats and the
+ * sends' states read every POLL_MS and at once on showing it again or on the window's focus; while it is kept out of
+ * sight (#934) it reads only every IDLE_TICKS ticks, for the counts elsewhere. The read only swaps the store's view:
+ * the card in focus and the reply box being typed in are the Thread's own state and stay as they are.
+ */
+export function textsShown(on: boolean): () => void {
+  if (on) {
+    active++;
+    if (started && document.visibilityState === "visible") void useTexts.getState().refresh();
+  }
+  return () => {
+    if (on) active = Math.max(0, active - 1);
+  };
+}
+
+/** Start reading (once per page): every POLL_MS while Relay shows (else every IDLE_TICKS), on focus, and on sign-in or out. */
 export function startTexts(): void {
   if (started || typeof window === "undefined") return;
   const q = new URLSearchParams(window.location.search);
@@ -324,8 +363,12 @@ export function startTexts(): void {
   const refresh = () => void useTexts.getState().refresh();
   refresh();
   window.setInterval(() => {
-    if (document.visibilityState === "visible") refresh();
+    ticks++;
+    if (document.visibilityState === "visible" && (active > 0 || ticks % IDLE_TICKS === 0)) refresh();
   }, POLL_MS);
+  window.addEventListener("focus", () => {
+    if (active > 0) refresh();
+  });
   let was = useDeskAuth.getState().auth.status;
   useDeskAuth.subscribe((st) => {
     if (st.auth.status !== was) {

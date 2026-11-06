@@ -137,8 +137,8 @@ const setup = () => {
 
 describe("the ender pre-pass (#950)", () => {
   it("catches obvious enders and nothing that asks, plans or tells", () => {
-    for (const t of ["ok cool", "Ok cool!", "lol", "haha", "hahaha", "sounds good", "Sounds good!", "👍", "❤️", "k", "thanks!", "got it", "no worries", "see you then"]) expect(isEnder(t), t).toBe(true);
-    for (const t of ["ok cool, what time?", "are you free Saturday", "lol did you see the game?", "can you call me", "I got the job!", "dinner at 7 at the usual place", "", "\u200b", "haha so tomorrow we should go to the lake and hike"]) expect(isEnder(t), t).toBe(false);
+    for (const t of ["ok cool", "Ok cool!", "lol", "haha", "hahaha", "sounds good", "Sounds good!", "👍", "❤️", "k", "thanks!", "got it", "no worries", "see you then", "Of course you are", "Ok cool", "oh makes sense", "love you too"]) expect(isEnder(t), t).toBe(true);
+    for (const t of ["ok cool, what time?", "are you free Saturday", "lol did you see the game?", "can you call me", "I got the job!", "dinner at 7 at the usual place", "", "\u200b", "haha so tomorrow we should go to the lake and hike", "of course you are coming saturday right", "you are late"]) expect(isEnder(t), t).toBe(false);
   });
 });
 

@@ -387,6 +387,11 @@ export interface TextRequest {
   text: string;
   /** compose only: who, as Nikita said it, or "pick:<8 hex>" for one of a card's choices. */
   who?: string;
+  /**
+   * send only (#950, an inline reply like iMessage's): the ref (LINE_REF) of their shown line this text answers. The Mac
+   * maps it to the message (as for a tapback) and sends through BlueBubbles' Private API with that message selected.
+   */
+  reply?: string;
   created: number;
   until: number;
   /** The send key's signature over the fields above (api/_relay/tokens.ts). */
@@ -551,7 +556,7 @@ export function readTextsView(v: unknown, now: number): TextsView | null {
   return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice, aside, ...((o.tapbacks === "on" || o.tapbacks === "off") && { tapbacks: o.tapbacks }) };
 }
 
-const REQ_KEYS = ["rid", "kind", "thread", "draftAt", "text", "who", "created", "until", "sig"] as const;
+const REQ_KEYS = ["rid", "kind", "thread", "draftAt", "text", "who", "reply", "created", "until", "sig"] as const;
 
 /** A request as stored or as the hub receives it; null for anything off the shape. The signature is checked apart. */
 export function readTextRequest(v: unknown): TextRequest | null {
@@ -574,7 +579,9 @@ export function readTextRequest(v: unknown): TextRequest | null {
     return { rid: o.rid, kind: "compose", thread: o.thread, draftAt: 0, text, who, created: o.created, until: o.until, sig: o.sig };
   }
   if (o.who !== undefined) return null;
-  return { rid: o.rid, kind: o.kind as RequestKind, thread: o.thread, draftAt: o.draftAt as number, text, created: o.created, until: o.until, sig: o.sig };
+  // An inline reply (#950): only on a send, one line's ref.
+  if (o.reply !== undefined && (o.kind !== "send" || typeof o.reply !== "string" || !LINE_REF.test(o.reply))) return null;
+  return { rid: o.rid, kind: o.kind as RequestKind, thread: o.thread, draftAt: o.draftAt as number, text, ...(typeof o.reply === "string" && { reply: o.reply }), created: o.created, until: o.until, sig: o.sig };
 }
 
 /** What a hub reports back about a request it took. */

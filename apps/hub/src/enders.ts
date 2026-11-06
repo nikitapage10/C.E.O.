@@ -17,7 +17,8 @@ const ACK_WORDS = new Set(
   ),
 );
 /** Whole phrases that only close (normalised: lower case, no punctuation). */
-const ACK_PHRASES = /^(?:sounds (?:good|great|perfect)|no worries|no problem|all good|got it|will do|see you(?: then| soon| there)?|talk soon|love you|same here|for sure|of course|thank you(?: so much)?|thanks so much|good night|have fun|you too|ha+|(?:ha){2,}h?|(?:he){2,}|lo+l)$/;
+const ACK_PHRASES =
+  /^(?:(?:ok|okay|oh|ah|yeah|lol|haha) )?(?:sounds (?:good|great|perfect)|no worries|no problem|all good|got it|will do|see you(?: then| soon| there)?|talk soon|love you(?: too)?|same here|me too|for sure|fair enough|of course(?: (?:you are|you do|you did|you can|you will|it is|its|i am|im|i do|i will|we are|they are))?|thank you(?: so much)?|thanks so much|good night|have fun|you too|makes sense|ha+|(?:ha){2,}h?|(?:he){2,}|lo+l)$/;
 
 const norm = (t: string) =>
   t

@@ -3,6 +3,7 @@ import { useHide } from "@ceo/engine/web/hide.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { startEmail, useEmail } from "./email.ts";
 import { startTexts, useTexts } from "./texts.ts";
+import { nextToPost, open as outOpen, prune, settle, useOutbox, type OutMsg } from "./outbox.ts";
 import { allowed, commandOf, doneHere, isOrder, keyCommand, lastRequest, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Order, type Phase } from "./thread.ts";
 
 /**
@@ -176,6 +177,8 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   /** Blasto's draft for the reply box (#923): put in on "Write for me", never before; Nikita edits it and taps Send. */
   const [fill, setFill] = useState<{ key: string; text: string; at: number } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  /** A text taken back with Z (#950): its words go back into its box. */
+  const [takenBack, setTakenBack] = useState<{ key: string; text: string; at: number } | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [sentHere, setSentHere] = useState(0);
   /** Who this page sent to today, newest first (the codex's margin index). */
@@ -253,6 +256,87 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   }, []);
 
   /**
+   * The texts outbox (#950, ./outbox.ts): each queued text goes once its Undo window ends, strictly in order (the next is
+   * posted only once the one before was). Its state comes from the site's request list on later reads; while one waits
+   * on the Mac the list is read every few seconds. A text that didn't go says so, with Resend.
+   */
+  useEffect(() => {
+    let busy = false;
+    const pump = async () => {
+      if (busy) return;
+      const ob = useOutbox.getState();
+      const m = nextToPost(ob.list, Date.now());
+      if (!m) return;
+      busy = true;
+      ob.patch(m.id, { state: "posting" });
+      const draftAt = m.own ? (useTexts.getState().view?.items.find((i) => i.id === m.thread)?.draft?.at ?? 0) : m.draftAt;
+      const body = m.rid && m.resendable ? { action: "resend", rid: m.rid } : { action: "send", thread: m.thread, draftAt, text: m.text, ...(m.reply && { reply: m.reply.ref }) };
+      const got = await useTexts.getState().post(body);
+      busy = false;
+      if ("rid" in got) useOutbox.getState().patch(m.id, { state: "waiting", rid: got.rid, postedAt: Date.now(), why: undefined, resendable: undefined });
+      else failed({ ...m, state: "failed", why: got.error, resendable: false });
+      void pump();
+    };
+    const timer = window.setInterval(() => void pump(), 400);
+    let reads = 0;
+    const reader = window.setInterval(() => {
+      const list = useOutbox.getState().list;
+      if (list.some((m) => m.state === "waiting") && ++reads % 8 === 0) void useTexts.getState().refresh();
+      const kept = prune(list, Date.now());
+      if (kept.length !== list.length) useOutbox.getState().set(kept);
+    }, 400);
+    // Leaving the page with texts still in their Undo window: they were meant, so they go now, in order.
+    const away = () => {
+      for (const m of useOutbox.getState().list.filter((x) => x.state === "held")) void useTexts.getState().post({ action: "send", thread: m.thread, draftAt: m.own ? (useTexts.getState().view?.items.find((i) => i.id === m.thread)?.draft?.at ?? 0) : m.draftAt, text: m.text, ...(m.reply && { reply: m.reply.ref }) });
+    };
+    window.addEventListener("pagehide", away);
+    return () => {
+      window.clearInterval(timer);
+      window.clearInterval(reader);
+      window.removeEventListener("pagehide", away);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /** A text that didn't go (#950): it says so with Resend, and its thread comes back on the line if Done had taken it off. */
+  const failed = useCallback((m: OutMsg) => {
+    useOutbox.getState().patch(m.id, { state: "failed", why: m.why, resendable: m.resendable, doneAt: Date.now() });
+    setGone((g) => g.filter((k) => k !== m.key));
+    setNotice({ kind: "warn", text: `Not sent to ${m.who}: ${m.why ?? "it didn't go."}`, act: { label: "Resend", run: () => useOutbox.getState().retry(m.id) }, at: Date.now() });
+  }, []);
+  const requests = textsView?.requests;
+  useEffect(() => {
+    if (!requests) return;
+    const now = Date.now();
+    for (const m of useOutbox.getState().list) {
+      if (m.state !== "waiting") continue;
+      // #950: a request the list no longer shows long after it ended reads as not sent, so nothing waits for ever.
+      const next = settle(m, requests.find((r) => r.rid === m.rid), now);
+      if (next.state === "sent") {
+        useOutbox.getState().patch(m.id, next);
+        setSentHere((n) => n + 1);
+        setSentList((l) => [{ key: m.key, who: m.who, at: now }, ...l].slice(0, 12));
+      } else if (next.state === "failed") failed(next);
+    }
+  }, [requests, failed]);
+  /**
+   * A Done on a thread with texts still on their way (#950, Nikita 02:24Z: Done never waits on sends): the card moves on
+   * at once; the Done itself goes once those texts went. If one didn't, the Done is held back and the thread comes back.
+   */
+  const afterSends = useCallback((note: HeldNote) => {
+    const check = () => {
+      const mine = useOutbox.getState().list.filter((m) => m.thread === note.id);
+      if (mine.some(outOpen)) return void window.setTimeout(check, 1_000);
+      if (mine.some((m) => m.state === "failed")) {
+        writeHeld(null);
+        setGone((g) => g.filter((k) => k !== note.key));
+        return;
+      }
+      fireHeld(note);
+    };
+    check();
+  }, []);
+
+  /**
    * The send itself, after a yes or a tap on Send: it waits out UNDO_MS, then goes to the line. `own` (#803): words
    * Nikita typed himself, sent exactly as typed (an email with no draft behind it; a text bound like any send).
    */
@@ -290,10 +374,29 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
     });
   }, []);
 
+  /** A text into the outbox (#950): the box clears at once and stays open; it goes after its Undo window, in order. */
+  const queueText = (x: Exchange, text: string, reply: { ref: string; text: string } | null, own = true) => {
+    useOutbox.getState().add({ thread: x.id, key: x.key, who: x.who, text, draftAt: x.draftAt ?? 0, ...(own && { own: true as const }), ...(reply && { reply }) });
+    const at = Date.now();
+    setNotice({ kind: "undo", text: `Sending to ${x.who}`, until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
+  };
   const say = useCallback(
     (cmd: Command, words = ""): boolean => {
       // Undo reaches the waiting send wherever the codex has scrolled since; else the waiting done or skip.
       if (cmd === "undo") {
+        // The newest text still in its Undo window (#950), back into its box.
+        const o = useOutbox.getState().undo();
+        if (o) {
+          setNotice({ kind: "info", text: "Not sent.", at: Date.now() });
+          // His own words go back into the box; Blasto's draft back on the card, to send or change.
+          if (o.own) setTakenBack({ key: o.key, text: o.text, at: Date.now() });
+          else
+            setDeclined((d) => {
+              const { [o.key]: _back, ...rest } = d;
+              return rest;
+            });
+          return true;
+        }
         const k = undo.current.undo();
         if (k) {
           setPending(null);
@@ -321,7 +424,11 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
             setNotice({ kind: "warn", text: "Sending is locked on this device.", act: { label: "Unlock", run: () => void useTexts.getState().unlock() }, at });
             return true;
           }
-          sendNow(ex, ex.draft!, false);
+          if (ex.line === "text") {
+            // The draft goes into the outbox and off the card, so the box is open for the next text (#950).
+            queueText(ex, ex.draft!, null, false);
+            setDeclined((d) => ({ ...d, [ex.key]: ex.draft ?? "" }));
+          } else sendNow(ex, ex.draft!, false);
           return true;
         }
         case "no":
@@ -337,7 +444,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
           next();
           setGone((g) => [...g, x.key]);
           const note: HeldNote = { key: x.key, line: x.line, id: x.id, cmd };
-          held.current.start(x.key, () => fireHeld(note));
+          held.current.start(x.key, () => (x.line === "text" ? afterSends(note) : fireHeld(note)));
           writeHeld(note);
           setNotice({ kind: "undo", text: sayFor(cmd, x), until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
           return true;
@@ -445,7 +552,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
           return false;
       }
     },
-    [ex, phase, queue, unlocked, hidden, sendNow],
+    [ex, phase, queue, unlocked, hidden, sendNow, afterSends],
   );
   const sayRef = useRef(say);
 
@@ -455,14 +562,15 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
    * unlock. Rewriting into his voice is only for Blasto's drafts and for what he says aloud (offered as a draft).
    */
   const sendOwn = useCallback(
-    (text: string): boolean => {
+    (text: string, reply: { ref: string; text: string } | null = null): boolean => {
       const words = text.replace(/\r\n?/g, "\n").trim();
       if (!ex || !words || words.length > 2_000 || hidden || !ex.sendable || (phase !== "incoming" && phase !== "ask")) return false;
       if (ex.line === "text" && !unlocked) {
         setNotice({ kind: "warn", text: "Sending is locked on this device.", act: { label: "Unlock", run: () => void useTexts.getState().unlock() }, at: Date.now() });
         return false;
       }
-      sendNow(ex, words, true);
+      if (ex.line === "text") queueText(ex, words, reply);
+      else sendNow(ex, words, true);
       return true;
     },
     [ex, hidden, phase, unlocked, sendNow],
@@ -556,5 +664,5 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const groupsWaiting = signedIn && textsView?.paired ? textsView.items.filter((i) => i.group && i.state !== "settled").length : 0;
   const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere, groupsWaiting);
   const clearFill = useCallback(() => setFill(null), []);
-  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick: setCurrent, drafting, pending, sentList, reading, fill, clearFill };
+  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick: setCurrent, drafting, pending, sentList, reading, fill, clearFill, takenBack, clearTakenBack: useCallback(() => setTakenBack(null), []) };
 }

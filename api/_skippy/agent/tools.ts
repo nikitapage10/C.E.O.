@@ -26,6 +26,7 @@ import { PRIVATE_LABEL, privateParts } from "../../_privacy.js";
 import { cleanGist, cleanWho } from "../../_relay/compose.js";
 import { plainLine } from "../../foundry.js";
 import type { ReadName } from "../voicereads.js";
+import type { Lights } from "../../_haven/lights/lights.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, mealNamed, readEdit, ROLES, weekWords, type Day, type EditResult, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
@@ -58,6 +59,8 @@ export interface ToolHost {
     send: (picks: { key: string; productId: string }[]) => Promise<{ result: string; items?: number }>;
   } | null;
   homeAct: ((req: { action: string; rooms?: string[]; portions?: number }) => Promise<{ ok: boolean; say: string }>) | null;
+  /** The lights (#931, api/_haven/lights): SwitchBot and Govee; absent or null where their keys aren't set. */
+  lights?: Pick<Lights, "view" | "byName" | "set" | "scene"> | null;
   /** Files an issue labelled foundry and foundry:chat; its number, or null. */
   fileIssue: ((title: string, body: string) => Promise<number | null>) | null;
   /** The skip list's terms (EMAIL_SKIP_TERMS), which never go in memory. */
@@ -110,6 +113,28 @@ const homeLine = (i: Record<string, unknown>) => {
   if (i.action === "feeder.feed" && typeof i.portions === "number") return `${base}: ${i.portions} portion${i.portions === 1 ? "" : "s"}`;
   return base;
 };
+
+/** The lights as Skippy hears them (#931): names and states only, never an id. */
+async function lightsText(host: ToolHost): Promise<string> {
+  if (!host.lights) return "The lights aren't set up on this copy yet.";
+  const v = await host.lights.view();
+  const down = (["switchbot", "govee"] as const).filter((x) => v.vendors[x] === "down").map((x) => (x === "govee" ? "Govee" : "SwitchBot"));
+  const lines = [
+    v.lights.length ? `Lights: ${v.lights.map((l) => `${l.name || "unnamed"} ${!l.online ? "offline" : l.on === null ? "state unknown" : l.on ? "on" : "off"}`).join("; ")}.` : "No lights found.",
+    v.scenes.length ? `Scenes: ${v.scenes.map((s) => s.name).join("; ")}.` : "",
+    v.remotes.length ? `Remotes (power on or off, no state): ${v.remotes.map((r) => r.name).join("; ")}.` : "",
+    down.length ? `${down.join(" and ")} didn't answer just now.` : "",
+  ];
+  return lines.filter(Boolean).join(" ");
+}
+
+/** A light or remote (`scene` false) or a scene by name, or what to tell the model when there's no single match. */
+async function lightNamed(host: ToolHost, i: Record<string, unknown>, scene: boolean): Promise<{ ok: true; id: string; name: string } | { ok: false; text: string }> {
+  if (!host.lights) return { ok: false, text: "The lights aren't set up on this copy yet." };
+  const got = await host.lights.byName(str(i.name));
+  if (!got || (got.kind === "scene") !== scene) return { ok: false, text: `I don't know ${scene ? "a scene" : "a light"} called ${plainLine(str(i.name), 60)}. Read lights_list for the names.` };
+  return { ok: true, id: got.id, name: got.name };
+}
 
 /** The issue "Implement it" files: the model's title and pitch, both through the privacy check and shown on the Yes button first. */
 export function implementIssue(title: string, pitch: string, size: string): { title: string; body: string } {
@@ -386,6 +411,31 @@ const EXECUTORS: Record<string, Executor> = {
       if (!host.homeAct) return { ok: false, text: "The home devices aren't set up on this copy." };
       const r = await host.homeAct({ action: str(i.action), ...(Array.isArray(i.rooms) && { rooms: i.rooms as string[] }), ...(typeof i.portions === "number" && { portions: i.portions }) });
       return r.ok ? { ok: true, text: r.say, did: plainLine(homeLine(i), 40) } : { ok: false, text: r.say };
+    },
+  },
+  lights_list: { run: async (_i, host) => ({ ok: true, text: await lightsText(host) }) },
+  lights_set: {
+    prepare: async (i, host) => {
+      const l = await lightNamed(host, i, false);
+      return l.ok ? { ok: true, label: i.on ? "Turn it on" : "Turn it off", summary: `Turn ${l.name} ${i.on ? "on" : "off"}` } : l;
+    },
+    run: async (i, host) => {
+      const l = await lightNamed(host, i, false);
+      if (!l.ok) return l;
+      const r = await host.lights!.set(l.id, i.on === true);
+      return r.ok ? { ok: true, text: r.say, did: plainLine(`${l.name} ${i.on ? "on" : "off"}`, 40) } : { ok: false, text: r.say };
+    },
+  },
+  lights_scene: {
+    prepare: async (i, host) => {
+      const s = await lightNamed(host, i, true);
+      return s.ok ? { ok: true, label: "Run it", summary: `Run the scene ${s.name}` } : s;
+    },
+    run: async (i, host) => {
+      const s = await lightNamed(host, i, true);
+      if (!s.ok) return s;
+      const r = await host.lights!.scene(s.id);
+      return r.ok ? { ok: true, text: r.say, did: plainLine(s.name, 40) } : { ok: false, text: r.say };
     },
   },
 };

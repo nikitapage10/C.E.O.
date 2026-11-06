@@ -21,7 +21,7 @@ describe("each system's How it works", () => {
   });
 
   it("gives every API to the room that uses it: the house devices to the Haven, shared plumbing to the Boiler Room (#789)", () => {
-    for (const id of ["roborock", "petlibro", "whisker", "nest", "google-tasks", "kroger"]) expect(CONNECTIONS.find((c) => c.id === id)?.room, id).toBe("haven");
+    for (const id of ["roborock", "petlibro", "whisker", "nest", "google-tasks", "kroger", "switchbot", "govee"]) expect(CONNECTIONS.find((c) => c.id === id)?.room, id).toBe("haven");
     for (const c of CONNECTIONS.filter((c) => c.room === "boiler")) expect(c.at.some((a) => a.system === "home"), c.id).toBe(false);
   });
 
@@ -55,7 +55,7 @@ describe("each system's How it works", () => {
     expect(connectionsAt("exchange").map((c) => c.id)).toEqual(["polymarket", "polymarket-us"]);
     expect(connectionsAt("green").map((c) => c.id)).toEqual(["sleeper", "fantasypros"]);
     expect(connectionsAt("spire").map((c) => c.id)).toEqual(["paypal"]);
-    expect(connectionsAt("home").map((c) => c.id)).toEqual(["roborock", "petlibro", "whisker", "nest", "google-tasks", "kroger"]);
+    expect(connectionsAt("home").map((c) => c.id)).toEqual(["roborock", "petlibro", "whisker", "nest", "google-tasks", "kroger", "switchbot", "govee"]);
     for (const c of CONNECTIONS.filter((c) => c.room === "relay")) expect(c.at.every((p) => p.system === "relay"), c.id).toBe(true);
   });
 

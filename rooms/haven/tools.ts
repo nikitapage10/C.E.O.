@@ -154,4 +154,45 @@ export const TOOLS: readonly RoomTool[] = [
     effect: "write",
     confirm: true,
   },
+  // The lights (#931): SwitchBot and Govee, through api/_haven/lights. Reading is free; a switch or a scene changes
+  // the home, so it waits for Nikita's Yes like the other devices.
+  {
+    name: "lights_list",
+    room: "haven",
+    title: "Read the lights",
+    description: "The home's lights with each one's on or off, the SwitchBot scenes (such as 'Turn off lights'), and the infrared remotes (the projector), by the names the apps give them. Read it before lights_set or lights_scene to get a name right.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
+    effect: "read",
+  },
+  {
+    name: "lights_set",
+    room: "haven",
+    title: "Switch a light",
+    description: "Turn one light, or an infrared remote such as the projector, on or off, by its name from lights_list. For every light at once, run the scene instead (lights_scene). It runs only after Nikita taps Yes.",
+    input: {
+      type: "object",
+      properties: {
+        name: { type: "string", maxLength: 60, description: "The light's or remote's name, as lights_list gives it." },
+        on: { type: "boolean", description: "true for on, false for off." },
+      },
+      required: ["name", "on"],
+      additionalProperties: false,
+    },
+    effect: "write",
+    confirm: true,
+  },
+  {
+    name: "lights_scene",
+    room: "haven",
+    title: "Run a lights scene",
+    description: "Run one of the SwitchBot app's manual scenes by its name from lights_list (e.g. 'Turn off lights'). It runs only after Nikita taps Yes.",
+    input: {
+      type: "object",
+      properties: { name: { type: "string", maxLength: 60, description: "The scene's name, as lights_list gives it." } },
+      required: ["name"],
+      additionalProperties: false,
+    },
+    effect: "write",
+    confirm: true,
+  },
 ];

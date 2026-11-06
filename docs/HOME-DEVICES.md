@@ -295,6 +295,30 @@ Calls happen only on those taps (Kroger's limits: 10,000 product calls and 1,600
 a day), never on a timer. `MEALME_API_KEY` (Key Vault `haven-mealme-key`) stays on the Function App, unread, from
 before King Soopers replaced MealMe.
 
+## Lights: SwitchBot and Govee (#931)
+
+Google Home gives outside apps no way to switch its lights or start its automations, so the Haven reaches the lights
+through their own clouds: SwitchBot's API v1.1 (through the Hub Mini) and Govee's Developer API v2, both from Azure
+only (`api/_haven/lights/`).
+
+- **The keys**: `switchbot-token` and `switchbot-secret` (SwitchBot app → Profile → Preferences → tap the app version
+  ten times → Developer Options) and `govee-api-key` (Govee Home app → Profile → Settings → Apply for API Key, sent
+  by email). Key Vault references in `infra/resources.bicep` (`SWITCHBOT_TOKEN`, `SWITCHBOT_SECRET`,
+  `GOVEE_API_KEY`), settable on the Desk's Keys form (Boiler Room → Controls → Keys). Either vendor alone is enough;
+  the ids also need `HOME_TOKEN_KEY`, which the other devices already use.
+- **What the Haven shows** (passkey only): the Lights panel under the lists, with each SwitchBot manual scene as a
+  one-tap button ("Turn off lights"), each light as a switch with its state, the infrared remotes (the projector) as
+  On and Off, and the lights it couldn't place on the house, listed with their type. On the house, a small lamp hangs
+  over each placed light: glowing on, dim off, hollow when its state is unknown; a tap switches it.
+- **Where a light hangs**: the private plan's `lights` (`[{ "name": "Kitchen", "x": …, "y": … }]`, matched to the
+  app's name ignoring case), else the room its name names ("Kitchen"; "Left Living Room" on the left half of the
+  living room), else it is listed apart. Positions live in the private plan only, never the repo.
+- **Skippy**: `lights_list` (any surface), `lights_set` (a light or a remote, by name) and `lights_scene` (by name),
+  the last two on the Desk after Nikita's Yes.
+- **The API**: `GET /api/haven/lights` and `POST /api/haven/lights` (`{ op: "set", id, on }` or
+  `{ op: "scene", id }`), passkey session only. The device list is kept ten minutes and the states one minute, inside
+  each vendor's 10,000 calls a day; a switch updates the kept state without reading back.
+
 ## The meal planner
 
 The Kitchen page is the meal planner (#678, [`MealPlanner.tsx`](../rooms/haven/web/MealPlanner.tsx)) in four

@@ -79,6 +79,16 @@ export interface PlanDevice {
   lights: string | null;
 }
 
+/**
+ * Where a light hangs (#931): matched to a SwitchBot or Govee light by its name in the app, ignoring case. Private,
+ * like the rest of the plan. A light with no spot here is placed by its name when that names a room, else listed apart.
+ */
+export interface PlanLight {
+  name: string;
+  x: number;
+  y: number;
+}
+
 export interface HavenPlan {
   v: 1;
   w: number;
@@ -105,11 +115,13 @@ export interface HavenPlan {
   openings?: true;
   items: PlanItem[];
   devices: PlanDevice[];
+  /** The lights' spots (#931), by name. Optional. */
+  lights?: PlanLight[];
   /** The walk from the front door to a detached block, as points. */
   path: [number, number][];
 }
 
-const LIMITS = { rooms: 24, parts: 6, doors: 80, windows: 80, balconies: 12, tv: 4, items: 400, devices: 16, path: 24 } as const;
+const LIMITS = { rooms: 24, parts: 6, doors: 80, windows: 80, balconies: 12, tv: 4, items: 400, devices: 16, path: 24, lights: 32 } as const;
 
 const o = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const arr = (v: unknown, max: number): unknown[] => (Array.isArray(v) ? v.slice(0, max) : []);
@@ -176,6 +188,11 @@ export function readPlan(v: unknown): HavenPlan | null {
     if (x === null || y === null || !SPOTS.includes(d.kind as Spot)) continue;
     devices.push({ kind: d.kind as Spot, x, y, lift: n(d.lift, 0, 300) ?? 0, lights: typeof d.lights === "string" && seen.has(d.lights) ? d.lights : null });
   }
+  const lights: PlanLight[] = [];
+  for (const l of arr(b.lights, LIMITS.lights).map(o)) {
+    const x = n(l.x), y = n(l.y), nm = typeof l.name === "string" ? l.name.replace(/[<>&"'`\\{}]/g, "").replace(/\s+/g, " ").trim().slice(0, 60) : "";
+    if (x !== null && y !== null && nm) lights.push({ name: nm, x, y });
+  }
   const path: [number, number][] = [];
   for (const p of arr(b.path, LIMITS.path)) {
     if (!Array.isArray(p) || p.length !== 2) continue;
@@ -195,6 +212,7 @@ export function readPlan(v: unknown): HavenPlan | null {
     ...(b.openings === true ? { openings: true as const } : {}),
     items,
     devices,
+    ...(lights.length ? { lights } : {}),
     path,
   };
 }

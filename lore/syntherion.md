@@ -607,7 +607,7 @@ every edition. He runs long. It says so.
 **The Desk's rooms.** On the C.E.O.'s Desk, beyond the Veil, each room keeps a page of its own, drawn in its own
 look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as a war table
 (a drowned world in silver and black since the Undertow: its places are ruins half under the water, glass stasis monoliths with sleepers inside and a glass-lit lab, threads of light run between them toward a planet's limb, and the Tide's shattered isle is still only wire until its feed comes in), the Spire as a gilded ledger, the Exchange
-as a trade floor in black and gold under a curved marquee of live odds, the Green as a floodlit pitch with a dark scoreboard, and the
+as a trade floor in black and gold under a curved marquee of live odds, the Green as the bowl (a football stadium under the lights, below), and the
 Workshop as a print farm: printers on a long bench, one waiting on the C.E.O.'s network and three open bays the farm
 keeps to grow into, and a turntable out front where a design turns for its check before it prints. A room whose real line isn't connected
 yet says so plainly and shows nothing made up. Each room's keeper stands at the top of its page and says what they
@@ -623,6 +623,16 @@ one for each thing the floor is still waiting on. Toward the edges the stone and
 wire and nanites, the Senate's edges. Noco has challenged the unbuilt posts to a duel twice; they did not show up,
 which Noco counts as a win. Hedge sits facing the marquee, which is new, and checks the unbuilt posts' wire every
 morning for load-bearing optimism.
+
+**The bowl.** Since #824 the Green's page is a stadium: a bowl of solid stands round a lit field at night, floodlight
+towers at the corners, a ribbon board scrolling the score along the fascia and a jumbotron hung over midfield on
+gold cables. Both of the C.E.O.'s lineups stand on the turf in formation, each starter a pillar: solid gold for what
+he has scored, gold wire for what FantasyPros still has him for (the rival's in steel), and the ball sits on the
+yard line of the win chance. Like the Senate, it comes undone at the edges into gold wire and sigil nanites; the
+crowd in the stands is sigils, and one section of the upper deck is still going up, only wire, with nanites
+streaming off the ground into its seats. Gridiron insists that section is the visitors' end and that it will be
+finished by kickoff. Punt has claimed the first finished seat in it and is asleep in it. The Commentator calls the
+crane work as if it were a two-minute drill.
 
 ## Tomorrowlattice
 

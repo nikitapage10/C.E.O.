@@ -47,11 +47,11 @@
 }
 
 /*
- * The Green (#389) on the flow kit (desk/flow, #435): Today's type, horizon, eyebrow, ledger and panels come from
- * flow.css; the Green adds its accent (the room's lime, --fl-accent) and its one signature idea, the broadcast's
- * field-view: the scoreboard over a field drawn in hairlines, both lineups standing on it in formation, every
- * starter's points running up into his team's score as a particle line. Amber is kept for a late-game risk and the
- * knocks. Everything is .gd-*, scoped to the Green's page. No motion under prefers-reduced-motion (the end).
+ * The Green on the flow kit (desk/flow, #435): Today's type, eyebrow, ledger and panels come from flow.css; the Green
+ * adds its accent (gold since the bowl, #824; --fl-accent, so the --lime names below now carry gold) and its one
+ * signature idea, the bowl: a football stadium in 3D with both lineups on the turf (the rules at the end). Amber is kept
+ * for a late-game risk and the knocks. Everything is .gd-*, scoped to the Green's page. No motion under
+ * prefers-reduced-motion.
  */
 
 .desk .gd {
@@ -138,124 +138,6 @@
   }
 }
 
-/* ---------- the stadium ---------- */
-.desk .gd-stage {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  padding-right: 0;
-  padding-left: 0;
-}
-.desk .gd-stage.is-wide {
-  min-height: clamp(600px, 78svh, 760px);
-}
-.desk .gd-stage.is-tall > .gd-pitch {
-  height: min(150vw, 620px);
-}
-.desk .gd-stage > .gd-field {
-  z-index: 0;
-}
-.desk .gd-stage.is-wide > .gd-pitch {
-  min-height: 380px;
-}
-
-/* The scoreboard: the matchup in Bodoni, the threads running up into its two numbers. */
-.desk .gd-board {
-  padding: 0 var(--fl-pad) 6px;
-}
-.desk .gd-board .fl-eyb {
-  justify-content: center;
-}
-.desk .gd-stage.is-live .gd-board .fl-eyb > span::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 9px;
-  border-radius: 50%;
-  background: var(--lime);
-  vertical-align: 0.06em;
-  animation: gd-ping 2.2s ease-out infinite;
-}
-.desk .gd-sb {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0 clamp(18px, 2.6vw, 44px);
-  max-width: 1240px;
-  margin: 0 auto;
-}
-.desk .gd-sb-side {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-.desk .gd-sb-side.is-me {
-  justify-items: end;
-  text-align: right;
-}
-.desk .gd-sb-side b {
-  max-width: 100%;
-  overflow: hidden;
-  font-family: var(--gd-disp);
-  font-weight: 500;
-  font-size: clamp(22px, 2.1vw, 32px);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--wv-ink);
-}
-.desk .gd-sb-side small {
-  font-family: var(--gd-sans);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--wv-faint);
-}
-.desk .gd-sb-n {
-  min-width: 2.4ch;
-  font-family: var(--gd-disp);
-  font-weight: 500;
-  font-size: clamp(84px, 9vw, 148px);
-  line-height: 0.86;
-  letter-spacing: -0.03em;
-  text-align: center;
-  color: var(--wv-ink);
-}
-.desk .gd-sb-n.is-me {
-  color: var(--lime);
-  text-shadow: 0 0 48px rgba(var(--fl-accent), 0.22);
-}
-.desk .gd-sb-mid {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-}
-.desk .gd-sb-mid b {
-  font-family: var(--gd-disp);
-  font-style: italic;
-  font-weight: 400;
-  font-size: clamp(28px, 2.6vw, 40px);
-  line-height: 1;
-  color: var(--lime);
-}
-.desk .gd-sb-mid small {
-  font-family: var(--gd-sans);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--wv-faint);
-}
-.desk .gd-sb-sub {
-  margin: 14px 0 0;
-  font-family: var(--gd-disp);
-  font-style: italic;
-  font-size: 18px;
-  text-align: center;
-  color: var(--wv-mute);
-}
 /* Who is still to play (#551). */
 .desk .gd-still {
   margin: 16px 0 0;
@@ -307,206 +189,6 @@
   .desk .gd-still-grid {
     grid-template-columns: 1fr;
   }
-}
-.desk .gd-sb-empty {
-  margin: 30px 0 20px;
-  font-family: var(--gd-disp);
-  font-style: italic;
-  font-size: 26px;
-  text-align: center;
-  color: var(--wv-soft);
-}
-
-/* The starters standing on the turf, at the spots the threads start from. */
-.desk .gd-turf {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  pointer-events: none;
-}
-.desk .gd-tok {
-  position: absolute;
-  width: 0;
-  height: 0;
-}
-.desk .gd-tok-in {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: grid;
-  justify-items: center;
-  gap: 3px;
-  width: 110px;
-  pointer-events: auto;
-  transform: translate(-50%, -21px) scale(var(--k, 1));
-  transform-origin: 50% 21px;
-  animation: gd-take 0.9s var(--gd-ease) backwards;
-  animation-delay: calc(300ms + var(--d, 0ms));
-}
-@keyframes gd-take {
-  from {
-    opacity: 0;
-    translate: 0 14px;
-  }
-}
-/* On the wide camera a token reads sideways, face then figure, so the lines of a formation never stack. */
-.desk .gd-stage.is-wide .gd-tok-in {
-  grid-template-columns: auto auto;
-  align-items: center;
-  justify-items: start;
-  gap: 0 9px;
-  width: max-content;
-  transform: translate(-21px, -50%) scale(var(--k, 1));
-  transform-origin: 21px 50%;
-}
-.desk .gd-stage.is-wide .gd-tok.is-theirs .gd-tok-in {
-  transform: translate(-17px, -50%) scale(var(--k, 1));
-  transform-origin: 17px 50%;
-}
-.desk .gd-stage.is-wide .gd-tok-t {
-  justify-items: start;
-}
-.desk .gd-tok .gd-face {
-  border: 1px solid rgba(var(--fl-accent), 0.7);
-  background: #0d0f12;
-  box-shadow:
-    0 0 0 3px rgba(10, 11, 15, 0.85),
-    0 0 24px -4px rgba(var(--fl-accent), 0.35);
-}
-.desk .gd-tok.is-theirs .gd-face {
-  border-color: rgba(236, 238, 243, 0.3);
-  box-shadow: 0 0 0 3px rgba(10, 11, 15, 0.85);
-  filter: saturate(0.55);
-}
-.desk .gd-tok .gd-face.is-empty {
-  border-style: dashed;
-  background: transparent;
-}
-.desk .gd-tok-t {
-  display: grid;
-  justify-items: center;
-  line-height: 1;
-  text-shadow:
-    0 1px 2px #0a0b0f,
-    0 0 12px #0a0b0f;
-}
-.desk .gd-tok-t b {
-  font-family: var(--gd-disp);
-  font-weight: 500;
-  font-size: 22px;
-  color: var(--wv-ink);
-}
-.desk .gd-tok.is-theirs .gd-tok-t b {
-  font-size: 18px;
-  color: var(--wv-soft);
-}
-.desk .gd-tok-t small {
-  margin-top: 3px;
-  font-family: var(--gd-sans);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  color: var(--wv-soft);
-}
-.desk .gd-tok-t small i {
-  font-style: normal;
-  color: var(--wv-faint);
-}
-.desk .gd-tok.is-mine .gd-tok-t small i {
-  color: color-mix(in srgb, var(--lime) 70%, var(--wv-mute));
-}
-.desk .gd-tok.is-theirs .gd-tok-t small {
-  color: var(--wv-faint);
-}
-.desk .gd-tok-mk {
-  position: absolute;
-  top: -8px;
-  left: calc(50% + 12px);
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-family: var(--gd-sans);
-  font-style: normal;
-  font-weight: 600;
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #1a1206;
-  background: var(--gd-led);
-}
-.desk .gd-stage.is-wide .gd-tok-mk {
-  left: 24px;
-}
-.desk .gd-tok-mk.is-out {
-  color: #fff;
-  background: #b84a5c;
-}
-.desk .gd-tok[data-mark="bye"] .gd-face,
-.desk .gd-tok[data-mark="out"] .gd-face,
-.desk .gd-tok[data-mark="empty"] .gd-face {
-  opacity: 0.45;
-  filter: grayscale(1);
-}
-.desk .gd-tok[data-mark="sit"] .gd-face {
-  border-color: var(--gd-led);
-  border-style: dashed;
-}
-.desk .gd-los {
-  position: absolute;
-  z-index: 1;
-  transform: translate(-50%, -170%);
-  font-family: var(--gd-sans);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  color: var(--wv-faint);
-}
-.desk .gd-los b {
-  font-family: var(--gd-disp);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 17px;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--lime);
-}
-.desk .gd-key {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px 10px;
-  margin: 0;
-  padding: 12px var(--wv-pad) 18px;
-  font-size: 12.5px;
-  color: var(--wv-faint);
-}
-.desk .gd-key i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-.desk .gd-key i.is-line {
-  width: 22px;
-  height: 1px;
-  border-radius: 0;
-  background: linear-gradient(90deg, transparent, var(--lime));
-}
-.desk .gd-key i.is-b {
-  margin-left: 10px;
-  background: var(--lime);
-  box-shadow: 0 0 8px var(--lime);
-}
-.desk .gd-key i.is-p {
-  margin-left: 6px;
-  background: rgba(150, 180, 92, 0.6);
 }
 
 /* ---------- the headline and the week's ledger ---------- */
@@ -1727,7 +1409,6 @@
   gap: 0 28px;
 }
 
-
 /* ---------- narrower screens ---------- */
 @media (max-width: 1100px) {
   .desk .gd-league {
@@ -1748,95 +1429,29 @@
   }
 }
 @media (max-width: 720px) {
-  .desk .gd-board {
-    padding: 22px 16px 10px;
-  }
-  .desk .gd-sb {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    grid-template-areas: "me mid them" "nme mid nthem";
-    gap: 6px 10px;
-  }
-  .desk .gd-sb-side.is-me {
-    grid-area: me;
-    justify-items: start;
-    text-align: left;
-  }
-  .desk .gd-sb-side.is-them {
-    grid-area: them;
-    justify-items: end;
-    text-align: right;
-  }
-  .desk .gd-sb-n.is-me {
-    grid-area: nme;
-    text-align: left;
-  }
-  .desk .gd-sb-n:not(.is-me) {
-    grid-area: nthem;
-    text-align: right;
-  }
-  .desk .gd-sb-mid {
-    grid-area: mid;
-    align-self: end;
-    padding-bottom: 6px;
-  }
-  .desk .gd-sb-side b {
-    font-size: 17px;
-  }
-  .desk .gd-sb-side small {
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-  }
-  .desk .gd-sb-n {
-    min-width: 0;
-    font-size: 72px;
-  }
-  .desk .gd-sb-sub {
-    margin-top: 10px;
-    font-size: 15px;
-  }
-  .desk .gd-tok-in {
-    width: 84px;
-    gap: 2px;
-  }
-  .desk .gd-tok-t b {
-    font-size: 18px;
-  }
-  .desk .gd-tok-t small {
-    font-size: 9.5px;
-    letter-spacing: 0.1em;
-  }
-  .desk .gd-tok-t small i {
-    display: none;
-  }
-  .desk .gd-tok.is-theirs .gd-tok-t small {
-    display: none;
-  }
-  .desk .gd-tok .gd-face {
-    --s: 34px !important;
-  }
-  .desk .gd-tok-in {
-    transform: translate(-50%, -17px) scale(var(--k, 1));
-    transform-origin: 50% 17px;
-  }
-  .desk .gd-tok.is-theirs .gd-face {
-    --s: 30px !important;
-  }
-  .desk .gd-tok.is-theirs .gd-tok-in {
-    transform: translate(-50%, -15px) scale(var(--k, 1));
-    transform-origin: 50% 15px;
-  }
-  .desk .gd-tok-mk {
-    left: calc(50% + 8px);
-    font-size: 10px;
-  }
-  .desk .gd-los {
-    font-size: 11.5px;
-  }
-  .desk .gd-key {
-    justify-content: flex-start;
-    padding: 10px 16px 14px;
-    font-size: 12px;
-  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   .desk .gd-calls {
     padding: 22px 16px 6px;
     margin-inline: -4px;
@@ -1958,12 +1573,6 @@
 
 /* ── #261: the scoreboard's labels and win-probability meter, call confidence and ranks, the ticker ── */
 
-.desk .gd-sb-side small.gd-sb-what {
-  letter-spacing: 0.2em;
-  font-size: 10px;
-  color: var(--wv-faint);
-  opacity: 0.8;
-}
 .desk .gd-wp {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -2166,8 +1775,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .desk .gd-rise,
-  .desk .gd-stage.is-live .gd-board .fl-eyb > span::before,
-  .desk .gd-tok-in,
   .desk .gd-cl-edge > i > i,
   .desk .gd-cl-why,
   .desk .gd-drawer {
@@ -2178,4 +1785,196 @@
   .desk .gd-why-btn {
     transition: none;
   }
+}
+
+/* ── the bowl (#824): the stadium fills the screen under the bar, its edges coming undone into gold wire ──
+ * The 3D scene (bowl.ts) sits behind everything; the scorebug top left, the week's calls along the bottom and a tag
+ * on each starter's pillar sit over it. Below the bowl, the deck carries the same gold grid and nanites
+ * (@ceo/engine/sigils/UndoneField.tsx) behind solid panels with gold hairlines and corner ticks. */
+[data-room="green"] .gd-bowl {
+  --gd-gold: #e3c98d;
+  --gd-gl: rgba(201, 168, 92, 0.3);
+  --gd-steel: #c8cfdc;
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  height: max(640px, calc(100svh - 64px));
+  background: #040508;
+  color: var(--wv-ink);
+}
+[data-room="green"] .gd-bowl-host,
+[data-room="green"] .gd-bowl-flat {
+  position: absolute;
+  inset: 0;
+}
+[data-room="green"] .gd-bowl-gl {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+[data-room="green"] .gd-bowl-gl:active { cursor: grabbing; }
+[data-room="green"] .gd-bowl[data-gl="on"] .gd-bowl-gl { opacity: 1; }
+[data-room="green"] .gd-bowl[data-gl="on"] .gd-bowl-flat { opacity: 0; transition: opacity 0.6s ease; }
+
+/* The flat stand-in: night, the bowl's rim in gold, the lit field. */
+[data-room="green"] .gd-bowl-flat i { position: absolute; display: block; }
+[data-room="green"] .gd-bowl-sky { inset: 0; background: radial-gradient(70% 40% at 50% 46%, rgba(232, 199, 122, 0.08), transparent 70%), linear-gradient(180deg, #03040a 0%, #07080d 55%, #0b0c0f 100%); }
+[data-room="green"] .gd-bowl-stands { left: 6%; right: 6%; top: 30%; height: 56%; border: 1px solid rgba(201, 168, 92, 0.45); border-radius: 50%; background: repeating-radial-gradient(ellipse at 50% 50%, rgba(201, 168, 92, 0.1) 0 1px, transparent 1px 14px), rgba(20, 22, 27, 0.6); }
+[data-room="green"] .gd-bowl-field { left: 30%; right: 30%; top: 50%; height: 18%; border: 1px solid rgba(245, 245, 240, 0.5); background: repeating-linear-gradient(90deg, #1f4a1c 0 4%, #24531f 4% 8%); transform: perspective(600px) rotateX(48deg); }
+
+/* A tag on each starter's pillar: his face, his points, his slot and name. Yours in gold, theirs in steel. */
+[data-room="green"] .gd-bowl-tags { position: absolute; inset: 0; z-index: 2; margin: 0; padding: 0; list-style: none; pointer-events: none; }
+[data-room="green"] .gd-bowl:not([data-gl="on"]) .gd-bowl-tags { display: none; }
+[data-room="green"] .gd-pin {
+  position: absolute;
+  left: var(--gx, -999px);
+  top: var(--gy, -999px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 2px;
+  border: 1px solid rgba(232, 199, 122, 0.55);
+  border-radius: 999px;
+  background: rgba(8, 8, 10, 0.8);
+  backdrop-filter: blur(4px);
+  color: #f3ead6;
+  font: 500 11px/1.1 var(--gd-sans);
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+[data-room="green"] .gd-pin b { font: 600 13px/1 var(--gd-disp); font-variant-numeric: lining-nums tabular-nums; color: var(--gd-gold); }
+[data-room="green"] .gd-pin small { font: 500 10.5px/1 var(--gd-sans); color: rgba(243, 234, 214, 0.8); }
+[data-room="green"] .gd-pin small i { font-style: normal; letter-spacing: 0.08em; color: rgba(243, 234, 214, 0.55); }
+[data-room="green"] .gd-pin em { padding: 1px 4px; border-radius: 3px; background: rgba(240, 160, 80, 0.2); color: #f6c38a; font: 600 9.5px/1.2 var(--gd-sans); font-style: normal; letter-spacing: 0.06em; text-transform: uppercase; }
+[data-room="green"] .gd-pin em.is-out { background: rgba(240, 122, 143, 0.2); color: var(--gd-bad); }
+[data-room="green"] .gd-pin .gd-face { border-color: rgba(232, 199, 122, 0.6); }
+[data-room="green"] .gd-pin.is-theirs { gap: 4px; padding-right: 6px; border-color: rgba(200, 207, 220, 0.35); background: rgba(8, 8, 10, 0.66); font-size: 10px; }
+[data-room="green"] .gd-pin.is-theirs b { font-size: 11.5px; color: var(--gd-steel); }
+[data-room="green"] .gd-pin.is-theirs small { font-size: 9.5px; color: rgba(220, 226, 236, 0.66); }
+[data-room="green"] .gd-pin.is-theirs .gd-face { border-color: rgba(200, 207, 220, 0.4); }
+[data-room="green"] .gd-pin[data-mark="bye"],
+[data-room="green"] .gd-pin[data-mark="out"],
+[data-room="green"] .gd-pin[data-mark="empty"] { opacity: 0.6; }
+[data-room="green"] .gd-pin[data-mark="sit"] { border-color: rgba(240, 160, 80, 0.6); }
+[data-room="green"] .gd-pin.is-ball { gap: 6px; padding: 3px 9px; border-color: var(--gd-gold); background: rgba(40, 32, 16, 0.86); cursor: default; pointer-events: none; transform: translate(-50%, calc(-100% - 6px)); }
+[data-room="green"] .gd-pin.is-ball b { color: #fff1cc; }
+[data-room="green"] .gd-pin.is-away { opacity: 0; pointer-events: none; }
+[data-room="green"] .gd-pin:hover,
+[data-room="green"] .gd-pin:focus-visible { z-index: 3; border-color: var(--gd-gold); box-shadow: 0 0 0 2px rgba(227, 194, 122, 0.3); outline: none; }
+
+/* The scorebug: a solid panel in gold wire, top left. */
+[data-room="green"] .gd-bug {
+  position: absolute;
+  z-index: 3;
+  left: clamp(16px, 2.4vw, 32px);
+  top: clamp(16px, 2.4vh, 28px);
+  width: min(520px, calc(100% - 32px));
+  padding: 14px 18px 14px;
+  border: 1px solid var(--gd-gl);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(16, 15, 12, 0.9), rgba(8, 8, 10, 0.88));
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(232, 199, 122, 0.1), 0 24px 48px -28px #000;
+}
+[data-room="green"] .gd-bug::before,
+[data-room="green"] .gd-call::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  --t: rgba(232, 199, 122, 0.8);
+  background:
+    linear-gradient(var(--t), var(--t)) 0 0 / 10px 1px,
+    linear-gradient(var(--t), var(--t)) 0 0 / 1px 10px,
+    linear-gradient(var(--t), var(--t)) 100% 0 / 10px 1px,
+    linear-gradient(var(--t), var(--t)) 100% 0 / 1px 10px,
+    linear-gradient(var(--t), var(--t)) 0 100% / 10px 1px,
+    linear-gradient(var(--t), var(--t)) 0 100% / 1px 10px,
+    linear-gradient(var(--t), var(--t)) 100% 100% / 10px 1px,
+    linear-gradient(var(--t), var(--t)) 100% 100% / 1px 10px;
+  background-repeat: no-repeat;
+}
+[data-room="green"] .gd-bug-eyb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; margin: 0 0 10px; font: 500 11px/1.2 var(--gd-sans); letter-spacing: 0.2em; text-transform: uppercase; color: var(--wv-faint); }
+[data-room="green"] .gd-bug-eyb > span { color: var(--gd-gold); }
+[data-room="green"] .gd-bug-eyb > i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+[data-room="green"] .gd-bug.is-live .gd-bug-eyb > span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #f0604a; vertical-align: 1px; animation: gd-ping 1.8s ease-out infinite; }
+[data-room="green"] .gd-bug-teams { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+[data-room="green"] .gd-bug-side { display: grid; gap: 3px; min-width: 0; }
+[data-room="green"] .gd-bug-side.is-them { justify-items: end; text-align: right; }
+[data-room="green"] .gd-bug-side b { overflow: hidden; font: 600 15px/1.15 var(--gd-sans); letter-spacing: 0.04em; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; color: #f3ead6; }
+[data-room="green"] .gd-bug-side.is-them b { color: var(--wv-soft); }
+[data-room="green"] .gd-bug-side small { font: 400 11.5px/1.2 var(--gd-sans); color: var(--wv-faint); }
+[data-room="green"] .gd-bug-mid { display: flex; align-items: baseline; gap: 10px; }
+[data-room="green"] .gd-bug-mid small { font: 500 10px/1 var(--gd-sans); letter-spacing: 0.16em; text-transform: uppercase; color: var(--gd-gold); }
+[data-room="green"] .gd-bug-n { font: 500 40px/1 var(--gd-disp); font-variant-numeric: lining-nums tabular-nums; color: var(--wv-soft); }
+[data-room="green"] .gd-bug-n.is-me { color: #fff1cc; text-shadow: 0 0 28px rgba(232, 199, 122, 0.35); }
+[data-room="green"] .gd-bug-proj { margin: 10px 0 0; font: 400 12px/1.3 var(--gd-sans); color: var(--wv-mute); }
+[data-room="green"] .gd-bug-empty { margin: 0; font: 400 15px/1.4 var(--gd-sans); color: var(--wv-mute); }
+[data-room="green"] .gd-bug .gd-wp { max-width: none; margin: 12px 0 0; }
+[data-room="green"] .gd-bug .gd-still { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(201, 168, 92, 0.18); }
+
+/* The week's calls along the bottom: each a solid chip in gold wire, opening its place below. */
+[data-room="green"] .gd-bowl-calls { position: absolute; z-index: 3; left: 0; right: 0; bottom: clamp(18px, 3vh, 30px); display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 0; padding: 0 clamp(16px, 9vw, 120px); list-style: none; pointer-events: none; }
+[data-room="green"] .gd-call {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--gd-gl);
+  border-radius: 2px;
+  background: rgba(10, 10, 11, 0.86);
+  backdrop-filter: blur(6px);
+  color: #f3ead6;
+  font: 400 13.5px/1.2 var(--gd-sans);
+  pointer-events: auto;
+  cursor: pointer;
+}
+[data-room="green"] .gd-call b { font: 600 11px/1 var(--gd-sans); letter-spacing: 0.18em; text-transform: uppercase; color: var(--gd-gold); }
+[data-room="green"] .gd-call[data-tag="watch"] b { color: #f6c38a; }
+[data-room="green"] .gd-call[data-tag="claim"] b { color: #fff1cc; }
+[data-room="green"] .gd-call:hover,
+[data-room="green"] .gd-call:focus-visible { border-color: rgba(232, 199, 122, 0.6); outline: none; box-shadow: 0 0 0 2px rgba(227, 194, 122, 0.25); }
+
+/* Under the bowl: the gold grid and nanites behind the page, panels solid with gold hairlines. */
+[data-room="green"] .gd-deck { position: relative; isolation: isolate; padding-top: 1px; border-top: 1px solid rgba(201, 168, 92, 0.24); background: radial-gradient(70% 30% at 50% 0%, rgba(201, 168, 92, 0.06), transparent 70%); }
+[data-room="green"] .gd-deck > .gd-deck-sig { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; -webkit-mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent); }
+[data-room="green"] .gd-deck > :not(.gd-deck-sig) { position: relative; z-index: 1; }
+[data-room="green"] .gd-deck .fl-panel,
+[data-room="green"] .gd-deck .gd-drawer { border-color: rgba(201, 168, 92, 0.24); background: linear-gradient(180deg, rgba(16, 15, 12, 0.94), rgba(9, 9, 10, 0.94)); }
+[data-room="green"] .gd-deck .gd-stat:hover,
+[data-room="green"] .gd-deck .gd-stat[aria-expanded="true"] { border-color: rgba(232, 199, 122, 0.5); }
+
+@media (max-width: 760px) {
+  [data-room="green"] .gd-bowl { height: max(620px, calc(100svh - 88px)); }
+  [data-room="green"] .gd-bug { left: 12px; right: 12px; top: 12px; width: auto; padding: 10px 12px; }
+  [data-room="green"] .gd-bug-n { font-size: 30px; }
+  [data-room="green"] .gd-bug-side b { font-size: 12.5px; }
+  [data-room="green"] .gd-bug-side small { font-size: 10.5px; }
+  [data-room="green"] .gd-bug .gd-still { display: none; }
+  [data-room="green"] .gd-bowl-calls { justify-content: flex-start; gap: 6px; padding: 0 12px 0; bottom: 74px; }
+  [data-room="green"] .gd-call { padding: 6px 10px; font-size: 12px; }
+  [data-room="green"] .gd-pin.is-theirs { display: none; }
+  [data-room="green"] .gd-pin small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="green"] .gd-bowl-gl,
+  [data-room="green"] .gd-pin { transition: none; }
+  [data-room="green"] .gd-bug.is-live .gd-bug-eyb > span::before { animation: none; }
+}
+/* In the scorebug, who is still to play is the two counts; the names are in the lineup drawer. */
+[data-room="green"] .gd-bug .gd-still-side ul { display: none; }
+[data-room="green"] .gd-bug .gd-still-grid { gap: 12px; }
+[data-room="green"] .gd-bug .gd-need { margin-bottom: 6px; font-size: 18px; }
+@media (max-width: 760px) {
+  [data-room="green"] .gd-bowl-calls { gap: 5px; bottom: 82px; }
+  [data-room="green"] .gd-call { gap: 6px; padding: 5px 9px; font-size: 11.5px; }
+  [data-room="green"] .gd-call b { font-size: 10px; letter-spacing: 0.14em; }
 }

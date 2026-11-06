@@ -1353,7 +1353,8 @@ export const WORLD_CAST: WorldCast = {
         "BRING IT IN! Sorry. Bring it in.",
         "That's heart, champ. You can't teach heart. I'm going to try anyway.",
         "Punt, wake up, we're doing the speech. Punt.",
-        "That's Inspiration, champ! Spend it this time!"
+        "That's Inspiration, champ! Spend it this time!",
+        "Look at that bowl, champ! The upper deck's still wire, but the heart is solid gold. Sorry. Inspired."
       ],
       "drop": [
         "Bweep. (Checked every gauge. Twice. Plugged in for both.)",
@@ -1429,7 +1430,8 @@ export const WORLD_CAST: WorldCast = {
         "Hop hop hop! Is it game day? It's game day somewhere!",
         "I didn't read the projection. I believed in it instead.",
         "Nap first. Victory second. Snack third.",
-        "Punt! Punt punt!"
+        "Punt! Punt punt!",
+        "The new seats are made of sparkles. Sparkle nap."
       ],
       "postmaster": [
         "A letter from the C.E.O.? Stand back. This one has a delivery to make.",

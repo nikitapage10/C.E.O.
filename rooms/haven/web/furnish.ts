@@ -11,11 +11,13 @@ import { KIND_STYLE } from "./style.ts";
  *                 along its longest outside wall, and the TV hangs on its back wall, across the room from the Gym (2026-11-05); the main
  *                 bedroom gets windows; the hall or landing outside the main bedroom gets a balcony over about half its
  *                 outside wall with a big window along the rest, clear of the corner by the bedroom door. A balcony
- *                 wider than a door is glazed like every other room, windows along it with one glass door out (#860).
+ *                 wider than a door is glazed like every other room, windows along it with one glass door out (#860),
+ *                 and every balcony door is one single door wide, saved or derived (#935).
  *                 Every other wall stays solid. What the plan does save wins. The kitchen and the hall are one open
  *                 space: no wall is drawn where they meet.
  *   Living room   the TV on its back wall across from the Gym (else facing the windows), a long low console under it, an L sectional facing
- *                 it with a square coffee table on a rug between, an arc lamp behind the sofa (kept in the corner it
+ *                 it, turned to the east and south walls (#935: the return faces the other one when the TV is on one,
+ *                 else the L backs onto both), with a square coffee table on a rug between, an arc lamp behind the sofa (kept in the corner it
  *                 has always stood in when the openings come from the walls), a drinks fridge beside it, and the tall
  *                 cat tree in the corner by the balcony door: the home's only cat tree.
  *   Studio        the desk along the window wall (two monitors, an office chair, speakers either side, a tall shelf
@@ -153,6 +155,23 @@ function tvWallOf(R: Rect, p: HavenPlan): Side {
   return named ?? (glass(R, OPP[win], p) === 0 ? OPP[win] : ([...solidSides].sort((a, b) => wallLen(R, b) - wallLen(R, a))[0] ?? OPP[win]));
 }
 
+/** The walls the living room's sectional turns to when the plan names none (Nikita, 2026-11-06, #935). */
+const SECTIONAL: [Side, Side] = ["e", "s"];
+
+/**
+ * How the L sectional sits for a TV wall and the two walls it turns to (one each way). With the TV on one of them,
+ * the long run faces it and the return goes at the end across from the other, so it faces that wall. Otherwise the
+ * long run backs onto the wall across from the TV (`backed`) and the return onto the other.
+ */
+function sectionalOf(tvWall: Side, faces: [Side, Side]): { backed: boolean; retEnd: "lo" | "hi" } {
+  const axis = faces.find((s) => s === tvWall || s === OPP[tvWall]);
+  const other = faces.find((s) => s !== axis);
+  if (!axis || !other) return { backed: false, retEnd: "lo" };
+  const backed = axis !== tvWall;
+  const want = backed ? other : OPP[other];
+  return { backed, retEnd: endSide(tvWall, "lo") === want ? "lo" : "hi" };
+}
+
 /** `pinLamp`: the openings came from the walls, so the arc lamp keeps the spot it had before they did (#764). */
 function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   const win = windowWall(R, p);
@@ -163,16 +182,18 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   out.push(item("console", against(R, tvWall, (L - conLen) / 2, conLen, 40)));
   const tvLen = clampLen(L * 0.5, 110, 220);
   out.push(item("tv", against(R, tvWall, (L - tvLen) / 2, tvLen, 6, 0)));
-  // Where the balcony door is on this room, if anywhere: the cat tree's corner, and the sectional's open end.
+  // Where the balcony door is on this room, if anywhere: the cat tree's corner.
   let door: { s: Side; at: number } | null = null;
   for (const s of SIDES) for (const [a, b] of runs(R, s, p.balconies ?? [])) door ??= { s, at: (a + b) / 2 };
-  // The sectional faces the TV: a long run across the room, its return on the end away from the balcony door.
-  const sofaDep = 90, sofaOff = clampLen(D * 0.58, 200, D - sofaDep - 30);
+  // The sectional turns to two walls (Nikita, 2026-11-06, #935: the east and the south unless the plan says otherwise).
+  // With the TV on one, the long run faces the TV and the return faces the other; else the L backs onto both, in their
+  // corner, still facing the TV: against the walls, unless a balcony door is on the one behind it.
+  const turn = sectionalOf(tvWall, p.sectional ?? SECTIONAL);
+  const retEnd = turn.retEnd, backed = turn.backed && !runs(R, OPP[tvWall], p.balconies ?? []).length;
+  const sofaDep = 90, sofaOff = backed ? D - sofaDep - 6 : clampLen(D * 0.58, 200, D - sofaDep - 30);
   const sofaLen = clampLen(L * 0.62, 180, 300);
-  const t0 = (L - sofaLen) / 2;
+  const t0 = backed ? (retEnd === "lo" ? 6 : L - sofaLen - 6) : (L - sofaLen) / 2;
   out.push(item("sofa", inFrom(R, tvWall, t0, sofaLen, sofaDep, sofaOff)));
-  const doorEnd: "lo" | "hi" = door && (door.s === endSide(tvWall, "lo") || door.s === endSide(tvWall, "hi")) ? (door.s === endSide(tvWall, "lo") ? "lo" : "hi") : door && door.s === OPP[tvWall] ? (door.at < L / 2 ? "lo" : "hi") : "hi";
-  const retEnd: "lo" | "hi" = doorEnd === "lo" ? "hi" : "lo";
   const retLen = clampLen(sofaOff * 0.55, 110, 190);
   out.push(item("sofa", inFrom(R, tvWall, retEnd === "lo" ? t0 : t0 + sofaLen - sofaDep, sofaDep, retLen, sofaOff - retLen)));
   // A square coffee table on a light rug, between the TV and the sofa.
@@ -184,8 +205,11 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   out.push(item("rug", inFrom(R, tvWall, clampLen(tMid - rugLen / 2, 4, L - rugLen - 4), rugLen, rugDep, gapMid - rugDep / 2)));
   const ct = clampLen(Math.min(open1 - open0 - 30, rugDep * 0.75), 60, 110);
   out.push(item("ctable", inFrom(R, tvWall, tMid - ct / 2, ct, ct, gapMid - ct / 2)));
-  // The arc lamp behind the sofa at its return end; the drinks fridge beside the sofa at the other.
-  const [lx, ly] = lampSpot(R, tvWall, retEnd);
+  // The drinks fridge beside the sofa at its open end; the arc lamp behind the sofa at its return end, or, with the
+  // sofa against the wall, just past the fridge.
+  const fT = retEnd === "lo" ? t0 + sofaLen + 12 : t0 - 12 - 46;
+  const fridge = item("minifridge", inFrom(R, tvWall, fT, 46, 46, sofaOff + 20));
+  const [lx, ly] = backed ? centreOfRect(inFrom(R, tvWall, retEnd === "lo" ? fT + 46 + 10 : fT - 10 - 32, 32, 32, D - 40)) : lampSpot(R, tvWall, retEnd);
   let lamp = round("lamp", lx, ly, 32);
   if (pinLamp) {
     // Before the walls gave the openings, the room was laid out from its longest wall (glass nowhere): the lamp stood
@@ -195,9 +219,7 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
     const snug = corner(R, longest, endSide(longest, "lo"), 24, 24);
     lamp = [was, snug].map(([x, y]) => round("lamp", x, y, 32)).find((it) => fits(R, it) && !clash(out, it)) ?? lamp;
   }
-  out.push(lamp);
-  const fT = retEnd === "lo" ? t0 + sofaLen + 12 : t0 - 12 - 46;
-  const fridge = item("minifridge", inFrom(R, tvWall, fT, 46, 46, sofaOff + 20));
+  if (!backed || (fits(R, lamp) && !clash(out, lamp))) out.push(lamp);
   if (fT > 10 && fT + 46 < L - 10 && !clash(out, fridge)) out.push(fridge);
   // The tall cat tree in the corner by the balcony door, else the corner of the window wall; another corner when
   // something already stands there.
@@ -743,7 +765,7 @@ function nearEnd(R: Rect, s: Side, a: number, b: number, to: [number, number] | 
  */
 function glaze(a: number, b: number, end: "lo" | "hi", skip: number, doorW: number, winMax = Infinity): { door: [number, number]; win: [number, number] | null } {
   const END = 12, GAP = 14;
-  const dw = Math.min(doorW, Math.max(60, (b - a) * 0.5));
+  const dw = Math.min(doorW, Math.max(BALCONY_DOOR, (b - a) * 0.5));
   const d0 = end === "lo" ? a + skip : b - skip - dw;
   const door: [number, number] = [d0, d0 + dw];
   let win: [number, number] = end === "lo" ? [door[1] + GAP, b - END] : [a + END, door[0] - GAP];
@@ -751,8 +773,12 @@ function glaze(a: number, b: number, end: "lo" | "hi", skip: number, doorW: numb
   return { door, win: win[1] - win[0] >= 40 ? win : null };
 }
 
-/** A balcony door's width, and the widest run still drawn as one door (plan units). */
-const BALCONY_DOOR = 90, DOOR_MAX = 140;
+/**
+ * A balcony door's width (plan units): one single door, never a pair (Nikita, 2026-11-05/06, #935). Any balcony run
+ * wider than this, saved or derived, is drawn as this one door with wall or windows along the rest; the plan keeps
+ * whatever width it saved.
+ */
+export const BALCONY_DOOR = 60;
 /** Big enough to hold any plan's walls as a bare line. */
 const PLAN_W = 100000;
 
@@ -883,7 +909,7 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
     decks.push(seg);
     const hz = seg[1] === seg[3];
     const a = hz ? Math.min(seg[0], seg[2]) : Math.min(seg[1], seg[3]), b = hz ? Math.max(seg[0], seg[2]) : Math.max(seg[1], seg[3]);
-    if (b - a <= DOOR_MAX) {
+    if (b - a <= BALCONY_DOOR) {
       balconies.push(seg);
       continue;
     }

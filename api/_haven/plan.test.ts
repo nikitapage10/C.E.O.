@@ -66,6 +66,11 @@ describe("readPlan", () => {
     expect(got?.doors).toEqual([[0, 0, 10, 0]]);
   });
 
+  it("keeps the sectional's two walls only when they meet at a corner (#935)", () => {
+    expect(readPlan({ ...FAKE_PLAN, sectional: ["e", "s"] })?.sectional).toEqual(["e", "s"]);
+    for (const bad of [["e", "w"], ["n"], ["e", "x"], "es", ["s", "s"]]) expect(readPlan({ ...FAKE_PLAN, sectional: bad })).not.toHaveProperty("sectional");
+  });
+
   it("caps the lists", () => {
     const many = Array.from({ length: 900 }, (_, i) => ({ k: "box", x: i, y: i, w: 5, h: 5 }));
     expect(readPlan({ ...FAKE_PLAN, items: many })?.items).toHaveLength(400);

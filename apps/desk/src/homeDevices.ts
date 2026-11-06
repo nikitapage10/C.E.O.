@@ -128,6 +128,7 @@ export interface WetPlanShape {
   badTime: number;
   keys: string[];
   top: string[];
+  code?: number;
 }
 
 const KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,39}$/;
@@ -138,7 +139,8 @@ export function planShapeOf(v: unknown): WetPlanShape | undefined {
   const s = o(v);
   if (s.read !== "ok" && s.read !== "failed") return undefined;
   const n = (x: unknown) => whole(x, 1000) ?? 0;
-  return { read: s.read, template: s.template === true, entries: n(s.entries), disabled: n(s.disabled), badTime: n(s.badTime), keys: names(s.keys), top: names(s.top) };
+  const code = whole(s.code, 1_000_000);
+  return { read: s.read, template: s.template === true, entries: n(s.entries), disabled: n(s.disabled), badTime: n(s.badTime), keys: names(s.keys), top: names(s.top), ...(code !== undefined && { code }) };
 }
 
 const HHMM = /^\d{2}:\d{2}$/;

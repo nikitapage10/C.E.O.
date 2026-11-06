@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { duckable } from "@ceo/engine/web/siteSound.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { holdHint } from "../holdToTalk.ts";
 import { askRoom, listen, micSupported, recall, remember, setOwnVoice, silentWav, type Listener, type RoomAnswer } from "../roomvoice/roomVoice.ts";
@@ -146,7 +147,7 @@ export function floorStart(): void {
   hush();
   listener?.cancel();
   // Inside the key press, so the answers may play later without a tap.
-  player ??= new Audio();
+  player ??= duckable(new Audio());
   player.src = silentWav();
   player.play().catch(() => undefined);
   scene?.hold(true);

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { GreenBoard } from "../_green/types.ts";
 import { MemoryRoomLog } from "./log.ts";
 import { NO_GAME } from "./sports.ts";
-import { PLAYER_READ, SPORTS_READ, WEB_ACT, handle, type RoomSources } from "./toolroute.ts";
+import { PASSED_ON, PLAYER_READ, SPORTS_READ, WEB_ACT, handle, type RoomSources } from "./toolroute.ts";
 import { NEWS_PENDING, STILL_SEARCHING, forgetSearches, forgetWaitingLines, isEmptyLookup, mergeStatusNews, waitingLine, type WebDeps } from "./voicelookups.ts";
 import { MemoryCrewStore, TOOL_HEADER, issueToolToken } from "./voicetoken.ts";
 import { ONE_WAITING_LINE } from "./ponder.ts";
@@ -110,6 +110,20 @@ describe("the route: scores, merged status and empty-tool escalation (#537)", ()
     const body = (await (await handle(post("who won the game"), d)).json()) as { escalated?: boolean };
     expect(body.escalated).toBe(true);
     expect((await log.list("kernel", NOW))[0]!.question).toBe("who won the game");
+  });
+
+  it("a slow web search is passed on once, never polled, and its repeat is silence (#952)", async () => {
+    const slow: WebDeps = { search: () => new Promise(() => undefined), canSpend: async () => true, addSpend: async () => undefined };
+    const { token, d, log } = await setup({ web: slow });
+    const fast = { ...d, budgetMs: 400 };
+    const post = (q: string) => new Request(`${SITE}/api/skippy-tools?act=${WEB_ACT}`, { method: "POST", headers: { [TOOL_HEADER]: token, "Content-Type": "application/json" }, body: JSON.stringify({ query: q }) });
+    const first = (await (await handle(post("who leads the sample election"), fast)).json()) as { text: string; escalated?: boolean };
+    expect(first.escalated).toBe(true);
+    expect(first.text).not.toContain(STILL_SEARCHING);
+    expect(await log.list("kernel", NOW)).toHaveLength(1);
+    const again = (await (await handle(post("who leads the sample election"), fast)).json()) as { text: string };
+    expect(again.text).toBe(PASSED_ON);
+    expect(await log.list("kernel", NOW)).toHaveLength(1);
   });
 
   it("isEmptyLookup tells nothing-usable from an answer", () => {

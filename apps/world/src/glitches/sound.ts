@@ -2,13 +2,16 @@
  * Every sound here is synthesised on the spot: no samples, no licensing, Counsel.exe sleeps soundly.
  * Sound is off by default and only plays after the viewer turns it on.
  */
+import { duckableContext, siteDucked } from "@ceo/engine/web/siteSound.ts";
+
 let ctx: AudioContext | null = null;
 let held = false;
 
 function audio(): AudioContext | null {
-  if (held) return null;
+  // Nothing plays while Skippy is on a call (#952).
+  if (held || siteDucked()) return null;
   try {
-    ctx ??= new AudioContext();
+    ctx ??= duckableContext(new AudioContext());
     if (ctx.state === "suspended") void ctx.resume();
     return ctx;
   } catch {

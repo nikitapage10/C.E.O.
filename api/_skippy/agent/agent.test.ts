@@ -228,6 +228,26 @@ describe("the agent loop (#646)", () => {
     expect(r.parts.talk).toBeGreaterThan(0);
   });
 
+  it("on the Senate's floor, gives the words to the members when the deeper tier fails or says nothing (#952)", async () => {
+    const empty = script([() => answer("")]);
+    expect((await runAgent(empty.call, "x", "<message>\nare you guys talking about\n</message>", ctx({ surface: "room", floor: true }))).deeper).toBe("floor");
+    const broke = script([
+      () => {
+        throw new Error("overloaded");
+      },
+    ]);
+    expect((await runAgent(broke.call, "x", "<message>\nwhat are you guys talking about\n</message>", ctx({ surface: "room", floor: true }))).deeper).toBe("floor");
+    // Off the floor a failure is still the chat's 502.
+    const off = script([
+      () => {
+        throw new Error("overloaded");
+      },
+    ]);
+    await expect(runAgent(off.call, "x", "<message>\nhi\n</message>", ctx())).rejects.toThrow();
+    // The fast tier is told a question about the argument is the members' too.
+    expect(FAST_RULES).toMatch(/what are you guys talking about/);
+  });
+
   it("goes to Opus only when the fast tier says the ask is hard", async () => {
     const s = script([() => answer("Here's the plan.")]);
     const r = await runAgent(s.call, "x", "<message>\nWrite me a careful plan comparing three options\n</message>", ctx({ message: "Write me a careful plan comparing three options for the Haven's next device" }));

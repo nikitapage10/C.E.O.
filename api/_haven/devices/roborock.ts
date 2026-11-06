@@ -11,6 +11,8 @@
  *   Home data (cached in the sealed login for six hours):
  *     GET  {iot}/api/v1/getHomeDetail            the home's id
  *     GET  {rriot.r.a}/v3/user/homes/{id}        devices (duid, local key), products, the app's room names (Hawk-signed)
+ *   Schedules (#952, python-roborock's get_schedules), kept SCHEDULE_TTL_MS per instance:
+ *     GET  {rriot.r.a}/user/devices/{duid}/jobs  the Roborock app's cleaning schedules (cron, enabled), Hawk-signed
  *   Commands, over the cloud MQTT broker (rriot.r.m), one short session each:
  *     get_status, get_room_mapping, app_start, app_pause, app_charge, app_segment_clean, and (#637 scope) before a
  *     start or a rooms clean, only when a mode word was asked: set_custom_mode (101 quiet, 104 max) and
@@ -29,6 +31,7 @@ import { callJson, VendorError, withQuery, type Fetch } from "./http.js";
 import { MqttError, requestOnce } from "./mqtt.js";
 import { liveMapOf, mapEndpoint, mapPayload, mapRequestPayload, parseMap, type LiveMap } from "./roborockMap.js";
 import { matchRooms, namedRooms, segmentPairs, type MapRoom } from "./rooms.js";
+import { roborockSchedules, type VacSchedule } from "./schedule.js";
 import { obj, PLACES, str, type DeviceClient, type DeviceReading, type Found, type RunArgs, type RunResult, type Suction, type Water } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
 
@@ -218,6 +221,20 @@ export async function readHome(fetchFn: Fetch, login: RoborockLogin, now: number
   };
 }
 
+/** How long the app's schedules are kept before they are read again (they change rarely; a read costs a round trip). */
+export const SCHEDULE_TTL_MS = 10 * 60_000;
+
+/** The Roborock app's cleaning schedules for one device (#952), or null when the read failed. Never throws. */
+export async function readSchedules(fetchFn: Fetch, login: RoborockLogin, duid: string, now: number): Promise<VacSchedule[] | null> {
+  const path = `/user/devices/${duid}/jobs`;
+  try {
+    const res = obj(await callJson(fetchFn, `${login.rriot.r.a}${path}`, { headers: { Authorization: hawk(login.rriot, path, Math.floor(now / 1000), randomBytes(6).toString("base64url")) } }, 4_000));
+    return res.success === false ? null : roborockSchedules(res);
+  } catch {
+    return null;
+  }
+}
+
 /* ── The V1 message ── */
 
 /** python-roborock's Utils.encode_timestamp: the hex timestamp's digits in a fixed order. */
@@ -404,7 +421,19 @@ let nextId = 10_000 + Math.floor(Math.random() * 20_000);
 export class RoborockClient implements DeviceClient<RoborockRef> {
   readonly vendor = "roborock" as const;
   readonly actions = ["vacuum.start", "vacuum.pause", "vacuum.dock", "vacuum.rooms"] as const;
+  /** Each vacuum's schedules as last read, by duid, with when (#952). */
+  private schedules = new Map<string, { at: number; list: VacSchedule[] }>();
   constructor(private readonly deps: RoborockDeps) {}
+
+  /** A vacuum's schedules: kept ones while fresh, else read again; the last good ones when a read fails. */
+  private async schedulesOf(login: RoborockLogin, duid: string): Promise<VacSchedule[] | undefined> {
+    const now = this.deps.now();
+    const kept = this.schedules.get(duid);
+    if (kept && now - kept.at < SCHEDULE_TTL_MS) return kept.list;
+    const list = await readSchedules(this.deps.fetch, login, duid, now);
+    if (list) this.schedules.set(duid, { at: now, list });
+    return list ?? kept?.list;
+  }
 
   async connected(): Promise<boolean> {
     return Boolean(this.deps.vault && this.deps.idKey && (await this.deps.vault.read<RoborockLogin>("roborock").catch(() => null)));
@@ -504,6 +533,8 @@ export class RoborockClient implements DeviceClient<RoborockRef> {
       const id = deviceId(idKey, "roborock", d.duid);
       let status: unknown = null;
       let online = d.online;
+      // The app's schedules (#952) go out with the status, so they cost no extra wait.
+      const schedule = this.schedulesOf(login, d.duid);
       try {
         status = await this.rpc(login, d.duid, d.localKey, "get_status");
       } catch {
@@ -519,7 +550,9 @@ export class RoborockClient implements DeviceClient<RoborockRef> {
           rooms = [];
         }
       }
-      out.push({ reading: vacuumReading(id, product.name || "Roborock vacuum", status, rooms ?? [], online), ref: { duid: d.duid, localKey: d.localKey, rooms: rooms ?? [] } });
+      const plan = await schedule;
+      const reading = vacuumReading(id, product.name || "Roborock vacuum", status, rooms ?? [], online);
+      out.push({ reading: plan ? { ...reading, schedule: plan } : reading, ref: { duid: d.duid, localKey: d.localKey, rooms: rooms ?? [] } });
     }
     if (changed) await vault.write("roborock", login).catch(() => undefined);
     return out;

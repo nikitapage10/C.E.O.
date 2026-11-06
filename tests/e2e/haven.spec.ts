@@ -224,6 +224,43 @@ for (const [label, size] of [
   });
 }
 
+test("signed in: the kept Haven warms up behind the Desk, and coming back to it replays nothing (#958)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: FAKE_PLAN });
+  await page.goto(`${BASE}/`);
+  // The Senate on screen; the Haven and Relay mount behind it, hidden, soon after the first paint.
+  const haven = page.locator('main.desk__main[data-room="haven"]');
+  await expect(haven).toBeHidden();
+  await expect(page.locator('main.desk__main[data-room="relay"]')).toHaveCount(1, { timeout: 30_000 });
+  const tab = (path: string) => page.evaluate((p) => (document.querySelector(`.wv-tab[href="${p}"]`) as HTMLElement).click(), path);
+  // The one-shot CSS animations running in the Haven's page now.
+  const replaying = () =>
+    haven.evaluate((el) =>
+      el
+        .getAnimations({ subtree: true })
+        .filter((a) => "animationName" in a && a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => (a as CSSAnimation).animationName),
+    );
+  await tab("/haven");
+  await expect(haven).toBeVisible();
+  // The first visit plays its entrance, and marks the page seen.
+  await expect(haven).toHaveAttribute("data-seen", "");
+  await expect(page.locator(".hv-house")).not.toHaveAttribute("data-gl", "idle", { timeout: 20_000 });
+  await page.waitForTimeout(2500);
+  await haven.evaluate((el) => ((el as HTMLElement & { __same?: boolean }).__same = true));
+  for (const away of ["/", "/relay"]) {
+    await tab(away);
+    await expect(haven).toBeHidden();
+    await page.waitForTimeout(800);
+    await tab("/haven");
+    await expect(haven).toBeVisible();
+    // The same page, never mounted again, with no cover and no entrance replayed.
+    expect(await haven.evaluate((el) => (el as HTMLElement & { __same?: boolean }).__same)).toBe(true);
+    await expect(page.locator(".room-loader")).toHaveCount(0);
+    expect(await replaying()).toEqual([]);
+  }
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-958-back-again.png` });
+});
+
 test("signed out: the Gym is a count, never an exercise (#660)", async ({ page }) => {
   await stub(page, { signedIn: false, plan: null });
   await page.goto(`${BASE}/haven`);

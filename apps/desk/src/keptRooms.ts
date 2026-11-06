@@ -29,3 +29,29 @@ export function keptAfter<T extends string>(kept: readonly T[], route: T, keep =
   const rest = (ALWAYS_KEPT as readonly string[]).filter((r, i) => r !== route && (i < warmed || kept.includes(r as T))) as T[];
   return [route, ...rest];
 }
+
+/** What `settleShown` needs of a page's element: the DOM's own `getAnimations` and dataset. */
+type Shown = Pick<HTMLElement, "dataset"> & { getAnimations?: (opts?: GetAnimationsOptions) => Animation[] };
+
+/**
+ * A kept room coming back on screen shows as it was left (Nikita, 2026-11-06, #958). A hidden room is `display: none`,
+ * and the browser starts every CSS animation under it again when it shows, so each entrance (the page's rise, its
+ * stage's gold rule, an open sheet sliding in) used to replay on every visit. The first time a room is shown it is
+ * marked `data-seen` and plays them; each time after, before the frame paints, its one-shot CSS animations are
+ * finished. Looping ones (a breathing lamp, drifting motes) and script-made Web Animations carry on as they are.
+ * Returns how many it finished.
+ */
+export function settleShown(el: Shown): number {
+  if (el.dataset.seen === undefined) {
+    el.dataset.seen = "";
+    return 0;
+  }
+  let n = 0;
+  for (const a of el.getAnimations?.({ subtree: true }) ?? []) {
+    if (!("animationName" in a)) continue; // a CSSAnimation, not a script's own
+    if (a.effect?.getComputedTiming().iterations === Infinity) continue;
+    a.finish();
+    n++;
+  }
+  return n;
+}

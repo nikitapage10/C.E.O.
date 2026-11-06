@@ -490,3 +490,82 @@
 @media (prefers-reduced-motion:reduce){
   .desk .fo-deck-tab.is-on::after,.desk .fo-deck-p::after{animation:none}
 }
+
+/* ---------- the console, alive (#932, second look) ----------
+   Less a page of lists, more the forge's floor: the panel lets the wire grid and the rising sigils behind it show
+   through; what shipped is cast as ingots, a grid of small plates that pour in hot and cool to gold (no long column to
+   scroll); the clock's runs are three dials, rings of melt filling toward the next run; the empty bench is four moulds
+   that fill the space beside Suggest. The words and numbers are the same real data as before. */
+.desk .fo-deck-p{background:radial-gradient(120% 60% at 50% 0,rgba(var(--fo-melt),.07),transparent 60%),linear-gradient(180deg,rgba(16,12,8,.72),rgba(7,7,6,.6))}
+
+/* What shipped: ingots. */
+.desk .fo-deck .changelog__day{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-bottom:18px}
+.desk .fo-deck .changelog__day>.wv-log-day{grid-column:1/-1;margin:6px 0 4px}
+.desk .fo-deck .changelog .wv-log-i.cl-entry{display:flex;flex-direction:column;gap:4px;min-height:112px;margin:0;padding:16px 14px 12px;border:1px solid rgba(201,168,92,.22);border-bottom:0;background:linear-gradient(180deg,rgba(30,24,16,.94),rgba(10,9,8,.94));clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%,0 10px);box-shadow:inset 0 1px 0 rgba(232,199,122,.18),inset 0 -2px 0 rgba(201,168,92,.5);animation:fo-cast 1.6s calc(var(--i,0) * 70ms) ease-out both}
+.desk .fo-deck .changelog .wv-log-i.cl-entry[data-c=ok]{box-shadow:inset 0 1px 0 rgba(232,199,122,.3),inset 0 -2px 0 rgba(var(--fo-melt),.85),inset 0 -14px 18px -14px rgba(var(--fo-melt),.5)}
+.desk .fo-deck .changelog .wv-log-i.cl-entry{text-align:left}
+.desk .fo-deck .changelog .wv-log-i b{font-size:14.5px;line-height:1.3}
+.desk .fo-deck .changelog .wv-log-when{font-family:"Geist Mono Variable",ui-monospace,monospace;font-size:11px;letter-spacing:.04em;color:var(--fo-brass)}
+.desk .fo-deck .changelog .cl-entry__meta{margin-top:auto;flex-wrap:wrap}
+/* The builder's mark struck into the ingot's corner. */
+.desk .fo-deck .changelog .cl-entry::before{content:"ᚱ";position:absolute;right:12px;top:8px;font:12px "Noto Sans Runic",serif;color:rgba(201,168,92,.4)}
+.desk .fo-deck .changelog .cl-entry[data-who=semicolon]::before{content:"ᛁ"}
+.desk .fo-deck .changelog .cl-entry[data-who=caret]::before{content:"ᛟ"}
+.desk .fo-deck .changelog .cl-entry:hover{border-color:rgba(232,199,122,.5)}
+@keyframes fo-cast{0%{opacity:0;transform:translateY(8px);filter:brightness(1.9) sepia(1) saturate(3) hue-rotate(-20deg)}35%{opacity:1;transform:none}100%{filter:none}}
+
+/* The clock: three dials. */
+.desk .fo-deck .fo-runs ul{border-top:0;gap:14px}
+.desk .fo-deck .fo-runs li{grid-template-columns:96px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:18px;align-items:center;align-content:center;padding:16px 18px;border:1px solid rgba(201,168,92,.18);background:linear-gradient(180deg,rgba(26,21,15,.9),rgba(10,9,8,.9))}
+.desk .fo-deck .fo-runs li:first-child{padding-left:18px;border-left:1px solid rgba(201,168,92,.18)}
+.desk .fo-deck .fo-runs li>i{position:relative;left:auto;right:auto;bottom:auto;grid-column:1;grid-row:1/4;width:96px;height:96px;border-radius:50%;box-shadow:0 0 22px -6px rgba(var(--fo-melt),.55);background:conic-gradient(from -90deg,rgb(var(--fo-melt)) 0,rgb(var(--fo-melt-hi)) calc(var(--f) * 360deg),rgba(201,168,92,.14) 0);-webkit-mask:radial-gradient(closest-side,transparent 78%,#000 80% 99%,transparent 100%);mask:radial-gradient(closest-side,transparent 78%,#000 80% 99%,transparent 100%)}
+.desk .fo-deck .fo-runs li:not(:first-child)>i{left:auto}
+/* The dial's ticks and its turning rune sit over the ring. */
+.desk .fo-deck .fo-runs li::before{content:"";grid-column:1;grid-row:1/4;width:96px;height:96px;border-radius:50%;background:repeating-conic-gradient(rgba(201,168,92,.4) 0 1.2deg,transparent 1.2deg 30deg);-webkit-mask:radial-gradient(closest-side,transparent 62%,#000 64% 70%,transparent 72%);mask:radial-gradient(closest-side,transparent 62%,#000 64% 70%,transparent 72%)}
+.desk .fo-deck .fo-runs li::after{content:"ᛟ";position:absolute;left:18px;top:50%;width:96px;margin-top:-10px;text-align:center;font:16px/20px "Noto Sans Runic",serif;color:var(--fo-gold);animation:fo-turn 12s linear infinite;opacity:.8}
+.desk .fo-deck .fo-runs li:nth-child(2)::after{content:"ᛁ"}
+.desk .fo-deck .fo-runs li:nth-child(3)::after{content:"ᚱ"}
+.desk .fo-deck .fo-runs li>b,.desk .fo-deck .fo-runs li>span,.desk .fo-deck .fo-runs li>em{grid-column:2}
+@keyframes fo-turn{to{transform:rotate(360deg)}}
+
+/* The clear bench: four moulds filling the space beside Suggest. */
+.desk .fo-deck .fo-slots{grid-template-columns:repeat(2,minmax(0,1fr))}
+.desk .fo-deck .fo-slots>li{min-height:190px}
+.desk .fo-deck .fo-slots>li::before{animation:fo-mould 5s calc(var(--i,0) * 1.2s) ease-in-out infinite}
+@keyframes fo-mould{0%,100%{box-shadow:inset 0 0 0 1px rgba(201,168,92,.4)}50%{box-shadow:inset 0 0 0 1px rgba(232,199,122,.7),0 0 14px rgba(var(--fo-melt),.35)}}
+
+@media (max-width:760px){
+  .desk .fo-deck .changelog__day{grid-template-columns:minmax(0,1fr)}
+  .desk .fo-deck .changelog .cl-entry--pics{grid-column:auto}
+  .desk .fo-deck .changelog .wv-log-i.cl-entry{min-height:0}
+  .desk .fo-deck .fo-runs li{grid-template-columns:64px minmax(0,1fr);padding:12px}
+  .desk .fo-deck .fo-runs li:first-child{padding-left:12px}
+  .desk .fo-deck .fo-runs li>i,.desk .fo-deck .fo-runs li::before{width:64px;height:64px}
+  .desk .fo-deck .fo-runs li::after{left:12px;width:64px}
+  .desk .fo-deck .fo-runs b{font-size:24px}
+  .desk .fo-deck .fo-slots{grid-template-columns:minmax(0,1fr)}
+  .desk .fo-deck .fo-slots>li{min-height:120px}
+}
+@media (prefers-reduced-motion:reduce){
+  .desk .fo-deck .changelog .wv-log-i.cl-entry,.desk .fo-deck .fo-runs li::after,.desk .fo-deck .fo-slots>li::before{animation:none}
+}
+
+/* The crew at their stations as they stand on the furnace's floor: each on a dark plinth ringed in gold, the one at
+   work lit from below by the melt, their words on a plate under the plinth. */
+.desk .fo-deck .fo-crew-l{gap:14px;border-top:0;padding-top:8px}
+.desk .fo-deck .fo-crew-l>li,.desk .fo-deck .fo-crew-l>li:first-child{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center;gap:10px;padding:18px 16px 16px;border:1px solid rgba(201,168,92,.18);background:linear-gradient(180deg,rgba(18,15,11,.75),rgba(8,8,7,.85))}
+.desk .fo-deck .fo-crew-l>li>img,.desk .fo-deck .fo-crew-l .fo-dock-m{position:relative;z-index:1}
+.desk .fo-deck .fo-crew-l>li>img{width:88px;height:88px}
+.desk .fo-deck .fo-crew-l>li::before{content:"";justify-self:center;grid-row:1;align-self:end;width:132px;height:28px;margin-bottom:-14px;border-radius:50%;background:radial-gradient(closest-side,#0b0a09 70%,transparent 72%),radial-gradient(closest-side,transparent 74%,rgba(201,168,92,.55) 76% 82%,transparent 84%);box-shadow:0 8px 18px -6px #000}
+.desk .fo-deck .fo-crew-l>li>img,.desk .fo-deck .fo-crew-l>li>.fo-dock-m{grid-row:1}
+.desk .fo-deck .fo-crew-l>li>div{grid-row:2}
+.desk .fo-deck .fo-crew-l>li[data-live]::before{background:radial-gradient(closest-side,rgba(var(--fo-melt),.35),#0b0a09 70%,transparent 72%),radial-gradient(closest-side,transparent 74%,rgb(var(--fo-melt-hi)) 76% 82%,transparent 84%);box-shadow:0 0 30px rgba(var(--fo-melt),.45);animation:fo-plinth 3s ease-in-out infinite}
+.desk .fo-deck .fo-crew-l>li[data-live]{box-shadow:inset 0 -2px 0 rgba(var(--fo-melt),.7),0 0 40px -20px rgba(var(--fo-melt),.6)}
+.desk .fo-deck .fo-crew-l b{font-size:24px}
+.desk .fo-deck .fo-crew-l p{font-size:13.5px}
+.desk .fo-deck .fo-crew-l .fo-dock-m img{width:44px;height:44px}
+@keyframes fo-plinth{50%{box-shadow:0 0 44px rgba(var(--fo-melt),.7)}}
+@media (prefers-reduced-motion:reduce){.desk .fo-deck .fo-crew-l>li[data-live]::before{animation:none}}
+.desk .fo-deck .fo-crew-l>li>*,.desk .fo-deck .fo-crew-l>li::before{grid-column:1}
+.desk .fo-deck .fo-crew-l .fo-dock-m{display:flex;flex-direction:row;gap:6px;align-self:end}
+.desk .fo-deck .fo-crew-l>li{align-content:start}

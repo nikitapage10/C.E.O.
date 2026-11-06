@@ -184,7 +184,14 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
         let y = p![1];
         // On a phone the jobs ride beside the shaft, not over it (#932): left of it or right, by which side their ingot is on.
         const side = phone && /^s\d$/.test(id);
-        if (side) x = p![0] < mid ? Math.max(w / 2 + 6, L - w / 2 - 4) : Math.min(W - w / 2 - 6, R + w / 2 + 4);
+        if (side) {
+          // 8 px in from the edges, the margin the placing below keeps (at 6 no job was ever placed, #932).
+          x = p![0] < mid ? Math.max(w / 2 + 8, L - w / 2 - 4) : Math.min(W - w / 2 - 8, R + w / 2 + 4);
+          // Up beside the rings, where the shaft's sides are clear: low down, Rocky's and Rivet's tags stand by their
+          // models and would push the jobs off the bottom of the hall.
+          const top = at.current.get("z-checks")?.[1];
+          if (top !== undefined) y = Math.min(y, top + h + 12);
+        }
         el!.classList.toggle("is-side", side);
         const boxAt = (bx: number, by: number) => ({ l: bx - w / 2 - 4, r: bx + w / 2 + 4, t: by - 12 - h - 4, b: by - 12 + 4 });
         const hits = (b: Box) => boxes.find((o) => o.l < b.r && b.l < o.r && o.t < b.b && b.t < o.b);
@@ -238,7 +245,9 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
             if (!hit) break;
             x = hit.l - 30;
           }
-          if (x - w < 8) {
+          // Clipped by the screen's edge, or standing on the headline (#932: SHIP over the title's last word).
+          const onHead = fixed.some((o) => o.l < x + 28 && x - w - 2 < o.r && o.t < p[1] + h / 2 && p[1] - h / 2 < o.b);
+          if (x - w < 8 || onHead) {
             mode = "r";
             x = Math.max(R, mid + (mid - p[0]));
           }

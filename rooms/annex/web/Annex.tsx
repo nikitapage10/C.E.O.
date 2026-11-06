@@ -51,6 +51,44 @@ function Row({ popup, status, note, lit, onSet }: { popup: Popup; status: PopupS
   );
 }
 
+/** The Glasshouse's beds (glasshouse.ts BEDS): the console shows the same four, a cloche each (#932). */
+const BED_COUNT = 4;
+/** The seed vault's drawers shown under the glass: at least this many, the empty ones dark. */
+const DRAWERS = 6;
+
+/**
+ * One bed under its cloche (#932): the pop-up growing in it, its crystals as the bed's glow, and its plaque with its
+ * state, its line, how long it runs and Shelve. An empty bed is a cloche with nothing under it.
+ */
+function Bed({ popup, status, note, lit, onSet, n }: { popup?: Popup; status?: PopupStatus; note?: string; lit: boolean; onSet?: (s: PopupStatus) => void; n: number }) {
+  if (!popup || !status || !onSet)
+    return (
+      <li className="an-bed is-free">
+        <span className="an-cloche" aria-hidden="true">
+          <i />
+        </span>
+        <span className="an-bed-n">Bed {n}</span>
+        <b className="an-bed-free">Free bed</b>
+      </li>
+    );
+  return (
+    <li className={`an-bed${lit ? " is-lit" : ""}`} id={`an-${popup.id}`} data-status={status}>
+      <span className="an-cloche" aria-hidden="true">
+        <i />
+      </span>
+      <span className="an-bed-n">
+        Bed {n} · <span className="an-status">{STATUS_WORD[status]}</span>
+      </span>
+      <b>{popup.name}</b>
+      <span className="an-bed-line">{popup.line}</span>
+      <span className="an-until">{note || `Runs to ${popup.until}`}</span>
+      <button type="button" className="an-btn" onClick={() => onSet("archived")} title="Back to seed on the Shelf: stops its reads and timers, keeps its code and settings">
+        Shelve
+      </button>
+    </li>
+  );
+}
+
 export function Annex() {
   const status = useAnnex((s) => s.status);
   const load = useAnnex((s) => s.load);
@@ -173,41 +211,42 @@ export function Annex() {
           ))}
         <div className="an-deck-p" role="tabpanel" id="an-panel-beds" aria-labelledby="an-tab-beds" hidden={tab !== "beds"}>
           <div className="an-beds">
-              <section aria-label="In the beds">
-                <h2 className="an-h2">In the beds</h2>
-                {running.length ? (
+            <section className="an-bench" aria-label="In the beds">
+              <h2 className="an-h2">In the beds</h2>
+              <ol className="an-cloches">
+                {Array.from({ length: Math.max(BED_COUNT, running.length) }, (_, i) => {
+                  const p = running[i];
+                  return p ? <Bed key={p.id} n={i + 1} popup={p} status={status[p.id]} note={growth[p.id]?.note} lit={lit === p.id} onSet={onSet(p)} /> : <Bed key={`free-${i}`} n={i + 1} lit={false} />;
+                })}
+              </ol>
+              {!running.length && <p className="an-note">Every bed is free. Re-spin a seed from the Shelf to grow it here again.</p>}
+              {out.length > 0 && (
+                <>
+                  <h2 className="an-h2 an-h2--out">Out the door</h2>
                   <ol className="an-list">
-                    {running.map((p) => (
-                      <Row key={p.id} popup={p} status={status[p.id]} note={growth[p.id]?.note} lit={lit === p.id} onSet={onSet(p)} />
+                    {out.map((p) => (
+                      <Row key={p.id} popup={p} status="graduated" lit={lit === p.id} onSet={onSet(p)} />
                     ))}
                   </ol>
-                ) : (
-                  <p className="an-note">Every bed is free. Re-spin a seed from the Shelf to grow it here again.</p>
-                )}
-                {out.length > 0 && (
-                  <>
-                    <h2 className="an-h2 an-h2--out">Out the door</h2>
-                    <ol className="an-list">
-                      {out.map((p) => (
-                        <Row key={p.id} popup={p} status="graduated" lit={lit === p.id} onSet={onSet(p)} />
-                      ))}
-                    </ol>
-                  </>
-                )}
-              </section>
-              <section className="an-shelf" aria-label="The Shelf">
-                <h2 className="an-h2">The Shelf · the seed vault</h2>
-                {shelf.length ? (
-                  <ol className="an-list">
-                    {shelf.map((p) => (
-                      <Row key={p.id} popup={p} status="archived" lit={lit === p.id} onSet={onSet(p)} />
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="an-note">No seeds in the vault. A shelved pop-up waits here with nothing running, and grows back as it was.</p>
-                )}
-                <p className="an-note">{signedIn ? "Shelving applies on every device." : "Signed out, shelving and follows are kept on this device only."}</p>
-              </section>
+                </>
+              )}
+            </section>
+            <section className="an-shelf" aria-label="The Shelf">
+              <h2 className="an-h2">The Shelf · the seed vault</h2>
+              {/* The vault under the glass floor (#932): a drawer per seed, the rest of the drawers dark. */}
+              <ol className="an-list an-drawers">
+                {shelf.map((p) => (
+                  <Row key={p.id} popup={p} status="archived" lit={lit === p.id} onSet={onSet(p)} />
+                ))}
+                {Array.from({ length: Math.max(0, DRAWERS - shelf.length) }, (_, i) => (
+                  <li key={`empty-${i}`} className="an-drawer-empty" aria-hidden="true">
+                    <i />
+                  </li>
+                ))}
+              </ol>
+              {!shelf.length && <p className="an-note">No seeds in the vault. A shelved pop-up waits here with nothing running, and grows back as it was.</p>}
+              <p className="an-note">{signedIn ? "Shelving applies on every device." : "Signed out, shelving and follows are kept on this device only."}</p>
+            </section>
           </div>
         </div>
       </section>

@@ -29,6 +29,11 @@ const TABS = [
   { id: "waits", k: "Waits on", b: `${WAITS.length} links` },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
+/** The mixing desk's strips: one per capped service, then the master over both (#932). */
+const STRIPS = [
+  ...BUDGETS.map((b, i) => ({ ...b, ch: `CH ${String(i + 1).padStart(2, "0")}` })),
+  { t: "Master", who: "Both caps", cap: BUDGETS.reduce((n, b) => n + b.cap, 0), why: "The month's whole spend, stopped hard at the sum of the caps", ch: "MST" },
+];
 
 export function Studio() {
   const [sel, setSel] = useState(0);
@@ -225,12 +230,20 @@ export function Studio() {
           {tab === "mixer" && (
             <section className="st-budgets" aria-label="Budgets">
               <p className="st-note">Two monthly caps, each with a hard stop. Nothing is spent until a key is connected.</p>
-              <ul className="st-mixer">
-                {BUDGETS.map((b) => (
-                  <li key={b.t}>
+              {/* The edit bay's mixing desk (#932): a channel strip per paid service and the master, each fader sitting at what
+                  has been spent this month against its cap (all at zero until a key is connected), the hard stop as the red
+                  line at the top of its throw. */}
+              <ul className="st-mixer st-desk">
+                {STRIPS.map((b) => (
+                  <li key={b.t} className={b.ch === "MST" ? "is-master" : undefined}>
+                    <span className="st-strip-k" aria-hidden="true">
+                      {b.ch}
+                    </span>
+                    <span className="st-knob" aria-hidden="true" />
                     <div className="st-meter" role="meter" aria-valuemin={0} aria-valuemax={b.cap} aria-valuenow={0} aria-label={`${b.who}: $0 of $${b.cap} this month, not connected`}>
                       <i style={{ height: "0%" }} />
                       <span className="st-stop" aria-hidden="true" />
+                      <span className="st-cap" aria-hidden="true" style={{ bottom: "0%" }} />
                     </div>
                     <div className="st-ch">
                       <p>
@@ -265,9 +278,13 @@ export function Studio() {
           )}
 
           {tab === "waits" && (
-            <ol className="st-waits">
+            <ol className="st-waits st-patch">
               {WAITS.map((w) => (
                 <li key={w.what} data-state={w.state ?? "needed"}>
+                  {/* A patch bay (#932): each thing the line waits on is an input with its jack still empty. */}
+                  <span className="st-jack" aria-hidden="true">
+                    <i />
+                  </span>
                   <span className="st-waits-k" aria-hidden="true">
                     {w.state === "later" ? "LATER" : "OFFLINE"}
                   </span>

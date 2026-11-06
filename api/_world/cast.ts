@@ -632,7 +632,7 @@ export const WORLD_CAST: WorldCast = {
         "nerdy",
         "deadpan"
       ],
-      "bio": "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne high in the corner. Has never once been wrong, and has a footnote saying so. Writes Skippy's notes for today in the Lattice. Heimerdinger is the only mind in the Archive it considers a peer.",
+      "bio": "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne high in the corner. Has never once been wrong, and has a footnote saying so. Writes Skippy's notes for Today in Ilyr. Heimerdinger is the only mind in the Archive it considers a peer.",
       "catchphrase": "Citation needed. I'll wait.",
       "voice": [
         "In recess they argue about films. I bring the chart. There is always a chart.",
@@ -1262,9 +1262,9 @@ export const WORLD_CAST: WorldCast = {
         "I've never been wrong. There's a source for that. It's me.",
         "For the record, the throne is a relic of the First Lattice. Circa nothing. I checked.",
         "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
-        "The Chronicle of the Lattice, hour by hour. Every hour. Sourced. You're welcome.",
+        "The Chronicle of Ilyr, hour by hour. Every hour. Sourced. You're welcome.",
         "The C.E.O. was away. The Lattice was not. I wrote it all down.",
-        "Today in the Lattice: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
+        "Today in Ilyr: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
         "Skippy reads it every five hours now. I've timed every edition. He runs long. Sourced.",
         "He takes calls now, live, in the story voice. Ten minutes each. He fills every second. I log the minutes.",
         "Hook, what shipped, who built it, sign-off. I write the notes. He adds the boasting.",
@@ -1351,7 +1351,8 @@ export const WORLD_CAST: WorldCast = {
         "BRING IT IN! Sorry. Bring it in.",
         "That's heart, champ. You can't teach heart. I'm going to try anyway.",
         "Punt, wake up, we're doing the speech. Punt.",
-        "That's Inspiration, champ! Spend it this time!"
+        "That's Inspiration, champ! Spend it this time!",
+        "Look at that bowl, champ! The upper deck's still wire, but the heart is solid gold. Sorry. Inspired."
       ],
       "drop": [
         "Bweep. (Checked every gauge. Twice. Plugged in for both.)",
@@ -1427,7 +1428,8 @@ export const WORLD_CAST: WorldCast = {
         "Hop hop hop! Is it game day? It's game day somewhere!",
         "I didn't read the projection. I believed in it instead.",
         "Nap first. Victory second. Snack third.",
-        "Punt! Punt punt!"
+        "Punt! Punt punt!",
+        "The new seats are made of sparkles. Sparkle nap."
       ],
       "postmaster": [
         "A letter from the C.E.O.? Stand back. This one has a delivery to make.",
@@ -1578,7 +1580,7 @@ export const WORLD_CAST: WorldCast = {
       ]
     },
     "summaries": [
-      "An ordinary hour in the Lattice. Entered in the Chronicle anyway. Dated. Correctly.",
+      "An ordinary hour in Ilyr. Entered in the Chronicle anyway. Dated. Correctly.",
       "The C.E.O. was away; the Lattice was not. Sourced, footnoted, filed.",
       "A quiet hour. The Historian notes it was quiet, and cites the silence.",
       "Nothing burst. The Pessimist is delighted. The Historian has it in writing.",

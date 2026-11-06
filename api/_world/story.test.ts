@@ -278,7 +278,7 @@ describe("the script's prompt and cleaning", () => {
     expect(p.user.match(/<recap>/g)).toHaveLength(1);
     expect(p.user.match(/<\/recap>/g)).toHaveLength(1);
     expect(p.system).toContain("70 to 120 words");
-    expect(p.system).toContain("Today in Ilyr");
+    expect(p.system).toContain("Today in the Lattice");
     expect(p.system).not.toContain("Recap");
   });
 
@@ -296,7 +296,7 @@ describe("the script's prompt and cleaning", () => {
   it("the Chronicle's own script names what shipped", async () => {
     const page = await (await worldWith({ recap: null })).readDay(DAY);
     const s = chronicleScript(page, true);
-    expect(s).toMatch(/^Today in Ilyr, so far/);
+    expect(s).toMatch(/^Today in the Lattice, so far/);
     expect(s).toContain("More by midnight, monkeys.");
     expect(s).toContain("The day's story, read aloud (built by Rusty)");
   });
@@ -311,7 +311,7 @@ describe("the script's prompt and cleaning", () => {
     const words = s.split(" ").length;
     expect(words).toBeGreaterThan(20);
     expect(words).toBeLessThanOrEqual(120);
-    expect(s).toMatch(/^Today in Ilyr:/);
+    expect(s).toMatch(/^Today in the Lattice:/);
     expect(s).toContain("Recap sentence 0 goes on and on.");
     expect(s).not.toContain("Recap sentence 1 ");
     expect(s).toContain("Job number 2 (built by Dusty)");

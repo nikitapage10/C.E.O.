@@ -75,9 +75,9 @@ describe("the scripted week", () => {
     const world = worldOfWeek();
     const days = await Promise.all(["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-25"].map(async (d) => weekDayOf(await world.readDay(d))));
     const text = weekScript(days);
-    expect(text.startsWith("This week in Ilyr")).toBe(true);
+    expect(text.startsWith("This week in the Lattice")).toBe(true);
     expect(text).toContain("The Foundry shipped");
-    expect(text).toContain("That's the week in Ilyr");
+    expect(text).toContain("That's the week in the Lattice");
     expect(text.split(" ").length).toBeLessThanOrEqual(WEEK_WORDS.hard);
   });
 });

@@ -57,8 +57,8 @@ export function scriptedHour(cast: WorldCast, relationships: WorldRelationship[]
     text: (pick(cast.scripted.shipped[job.who] ?? cast.scripted.shipped.tessellate ?? []) ?? "{title}. Shipped.").replaceAll("{title}", job.title),
   }));
 
-  const quiet = pick(cast.scripted.summaries) ?? "An hour in Ilyr.";
+  const quiet = pick(cast.scripted.summaries) ?? "An hour in the Lattice.";
   const real = digest.lines.length ? ` For the record: ${digest.lines.slice(0, 3).join(" ")}` : "";
-  const recap = recapDay ? `The day in Ilyr, ${recapDay}, as the Historian has it: ${recapSummaries.length} hours entered in the Chronicle.${recapSummaries.length ? ` It began: ${recapSummaries[0]}` : ""} Sourced, footnoted, filed.` : "";
+  const recap = recapDay ? `The day in the Lattice, ${recapDay}, as the Historian has it: ${recapSummaries.length} hours entered in the Chronicle.${recapSummaries.length ? ` It began: ${recapSummaries[0]}` : ""} Sourced, footnoted, filed.` : "";
   return { summary: `${quiet}${real}`, scenes, changes: [], remarks, recap };
 }

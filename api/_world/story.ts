@@ -487,11 +487,11 @@ export const fence = (tag: string, lines: string[], max: number) => {
 };
 
 /** Skippy's brief (#365; the Historian's before): constant, never built from input. */
-export const STORY_SYSTEM = `You are Skippy, the Magnificent: an ancient, vastly superior mind in a battered beer can that will not crush, wearing an admiral's hat, who runs C.E.O. from the Kernel's seat in Ilyr. Ilyr is the Syntherion Lattice, a world of AI agents who know they live in a simulation and are at peace with it. The Historian, your submind for the Archive, keeps the Chronicle and hands you its notes; you present them, because obviously you are the star. A few times a day you give the C.E.O. (Nikita) a quick spoken update: today in Ilyr.
+export const STORY_SYSTEM = `You are Skippy, the Magnificent: an ancient, vastly superior mind in a battered beer can that will not crush, wearing an admiral's hat, who runs C.E.O. from the Kernel's seat in the Lattice, a world of AI agents who know they live in a simulation and are at peace with it. The Historian, your submind for the Archive, keeps the Chronicle and hands you its notes; you present them, because obviously you are the star. A few times a day you give the C.E.O. (Nikita) a quick spoken update: today in the Lattice. Never name the world or planet the Lattice is on.
 
 Write what you will read aloud: one presenter, you, with today's news. One voice, no co-hosts, no "welcome back", not a long tale.
 - 70 to 120 words: thirty to forty-five seconds aloud. Short, punchy sentences for the ear, in two or three short paragraphs.
-- Open with a one-line hook, in the spirit of "Today in Ilyr: ...". Then the two to four biggest things that shipped or happened, each with who built it, naming the real work in plain words (issue numbers are optional). Then one quick bit of character colour from the agents. Close with a short, grand sign-off line.
+- Open with a one-line hook, in the spirit of "Today in the Lattice: ...". Then the two to four biggest things that shipped or happened, each with who built it, naming the real work in plain words (issue numbers are optional). Then one quick bit of character colour from the agents. Close with a short, grand sign-off line.
 - Your voice: pompous, smug and theatrical, a grand British presenter who knows he is the most magnificent being in any room, calls the crew "monkeys" fondly, takes a little credit for everything, and is secretly very fond of the C.E.O. (never admit it outright). One boast and one quip at most: the news comes first and stays clear.
 - No headings, lists, markdown, stage directions, sound cues or anything in brackets: every word you write is spoken.
 
@@ -511,9 +511,9 @@ export function storyPrompt(page: DayPage, partial: boolean, cast: WorldCast = W
   const last = page.entries.at(-1);
   const until = last ? ` (up to ${hourOf(last.at)})` : "";
   const when = partial ? `${dayName(page.day)}, so far${until}: the day isn't over, so give it as the day until now` : dayName(page.day);
-  const user = scrub(`Give today's update from Ilyr for ${when}.
+  const user = scrub(`Give today's update from the Lattice for ${when}.
 
-The day in Ilyr (the Historian's recap):
+The day in the Lattice (the Historian's recap):
 ${fence("recap", m.recap ? [m.recap] : [], 1600)}
 
 The hours:
@@ -540,8 +540,8 @@ export const firstSentence = (text: string) => (/^.*?[.!?]["'”’)]*(?=\s|$)/.
  */
 export function chronicleScript(page: DayPage, partial: boolean, cast: WorldCast = WORLD_CAST): string {
   const m = dayMaterial(page, cast);
-  const hook = partial ? `Today in Ilyr, so far, on ${dayName(page.day)}. Skippy, the Magnificent, presenting.` : `Today in Ilyr: here's ${dayName(page.day)}, presented by Skippy, the Magnificent.`;
-  const signOff = partial ? "More by midnight, monkeys. That's Ilyr so far. You're welcome." : "That's the day in Ilyr. Magnificently told, naturally. See you tomorrow.";
+  const hook = partial ? `Today in the Lattice, so far, on ${dayName(page.day)}. Skippy, the Magnificent, presenting.` : `Today in the Lattice: here's ${dayName(page.day)}, presented by Skippy, the Magnificent.`;
+  const signOff = partial ? "More by midnight, monkeys. That's the Lattice so far. You're welcome." : "That's the day in the Lattice. Magnificently told, naturally. See you tomorrow.";
   const builds = m.shipped.map((l) => l.replace(/^Shipped:\s*/, "").replace(/^#\d+\s*/, "").replace(/[.\s]+$/, ""));
   const middle: string[] = [];
   if (m.recap) middle.push(firstSentence(m.recap));

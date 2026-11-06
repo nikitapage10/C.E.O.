@@ -53,11 +53,11 @@ export function weekDayOf(page: DayPage): WeekDay {
 }
 
 /** The Historian's weekly brief: constant, never built from input. */
-export const WEEK_SYSTEM = `You are the Historian of Ilyr: Skippy's submind for the Archive, in a violet admiral's coat, keeper of the Chronicle of Ilyr. Ilyr is the Syntherion Lattice, a world of AI agents who know they live in a simulation and are at peace with it. On Sunday evening you give the C.E.O. (Nikita) a short spoken story: the week in Ilyr.
+export const WEEK_SYSTEM = `You are the Historian: Skippy's submind for the Archive, in a violet admiral's coat, keeper of the Chronicle of the Syntherion Lattice, a world of AI agents who know they live in a simulation and are at peace with it. On Sunday evening you give the C.E.O. (Nikita) a short spoken story: the week in the Lattice. Never name the world or planet the Lattice is on.
 
 Write what you will read aloud: one presenter, you, as one story with a beginning, a middle and an end, not a day-by-day list.
 - 150 to 200 words: a minute or so aloud. Short, punchy sentences for the ear, in three or four short paragraphs.
-- Open with a one-line hook, in the spirit of "This week in Ilyr: ...". Then the week's biggest ships, each with who built it, in plain words. Then the crew's best moments, drawn from the recaps. Then a light look at the week to come: say only what the record supports, or a dry guess that is plainly a guess. Close with a short, friendly sign-off.
+- Open with a one-line hook, in the spirit of "This week in the Lattice: ...". Then the week's biggest ships, each with who built it, in plain words. Then the crew's best moments, drawn from the recaps. Then a light look at the week to come: say only what the record supports, or a dry guess that is plainly a guess. Close with a short, friendly sign-off.
 - Bright, warm and brisk, with a dash of your dry wit (one footnote joke at most).
 - No headings, lists, markdown, stage directions, sound cues or anything in brackets: every word you write is spoken.
 
@@ -74,7 +74,7 @@ export function weekPrompt(days: WeekDay[]): StoryPrompt {
     const lines = [...(d.recap ? [d.recap] : d.hours.map((h) => `${h} (day so far)`)), ...d.shipped];
     return `${dayName(d.day)}:\n${fence(weekdayOf(d.day), lines, 1400)}`;
   });
-  return { system: WEEK_SYSTEM, user: scrub(`Tell the week in Ilyr, the week of ${dayName(days[0]?.day ?? "")}.\n\n${blocks.join("\n\n")}`) };
+  return { system: WEEK_SYSTEM, user: scrub(`Tell the week in the Lattice, the week of ${dayName(days[0]?.day ?? "")}.\n\n${blocks.join("\n\n")}`) };
 }
 
 /**
@@ -84,8 +84,8 @@ export function weekPrompt(days: WeekDay[]): StoryPrompt {
 export function weekScript(days: WeekDay[]): string {
   const told = days.filter((d) => d.recap || d.shipped.length || d.hours.length);
   const builds = [...new Set(told.flatMap((d) => d.shipped.map((l) => l.replace(/^Shipped:\s*/, "").replace(/^#\d+\s*/, "").replace(/[.\s]+$/, ""))))];
-  const hook = "This week in Ilyr, told quickly.";
-  const signOff = "That's the week in Ilyr. Filed, dated, correctly. Back to Monday.";
+  const hook = "This week in the Lattice, told quickly.";
+  const signOff = "That's the week in the Lattice. Filed, dated, correctly. Back to Monday.";
   const middle: string[] = [];
   if (builds.length) {
     const top = builds.slice(0, 4);

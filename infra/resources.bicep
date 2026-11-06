@@ -138,6 +138,11 @@ var secrets = [
   // Nikita in Cloud Shell; never settable from the Desk (api/_keys/allowlist.ts, `kroger-`).
   { setting: 'KROGER_CLIENT_ID', secret: 'kroger-client-id' }
   { setting: 'KROGER_CLIENT_SECRET', secret: 'kroger-client-secret' }
+  // The Haven's lights (#931, docs/HOME-DEVICES.md): SwitchBot's API token and secret (the app's Developer Options) and
+  // Govee's API key. Third-party keys, settable on the Desk's Keys form (api/_keys/allowlist.ts).
+  { setting: 'SWITCHBOT_TOKEN', secret: 'switchbot-token' }
+  { setting: 'SWITCHBOT_SECRET', secret: 'switchbot-secret' }
+  { setting: 'GOVEE_API_KEY', secret: 'govee-api-key' }
   // MealMe's key (#664), stored before King Soopers replaced MealMe. Nothing reads it; kept so a deploy doesn't stop
   // on a setting made outside the template. Remove this line and the setting together to retire it.
   { setting: 'MEALME_API_KEY', secret: 'haven-mealme-key' }

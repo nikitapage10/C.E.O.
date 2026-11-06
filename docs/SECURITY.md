@@ -443,13 +443,15 @@ Keys**, signed in. It is write-only by design:
 
 - **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `fantasypros`,
   `polymarket-us-key-id`, `polymarket-us-secret-key`, `gmail-client-id`, `gmail-client-secret`, `paypal-client-id`,
-  `paypal-client-secret`, `elevenlabs`, `openai`, `email-skip-terms` and `email-priority`. Never anything that guards the lock, the crew
+  `paypal-client-secret`, `elevenlabs`, `openai`, `email-skip-terms`, `email-priority`, and the Haven's lights' keys
+  `switchbot-token`, `switchbot-secret` and `govee-api-key` (#931; `switchbot-token` is the one name the never list's
+  `token` pattern lets through). Never anything that guards the lock, the crew
   or sealed data: `foundry-desk-key`, `site-bypass-token`, `desk-pings-secret`, `foundry-github-token`,
   `foundry-app-*`, `desk-vapid-*`, `gmail-token-key` and `submind-*` are refused by name and by pattern, so a stolen
   session can't hand itself a way back in. A unit test pins both lists and puts every secret in the template on
   exactly one.
 - **Per-secret scope in Azure first, the allowlist on top.** The role paste (AZURE.md, "The template on every
-  deploy") gives the Function App's identity Key Vault Secrets Officer on each of those twelve secrets alone
+  deploy") gives the Function App's identity Key Vault Secrets Officer on each of those fifteen secrets alone
   (`<vault>/secrets/<name>`), never on the vault, so Azure itself refuses a write to any other secret, whatever the
   code does. The allowlist in code is defence in depth on top of that scope: an off-list name is refused before the
   vault is called. A secret the paste had to create so it could carry its role holds a tagged placeholder

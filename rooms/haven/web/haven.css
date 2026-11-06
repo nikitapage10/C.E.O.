@@ -1143,6 +1143,13 @@
   font-variant-numeric: lining-nums tabular-nums;
   color: var(--hv-ink);
 }
+[data-room="haven"] .hv-gV[data-long] {
+  font-size: 17px;
+  line-height: 1.15;
+  white-space: normal;
+  text-wrap: balance;
+  max-width: 11ch;
+}
 [data-room="haven"] .hv-gauge[data-tone="down"] .hv-gV,
 [data-room="haven"] .hv-gauge[data-tone="down"] .hv-gState {
   color: var(--hv-warn);
@@ -1938,6 +1945,11 @@
   [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gTxt .hv-gName {
     font-size: 13px;
     color: var(--hv-soft);
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge > .hv-gV[data-long] {
+    font-size: 17px;
+    max-width: 10ch;
+    text-align: right;
   }
   [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge[data-tone="wait"] .hv-gV {
     font-size: 18px;

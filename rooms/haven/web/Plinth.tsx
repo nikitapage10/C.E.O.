@@ -3,6 +3,9 @@ import { THERMO_MAX_F, THERMO_MIN_F, useHome, type DeviceReading } from "@ceo/de
 import { angleOf, dialOf, DIAL_A0, DIAL_SWEEP, orderGauges, turnTo, type Gauge, type GaugeId } from "./plinth.ts";
 import { moodOf, sameAs, useClimateQueue, type ClimateMood } from "./climateQueue.ts";
 
+/** A reading in words ("Washing the mop"), not a number: set smaller and allowed to wrap so it never runs over its name. */
+const longValue = (v: string): boolean => v.length > 7 && /[a-z]{3}/i.test(v);
+
 /**
  * The instrument plinth (#680, Nikita's pick of four): the house-wide readings as a hi-fi faceplate in the dark. Since
  * #729 it is a glass rail down the right side of the house on a wide screen, its gauges top to bottom in the order their
@@ -280,7 +283,7 @@ export function Plinth({ gauges, order, thermo, pop, onPop, canPop, onOpen, canO
           const inner = (
             <>
               <i className="hv-lamp" ref={lamp(g.id)} data-tone={g.tone} />
-              <b className="hv-gV">{g.value}</b>
+              <b className="hv-gV" data-long={longValue(g.value) ? "" : undefined}>{g.value}</b>
               <span className="hv-gName">{g.name}</span>
               <span className="hv-gState">{g.state}</span>
             </>

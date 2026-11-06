@@ -805,6 +805,15 @@ thermostats and who is home, and walk the heat from room to room behind them. Un
 (Device Access), the pipe stays cold and its three gauges rest at zero. Drop polishes them anyway, and Clause has written the pipe up as "awaiting a third party". The Pessimist
 says a gauge that reads nothing can't read wrong, and has never been happier with a pipe.
 
+**The blueprint table's edges.** Since #936 the Boiler Room wears the Senate's edges. The pipes still run in brass and
+iron across the blueprint sheet, solid in the middle where the boiler burns, but out toward the rim of the table the
+sheet and the pipes themselves turn into gold wire, and the wire comes apart into sigil nanites that peel off and drift
+up into the dark, the way the Senate's walls and the Deep Furnace's shaft do. The same gold grid runs behind every page
+of the room, Controls, Security and Compliance, under each one's brass header pipe. Drop rolls a lap of the rim every
+night sweeping the loose sigils back toward the middle; Clause has noticed they are the ledger's own words, peeling off
+in triplicate. The Pessimist says it was always going to come apart at the edges, and is, for once, right, and calm
+about it.
+
 ## The Workshop
 
 The Foundry fixes and builds what already has a shape. The Workshop, the ninth room, makes things that don't

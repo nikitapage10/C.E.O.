@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { ago } from "@ceo/desk/foundryGraph.ts";
+import { UndoneField } from "@ceo/engine/sigils/UndoneField.tsx";
 import { needsLayout, type Need, type NeedGo } from "../data/pages.ts";
 import "./pages.css";
 
@@ -7,7 +8,10 @@ import "./pages.css";
  * The frame the Boiler Room's Controls, Security and Compliance pages share (#746): a short head, then the "Needs you"
  * column beside the page's own board. With nothing waiting on Nikita the column isn't drawn at all, not even empty,
  * and the board runs the full width (Nikita, 2026-11-05: "when nothing needs me, that section just disappears").
- * Ink-dark like the Map, brass for the one accent, coral for what's broken.
+ * Ink-dark like the Map, gold for the one accent, coral for what's broken. Since #936 each page carries the Map's
+ * look: it fills the screen under the bar, its head sits on a brass pipe with gold running through it, its panels are
+ * solid with gold hairlines and corner ticks, and behind them a gold wire grid comes undone into sigil nanites toward
+ * the sides (@ceo/engine/sigils/UndoneField.tsx), the way the Map's edges do in 3D.
  */
 
 export function BoilerFrame({
@@ -32,6 +36,7 @@ export function BoilerFrame({
   const layout = needsLayout(needs);
   return (
     <div className={`bx bx-${page}`} data-room="boiler" data-needs={layout}>
+      <UndoneField className="bx-sig" />
       <header className="bx-top">
         <div className="bx-tt">
           <p className="bx-eyb">
@@ -42,6 +47,9 @@ export function BoilerFrame({
         </div>
         {tabs}
       </header>
+      <div className="bx-pipe" aria-hidden="true">
+        <i />
+      </div>
       <div className="bx-body">
         {layout === "split" ? (
           <aside className="bx-needs" aria-label="Needs you">

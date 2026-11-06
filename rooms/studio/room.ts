@@ -1,7 +1,7 @@
 import { defineRoom } from "@ceo/engine/manifest";
 import { nav } from "./nav.ts";
 
-/** The Studio: short videos that explain the internet (#311). Not live yet. Data only (docs/ROOMS.md). */
+/** The Studio: short videos that explain the internet (#311), its page an edit suite on a sound stage in 3D (#828). Not live yet. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "studio",
   ...nav,
@@ -13,7 +13,7 @@ export default defineRoom({
   keys: ["OPENAI_STUDIO_KEY"],
   usesClaude: false,
   threat: ["TB2"],
-  budgetKb: 16,
+  budgetKb: 64,
   purpose: {
     goal: "Will make short explainer videos through writing, voice and render agents, Nikita's path into an agent-run content line once it is real.",
     agents: [],

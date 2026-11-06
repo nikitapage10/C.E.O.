@@ -849,6 +849,11 @@ a work and a film-maker is not, and Arc and Hedge now argue about time). **Dot**
 should see a Syntherion as they are. It tries every analogy on Brogu first. The **Director**, the tenth piece of Skippy,
 in tally-light red, yells cut, asks for one more take, and calls every forty-second explainer a masterpiece.
 
+On the Desk the room opens from the editor's chair (#828): the **edit suite** in front, its walnut desk, jog wheel and
+three monitors (the tall preview, the timeline, the bin), and past them the stage, its fresnels hanging from the truss
+over the tall **9:16 light frame** on the riser, where the haze is full of gold sigils. Arc calls the chair his; the
+Director has had the frame's lights re-hung three times and calls each version a masterpiece.
+
 For now the Studio is simulated: its crew makes made-up shorts, and nothing is rendered or posted. When the line is real,
 the art comes from OpenAI images in saved style presets (and from vector art Claude draws in code once the month's cap is
 hit, plus hero art Nikita makes by hand), each character speaks in its own fixed ElevenLabs voice, the scenes are code,

@@ -23,6 +23,10 @@
  *   POST /api/skippy-room  { room: "today", speak, as }   Today's Senate Rotunda (#755): a caption read aloud in Skippy's
  *                          voice bent its member's way (`as` is its seat, "kernel" the chair; api/_skippy/rotundavoice.ts), kept in
  *                          the blob store by hash so each line is made once ever → 200 { say, kind: "spoken", audio?, cached? }.
+ *   POST /api/skippy-room  { room: "today", senate: "debate" | "reply", … }   the Senate's live talk (#910,
+ *                          api/_skippy/senatetalk.ts): a new recess argument, or the members' answers to Nikita on the
+ *                          floor, on Claude Haiku under the Senate's $10 inside Skippy's month → 200 { debate } | { lines }
+ *                          | { quiet }.
  *     → 401 signed-out, 403 cross-site, 400 { say } nothing heard or too long, 413 too big, 415 not JSON or audio,
  *       422 { say } held by the privacy check, 429 { say } the chat's pace, 502 { say }, 503 not-set-up.
  *
@@ -42,6 +46,8 @@ import { elevenFromEnv, pickStoryStore, type ElevenConfig, type StoryStore } fro
 import { roomAnswer, type PhoneTurn, type RoomTurn } from "../skippy.js";
 import { ROOM_SUBMINDS, isNeeds } from "./log.js";
 import { castVoiceOf, ROTUNDA_SAY_MAX, speakCast } from "./rotundavoice.js";
+import { BlobChatLedger, KERNEL_LEDGER_PATH, skippyBudget } from "./budget.js";
+import { BlobTopicStore, floorReply, liveAsk, newDebate, type SenateDeps } from "./senatetalk.js";
 import {
   CLIP_MAX_BYTES,
   CLIP_TYPES,
@@ -76,6 +82,8 @@ export interface RoomRouteDeps {
   devices: () => Home | null;
   fetcher: typeof fetch;
   log: (line: string) => void;
+  /** The Senate's live talk (#910), or null when it isn't set up here. */
+  senate?: (() => SenateDeps) | null;
 }
 
 export function liveDeps(env: Env = process.env): RoomRouteDeps {
@@ -93,6 +101,18 @@ export function liveDeps(env: Env = process.env): RoomRouteDeps {
     devices: () => homeFromEnv(env),
     fetcher: (input, init) => fetch(input, init),
     log: (line) => console.log(line),
+    senate: () => {
+      const blob = pickBlob(env);
+      return {
+        chat: blob ? new BlobChatLedger(blob) : null,
+        kernel: blob ? new BlobChatLedger(blob, KERNEL_LEDGER_PATH) : null,
+        topics: blob ? new BlobTopicStore(blob) : null,
+        ask: liveAsk(),
+        budget: skippyBudget(env.SKIPPY_BUDGET_USD),
+        now: Date.now(),
+        log: (line) => console.log(line),
+      };
+    },
   };
 }
 
@@ -193,6 +213,12 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     // A room's own intent handler answered in the browser (@ceo/engine/voice): only its line read aloud, no model call.
     // Today's Rotunda (#755): a caption read aloud in Skippy's voice, bent its member's way, cached once ever (rotundavoice.ts).
     if (body.speak !== undefined && body.text === undefined && body.as !== undefined && voice.room === "today") return speakAs(body.as, tidyText(body.speak), deps);
+    // The Senate's live talk (#910): a new argument, or the members answering Nikita on the floor.
+    if (voice.room === "today" && (body.senate === "debate" || body.senate === "reply")) {
+      const sd = deps.senate?.();
+      if (!sd) return json({ quiet: "off" });
+      return json(body.senate === "debate" ? await newDebate(body, sd) : await floorReply(body, sd));
+    }
     if (body.speak !== undefined && body.text === undefined) return speakOnly(voice, tidyText(body.speak), deps);
     text = tidyText(body.text);
     history = readHistory(body.history);

@@ -18,6 +18,8 @@ import { PRIORITY, registerHoldToTalk } from "../holdToTalk.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { useTalk } from "../skippy/talk.ts";
 import { floorCancel, floorEnd, floorStart, setFloorScene, useFloor } from "./senateFloor.ts";
+import { createRecess } from "./liveTalk.ts";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import "./rotunda.css";
 
 /**
@@ -26,7 +28,8 @@ import "./rotunda.css";
  * sigils and motes in its room's colour. A pod is lit from real state: dim when its submind isn't active, glowing when
  * it is, brightest while its room is at work (live.ts). The docket's items play on the floor one by one (rite.ts), and
  * between items a lit member flies in and says what it's doing, from the same real feed (councilLines). Each is said
- * once per viewer (#900, heard.ts); with nothing new left, the chamber goes to its recess debates.
+ * once per viewer (#900, heard.ts); with nothing new left, the chamber goes to its recess debates, made live on a new
+ * topic every time (#910, liveTalk.ts).
  *
  * The 3D (rotundaScene.ts) loads with three.js in its own chunk once the page has painted. Until then, and on a device
  * without WebGL, the chamber is drawn flat in CSS with every pod in place, so the page is whole at once. Every pod is a
@@ -116,6 +119,17 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
     const placed = new Map<string, { x: number; y: number }>();
     // The voices (#755): quiet until the sound button is on; the scene paces itself by them.
     const voice: RotundaVoice | undefined = typeof Audio === "function" ? createVoice() : undefined;
+    // The recess's arguments (#910): asked for live as the chamber opens, from public-safe facts only.
+    const recess = createRecess({
+      facts: () => ({
+        seated: live.current.seats.map((s) => s.id),
+        working: live.current.seats.filter((s) => s.working).map((s) => s.id),
+        docket: live.current.link.docket.length,
+      }),
+      heard: (key) => !!useSenateMemory.getState().said[key],
+      hear: (key) => useSenateMemory.getState().said_(key, "1"),
+      auth: () => useDeskAuth.getState().auth.status,
+    });
     const start = () => {
       if (dead) return;
       setGl("loading");
@@ -126,6 +140,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
             reduce: reducedMotion(),
             seats: live.current.seats,
             voice,
+            recess,
             // Each thing said once (#900): read live from this viewer's memory, which the docket marks as items are said.
             memory: {
               fresh: (key, ver) => {
@@ -134,8 +149,6 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
               },
               heard: (key) => !!useSenateMemory.getState().said[key],
               hear: (key) => useSenateMemory.getState().said_(key, "1"),
-              recess: () => useSenateMemory.getState().recess,
-              setRecess: (n) => useSenateMemory.getState().setRecess(n),
             },
             onFloor: (key) => live.current.link.onFloor(key),
             onDone: (key) => live.current.link.onDone(key),
@@ -178,6 +191,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       scene.current?.dispose();
       scene.current = null;
       voice?.dispose();
+      recess.dispose();
     };
   }, []);
 
@@ -203,6 +217,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       hold: (on) => scene.current?.hold(on),
       talk: (by, seconds) => scene.current?.talk(by, seconds),
       seated: () => live.current.seats.map((s) => s.id),
+      topic: () => scene.current?.topic() ?? null,
       light: (id) => setHot(id),
     });
     const off = registerHoldToTalk(

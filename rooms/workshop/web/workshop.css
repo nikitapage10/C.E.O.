@@ -1,26 +1,82 @@
-/* ---------- the Workshop: a maker's bench on blueprint paper ---------- */
-.desk .rm-workshop{--teal:#62c4c0}
-.desk .ws-bench{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:22px;padding:26px;border:1px solid rgba(98,196,192,.22);border-radius:4px;background:linear-gradient(rgba(98,196,192,.05) 1px,transparent 1px) 0 0/20px 20px,linear-gradient(90deg,rgba(98,196,192,.05) 1px,transparent 1px) 0 0/20px 20px,linear-gradient(rgba(98,196,192,.09) 1px,transparent 1px) 0 0/100px 100px,linear-gradient(90deg,rgba(98,196,192,.09) 1px,transparent 1px) 0 0/100px 100px,#091315}
-.desk .ws-stations{grid-column:1/-1;position:relative;z-index:1;list-style:none;margin:0 0 6px;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
-.desk .ws-stations li{display:flex;flex-direction:column;gap:3px;padding:0 4px}
-.desk .ws-node{display:grid;place-items:center;width:38px;height:38px;margin-bottom:10px;border-radius:50%;border:1px dashed rgba(98,196,192,.5);background:#091315;font-family:var(--wv-mono);font-size:12px;color:var(--teal)}
-.desk .ws-stations b{font-family:var(--wv-serif);font-weight:400;font-size:20px;color:var(--wv-ink)}
-.desk .ws-stations span{font-size:12.5px;line-height:1.4;color:var(--wv-soft)}
-.desk .ws-stations em{margin-top:4px;font-style:normal;font-family:var(--wv-mono);font-size:11px;color:color-mix(in srgb,var(--teal) 70%,var(--wv-mute))}
-.desk .ws-table,.desk .ws-bed{position:relative;z-index:1;min-height:250px;padding:16px 18px;border:1px dashed rgba(98,196,192,.25);border-radius:4px}
-.desk .ws-table .wv-eyb,.desk .ws-bed .wv-eyb{font-family:var(--wv-mono);letter-spacing:.14em;color:var(--teal)}
-.desk .ws-table-note{position:absolute;left:18px;right:18px;bottom:14px;margin:0;font-size:12.5px;color:var(--wv-mute)}
-.desk .ws-bed{display:flex;flex-direction:column}
-.desk .ws-plate{flex:none;align-self:center;width:150px;height:150px;margin:6px 0 30px;border:1px solid rgba(98,196,192,.35);background:linear-gradient(rgba(98,196,192,.12) 1px,transparent 1px) 0 0/15px 15px,linear-gradient(90deg,rgba(98,196,192,.12) 1px,transparent 1px) 0 0/15px 15px;transform:perspective(400px) rotateX(48deg)}
+/* ---------- the Workshop: the print farm (#827), in the Desk's gold ---------- */
+.desk .rm-workshop{--ws-gold:#e3c98d;--ws-brass:#c9a85c;--ws-line:rgba(201,168,92,.22);--ws-bg:#07080d}
+.desk .ws-farm{display:grid;grid-template-columns:minmax(0,1fr) 320px;border:1px solid var(--ws-line);border-radius:6px;overflow:hidden;background:var(--ws-bg)}
+.desk .ws-stage{position:relative;isolation:isolate;scroll-margin-top:150px;min-height:540px;overflow:hidden;background:radial-gradient(ellipse at 50% 55%,#11121a 0%,#07080d 70%)}
+.desk .ws-cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
+.desk .ws-nogl{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);margin:0;text-align:center;font-size:13px;color:var(--wv-mute)}
+
+/* The tags over the printers and the turntable: shown over the farm only. */
+.desk .ws-tags{position:absolute;inset:0;pointer-events:none}
+.desk .ws-tag{position:absolute;left:0;top:0;display:flex;gap:6px;align-items:baseline;padding:4px 9px;border:1px solid var(--ws-line);border-radius:999px;background:rgba(8,9,14,.72);color:var(--wv-soft);font:500 11px/1.2 var(--wv-mono);letter-spacing:.04em;white-space:nowrap;cursor:pointer;pointer-events:auto;opacity:0;transition:opacity .3s ease;will-change:transform}
+.desk .ws-tag b{font-weight:500;color:var(--ws-gold)}
+.desk .ws-tag[data-state=open]{color:var(--wv-mute)}
+.desk .ws-tag[data-state=open] b{color:color-mix(in srgb,var(--ws-gold) 60%,var(--wv-mute))}
+.desk .ws-farm[data-view=farm][data-gl=on] .ws-tag[data-on="1"]{opacity:1}
+.desk .ws-farm:not([data-view=farm]) .ws-tag{pointer-events:none}
+.desk .ws-tag:hover{border-color:var(--ws-brass);color:var(--wv-ink)}
+
+/* Where to look: the farm, the turntable, and the chamber you're in. */
+.desk .ws-views{position:absolute;left:14px;top:14px;display:flex;flex-wrap:wrap;gap:6px;z-index:2}
+.desk .ws-views button{padding:6px 11px;border:1px solid var(--ws-line);border-radius:999px;background:rgba(8,9,14,.72);color:var(--wv-soft);font:500 11.5px/1.2 var(--wv-mono);letter-spacing:.04em;cursor:pointer}
+.desk .ws-views button[aria-pressed=true]{border-color:var(--ws-brass);color:var(--ws-gold);background:rgba(201,168,92,.1)}
+.desk .ws-views button:focus-visible,.desk .ws-panel button:focus-visible,.desk .ws-tag:focus-visible{outline:1px solid var(--ws-gold);outline-offset:3px}
+
+/* The panel beside the stage: what's in view, in words. */
+.desk .ws-panel{display:flex;flex-direction:column;gap:10px;padding:22px 20px;border-left:1px solid var(--ws-line);background:linear-gradient(180deg,rgba(201,168,92,.04),transparent 40%)}
+.desk .ws-panel .wv-eyb{margin:0;color:var(--ws-brass)}
+.desk .ws-panel .wv-h3{color:var(--wv-ink)}
+.desk .ws-note{margin:0;font-size:13px;line-height:1.5;color:var(--wv-soft)}
+.desk .ws-quiet{color:var(--wv-mute);font-size:12.5px}
+.desk .ws-bays,.desk .ws-checks{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.desk .ws-bays button{display:grid;grid-template-columns:28px minmax(0,1fr);gap:1px 10px;width:100%;padding:9px 10px;border:1px solid var(--ws-line);border-radius:4px;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.desk .ws-bays button:hover{border-color:var(--ws-brass);background:rgba(201,168,92,.06)}
+.desk .ws-bayn{grid-row:1/3;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1px solid var(--ws-brass);font:500 12px/1 var(--wv-mono);color:var(--ws-gold)}
+.desk .ws-bays li[data-state=open] .ws-bayn{border-style:dashed;color:var(--wv-mute);border-color:var(--ws-line)}
+.desk .ws-bays b{font-weight:500;font-size:13.5px;color:var(--wv-ink)}
+.desk .ws-bays em{font-style:normal;font-size:12px;color:var(--wv-mute)}
+.desk .ws-checks li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:1px 8px;padding:8px 0;border-bottom:1px solid rgba(201,168,92,.12)}
+.desk .ws-checks li>span{grid-row:1/3;color:var(--ws-gold);font-size:13px}
+.desk .ws-checks li[data-ok="0"]>span{color:#e0866e}
+.desk .ws-checks b{font-weight:500;font-size:13.5px;color:var(--wv-ink)}
+.desk .ws-checks em{font-style:normal;font:12px/1.4 var(--wv-mono);color:var(--wv-mute)}
+.desk .ws-chamber{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:4px 0 0}
+.desk .ws-chamber div{padding:8px 9px;border:1px solid var(--ws-line);border-radius:4px}
+.desk .ws-chamber dt{font:500 10px/1.2 var(--wv-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--wv-mute)}
+.desk .ws-chamber dd{margin:3px 0 0;font-size:12.5px;color:var(--wv-soft)}
+.desk .ws-hop{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:8px}
+.desk .ws-back{align-self:flex-start;padding:6px 11px;border:1px solid var(--ws-line);border-radius:999px;background:transparent;color:var(--wv-soft);font:500 11.5px/1.2 var(--wv-mono);cursor:pointer}
+.desk .ws-back:hover{border-color:var(--ws-brass);color:var(--ws-gold)}
+
+/* The line: six stations, one thread. */
+.desk .ws-line{margin-top:40px}
+.desk .ws-line ol{position:relative;list-style:none;margin:14px 0 0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+.desk .ws-line ol::before{content:"";position:absolute;left:19px;right:19px;top:19px;border-top:1px dashed var(--ws-line)}
+.desk .ws-line li{position:relative;display:flex;flex-direction:column;gap:3px;padding:0 4px}
+.desk .ws-node{display:grid;place-items:center;width:38px;height:38px;margin-bottom:10px;border-radius:50%;border:1px dashed rgba(201,168,92,.5);background:var(--wv-bg,#0b0c11);font-family:var(--wv-mono);font-size:12px;color:var(--ws-gold)}
+.desk .ws-line b{font-family:var(--wv-serif);font-weight:400;font-size:20px;color:var(--wv-ink)}
+.desk .ws-line span:not(.ws-node){font-size:12.5px;line-height:1.4;color:var(--wv-soft)}
+.desk .ws-line em{margin-top:4px;font-style:normal;font-family:var(--wv-mono);font-size:11px;color:color-mix(in srgb,var(--ws-brass) 70%,var(--wv-mute))}
 .desk .ws-waits{margin-top:40px}
 .desk .ws-waits li b{font-family:var(--wv-mono);font-weight:500;font-size:13px;letter-spacing:.02em}
 .desk .ws-waits li em{font-family:var(--wv-mono);letter-spacing:.06em}
+
 @media (max-width:1060px){
-  .desk .ws-stations{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:24px}
+  .desk .ws-farm{grid-template-columns:minmax(0,1fr)}
+  .desk .ws-panel{border-left:0;border-top:1px solid var(--ws-line)}
+  .desk .ws-line ol{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:24px}
+  .desk .ws-line ol::before{display:none}
 }
 @media (max-width:640px){
-  .desk .ws-bench{grid-template-columns:minmax(0,1fr);padding:18px 16px}
-  .desk .ws-stations{grid-template-columns:minmax(0,1fr);row-gap:14px}
-  .desk .ws-stations li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:0 12px}
+  .desk .ws-stage{min-height:420px}
+  .desk .ws-views{left:10px;top:10px;right:10px}
+  .desk .ws-views button{padding:5px 9px;font-size:11px}
+  .desk .ws-tag{padding:3px 7px;font-size:10px}
+  .desk .ws-tag span{display:none}
+  .desk .ws-panel{padding:18px 16px}
+  .desk .ws-line ol{grid-template-columns:minmax(0,1fr);row-gap:14px}
+  .desk .ws-line li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:0 12px}
   .desk .ws-node{grid-row:1/4;margin:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .desk .ws-tag{transition:none}
 }

@@ -29,6 +29,7 @@ import * as desktiming from "../../api/_boot/deskTiming.js";
 import * as haven from "../../api/_haven/route.js";
 import * as havenphotos from "../../api/_haven/photos.js";
 import * as homedevices from "../../api/_haven/devices/live.js";
+import * as havenlights from "../../api/_haven/lights/live.js";
 import * as havengoogle from "../../api/_haven/google/live.js";
 import * as havenkroger from "../../api/_haven/kroger/live.js";
 import * as havenplan from "../../api/_haven/plan.js";
@@ -102,6 +103,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["haven/devices/connect", homedevices.connectRoute],
   // The vacuum's live run on the Hall's map (#814): the home's floor plan, passkey session only, never stored.
   ["haven/devices/map", homedevices.mapRoute],
+  // The Haven's lights (#931): SwitchBot and Govee's cloud APIs, read and switched with their keys from this Key Vault.
+  // A passkey session only, for the list and every switch.
+  ["haven/lights", havenlights.lightsRoute, { settleMs: 2_500 }],
   // The Haven's connections (#637, docs/HOME-DEVICES.md): Connect Nest and Connect Google Tasks (passkey session
   // only; ?view=status is the public states), and where Google sends the browser back. The thermostat itself reads and
   // acts through haven/devices.

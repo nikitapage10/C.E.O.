@@ -11,6 +11,7 @@ import { emittersOf, type EmitterIn } from "./emitters.ts";
 import { disposeMats, GYM_MODELS, GymGeo, gymMats, gymModel } from "./gymKit.ts";
 import { CatBrain, navGrid, type CatSignals } from "./catBrain.ts";
 import { BALCONY_DOOR, furnish } from "./furnish.ts";
+import { placeLights, type Light } from "./lights.ts";
 import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
 import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
@@ -256,7 +257,7 @@ export class House {
   private poolMat: THREE.MeshBasicMaterial[] = [];
   private lit: Record<string, Lit> = {};
   private litNow = new Map<string, number>();
-  private labels: { el: HTMLElement; p: THREE.Vector3; room?: string; spot?: Spot }[] = [];
+  private labels: { el: HTMLElement; p: THREE.Vector3; room?: string; spot?: Spot; light?: string }[] = [];
   private atlasCanvas = document.createElement("canvas");
   private atlas: THREE.CanvasTexture;
   private pts!: THREE.Points;
@@ -1408,6 +1409,33 @@ export class House {
 
   /** Lamp positions move when the strip scrolls or the page lays out again: draw the threads again. */
   touch() {
+    this.dirty = true;
+  }
+
+  /**
+   * The lights (#931): a small lamp under the ceiling over each placed light, glowing while it's on, dim while off,
+   * hollow when its state is unknown or it's offline. A tap switches it (`onTap`); the Lights panel is the same
+   * control in words, for the keyboard and a screen reader.
+   */
+  setLights(lights: readonly Light[], onTap: (id: string) => void) {
+    for (const l of this.labels) if (l.light) l.el.remove();
+    this.labels = this.labels.filter((l) => !l.light);
+    // Placed on the house's own plan: the Gym moved out back shifts the home's coordinates (gymBeyond).
+    for (const { light: d, x, y } of placeLights(this.plan, lights).placed) {
+      const el = document.createElement("div");
+      el.className = "hv-dev hv-bulb is-tap";
+      el.dataset.on = !d.online ? "offline" : d.on === null ? "unknown" : d.on ? "on" : "off";
+      el.title = `${d.name}: ${el.dataset.on}`;
+      const i = document.createElement("i");
+      el.append(i);
+      const tap = (e: Event) => {
+        e.stopPropagation();
+        onTap(d.id);
+      };
+      el.addEventListener("click", tap);
+      this.labelHost.appendChild(el);
+      this.labels.push({ el, p: new THREE.Vector3(this.wx(x), WH * 0.92, this.wz(y)), light: d.id });
+    }
     this.dirty = true;
   }
 

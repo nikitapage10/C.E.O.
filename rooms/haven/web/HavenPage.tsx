@@ -7,6 +7,8 @@ import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, t
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
+import { LightsPanel } from "./LightsPanel.tsx";
+import { loadLights, placeLights, postLights, type LightsLoad } from "./lights.ts";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
 import { Plinth } from "./Plinth.tsx";
@@ -42,6 +44,8 @@ const dayWord = (d = new Date()) => `${d.toLocaleDateString("en-US", { weekday: 
 const stateWord: Record<VendorState, string> = { live: "live", down: "down", waiting: "waiting" };
 
 type Open = { tab: Tab } | { room: string } | null;
+
+const thePlanOf = (p: PlanLoad) => (p.state === "ready" ? p.plan : null);
 
 function PlanImport({ onSaved }: { onSaved: (p: PlanLoad) => void }) {
   const [text, setText] = useState("");
@@ -145,6 +149,48 @@ export function Haven() {
     return () => window.clearInterval(t);
   }, [auth, signedIn]);
 
+  // The lights (#931): SwitchBot and Govee, passkey only, read every minute while the Haven is open.
+  const [lights, setLights] = useState<LightsLoad>({ state: "idle" });
+  const [lightBusy, setLightBusy] = useState<string | null>(null);
+  const [lightNote, setLightNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!signedIn) return setLights({ state: "idle" });
+    let gone = false;
+    const read = () => void loadLights().then((l) => !gone && (l.state === "out" ? useDeskAuth.getState().lost() : setLights((cur) => (l.state === "failed" && cur.state === "ready" ? cur : l))));
+    read();
+    const t = window.setInterval(read, 60_000);
+    return () => {
+      gone = true;
+      window.clearInterval(t);
+    };
+  }, [signedIn]);
+  const lightView = lights.state === "ready" ? lights.view : null;
+  const setLight = useCallback(async (id: string, on: boolean) => {
+    setLightBusy(id);
+    setLightNote(null);
+    // The switch shows at once; it goes back if the vendor refuses.
+    const flip = (v: boolean | null) => (l: LightsLoad): LightsLoad => (l.state === "ready" ? { state: "ready", view: { ...l.view, lights: l.view.lights.map((x) => (x.id === id ? { ...x, on: v } : x)) } } : l);
+    const was = lights.state === "ready" ? (lights.view.lights.find((x) => x.id === id)?.on ?? null) : null;
+    setLights(flip(on));
+    const r = await postLights({ op: "set", id, on });
+    setLightBusy(null);
+    if (!r.ok) {
+      setLights(flip(was));
+      setLightNote(r.say);
+    }
+  }, [lights]);
+  const runScene = useCallback(async (id: string) => {
+    setLightBusy(id);
+    setLightNote(null);
+    const r = await postLights({ op: "scene", id });
+    setLightBusy(null);
+    setLightNote(r.say);
+    // A scene can switch anything: read the lights again once it has settled.
+    if (r.ok) window.setTimeout(() => void loadLights().then((l) => l.state === "ready" && setLights(l)), 2_500);
+  }, []);
+  // The lights the house can't place (no spot in the plan, no room in their name): listed apart.
+  const looseLights = useMemo(() => (thePlanOf(plan) && lightView ? placeLights(thePlanOf(plan)!, lightView.lights).loose : (lightView?.lights ?? [])), [plan, lightView]);
+
   const devices = signedIn ? (home?.devices ?? null) : null;
   // The Nest (#637): live from the thermostat's reading once it's connected; waiting before, and always signed out.
   const climate = useMemo(() => climateOf(devices), [devices]);
@@ -226,6 +272,17 @@ export function Haven() {
     tags.thermostat = climate.state === "live" ? `${climate.inside}°F${climate.target !== null ? ` → ${climate.target}°F` : ""}` : "Climate: waiting";
     h.setLit(lit, facts, tags);
   }, [lit, devices, thePlan, gl, climate]);
+
+  // The lights on the house (#931): a lamp over each placed light; a tap switches it.
+  useEffect(() => {
+    house.current?.setLights(
+      lightView?.lights ?? [],
+      (id) => {
+        const l = lightView?.lights.find((x) => x.id === id);
+        if (l && l.online && lightBusy === null) void setLight(id, l.on !== true);
+      },
+    );
+  }, [gl, lightView, lightBusy, setLight]);
 
   // Myshka in the house (#729): a feed (the dry feeder's last meal, or the wet tray opened from here) and the
   // Litter-Robot's cycle, nothing else; the house decides where he walks.
@@ -344,6 +401,7 @@ export function Haven() {
               </nav>
             )}
             <HavenLists />
+            {signedIn && lightView && <LightsPanel view={lightView} loose={looseLights} busy={lightBusy} note={lightNote} onSet={(id, on) => void setLight(id, on)} onScene={(id) => void runScene(id)} />}
           </header>
           {!signedIn && (
             <div className="hv-out">

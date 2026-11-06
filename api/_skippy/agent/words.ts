@@ -49,14 +49,31 @@ export function climateAsk(text: string): boolean {
   return CLIMATE.test(t) && !CLIMATE_SET.test(t) && !ELSEWHERE.test(t.replace(/\bin (?:the )?(?:apartment|flat|house|home|place|living room|bedroom|kitchen|office|studio)\b/gi, ""));
 }
 
+/** Spoken filler in front of an ask: "yeah, um, so, okay, hey". */
+const FILLER = /^(?:(?:yeah|yes|yep|yo|um+|uh+|er+|erm|hmm+|so|okay|ok|hey|well|and|also|alright|all right|cool|right|like|oh)\b[\s,.!-]*)+/i;
+
+/**
+ * A question about the home, not an order (02:10Z 2026-11-06: "can you tell me what the vacuum cleaner's next schedule
+ * is gonna be?" set the vacuum off). A question only ever reads; it never runs a device. "Can you vacuum the kitchen?"
+ * is still an order: only asking-for-information words make it a question.
+ */
+export function infoQuestion(text: string): boolean {
+  const t = smooth(text).replace(FILLER, "").trim();
+  if (/^(?:is|are|was|were|what|what's|whats|which|when|where|why|how|did|does|do|has|have|had|will|would|should|any)\b/i.test(t)) return true;
+  if (/\b(?:tell me|let me know|do you know|any idea|wondering|curious|i wonder|check (?:on|if|whether|when|what))\b/i.test(t)) return true;
+  return /\b(?:schedule[ds]?|scheduled|next (?:run|clean|cleaning|cycle|meal|feeding|time)|what time|status|how long|how much|last (?:run|time|clean|cleaned|ran))\b/i.test(t);
+}
+
 /** The ask the rules settle at once, or null for the model. Never calls anything. */
 export function directAsk(text: string): DirectAsk | null {
-  const t = smooth(text).replace(/[.!?]+$/, "");
+  const t = smooth(text).replace(FILLER, "").replace(/[.!?]+$/, "").trim();
   if (!t || t.length > DIRECT_MAX) return null;
   if (climateAsk(t)) return { tool: "home_status", input: { about: "climate" } };
   const d = deviceAsk(t);
   if (!d) return null;
   if (d.action === "wet.status") return { tool: "home_status", input: { about: "wet-feeder" } };
+  // A question about a device reads its status; only an order runs it.
+  if (infoQuestion(text)) return null;
   return {
     tool: "home_device",
     input: {
@@ -89,10 +106,10 @@ const LOOSE: Record<string, RegExp[]> = {
  */
 export function spokenAsked(said: string | undefined, input: Record<string, unknown>): boolean {
   if (!said) return false;
-  const t = smooth(said);
+  if (infoQuestion(said)) return false;
+  const t = smooth(said).replace(FILLER, "").trim();
   const ruled = directAsk(t);
   if (ruled?.tool === "home_device") return ruled.input.action === input.action;
-  if (/^(?:is|are|what|which|when|how|did|does|has)\b/i.test(t)) return false;
   const words = LOOSE[String(input.action)];
   return !!words && words.every((w) => w.test(t));
 }

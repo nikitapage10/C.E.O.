@@ -22,7 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # Read only. Code scanning alerts through the built-in token; GitHub gives that token no Dependabot permission, so
-    # Dependabot's come through the crew's App, minted with Dependabot alerts: read and nothing else.
+    # Dependabot's come through the crew's App, minted with Dependabot alerts: read and nothing else (GitHub calls
+    # that permission vulnerability_alerts). Without it on the App the mint fails and Dependabot reads "unreported".
     permissions:
       contents: read
       security-events: read
@@ -41,7 +42,7 @@ jobs:
         with:
           app-id: ${{ secrets.FOUNDRY_APP_ID }}
           private-key: ${{ secrets.FOUNDRY_APP_PRIVATE_KEY }}
-          permission-dependabot-alerts: read
+          permission-vulnerability-alerts: read
       - name: Count the open alerts
         run: node scripts/security-alerts.mjs
         env:

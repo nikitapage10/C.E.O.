@@ -150,7 +150,9 @@ test("the Archive lists what shipped, week by week, newest first", async ({ page
     }),
   );
   await page.goto(BASE + "/archive");
-  const ships = page.locator(".ax-ships");
+  // The war table (#826): what shipped opens from the harbour, here through the table's legend.
+  await page.locator(".wt-legend").getByRole("button", { name: /What shipped/ }).click();
+  const ships = page.locator(".wt-sheet .ax-ships");
   await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toBeVisible();
   await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toContainText("Adding a podium");
   await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toContainText("Built by Rusty");

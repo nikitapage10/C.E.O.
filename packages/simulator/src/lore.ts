@@ -700,6 +700,7 @@ export const LORE: Record<string, Lore> = {
       "Suffers for the work, out loud. Sighs at the clay. The clay does not sigh back.",
       "Calls every half-finished figure 'the vision'. Calls every finished one 'compromised'.",
       "Conducts the line with sweeping gestures, then covers its eyes during the rehearsal.",
+      "Calls the turntable's check piece 'a placeholder for the vision'. Will not let anyone replace it.",
     ],
     likes: ["Daub's first sketch", "Clay", "Big swings", "A figure that walks like it means it", "Suffering, a bit"],
     dislikes: ["Deadlines", "'Is it finished?'", "Beige", "Chisel saying 'darling' in that tone"],

@@ -12,14 +12,15 @@
 
 /* ---------- the stage: the Deep Furnace (#813) ---------- */
 .desk .fo{--fo-gold:#e3c98d;--fo-brass:#c9a85c;--fo-gl:rgba(201,168,92,.3);--fo-panel:rgba(9,9,11,.86)}
-.desk .fo-hall{position:relative;isolation:isolate;overflow:clip;height:max(660px,calc(100svh - 64px));max-height:1080px;background:#060608;color:var(--wv-ink)}
+/* The whole screen under the bar (#922): no cap on a tall one. */
+.desk .fo-hall{position:relative;isolation:isolate;overflow:clip;height:max(640px,calc(100svh - 64px));background:#060608;color:var(--wv-ink)}
 .desk .fo-host{position:absolute;inset:0;z-index:0}
 .desk .fo-gl{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity 1s ease;touch-action:pan-y}
 .desk .fo-hall[data-gl=on] .fo-gl{opacity:1}
-.desk .fo-vig{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(6,6,8,.82) 0,rgba(6,6,8,0) 210px),linear-gradient(0deg,rgba(6,6,8,.7) 0,rgba(6,6,8,0) 120px)}
+.desk .fo-vig{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(6,6,8,.7) 0,rgba(6,6,8,0) 170px),linear-gradient(0deg,rgba(6,6,8,.55) 0,rgba(6,6,8,0) 70px)}
 /* The flat shaft: the furnace before the 3D, or without WebGL. */
 .desk .fo-flat{position:absolute;inset:0;z-index:0;transition:opacity 1s ease;background:radial-gradient(40% 26% at 50% 88%,rgba(255,122,42,.5),rgba(255,122,42,0) 70%),radial-gradient(30% 22% at 50% 8%,rgba(255,240,208,.18),transparent 70%),repeating-linear-gradient(90deg,rgba(201,168,92,.05) 0 1px,transparent 1px 48px),#060608}
-.desk .fo-flat-shaft{position:absolute;left:50%;top:6%;bottom:16%;width:min(46%,420px);transform:translateX(-50%);border-left:1px solid var(--fo-gl);border-right:1px solid var(--fo-gl);background:repeating-linear-gradient(0deg,transparent 0 46px,rgba(63,198,208,.22) 46px 48px)}
+.desk .fo-flat-shaft{position:absolute;left:50%;top:6%;bottom:16%;width:min(46%,420px);transform:translateX(-50%);border-left:1px solid var(--fo-gl);border-right:1px solid var(--fo-gl);background:repeating-linear-gradient(0deg,transparent 0 46px,rgba(201,168,92,.24) 46px 48px)}
 .desk .fo-flat-melt{position:absolute;left:50%;bottom:10%;width:min(36%,320px);height:60px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,#fff1c8,#ff8a3d 55%,rgba(255,106,26,0));filter:blur(2px)}
 .desk .fo-hall[data-gl=on] .fo-flat{opacity:0}
 
@@ -60,31 +61,46 @@
 .desk .fo-zone,.desk .fo-coil-l{position:absolute;left:var(--gx,-200px);top:var(--gy,-200px);white-space:nowrap}
 .desk .fo-zone{transform:translate(-100%,-50%);padding-right:10px;font-size:10.5px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--fo-gold);text-shadow:0 1px 8px #000}
 .desk .fo-zone::after{content:"";position:absolute;right:-26px;top:50%;width:22px;height:1px;background:var(--fo-brass);opacity:.55}
-.desk .fo-coil-l{transform:translate(calc(-100% - 8px),-50%);font-family:"Geist Mono Variable",ui-monospace,monospace;font-size:10.5px;letter-spacing:.06em;color:rgba(170,226,230,.75);text-shadow:0 1px 6px #000}
+.desk .fo-coil-l{transform:translate(calc(-100% - 8px),-50%);font-family:"Geist Mono Variable",ui-monospace,monospace;font-size:10.5px;letter-spacing:.06em;color:rgba(227,201,141,.72);text-shadow:0 1px 6px #000}
 .desk .is-away{visibility:hidden}
 
-/* The tags: one per slot, riding its ingot; Rivet's, the cart's and the hatch's. */
+/* The tags: one per slot, riding its ingot; Rivet's, Rocky's, the cart's and the hatch's. Brass-cornered plates in
+   the Lattice's gold, the hand's paint in a small sigil diamond. */
 .desk .fo-tags{list-style:none;margin:0;padding:0}
-.desk .fo-tag{position:absolute;z-index:4;left:var(--fx);top:var(--fy);transform:translate(-50%,-100%);display:grid;grid-template-columns:auto auto;align-items:baseline;column-gap:7px;row-gap:1px;padding:5px 10px 6px 9px;border:1px solid rgba(201,168,92,.22);border-left:3px solid var(--c,var(--fo-brass));border-radius:3px;background:var(--fo-panel);color:var(--wv-ink);font:inherit;text-align:left;cursor:pointer;white-space:nowrap;backdrop-filter:blur(6px);transition:border-color .2s,background .2s,transform .2s}
-.desk .fo-hall[data-gl=on] .fo-tag{left:var(--gx,var(--fx));top:var(--gy,var(--fy));transform:translate(-50%,calc(-100% - 10px))}
-.desk .fo-tag b{font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--c,var(--fo-gold))}
-.desk .fo-tag-n{font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--wv-soft)}
+.desk .fo-tag{position:absolute;z-index:4;left:var(--fx);top:var(--fy);transform:translate(-50%,-100%);display:grid;grid-template-columns:auto auto;align-items:baseline;column-gap:7px;row-gap:1px;padding:5px 10px 6px;border:1px solid rgba(201,168,92,.3);border-radius:2px;background:linear-gradient(180deg,rgba(22,18,12,.95),rgba(9,8,7,.95));color:var(--wv-ink);font:inherit;text-align:left;cursor:pointer;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.45);transition:border-color .2s,background .2s,transform .2s,opacity .2s}
+/* Brass corners. */
+.desk .fo-tag::before{content:"";position:absolute;inset:-3px;pointer-events:none;background:linear-gradient(var(--fo-brass),var(--fo-brass)) 0 0/8px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 0/1px 8px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 0/8px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 0/1px 8px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 100%/8px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 100%/1px 8px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 100%/8px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 100%/1px 8px;background-repeat:no-repeat;opacity:.8}
+.desk .fo-hall[data-gl=on] .fo-tag{left:var(--gx,var(--fx));top:var(--gy,var(--fy));transform:translate(-50%,calc(-100% - 12px))}
+/* The tether down to its ingot. */
+.desk .fo-hall[data-gl=on] .fo-tag::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:12px;background:linear-gradient(var(--fo-brass),rgba(201,168,92,0))}
+.desk .fo-tag b{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--fo-gold))}
+.desk .fo-tag-n{font-size:12px;font-variant-numeric:tabular-nums;color:var(--wv-mute)}
 .desk .fo-tag small{grid-column:1/-1;font-size:11.5px;color:var(--wv-mute)}
 .desk .fo-tag-s.is-run{color:var(--fo-run)!important}
 .desk .fo-tag-s.is-ok{color:var(--fo-ok)!important}
 .desk .fo-tag-s.is-bad{color:var(--fo-bad)!important}
 .desk .fo-tag-s.is-hot{color:var(--fl-hi)!important}
-.desk .fo-tag[data-stage=red],.desk .fo-tag[data-stage=stuck]{border-color:rgba(255,90,67,.6);background:rgba(40,8,6,.9)}
-.desk .fo-tag.is-free{opacity:.72;border-left-style:dashed}
-.desk .fo-tag.is-zone{border-left-color:var(--fo-brass)}
+/* A job's card: who and which issue, what it builds in a line or two, and where it stands. */
+.desk .fo-tag.fo-job{grid-template-columns:minmax(0,1fr);row-gap:3px;width:max-content;max-width:212px;padding:7px 12px 8px;white-space:normal}
+.desk .fo-job-k{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.desk .fo-job-k i{width:7px;height:7px;flex:none;transform:rotate(45deg);background:var(--c,var(--fo-gold));box-shadow:0 0 8px var(--c,var(--fo-gold))}
+.desk .fo-job-k .fo-tag-n{margin-left:auto;padding-left:6px}
+.desk .fo-job-t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-family:var(--fl-disp);font-size:15.5px;font-weight:500;line-height:1.15;color:var(--wv-ink);text-wrap:balance}
+.desk .fo-job small{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
+.desk .fo-tag[data-stage=red],.desk .fo-tag[data-stage=stuck]{border-color:rgba(255,90,67,.6);background:linear-gradient(180deg,rgba(48,10,7,.95),rgba(22,6,5,.95))}
+.desk .fo-tag[data-stage=ready]{border-color:rgba(232,199,122,.7);box-shadow:0 0 22px rgba(232,199,122,.18),0 6px 18px rgba(0,0,0,.45)}
+.desk .fo-tag.is-free{opacity:.7;padding:4px 9px 5px;border-style:dashed}
+.desk .fo-tag.is-free::before{opacity:.35}
+.desk .fo-tag.is-free small{font-size:11px}
 .desk .fo-tag.is-zone b{color:var(--fo-gold)}
-.desk .fo-tag.is-ship[data-tone=pass]{border-left-color:var(--fo-ok)}
-.desk .fo-tag.is-ship[data-tone=fail]{border-left-color:var(--fo-bad)}
-.desk .fo-tag:hover,.desk .fo-tag:focus-visible,.desk .fo-tag.is-lit{border-color:var(--fo-gold);background:rgba(18,15,10,.94);opacity:1;outline:none;z-index:5}
+.desk .fo-tag.is-ship[data-tone=pass] b{color:#fff0c8}
+.desk .fo-tag.is-ship[data-tone=fail]{border-color:rgba(255,90,67,.6)}
+.desk .fo-tag:hover,.desk .fo-tag:focus-visible,.desk .fo-tag.is-lit{border-color:var(--fo-gold);background:linear-gradient(180deg,rgba(32,25,14,.98),rgba(12,10,8,.98));opacity:1;outline:none;z-index:5}
 .desk .fo-more.is-lit{border-color:var(--fo-gold)}
 
 /* The card: what a tag opens. */
-.desk .fo-pop{position:absolute;z-index:6;left:var(--cx,auto);top:var(--cy,auto);right:auto;width:min(360px,calc(100% - 32px));max-height:calc(100% - 112px);overflow:auto;padding:16px 18px 18px;border:1px solid rgba(201,168,92,.35);border-top:2px solid rgb(var(--fl-accent));border-radius:4px;background:linear-gradient(180deg,rgba(16,13,10,.96),rgba(8,8,10,.96));box-shadow:0 18px 50px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.4);backdrop-filter:blur(10px);animation:fo-in .25s var(--fl-ease) both}
+/* Solid, and beside the shaft (FurnaceStage places it), so nothing shows through it (#922). */
+.desk .fo-pop{position:absolute;z-index:6;left:var(--cx,auto);top:var(--cy,auto);right:auto;width:min(360px,calc(100% - 32px));max-height:calc(100% - 112px);overflow:auto;padding:16px 18px 18px;border:1px solid rgba(201,168,92,.4);border-top:2px solid var(--fo-gold);border-radius:3px;background:linear-gradient(180deg,#15110c,#0a0909);box-shadow:0 18px 50px rgba(0,0,0,.7),0 0 0 1px rgba(0,0,0,.5);animation:fo-in .2s var(--fl-ease) both}
 .desk .fo-pop:not(.is-pinned){pointer-events:none}
 .desk .fo-pop-x{position:absolute;right:8px;top:6px;width:30px;height:30px;border:0;background:none;color:var(--wv-mute);font-size:22px;line-height:1;cursor:pointer}
 .desk .fo-pop-x:hover{color:var(--wv-ink)}
@@ -306,3 +322,115 @@
   .desk .fo-more-d>summary::after{transition:none}
 }
 .desk .fo-asof{margin:0 0 8px;padding:0 var(--wv-pad,0);font-style:normal;color:var(--wv-faint)}
+
+/* ---------- the console under the furnace (#922) ----------
+   One panel with four tabs instead of a long page, in the furnace's own look (Nikita, 2026-11-06 01:04Z: what sits
+   under a room's hero has to look the part): forged iron, brass corners, gold hairlines, the Lattice's display serif,
+   and the shaft's wire grid and sigil nanites carried on behind it (ConsoleSigils.tsx). Nothing here is a plain web
+   card: no rounded boxes, no grey borders. */
+.desk .fo-deck{position:relative;isolation:isolate;margin:0;scroll-margin-top:72px;padding:0 var(--fl-pad) var(--fl-s5);background:linear-gradient(180deg,#060608 0,#0b0907 120px,#080706 100%);border-top:1px solid rgba(201,168,92,.35);box-shadow:0 -1px 0 rgba(0,0,0,.6)}
+/* A line of light along the top edge, brightest at the shaft's foot, where the console meets the furnace. */
+.desk .fo-deck::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(232,199,122,.9) 50%,transparent);box-shadow:0 0 18px rgba(255,154,42,.45);z-index:1}
+.desk .fo-deck-sig{position:absolute;inset:0;z-index:0;width:100%;height:100%;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent);mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent)}
+.desk .fo-deck>:not(.fo-deck-sig){position:relative;z-index:1}
+
+/* The tabs: brass plates along the top, the open one lit, a sigil diamond on it. */
+.desk .fo-deck-tabs{display:flex;gap:0;margin:0 calc(var(--fl-pad) * -1) var(--fl-s4);padding:0 var(--fl-pad);border-bottom:1px solid rgba(201,168,92,.22);overflow-x:auto;scrollbar-width:none}
+.desk .fo-deck-tabs::-webkit-scrollbar{display:none}
+.desk .fo-deck-tab{position:relative;display:inline-flex;align-items:baseline;gap:10px;flex:none;padding:18px 22px 15px;border:0;background:none;color:var(--wv-mute);font:inherit;font-size:11.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:color .2s}
+.desk .fo-deck-tab b{font-family:var(--fl-disp);font-size:21px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--wv-soft)}
+.desk .fo-deck-tab+.fo-deck-tab::before{content:"";position:absolute;left:0;top:30%;bottom:30%;width:1px;background:rgba(201,168,92,.22)}
+.desk .fo-deck-tab::after{content:"";position:absolute;left:18px;right:18px;bottom:-1px;height:2px;background:transparent;transition:background .25s,box-shadow .25s}
+.desk .fo-deck-tab:hover{color:var(--fo-gold)}
+.desk .fo-deck-tab.is-on{color:var(--fo-gold)}
+.desk .fo-deck-tab.is-on b{color:#fff0c8;text-shadow:0 0 18px rgba(232,199,122,.45)}
+.desk .fo-deck-tab.is-on::after{background:linear-gradient(90deg,transparent,var(--fo-gold),transparent);box-shadow:0 0 12px rgba(232,199,122,.6)}
+.desk .fo-deck-tab.is-on>span::before{content:"";display:inline-block;width:6px;height:6px;margin:0 9px 1px 0;transform:rotate(45deg);background:var(--fo-gold);box-shadow:0 0 8px var(--fo-gold)}
+.desk .fo-deck-tab:focus-visible{outline:1px solid var(--fo-gold);outline-offset:-4px}
+
+/* The open panel: a dark plate with brass corners, its type the furnace's. */
+.desk .fo-deck-p{position:relative;padding:clamp(18px,2.2vw,30px);border:1px solid rgba(201,168,92,.2);background:linear-gradient(180deg,rgba(14,12,9,.82),rgba(7,7,6,.82));animation:fo-in .3s var(--fl-ease) both}
+.desk .fo-deck-p::before{content:"";position:absolute;inset:-4px;pointer-events:none;background:linear-gradient(var(--fo-brass),var(--fo-brass)) 0 0/14px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 0/1px 14px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 0/14px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 0/1px 14px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 100%/14px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 100%/1px 14px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 100%/14px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 100%/1px 14px;background-repeat:no-repeat}
+.desk .fo-deck .fl-below{margin:0}
+.desk .fo-deck .fl-eyb{color:var(--fo-gold)}
+.desk .fo-deck .fl-eyb i{background:var(--fo-brass);opacity:.6}
+.desk .fo-deck .fl-h2{font-family:var(--fl-disp);font-weight:500;letter-spacing:-.01em;color:var(--wv-ink)}
+.desk .fo-deck .fl-k,.desk .fo-deck .fl-k span{color:var(--fo-gold);letter-spacing:.2em;text-transform:uppercase}
+/* Buttons and fields: brass hairlines, square cut. */
+.desk .fo-deck .fl-btn,.desk .fo-deck .wv-btn{border-radius:2px;border-color:rgba(201,168,92,.45);background:rgba(20,16,10,.7);color:var(--fo-gold)}
+.desk .fo-deck .fl-btn:hover,.desk .fo-deck .wv-btn:hover{border-color:var(--fo-gold);color:#fff0c8;background:rgba(40,30,14,.8)}
+.desk .fo-deck .fl-btn.is-pri,.desk .fo-deck .wv-btn.is-pri{border-color:var(--fo-gold);background:linear-gradient(180deg,rgba(201,168,92,.22),rgba(201,168,92,.08));color:#fff0c8}
+.desk .fo-deck .wv-input{border-radius:2px;border-color:rgba(201,168,92,.3);background:rgba(6,6,5,.8)}
+.desk .fo-deck .wv-input:focus{border-color:var(--fo-gold);box-shadow:0 0 0 1px rgba(232,199,122,.25),0 0 18px rgba(232,199,122,.12)}
+.desk .fo-deck .fy-setup{border-radius:2px;border:1px solid rgba(201,168,92,.25);background:rgba(10,9,7,.8)}
+
+/* The bench's ideas: forged plates, not rounded cards. */
+.desk .fo-deck .fo-card{position:relative;border-radius:2px;border-color:rgba(201,168,92,.26);background:linear-gradient(180deg,rgba(22,18,12,.95),rgba(9,8,7,.95));overflow:visible}
+.desk .fo-deck .fo-card::before{content:"";position:absolute;inset:-3px;z-index:2;pointer-events:none;background:linear-gradient(var(--fo-brass),var(--fo-brass)) 0 0/10px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 0/1px 10px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 0/10px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 0/1px 10px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 100%/10px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 0 100%/1px 10px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 100%/10px 1px,linear-gradient(var(--fo-brass),var(--fo-brass)) 100% 100%/1px 10px;background-repeat:no-repeat}
+.desk .fo-deck .fo-card:hover,.desk .fo-deck .fo-card:focus-within{border-color:rgba(232,199,122,.55);box-shadow:0 0 30px rgba(232,199,122,.08)}
+.desk .fo-deck .fo-card-img{overflow:hidden}
+.desk .fo-deck .fo-card-img img{filter:sepia(.35) saturate(.7) brightness(.7)}
+.desk .fo-deck .fo-chip{border-radius:2px;border-color:rgba(201,168,92,.5);color:var(--fo-gold)}
+.desk .fo-deck .fo-card-q{border-left-color:var(--fo-brass);color:#f0d9a6}
+.desk .fo-deck .fo-card-pics img{border-radius:2px;border-color:rgba(201,168,92,.3)}
+.desk .fo-deck .fo-slots>li{border-radius:2px;border-color:rgba(201,168,92,.25)}
+.desk .fo-deck .fo-slots>li.is-yours,.desk .fo-deck .fo-slots>li.is-yours button{border-radius:2px;border-color:rgba(201,168,92,.5);background:rgba(201,168,92,.05)}
+.desk .fo-deck .fo-slots>li.is-yours b{color:var(--fo-gold)}
+
+/* The crew at their stations: portraits ringed in brass, the line between them gold. */
+.desk .fo-deck .fo-crew{margin:0}
+.desk .fo-deck .fo-crew-l{border-top-color:rgba(201,168,92,.35)}
+.desk .fo-deck .fo-crew-l>li{border-left-color:rgba(201,168,92,.16)}
+.desk .fo-deck .fo-crew-l>li>img{border:1px solid rgba(201,168,92,.4);box-shadow:0 0 0 3px rgba(6,6,5,.9),0 0 0 4px rgba(201,168,92,.18)}
+.desk .fo-deck .fo-crew-l>li[data-live]>img{border-color:var(--fo-gold);box-shadow:0 0 0 3px rgba(6,6,5,.9),0 0 0 4px rgba(232,199,122,.5),0 0 24px rgba(255,154,42,.35)}
+.desk .fo-deck .fo-crew-l em{color:var(--fo-brass)}
+.desk .fo-deck .fo-more-d{border-top-color:rgba(201,168,92,.22)}
+.desk .fo-deck .fo-more-d>summary{color:var(--fo-gold)}
+.desk .fo-deck .fy-jobs,.desk .fo-deck .fy-jobs *{border-radius:2px}
+
+/* The Changelog: days headed in the display serif with a sigil rule, each change hung on a gold thread. */
+.desk .fo-deck .wv-log-day{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid rgba(201,168,92,.18)}
+.desk .fo-deck .wv-log-day b{color:var(--fo-gold)}
+.desk .fo-deck .wv-log-day b::before{content:"ᛟ";margin-right:10px;font-family:"Noto Sans Runic",serif;font-size:.7em;color:var(--fo-brass);opacity:.8}
+.desk .fo-deck .wv-log-i{border-left:1px solid rgba(201,168,92,.28)}
+.desk .fo-deck .wv-log-i[data-c=ok]{border-left-color:rgba(232,199,122,.7)}
+.desk .fo-deck .cl-entry__title{color:var(--wv-ink)}
+.desk .fo-deck .cl-entry__title:hover{color:#fff0c8}
+.desk .fo-deck .cl-entry__link,.desk .fo-deck .wv-link{color:var(--fo-gold)}
+.desk .fo-deck .wv-log-said{border-left:1px solid rgba(201,168,92,.3)}
+
+/* The clock: the runs' hairlines filling in gold. */
+.desk .fo-deck .fo-runs-p{gap:var(--fl-s5)}
+.desk .fo-deck .fo-runs ul{border-top-color:rgba(201,168,92,.35)}
+.desk .fo-deck .fo-runs li{border-left-color:rgba(201,168,92,.16)}
+.desk .fo-deck .fo-runs b{font-family:var(--fl-disp);color:#fff0c8}
+.desk .fo-deck .fo-runs i{background:linear-gradient(90deg,var(--fo-gold) calc(var(--f) * 100%),rgba(201,168,92,.14) 0);box-shadow:0 0 8px rgba(232,199,122,.25)}
+.desk .fo-deck .fo-usage-go{border-color:rgba(201,168,92,.2)}
+.desk .fo-deck .fo-usage-go:hover b{color:#fff0c8}
+.desk .fo-deck .fo-vqa-l li i{transform:rotate(45deg);border-radius:0}
+
+@media (max-width:760px){
+  .desk .fo-deck{padding-bottom:var(--fl-s4)}
+  .desk .fo-deck-tab{padding:14px 14px 12px;font-size:10px;letter-spacing:.16em;gap:7px}
+  .desk .fo-deck-tab b{font-size:17px}
+  .desk .fo-deck-p{padding:16px 14px}
+  .desk .fo-hall:not([data-gl=on]) .fo-tag[data-slot=rocky]{left:50%;top:90%}
+}
+@media (prefers-reduced-motion:reduce){
+  .desk .fo-deck-p{animation:none}
+}
+
+/* Suggest: the same forged plate as everything else in the console. */
+.desk .fo-deck .wv-sug-box,.desk .fo-deck .fo-suggest,.desk .fo-deck .wv-sug-form{border-radius:2px;border-color:rgba(201,168,92,.3);background:linear-gradient(180deg,rgba(22,18,12,.92),rgba(9,8,7,.92))}
+.desk .fo-deck .wv-sug-box{position:relative}
+.desk .fo-deck .wv-sug-sp{border-radius:50%}
+/* Phone: smaller job cards, one line of what's built; the shipped count lives in the numbers above. */
+@media (max-width:760px){
+  .desk .fo-tag.fo-job{width:132px;max-width:132px;padding:4px 7px 5px;row-gap:1px}
+  .desk .fo-job-t{-webkit-line-clamp:1;font-size:12px}
+  .desk .fo-job small{display:none}
+  .desk .fo-job-k b{font-size:9.5px;letter-spacing:.1em}
+  .desk .fo-job-k .fo-tag-n{font-size:10.5px}
+  .desk .fo-hall[data-gl=on] .fo-tag.is-ship{display:none}
+}
+.desk .fo-deck .fl-panel{border-radius:2px;border:1px solid rgba(201,168,92,.3);background:linear-gradient(180deg,rgba(22,18,12,.92),rgba(9,8,7,.92))}

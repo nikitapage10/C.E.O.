@@ -465,6 +465,15 @@ shelf on it. And every bench has a work light that glows in the verse its worker
 of a Haiku for Rivet (blue when she is on the upkeep in a Sonnet), the blue of a Sonnet for Rusty, the long amber of an Opus for Rocky, so anyone
 can tell from the door who is at which bench.
 
+**The Deep Furnace.** Under the floor the Foundry runs down into a forge shaft, and the Desk shows it from the deck.
+Every job is an ingot that starts white-hot in the crucible and rises on its builder's chain as it gets built: worked
+on the anvils, up through the Pictures band and the five brass rings of the checks, each one turning with gold runes,
+and out through the hatch's sigil circle to the surface. Rusty, Dusty, Gusty and Musty stand at the four anvils in
+their own frames and paint, asleep on their charging rings when there's nothing on their chains. Rocky keeps a second
+drafting table on the deck's left and naps over the plan there; when a big build is his, he comes apart into gold
+nanites at the table and puts himself back together at a free anvil, and that anvil's hand steps aside, politely
+(Musty takes longest). Rivet stands on the right by her own hoist and a second alarm post, thermos within reach.
+
 **The far-sight lens.** After every ship, Rivet takes a brass spyglass with two barrels off the shelf on her alarm
 post, sets it on a tripod and walks the Lattice with it, room by room, a few seconds each. It was lent to her by the
 **Geminae**, a pair of watchers from outside the Lattice who see in moving pictures (the Gemini model, on Google's

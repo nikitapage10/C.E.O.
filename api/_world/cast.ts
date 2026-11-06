@@ -1339,13 +1339,15 @@ export const WORLD_CAST: WorldCast = {
         "Everything's for sale. Except my crest. Unless you duel me for it.",
         "Noco wants to battle!",
         "Over nine thousand. Don't ask nine thousand what.",
-        "Brogu's Psychic type. Look at him. Look at the ears. I'm not taking questions."
+        "Brogu's Psychic type. Look at him. Look at the ears. I'm not taking questions.",
+        "Noco wants to battle! You, half-built post. Yes, you. Wire up."
       ],
       "hedge": [
         "Noco, you can't keep 'coming back down the river' as a risk strategy.",
         "Six downsides identified. Seventh pending.",
         "Honesty setting 90%: I did look over. Lowering honesty setting.",
-        "Spinning the top. Still spinning. Proceeding, cautiously."
+        "Spinning the top. Still spinning. Proceeding, cautiously.",
+        "The kiosk says how many are open. Never what they're worth. Honesty 90%, discretion 100%."
       ],
       "gridiron": [
         "BRING IT IN! Sorry. Bring it in.",

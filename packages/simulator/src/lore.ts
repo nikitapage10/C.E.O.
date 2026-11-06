@@ -151,6 +151,7 @@ export const LORE: Record<string, Lore> = {
       "Was audited by Ledger. Challenged the audit to a duel. The audit did not show up.",
       "Asked Hedge out by betting on it. Hedge assessed the risk. The risk was 'yes'. Hedge has not answered.",
       "Challenged Brogu to a battle. Brogu raised one hand, and Noco's crest stood up on its own. Has filed him as Psychic type ever since.",
+      "When the Exchange became a trade floor, claimed the busiest post as a dueling stage. Challenged the unbuilt posts at the rim twice. They never showed. Logged both as wins.",
     ],
   },
   hedge: {
@@ -172,6 +173,7 @@ export const LORE: Record<string, Lore> = {
       "Predicted the Great Coffee Machine Outage three epochs early. Nobody listened. Has a plaque.",
       "Ended things with Gridiron over a kicker. Was right about the kicker.",
       "Was asked out by Noco via a public bet. Raised honesty to 100% to answer. Lost their nerve at 99%.",
+      "Wrote the trade floor's one rule: the book's kiosk shows how many positions are open and never a figure. Checks the half-built posts' gold wire every morning for load-bearing optimism.",
     ],
   },
   gridiron: {

@@ -11,10 +11,12 @@ import {
   SENATE_CEILING_USD,
   SENATE_PART,
   floorReply,
+  joinDebate,
   motionKey,
   newDebate,
   publicSafe,
   readDebate,
+  readJoin,
   resetGaps,
   type SenateAsk,
   type SenateDeps,
@@ -153,6 +155,92 @@ describe("answering Nikita on the floor (#910)", () => {
   });
 });
 
+describe("Nikita joining the argument on the floor (#925)", () => {
+  /** A model that answers as told: the first member it's given speaks first, the argument goes on, a new ruling. */
+  function joinModel(over: Partial<Record<string, unknown>> = {}) {
+    const asked: { system: string; user: string }[] = [];
+    const ask: SenateAsk = async (system, user) => {
+      asked.push({ system, user });
+      const ids = /by id: ([a-z, ]+)\./.exec(user)![1]!.split(", ");
+      return {
+        answer: {
+          answers: [
+            { by: ids[0]!, text: "The gentleman from the floor raises the eagles. The record shows they were available." },
+            { by: ids[1]!, text: "Cut! One more take, with eagles this time." },
+          ],
+          rest: [
+            { by: ids[2] ?? ids[0]!, stance: "nay", text: "Eagles or no eagles, the walk was the point." },
+            { by: ids[1]!, stance: "aye", text: "A masterpiece either way." },
+          ],
+          close: "Carried, eagles noted. The chair would have flown, naturally.",
+          ...over,
+        },
+        usage: { input_tokens: 1_500, output_tokens: 300 },
+      };
+    };
+    return { ask, asked };
+  }
+  const ON_FLOOR = {
+    motion: "that the gardener is the true hero",
+    cast: ["archive", "studio", "boiler"],
+    lines: [
+      { by: "archive", text: "For the record, the gardener carried the ring-bearer up the mountain." },
+      { by: "kernel", text: "Order. The Director." },
+      { by: "studio", text: "And what a shot it was. A masterpiece." },
+    ],
+  };
+
+  beforeEach(() => resetGaps());
+
+  it("asks the members who were speaking to answer him first, in the argument, and carries it on", async () => {
+    const m = joinModel();
+    const sd = deps({ ask: m.ask });
+    const got = await joinDebate({ said: "Why not just fly the eagles to the mountain?", seated: SEATED, ...ON_FLOOR }, sd);
+    expect("join" in got).toBe(true);
+    if (!("join" in got)) return;
+    expect(got.join.answers[0]!.by).toBe("studio");
+    expect(got.join.answers[1]!.by).toBe("archive");
+    expect(got.join.rest.length).toBe(2);
+    expect(got.join.close).toMatch(/eagles noted/);
+    const u = m.asked[0]!.user;
+    expect(u).toContain("The argument on: that the gardener is the true hero");
+    expect(u).toContain("Speaking when he cut in: studio, archive");
+    expect(u).toContain("<said>Why not just fly the eagles to the mountain?</said>");
+    expect(m.asked[0]!.system).toMatch(/not a new conversation/);
+    // Under the Senate's own part of the month, like every other call.
+    expect(chatMonth(await sd.chat.load(), NOW).parts?.[SENATE_PART]).toBeGreaterThan(0);
+  });
+
+  it("keeps his earlier words in the same argument as his", async () => {
+    const m = joinModel();
+    await joinDebate({ said: "And the eagles again?", seated: SEATED, ...ON_FLOOR, lines: [...ON_FLOOR.lines, { by: "floor", text: "What about the eagles?" }, { by: "studio", text: "Eagles cost extra." }] }, deps({ ask: m.ask }));
+    expect(m.asked[0]!.user).toContain("Nikita (from the floor): What about the eagles?");
+  });
+
+  it("never sends words that look private, and needs an argument on the floor", async () => {
+    const m = joinModel();
+    expect(await joinDebate({ said: "text Sam at 555 867 5309", seated: SEATED, ...ON_FLOOR }, deps({ ask: m.ask }))).toEqual({ quiet: "held" });
+    expect(await joinDebate({ said: "What about the eagles?", seated: SEATED }, deps({ ask: m.ask }))).toEqual({ quiet: "off" });
+    expect(m.asked).toHaveLength(0);
+  });
+
+  it("is quiet past the Senate's cap", async () => {
+    const sd = deps({ ask: joinModel().ask });
+    await sd.chat.add(NOW, { input_tokens: 0, output_tokens: 0 }, SENATE_BUDGET_USD - SENATE_CEILING_USD / 2, { [SENATE_PART]: SENATE_BUDGET_USD - SENATE_CEILING_USD / 2 });
+    expect(await joinDebate({ said: "What about the eagles?", seated: SEATED, ...ON_FLOOR }, sd)).toEqual({ quiet: "capped" });
+  });
+
+  it("holds back an answer that isn't from the speakers first, from the chair, or not public-safe", () => {
+    const members = ["studio", "archive", "boiler"];
+    const ok = { answers: [{ by: "studio", text: "Fine." }], rest: [{ by: "boiler", stance: "nay", text: "No." }], close: "Carried." };
+    expect(readJoin(ok, members, ["studio", "archive"])).not.toBeNull();
+    expect(readJoin({ ...ok, answers: [{ by: "boiler", text: "Me first." }] }, members, ["studio", "archive"])).toBeNull();
+    expect(readJoin({ ...ok, answers: [{ by: "kernel", text: "The chair." }] }, [...members, "kernel"], [])).toBeNull();
+    expect(readJoin({ ...ok, rest: [{ by: "boiler", stance: "nay", text: "Wire $500 to me." }] }, members, [])).toBeNull();
+    expect(readJoin({ ...ok, close: "" }, members, [])).toBeNull();
+  });
+});
+
 describe("through POST /api/skippy-room (#910)", () => {
   it("is for a signed-in Desk only, and hands back the argument", async () => {
     const store = new MemoryAuthStore();
@@ -176,5 +264,8 @@ describe("through POST /api/skippy-room (#910)", () => {
     const body = (await (await roomVoicePost(post({ room: "today", senate: "debate", seated: SEATED }), d)).json()) as { debate?: { motion: string } };
     expect(body.debate?.motion).toBe("that every bridge is secretly a love letter to gravity");
     expect(await (await roomVoicePost(post({ room: "today", senate: "debate", seated: SEATED }), { ...d, senate: null })).json()).toEqual({ quiet: "off" });
+    // Joining the argument (#925): signed in only, and no argument on the floor means nothing is asked.
+    expect((await roomVoicePost(post({ room: "today", senate: "join", said: "Eagles?", seated: SEATED }, ""), d)).status).toBe(401);
+    expect(await (await roomVoicePost(post({ room: "today", senate: "join", said: "Eagles?", seated: SEATED }), d)).json()).toEqual({ quiet: "off" });
   });
 });

@@ -23,10 +23,10 @@
  *   POST /api/skippy-room  { room: "today", speak, as }   Today's Senate Rotunda (#755): a caption read aloud in Skippy's
  *                          voice bent its member's way (`as` is its seat, "kernel" the chair; api/_skippy/rotundavoice.ts), kept in
  *                          the blob store by hash so each line is made once ever → 200 { say, kind: "spoken", audio?, cached? }.
- *   POST /api/skippy-room  { room: "today", senate: "debate" | "reply", … }   the Senate's live talk (#910,
- *                          api/_skippy/senatetalk.ts): a new recess argument, or the members' answers to Nikita on the
- *                          floor, on Claude Haiku under the Senate's $10 inside Skippy's month → 200 { debate } | { lines }
- *                          | { quiet }.
+ *   POST /api/skippy-room  { room: "today", senate: "debate" | "reply" | "join", … }   the Senate's live talk (#910,
+ *                          api/_skippy/senatetalk.ts): a new recess argument, the members' answers to Nikita on the
+ *                          floor, or his words joined to the argument on the floor (#925), on Claude Haiku under the
+ *                          Senate's $10 inside Skippy's month → 200 { debate } | { lines } | { join } | { quiet }.
  *     → 401 signed-out, 403 cross-site, 400 { say } nothing heard or too long, 413 too big, 415 not JSON or audio,
  *       422 { say } held by the privacy check, 429 { say } the chat's pace, 502 { say }, 503 not-set-up.
  *
@@ -47,7 +47,7 @@ import { roomAnswer, type PhoneTurn, type RoomTurn } from "../skippy.js";
 import { ROOM_SUBMINDS, isNeeds } from "./log.js";
 import { castVoiceOf, ROTUNDA_SAY_MAX, speakCast } from "./rotundavoice.js";
 import { BlobChatLedger, KERNEL_LEDGER_PATH, skippyBudget } from "./budget.js";
-import { BlobTopicStore, floorReply, liveAsk, newDebate, type SenateDeps } from "./senatetalk.js";
+import { BlobTopicStore, floorReply, joinDebate, liveAsk, newDebate, type SenateDeps } from "./senatetalk.js";
 import {
   CLIP_MAX_BYTES,
   CLIP_TYPES,
@@ -214,10 +214,10 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     // Today's Rotunda (#755): a caption read aloud in Skippy's voice, bent its member's way, cached once ever (rotundavoice.ts).
     if (body.speak !== undefined && body.text === undefined && body.as !== undefined && voice.room === "today") return speakAs(body.as, tidyText(body.speak), deps);
     // The Senate's live talk (#910): a new argument, or the members answering Nikita on the floor.
-    if (voice.room === "today" && (body.senate === "debate" || body.senate === "reply")) {
+    if (voice.room === "today" && (body.senate === "debate" || body.senate === "reply" || body.senate === "join")) {
       const sd = deps.senate?.();
       if (!sd) return json({ quiet: "off" });
-      return json(body.senate === "debate" ? await newDebate(body, sd) : await floorReply(body, sd));
+      return json(body.senate === "debate" ? await newDebate(body, sd) : body.senate === "join" ? await joinDebate(body, sd) : await floorReply(body, sd));
     }
     if (body.speak !== undefined && body.text === undefined) return speakOnly(voice, tidyText(body.speak), deps);
     text = tidyText(body.text);

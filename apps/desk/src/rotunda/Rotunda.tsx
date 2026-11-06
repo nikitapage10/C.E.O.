@@ -218,6 +218,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       talk: (by, seconds) => scene.current?.talk(by, seconds),
       seated: () => live.current.seats.map((s) => s.id),
       topic: () => scene.current?.topic() ?? null,
+      join: (said, j) => scene.current?.join(said, j) ?? null,
       light: (id) => setHot(id),
     });
     const off = registerHoldToTalk(
@@ -240,7 +241,8 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       setFloorScene(null);
     };
   }, []);
-  const floorOn = useFloor((s) => s.phase !== "idle");
+  // Joined to the argument (#925), the chamber's own captions are the answers: only his line stays up, and nothing dims.
+  const floorOn = useFloor((s) => s.phase !== "idle" && s.phase !== "joined");
 
   useEffect(() => {
     if (!sel) return;
@@ -334,6 +336,18 @@ function FloorCaption() {
   const chair = useFloor((s) => s.chair);
   const turn = useFloor((s) => s.turn);
   if (phase === "idle") return null;
+  // His words in the argument (#925): his line stays up as his, small, while the members answer it in the chamber.
+  if (phase === "joined")
+    return (
+      <div className="rt-ask is-joined" role="status" aria-live="polite">
+        <div className="rt-ask-q">
+          <span className="rt-ask-who">Nikita · from the floor</span>
+          <p>
+            <Private>{question}</Private>
+          </p>
+        </div>
+      </div>
+    );
   const by = turn ? (turn.by === "kernel" ? "Skippy, the Magnificent" : (SUBMIND_TITLE[turn.by] ?? turn.by)) : "";
   return (
     <div className="rt-ask" role="status" aria-live="polite">

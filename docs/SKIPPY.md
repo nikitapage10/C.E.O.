@@ -88,7 +88,10 @@ motion made on Claude Haiku as the page runs (`api/_skippy/senatetalk.ts` throug
 `{ room: "today", senate: "debate" }`; `apps/desk/src/rotunda/liveTalk.ts` in the browser): the chamber's list of
 motions already argued (`desk/senate/topics.json`) is in the prompt and a repeat is refused, a random subject and a
 random handful of members steer it, and each one brings a few new gallery murmurs. Words on the floor about nothing in
-particular get one or two members' live answer in the argument's context (`senate: "reply"`). Only public-safe facts go
+particular get one or two members' live answer in the argument's context (`senate: "reply"`). Since #925, with an
+argument on the floor his words join it instead (`senate: "join"`, one call): the members who were speaking answer him
+first, perhaps one more chimes in, and the argument carries on with his point in it to a new ruling, all in the
+chamber's own captions and voices while his line stays up as his. Only public-safe facts go
 in (titles, room names, who is at work, how many items wait); Nikita's words only past the privacy check, and every
 line back is checked again (nothing private, no money values) or the whole answer is dropped. It costs a hard **$10 a
 month inside Skippy's $60**: each call is written to the chat's ledger as the part `senate` (the meter shows it), and a

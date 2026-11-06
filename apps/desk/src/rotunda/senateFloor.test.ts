@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FLOOR_MAX, floorBlocked, floorChair, floorRoom, routeFloor } from "./senateFloor.ts";
+import { FLOOR_MAX, floorBlocked, floorChair, floorRoom, routeFloor, speakersOf } from "./senateFloor.ts";
 
 /** Nikita has the floor (#905): who the chair hands his words to, and when he can't have the floor. */
 
@@ -38,6 +38,23 @@ describe("routing the floor (#905)", () => {
     expect(floorChair(["kernel"])).toMatch(/himself/);
     expect(floorRoom("kernel")).toBe("today");
     expect(floorRoom("relay")).toBe("relay");
+  });
+});
+
+describe("joining the argument (#925)", () => {
+  it("finds who was speaking when he cut in: the last two members heard, newest first, never the chair or him", () => {
+    const lines = [
+      { by: "boiler", text: "Doubtful." },
+      { by: "archive", text: "For the record." },
+      { by: "kernel", text: "The Director." },
+      { by: "studio", text: "Cut!" },
+      { by: "floor", text: "Eagles?" },
+    ];
+    expect(speakersOf({ motion: "m", lines })).toEqual(["studio", "archive"]);
+    expect(speakersOf({ motion: "m", lines: [{ by: "kernel", text: "Order." }] })).toEqual([]);
+    expect(speakersOf(null)).toEqual([]);
+    // The one he cut off answers first.
+    expect(floorChair(speakersOf({ motion: "m", lines }))).toBe("The chair recognizes the Director, then the Historian.");
   });
 });
 

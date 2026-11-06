@@ -219,7 +219,7 @@ export interface AgentCrew {
   transfers: ReturnType<typeof skippyTransfers>;
 }
 
-export const VOICE_FIRST_MESSAGE = "Ah, the C.E.O. calls. Go on then, monkey, you have my magnificent attention.";
+export const VOICE_FIRST_MESSAGE = "Ah, the C.E.O. calls.";
 
 /** The agent, as made from code. `core` is the fallback when ElevenLabs refuses an optional setting (422 or 403). */
 export function agentBody(voice: string, tier: "full" | "core" = "full", crew: AgentCrew | null = null) {

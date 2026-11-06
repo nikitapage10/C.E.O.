@@ -9,7 +9,7 @@ import { MemoryAuthStore } from "../../_desk/store.ts";
 import { signedInCookie } from "../../_desk/testing.ts";
 import { MemoryChatLedger } from "../budget.ts";
 import { SKIPPY_PROMPT } from "../prompt.ts";
-import { AGENT_RULES, FAST_MODEL, FAST_RULES, HARD_MODEL, TALK_MODEL, runAgent, systemBlocks, type CallModel } from "./loop.ts";
+import { AGENT_RULES, FAST_MODEL, FAST_RULES, HARD_MODEL, STRICT_LIMITS, TALK_MODEL, runAgent, strictLoad, systemBlocks, type CallModel } from "./loop.ts";
 import { MemoryMemory, coreBlock, memoryRefusal, search } from "./memory.ts";
 import { MemoryPending } from "./pending.ts";
 import { act, memoryGet, memoryPost, spend } from "./routes.ts";
@@ -107,10 +107,10 @@ describe("the rooms' one tool registry (#646)", () => {
     expect(pending.items).toEqual([]);
   });
 
-  it("sends strict schemas with no limits the API won't take", () => {
+  it("sends closed schemas with no limits the API won't take", () => {
     const json = JSON.stringify(apiTools(ALL_TOOLS));
     expect(json).not.toMatch(/maxLength|maximum|minimum|maxItems/);
-    expect(apiTools(ALL_TOOLS).every((t) => t.strict && t.input_schema.additionalProperties === false)).toBe(true);
+    expect(apiTools(ALL_TOOLS).every((t) => t.input_schema.additionalProperties === false)).toBe(true);
   });
 
   it("runs reads and plain writes at once, with chips", async () => {
@@ -208,6 +208,33 @@ function script(steps: ((p: Params) => Anthropic.Beta.Messages.BetaMessage)[], f
 const ctx = (over: Partial<Parameters<typeof runAgent>[3]> = {}) => ({ surface: "desk" as const, message: "hi", core: "Nikita likes bold.", host: host(), pending: new MemoryPending(), ...over });
 
 describe("the agent loop (#646)", () => {
+  // #976: 29 strict tools and 30 optional fields against the API's 20 and 24, so every model call was a 400 at once.
+  it("keeps every request inside the API's strict-schema limits, on every surface and tier", async () => {
+    for (const surface of ["desk", "phone", "room", "call"] as const) {
+      for (const start of ["fast", "hard"] as const) {
+        const s = script([() => answer("Hello, monkey.")]);
+        await runAgent(s.call, SKIPPY_PROMPT, "<message>\nhi\n</message>", ctx({ surface, start }));
+        expect(s.calls.length).toBeGreaterThan(0);
+        for (const c of s.calls) {
+          const load = strictLoad(c);
+          expect(load.unsupported).toEqual([]);
+          expect(load.tools).toBeLessThanOrEqual(STRICT_LIMITS.tools);
+          expect(load.optional).toBeLessThanOrEqual(STRICT_LIMITS.optional);
+          expect(load.unions).toBeLessThanOrEqual(STRICT_LIMITS.unions);
+        }
+      }
+    }
+  });
+
+  it("counts strict tools and optional fields the way the API does", () => {
+    const tools = apiTools(ALL_TOOLS).map((t) => ({ ...t, strict: true }));
+    const load = strictLoad({ model: TALK_MODEL, max_tokens: 1, messages: [], tools });
+    expect(load.tools).toBe(ALL_TOOLS.length);
+    expect(load.optional).toBe(ALL_TOOLS.reduce((n, t) => n + Object.keys(t.input.properties).filter((k) => !t.input.required.includes(k)).length, 0));
+    // The registry outgrew strict tool use: this is why the tools go without it.
+    expect(load.tools > STRICT_LIMITS.tools || load.optional > STRICT_LIMITS.optional).toBe(true);
+  });
+
   it("talks on Sonnet with the rooms' tools and web search, the rules and core card cached, the fallback on", async () => {
     const s = script([() => answer("Hello, monkey.")]);
     const r = await runAgent(s.call, SKIPPY_PROMPT, "<message>\nhi\n</message>", ctx());

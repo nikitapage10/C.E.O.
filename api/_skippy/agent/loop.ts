@@ -272,7 +272,8 @@ export async function runAgent(call: CallModel, system: string, input: string, c
           output_config: { effort: "low", format: { type: "json_schema", schema: FAST_SCHEMA } },
           messages,
         });
-      } catch {
+      } catch (e) {
+        noteFailure("fast", e);
         break; // a failed fast call hands up as "talk", with whatever it found
       }
       called = true;
@@ -321,6 +322,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
         messages,
       });
     } catch (e) {
+      noteFailure(start, e);
       // The first answering call failing is the chat's 502 (on the Senate's floor, the members answer instead); a later
       // one keeps what the turn has.
       if (round === 0) {
@@ -359,6 +361,53 @@ export async function runAgent(call: CallModel, system: string, input: string, c
   const reply = answer && typeof answer === "object" ? (answer as { reply?: unknown }).reply : null;
   if (ctx.floor && !(typeof reply === "string" && reply.trim())) return result(null, answeredBy, start, "floor");
   return result(answer, answeredBy, start);
+}
+
+/**
+ * The Messages API's limits on strict schemas (#976, the structured outputs docs), totals across one request: tools
+ * marked `strict` and the answer's `output_config.format` schema. Past any of them the API answers 400 at once.
+ */
+export const STRICT_LIMITS = { tools: 20, optional: 24, unions: 16 } as const;
+
+/** What one request puts against STRICT_LIMITS, and any schema keyword strict schemas don't take. */
+export function strictLoad(params: Anthropic.Beta.Messages.MessageCreateParamsNonStreaming): { tools: number; optional: number; unions: number; unsupported: string[] } {
+  const load = { tools: 0, optional: 0, unions: 0, unsupported: [] as string[] };
+  const walk = (s: unknown, path: string): void => {
+    if (!s || typeof s !== "object") return;
+    const o = s as Record<string, unknown>;
+    for (const k of ["minimum", "maximum", "multipleOf", "minLength", "maxLength", "maxItems"]) if (k in o) load.unsupported.push(`${path}.${k}`);
+    if (typeof o.minItems === "number" && o.minItems > 1) load.unsupported.push(`${path}.minItems`);
+    if (Array.isArray(o.anyOf) || Array.isArray(o.type)) load.unions++;
+    if (o.properties && typeof o.properties === "object") {
+      if (o.additionalProperties !== false) load.unsupported.push(`${path}.additionalProperties`);
+      const required = new Set(Array.isArray(o.required) ? o.required : []);
+      for (const [k, v] of Object.entries(o.properties)) {
+        if (!required.has(k)) load.optional++;
+        walk(v, `${path}.${k}`);
+      }
+    }
+    walk(o.items, `${path}[]`);
+    for (const a of Array.isArray(o.anyOf) ? o.anyOf : []) walk(a, path);
+  };
+  for (const t of params.tools ?? []) {
+    const tool = t as { name?: string; strict?: boolean; input_schema?: unknown };
+    if (tool.strict !== true) continue;
+    load.tools++;
+    walk(tool.input_schema, tool.name ?? "tool");
+  }
+  const format = params.output_config?.format as { schema?: unknown } | undefined | null;
+  if (format?.schema) walk(format.schema, "answer");
+  return load;
+}
+
+/**
+ * A failed model call, in the Function's own log (#976): the HTTP status and the API's error type, never the request. A
+ * 400 here means the request itself is wrong (a schema past the API's limits), and every ask fails the same way.
+ */
+function noteFailure(tier: Tier, e: unknown): void {
+  const status = e instanceof Anthropic.APIError ? e.status : undefined;
+  const type = e instanceof Anthropic.APIError ? (e.error as { error?: { type?: unknown } } | undefined)?.error?.type : undefined;
+  console.error(`skippy: the ${tier} tier's model call failed`, { status: status ?? "none", type: typeof type === "string" ? type : e instanceof Error ? e.name : "unknown" });
 }
 
 /** The live client: the Azure copy's Claude key, no retries past one, a timeout that fits the Function's window. */

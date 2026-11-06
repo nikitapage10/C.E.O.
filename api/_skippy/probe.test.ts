@@ -8,6 +8,7 @@ import { probe, type Ask, type ChatDeps } from "../skippy.ts";
 import { decide } from "../_site/gate.ts";
 import { MemoryMemory } from "./agent/memory.ts";
 import { MemoryPending } from "./agent/pending.ts";
+import { FAST_MODEL, STRICT_LIMITS, runAgent, strictLoad, type CallModel } from "./agent/loop.ts";
 import { toolNamed, type HomeAsk, type ToolHost } from "./agent/tools.ts";
 import { MemoryChatLedger } from "./budget.ts";
 import { deskContext } from "./context.ts";
@@ -150,6 +151,42 @@ describe("a dry run (#955): no device moves, nothing is kept, no words come back
     expect((await f.post({ asks: ["what's the big sample news today?"] })).json.turns?.[0]).toMatchObject({ skipped: "budget" });
     expect(f.inputs).toEqual([]);
     expect((await f.post({ asks: ["what's the temperature in my apartment"], surface: "call" })).json.turns?.[0]).toMatchObject({ status: 200, tier: "rules" });
+  });
+});
+
+/**
+ * A stand-in for the Messages API that refuses, as the live one does, a request past its strict-schema limits (#976),
+ * and otherwise has the fast tier answer in a sentence.
+ */
+function messagesApi(): { call: CallModel; refused: string[] } {
+  const refused: string[] = [];
+  const call: CallModel = async (params) => {
+    const load = strictLoad(params);
+    if (load.tools > STRICT_LIMITS.tools || load.optional > STRICT_LIMITS.optional || load.unions > STRICT_LIMITS.unions || load.unsupported.length) {
+      refused.push(params.model);
+      throw new Error("400 invalid_request_error: too many strict tools or optional parameters");
+    }
+    const fast = params.model === FAST_MODEL;
+    const answer = { reply: "Nothing's on right now.", actions: [], room: "haven", needs: "none", ...(fast && { deeper: "no" }) };
+    return { id: "m", type: "message", role: "assistant", model: params.model, content: [{ type: "text", text: JSON.stringify(answer) }], stop_reason: "end_turn", usage: { input_tokens: 900, output_tokens: 30 } } as unknown as Awaited<ReturnType<CallModel>>;
+  };
+  return { call, refused };
+}
+
+describe("the probe's model asks, through the real agent loop (#976)", () => {
+  it("answers the battery's model asks on the phone and on a call, with no request the API would refuse", async () => {
+    for (const [surface, ask] of [
+      ["phone", "skippy my guy, the litter thing, has it like, done its business today"],
+      ["call", "are any of the lights on right now"],
+      ["desk", "anything on fire in the foundry right now?"],
+    ] as const) {
+      const api = messagesApi();
+      const f = fixture({ ask: async (system, input, ctx) => (ctx ? runAgent(api.call, system, input, ctx) : { answer: null, usage: null }) });
+      const got = await f.post({ asks: [ask], surface });
+      expect(api.refused).toEqual([]);
+      expect(got.json.turns?.[0]).toMatchObject({ status: 200, tier: "fast", flags: [] });
+      expect(got.json.turns?.[0]?.error).toBeUndefined();
+    }
   });
 });
 

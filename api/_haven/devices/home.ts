@@ -14,6 +14,7 @@ import type { BlobBackend } from "../../_blob.js";
 import type { RoomLog } from "../../_skippy/log.js";
 import { clockAt, clockWords, closeAtFor, CLOSE_GIVE_UP_MS, FeedLedger, litterBlock, mealInWindow, PLATES, portionsOf, PORTIONS_MAX, rotateSteps, TrayLog, traySummary, trayWarning, THERMO_MAX_F, THERMO_MIN_F, thermostatPlan, WetCloseNote } from "./rails.js";
 import { VendorError } from "./http.js";
+import { keepLines } from "./homeread.js";
 import { joinRooms } from "./roborock.js";
 import { ACTION_KIND, isSuction, isWater, SPOKEN, VENDORS, type ActionId, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunArgs, type Vendor, type VendorProblem } from "./types.js";
 
@@ -352,6 +353,8 @@ export class Home {
     }
     const view = { vendors, problems, devices, feedCap: this.deps.feedCap };
     if (gen === this.gen) this.cache = { at: now, view };
+    // Skippy's instant read (#926, homeread.ts): the last good lines kept, at most once a minute.
+    if (this.deps.blob && Object.values(vendors).includes("live")) void keepLines(this.deps.blob, view, now);
     return view;
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEBATES } from "./debates.ts";
-import { CAPPED_WAIT_MS, createRecess, debateMark, fetchFloorReply, fetchJoin, readJoined, readLiveDebate } from "./liveTalk.ts";
+import { CAPPED_WAIT_MS, createRecess, debateMark, fetchFloor, readJoined, readLiveDebate } from "./liveTalk.ts";
 import { freshMurmur, MURMURS } from "./rite.ts";
 
 /** The Senate's live talk in the browser (#910): a new argument every time, never one said before, and quiet past the cap. */
@@ -87,13 +87,27 @@ describe("the recess's arguments (#910)", () => {
 
   it("asks the members to answer the floor in kind, in the argument's context", async () => {
     let sent: Record<string, unknown> = {};
-    const lines = await fetchFloorReply("What about the eagles?", ["boiler"], { motion: "that the gardener is the hero", lines: [{ by: "boiler", text: "Eagles." }] }, (async (_u: RequestInfo | URL, init?: RequestInit) => {
+    const got = await fetchFloor("What about the eagles?", ["boiler"], { motion: "that the gardener is the hero", lines: [{ by: "boiler", text: "Eagles." }] }, false, (async (_u: RequestInfo | URL, init?: RequestInit) => {
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return Response.json({ lines: [{ by: "boiler", text: "Not one of you mentions the eagles." }] });
     }) as typeof fetch);
     expect(sent).toMatchObject({ room: "today", senate: "reply", said: "What about the eagles?", motion: "that the gardener is the hero" });
-    expect(lines).toEqual([{ by: "boiler", text: "Not one of you mentions the eagles." }]);
-    expect(await fetchFloorReply("hi", [], null, (async () => Response.json({ quiet: "capped" })) as typeof fetch)).toBeNull();
+    expect(got).toEqual({ lines: [{ by: "boiler", text: "Not one of you mentions the eagles." }] });
+    expect(await fetchFloor("hi", [], null, false, (async () => Response.json({ quiet: "capped" })) as typeof fetch)).toBeNull();
+  });
+});
+
+describe("Skippy hears the floor first (#926)", () => {
+  it("brings his own answer back as the chair's, in his voice, with what it changed", async () => {
+    const audio = "A".repeat(120);
+    const got = await fetchFloor("can you dispense one portion of dry food?", ["haven"], null, true, (async () =>
+      Response.json({ lines: [{ by: "kernel", text: "One portion of dry food is out." }], skippy: true, audio, wrote: ["home_device"], did: ["Dispense 1 portion"] })) as typeof fetch);
+    expect(got).toEqual({ chair: { say: "One portion of dry food is out.", audio, wrote: ["home_device"], did: ["Dispense 1 portion"] } });
+  });
+
+  it("drops audio that isn't audio", async () => {
+    const got = await fetchFloor("hi", [], null, false, (async () => Response.json({ lines: [{ by: "kernel", text: "Hi." }], skippy: true, audio: "<script>" })) as typeof fetch);
+    expect(got).toEqual({ chair: { say: "Hi." } });
   });
 });
 
@@ -102,17 +116,17 @@ describe("joining the argument on the floor (#925)", () => {
 
   it("sends his words with the argument, its lines (his own marked as the floor's) and who argues it", async () => {
     let sent: Record<string, unknown> = {};
-    const got = await fetchJoin("And the eagles?", ["archive", "studio", "boiler"], TOPIC, (async (_u: RequestInfo | URL, init?: RequestInit) => {
+    const got = await fetchFloor("And the eagles?", ["archive", "studio", "boiler"], TOPIC, true, (async (_u: RequestInfo | URL, init?: RequestInit) => {
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return Response.json({ join: { answers: [{ by: "archive", text: "Footnote twelve: eagles." }], rest: [{ by: "studio", stance: "nay", text: "Cut." }], close: "Carried." } });
     }) as typeof fetch);
     expect(sent).toEqual({ room: "today", senate: "join", said: "And the eagles?", seated: ["archive", "studio", "boiler"], motion: TOPIC.motion, lines: TOPIC.lines, cast: TOPIC.cast });
-    expect(got).toEqual({ answers: [{ by: "archive", text: "Footnote twelve: eagles." }], rest: [{ by: "studio", stance: "nay", text: "Cut." }], close: "Carried." });
+    expect(got).toEqual({ join: { answers: [{ by: "archive", text: "Footnote twelve: eagles." }], rest: [{ by: "studio", stance: "nay", text: "Cut." }], close: "Carried." } });
   });
 
-  it("is null when it can't come live, so the floor answers him as before", async () => {
-    expect(await fetchJoin("hi", [], TOPIC, (async () => Response.json({ quiet: "capped" })) as typeof fetch)).toBeNull();
-    expect(await fetchJoin("hi", [], TOPIC, (async () => new Response("", { status: 401 })) as typeof fetch)).toBeNull();
+  it("is null when it can't come live, so the chair answers him through Skippy's own route", async () => {
+    expect(await fetchFloor("hi", [], TOPIC, true, (async () => Response.json({ quiet: "capped" })) as typeof fetch)).toBeNull();
+    expect(await fetchFloor("hi", [], TOPIC, true, (async () => new Response("", { status: 401 })) as typeof fetch)).toBeNull();
     expect(readJoined({ answers: [], rest: [], close: "Carried." })).toBeNull();
     expect(readJoined({ answers: [{ by: "archive", text: "Yes." }], close: "" })).toBeNull();
   });

@@ -9,11 +9,12 @@
  *                        - past the key's 30 an hour: 429 { say } with Retry-After;
  *                        - text over 300 characters: 400 { say };
  *                        - otherwise 200 { say, quiet, audio? }: rules sort the words first (api/_haven/classify.ts):
- *                          shopping items go on the Kitchen list (api/_haven/list.ts), or on Things to buy when the words say so (#735), a home-device ask ("feed the
- *                          cat", "clean the kitchen", "clean the litter box") through api/_haven/devices/home.ts and
- *                          its rails (#632), a to-do into the to-dos
- *                          (api/_haven/todos.ts, into Today's store), and anything else to Desk Skippy's own chat (`phoneAnswer` in
- *                          api/skippy.ts: the same prompt, router, caps and hand-offs, marked "phone"). A finished
+ *                          shopping items go on the Kitchen list (api/_haven/list.ts), or on Things to buy when the words say so (#735),
+ *                          a to-do into the to-dos (api/_haven/todos.ts, into Today's store), and anything else, a
+ *                          home-device ask ("feed the cat", "open the wet food feeder", #632) and "what's the
+ *                          temperature?" included, to Skippy's one brain (#926, `phoneAnswer` in api/skippy.ts: the
+ *                          rules tier through the devices' rails, then the fast tier and deeper with every room's tools,
+ *                          the same caps and hand-offs, marked "phone"). A finished
  *                          action (a list add, a to-do, a device action that worked with nothing to warn of) answers
  *                          `quiet: true` with a short `say` and never an `audio` link or an ElevenLabs call (#652): the
  *                          shortcut shows it as a notification. A question, an answer, a refusal, a failure or a
@@ -68,8 +69,6 @@ import { mealCountsOf } from "./meals.js";
 import { PhoneKeys, KEY_SHAPE } from "./phones.js";
 import { phoneKeyOf } from "./links.js";
 import { PhoneTodos, type TodoSink } from "./todos.js";
-import type { Home } from "./devices/home.js";
-import { homeFromEnv } from "./devices/live.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -91,8 +90,6 @@ export interface HavenDeps {
   voice: Omit<VoiceDeps, "blob"> | null;
   log: (line: string) => void;
   random: () => number;
-  /** The home devices (#632, api/_haven/devices/home.ts), or null when they aren't set up here. */
-  devices?: () => Home | null;
 }
 
 export function liveDeps(env: Env = process.env): HavenDeps {
@@ -107,7 +104,6 @@ export function liveDeps(env: Env = process.env): HavenDeps {
     voice: { eleven, ledger: pickStoryStore(env), deskKey },
     log: (line) => console.log(line),
     random: Math.random,
-    devices: () => homeFromEnv(env),
   };
 }
 
@@ -192,25 +188,20 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
         say = sayGymLogged(got);
         quiet = true;
       } else say = `There's no day ${(sorted.session ?? "").toUpperCase()} in the Gym's plan.`;
-    } else if (sorted.kind === "device") {
-      // The home devices (#632): the same rails as the Desk's buttons, and the Council keeps the words as said.
-      const home = deps.devices?.() ?? null;
-      if (home) {
-        const done = await home.act({ action: sorted.action, rooms: sorted.rooms, portions: sorted.portions, plate: sorted.plate, suction: sorted.suction, water: sorted.water, via: "phone", said: text });
-        say = done.say;
-        // Only a plain success: a refusal, a warning, a "what's in the tray" question or an opening (when it closes,
-        // #713) is spoken.
-        quiet = done.ok && !done.warned && sorted.action !== "wet.status" && sorted.action !== "wet.open";
-      } else say = "The home devices aren't set up here yet.";
     } else if (sorted.kind === "todo") {
       const todo = await deps.todos(deps.blob).addTodo(sorted.text, now);
       say = sayTodo(todo.text, todo.due, now);
       quiet = true;
     } else {
-      // A turn that looks private is left out of what Skippy is shown again, so it can't hold up the next ask.
+      // Everything else, the home devices and the thermostat included, is Skippy's one brain (#926, phoneAnswer): the
+      // rules tier runs a device through its rails on these words as the phone always has (the Council keeps them),
+      // then the fast tier and deeper, with every room's tools. A turn that looks private is left out of what Skippy is
+      // shown again, so it can't hold up the next ask.
       const history = (before?.turns ?? []).filter((t) => privateParts(t.text).length === 0);
-      const turn = await deps.skippy(sorted.text || text, check.phone.id, history);
+      const turn = await deps.skippy(sorted.kind === "skippy" ? sorted.text || text : text, check.phone.id, history);
       say = turn.error ? SKIPPY_SAYS[turn.error] : spokenOf(turn.reply, turn.handedOff);
+      // A plain finished device action is a notification (#652); a refusal, a warning or an opening (#713) is spoken.
+      quiet = !turn.error && turn.quiet === true;
     }
   } catch {
     deps.log(`capture: ${sorted.kind} failed`);

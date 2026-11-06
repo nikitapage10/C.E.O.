@@ -281,6 +281,14 @@ function announce(turn: LoggedTurn): void {
   }
 }
 
+/**
+ * The model mark on a Talk call's ask filed for its deeper run (#926, api/_skippy/toolroute.ts), and on one that needs
+ * judgment: the hand-off's trigger runs Skippy's one brain for it (api/skippy.ts deepAnswer), not the old responder.
+ */
+export const CALL_MODEL = "voice";
+export const CALL_HARD = "voice-hard";
+export const isCallAsk = (model: string): boolean => model === CALL_MODEL || model === CALL_HARD;
+
 /** Where the turns live. */
 export interface RoomLog {
   /** A room's turns, newest first, at most LOG_SHOW; with `needs`, only the hand-offs still open to that thread. */

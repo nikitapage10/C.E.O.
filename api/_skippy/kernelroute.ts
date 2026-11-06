@@ -24,7 +24,7 @@ import { PRIVATE_LABEL, privateParts } from "../_privacy.js";
 import { waitUntil } from "../_waitUntil.js";
 import { githubToken } from "../_github.js";
 import { setupList } from "../foundry.js";
-import { keepAnswer, answerDeps, foundryIssues } from "../skippy.js";
+import { deepAnswer, keepAnswer, answerDeps, foundryIssues } from "../skippy.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { claudeKey } from "../_world/claude.js";
 import { pickStore } from "../_world/store.js";
@@ -139,6 +139,8 @@ export function liveAgent(env: Env = process.env): AgentDeps {
       const res = await keepAnswer({ ...answerDeps(), log }, { id, from: "kernel-agent", text, final, ping: final });
       return res.ok;
     },
+    // A Talk call's ask (#926): Skippy's one brain, deeper, under his month.
+    deep: (question, depth) => deepAnswer(question, depth),
   };
 }
 

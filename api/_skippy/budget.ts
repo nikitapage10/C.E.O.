@@ -49,7 +49,7 @@ const LOOKUP_IN = 4_000 + SEARCH_MAX * 15_000;
 
 /**
  * The agent loop (#646): at most AGENT_ROUNDS calls a turn, each with at most AGENT_INPUT tokens in and
- * AGENT_MAX_TOKENS out (thinking included), on Opus at its most, plus a Haiku triage and the web searches.
+ * AGENT_MAX_TOKENS out (thinking included), on Opus at its most, plus the Haiku fast tier and the web searches.
  */
 export const AGENT_ROUNDS = 4;
 export const AGENT_INPUT = 60_000;
@@ -67,8 +67,11 @@ export const CHAT_CEILING_USD =
   SEARCH_MAX * SEARCH_USD +
   call(OPUS_PRICE, 24_000 + LOOKUP_MAX_TOKENS, CHAT_MAX_TOKENS);
 
-/** One agent turn at its most (#646): the triage, every round on Opus at its most, and the searches. About $1.20. */
-export const AGENT_CEILING_USD = call(HAIKU_PRICE, 4_000, 200) + AGENT_ROUNDS * call(OPUS_PRICE, AGENT_INPUT, AGENT_MAX_TOKENS) + SEARCH_MAX * SEARCH_USD;
+/**
+ * One agent turn at its most (#646, #926): the fast tier's two Haiku calls (the tools and the rules in, 600 out each),
+ * every deeper round on Opus at its most, and the searches. About $1.20; the month's cap is unchanged.
+ */
+export const AGENT_CEILING_USD = 2 * call(HAIKU_PRICE, 30_000, 600) + AGENT_ROUNDS * call(OPUS_PRICE, AGENT_INPUT, AGENT_MAX_TOKENS) + SEARCH_MAX * SEARCH_USD;
 
 export interface ChatMonth {
   usd: number;

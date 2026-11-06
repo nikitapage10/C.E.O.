@@ -250,9 +250,9 @@ describe("through POST /api/skippy-room (#910)", () => {
       blob: null,
       eleven: null,
       ledger: new MemoryStoryStore(),
-      skippy: async () => ({ reply: "unused", handedOff: false }),
+      // Skippy's one brain hears the floor first (#926) and judges these words a remark on the debate.
+      skippy: async () => ({ reply: "", handedOff: false, floor: true }),
       todos: (b) => new PhoneTodos(b),
-      devices: () => null,
       fetcher: fetch,
       log: () => undefined,
       senate: () => sd,

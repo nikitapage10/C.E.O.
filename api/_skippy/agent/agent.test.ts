@@ -9,7 +9,7 @@ import { MemoryAuthStore } from "../../_desk/store.ts";
 import { signedInCookie } from "../../_desk/testing.ts";
 import { MemoryChatLedger } from "../budget.ts";
 import { SKIPPY_PROMPT } from "../prompt.ts";
-import { AGENT_RULES, HARD_MODEL, TALK_MODEL, TRIAGE_MODEL, runAgent, systemBlocks, type CallModel } from "./loop.ts";
+import { AGENT_RULES, FAST_MODEL, FAST_RULES, HARD_MODEL, TALK_MODEL, runAgent, systemBlocks, type CallModel } from "./loop.ts";
 import { MemoryMemory, coreBlock, memoryRefusal, search } from "./memory.ts";
 import { MemoryPending } from "./pending.ts";
 import { act, memoryGet, memoryPost, spend } from "./routes.ts";
@@ -93,10 +93,18 @@ describe("the rooms' one tool registry (#646)", () => {
     for (const t of ALL_TOOLS) expect(isRoomTool(t), t.name).toBe(true);
   });
 
-  it("gives the spoken surfaces only the tools that need no tap", () => {
-    expect(toolsFor("spoken").every((t) => !needsConfirm(t))).toBe(true);
-    expect(toolsFor("spoken").some((t) => t.name === "memory_lookup")).toBe(true);
-    expect(toolsFor("desk").some((t) => t.name === "implement_it")).toBe(true);
+  it("gives every surface every tool (#926); on a spoken one a tapped tool says it waits, and a device runs only on his words", async () => {
+    expect(toolsFor("spoken").map((t) => t.name)).toEqual(toolsFor("desk").map((t) => t.name));
+    expect(toolsFor("spoken").some(needsConfirm)).toBe(true);
+    const h = host();
+    const pending = new MemoryPending();
+    expect(await callTool("implement_it", { title: "Sample widget", pitch: "A made-up widget.", size: "small" }, h, { pending, surface: "spoken", said: "build a sample widget" })).toMatchObject({ ok: false, text: expect.stringMatching(/waits for Nikita's Yes tap/) });
+    expect(await callTool("home_device", { action: "wet.open" }, h, { pending, surface: "spoken", said: "what's the weather like" })).toMatchObject({ ok: false, text: expect.stringMatching(/Nothing ran/) });
+    expect(h.acted).toEqual([]);
+    expect(await callTool("home_device", { action: "wet.open" }, h, { pending, surface: "spoken", said: "open the cat's wet-food feeder please" })).toMatchObject({ ok: true, text: "Done." });
+    expect(await callTool("home_device", { action: "wet.close" }, h, { pending, surface: "spoken", said: "open the wet food feeder" })).toMatchObject({ ok: false });
+    expect(h.acted).toEqual(["wet.open"]);
+    expect(pending.items).toEqual([]);
   });
 
   it("sends strict schemas with no limits the API won't take", () => {
@@ -182,13 +190,14 @@ const usage = { input_tokens: 1000, output_tokens: 100, cache_creation_input_tok
 const msg = (content: unknown[], stop: string, model = TALK_MODEL, extraUsage = {}) => ({ id: "m", type: "message", role: "assistant", model, content, stop_reason: stop, usage: { ...usage, ...extraUsage } }) as unknown as Anthropic.Beta.Messages.BetaMessage;
 const answer = (reply: string) => msg([{ type: "text", text: JSON.stringify({ reply, actions: [], room: "none", needs: "none" }) }], "end_turn");
 
-function script(steps: ((p: Params) => Anthropic.Beta.Messages.BetaMessage)[]): { call: CallModel; calls: Params[] } {
+function script(steps: ((p: Params) => Anthropic.Beta.Messages.BetaMessage)[], fast = false): { call: CallModel; calls: Params[] } {
   const calls: Params[] = [];
   return {
     calls,
     call: async (p) => {
       calls.push(structuredClone(p));
-      if (p.model === TRIAGE_MODEL) return msg([{ type: "text", text: JSON.stringify({ route: /plan/i.test(JSON.stringify(p.messages)) ? "hard" : "talk" }) }], "end_turn", TRIAGE_MODEL);
+      // The fast tier (#926): it hands up, "hard" for a plan; a test that scripts it passes its own steps.
+      if (p.model === FAST_MODEL && !fast) return msg([{ type: "text", text: JSON.stringify({ reply: "", actions: [], room: "none", needs: "none", deeper: /plan/i.test(JSON.stringify(p.messages)) ? "hard" : "talk" }) }], "end_turn", FAST_MODEL);
       const step = steps.shift();
       if (!step) throw new Error("no more steps");
       return { ...step(p), model: p.model };
@@ -202,8 +211,11 @@ describe("the agent loop (#646)", () => {
   it("talks on Sonnet with the rooms' tools and web search, the rules and core card cached, the fallback on", async () => {
     const s = script([() => answer("Hello, monkey.")]);
     const r = await runAgent(s.call, SKIPPY_PROMPT, "<message>\nhi\n</message>", ctx());
-    expect(s.calls).toHaveLength(1);
-    const p = s.calls[0]!;
+    expect(s.calls.map((c) => c.model)).toEqual([FAST_MODEL, TALK_MODEL]);
+    // The fast pass judges where the ask belongs (#926): its rules, with the page as a hint and every room's tools.
+    expect(JSON.stringify(s.calls[0]!.system)).toContain(JSON.stringify(FAST_RULES).slice(1, -1));
+    expect(s.calls[0]!.tools?.length).toBe(s.calls[1]!.tools!.length - 1);
+    const p = s.calls[1]!;
     expect(p.model).toBe(TALK_MODEL);
     expect(p.fallbacks).toBe("default");
     expect(p.output_config?.effort).toBe("low");
@@ -216,10 +228,10 @@ describe("the agent loop (#646)", () => {
     expect(r.parts.talk).toBeGreaterThan(0);
   });
 
-  it("goes to Opus only when the triage says the ask is hard", async () => {
+  it("goes to Opus only when the fast tier says the ask is hard", async () => {
     const s = script([() => answer("Here's the plan.")]);
-    const r = await runAgent(s.call, SKIPPY_PROMPT, "x", ctx({ message: "Write me a careful plan comparing three options for the Haven's next device" }));
-    expect(s.calls.map((c) => c.model)).toEqual([TRIAGE_MODEL, HARD_MODEL]);
+    const r = await runAgent(s.call, "x", "<message>\nWrite me a careful plan comparing three options\n</message>", ctx({ message: "Write me a careful plan comparing three options for the Haven's next device" }));
+    expect(s.calls.map((c) => c.model)).toEqual([FAST_MODEL, HARD_MODEL]);
     expect(s.calls[1]!.output_config?.effort).toBe("medium");
     expect(r.parts.triage).toBeGreaterThan(0);
     expect(r.parts.research).toBeGreaterThan(0);

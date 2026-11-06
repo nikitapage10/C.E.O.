@@ -13,7 +13,7 @@ import { classify, sayAdded, sayRemoved, sayTodo, spokenOf } from "./classify.ts
 import { KitchenList, addTo, sameKey } from "./list.ts";
 import { KEY_SHAPE, PHONE_RATE, PhoneKeys, keyHash } from "./phones.ts";
 import { PhoneTodos } from "./todos.ts";
-import type { Home } from "./devices/home.ts";
+import type { ToolHost } from "../_skippy/agent/tools.ts";
 import { keepState, TODO_STORE_PATH } from "../_today/todos.ts";
 import { CONVO_IDLE_MS, CONVO_TURNS, PhoneConvo, convoPath } from "./convo.ts";
 import { capture, captureAudio, havenGet, havenPost, type HavenDeps } from "./route.ts";
@@ -324,13 +324,21 @@ describe("Skippy's voice on the phone (#627)", () => {
     expect(await speakForPhone("hi", { blob, eleven: null, ledger, deskKey: DESK }, NOW)).toBeNull();
   });
 
+  /** The phone's real path into Skippy's one brain (#926): phoneAnswer, its rules tier reaching these fake rails. */
+  const brain = (act: (req: unknown) => Promise<unknown>): HavenDeps["skippy"] => {
+    const store = new MemoryAuthStore();
+    const host = (): ToolHost => ({ read: async () => "", memory: null, kitchenAdd: null, homeAct: act as ToolHost["homeAct"], fileIssue: null, skipTerms: [], now: NOW });
+    const ask: Ask = async () => ({ answer: { reply: "Ilyr is fine. Go to bed, monkey.", actions: [], room: "none", needs: "none" }, usage: null });
+    const deps: ChatDeps = { deskKey: DESK, store, ledger: new MemoryChatLedger(), ask, host, world: async () => null, desk: async () => deskContext([], [], null, null), now: NOW, env: {} };
+    return (text, phoneId, history) => phoneAnswer(text, phoneId, history, deps);
+  };
+
   it("keeps a finished action quiet: a notification line, no audio link, no ElevenLabs call (#652)", async () => {
     const { blob, key } = await withPhone();
     const ledger = new MemoryStoryStore();
     const spoken = vi.fn(async () => new Response(pcm, { status: 200, headers: { "Content-Type": "audio/pcm" } })) as unknown as typeof fetch;
     const done = { ok: true, say: "The vacuum is cleaning the kitchen." };
-    const home = (act: (req: unknown) => Promise<unknown>) => (() => ({ act }) as unknown as Home) as HavenDeps["devices"];
-    const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher: spoken }, devices: home(async () => done) });
+    const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher: spoken }, skippy: brain(async () => done) });
     const ask = async (text: string, d = deps) => (await (await capture(post(key, { text, voice: true }), d)).json()) as Record<string, unknown>;
     expect(await ask("add oat milk")).toEqual({ say: "Added oat milk to the list.", quiet: true });
     expect(await ask("remind me to water the ferns tomorrow")).toMatchObject({ quiet: true });
@@ -342,28 +350,33 @@ describe("Skippy's voice on the phone (#627)", () => {
   it("speaks a question, a refusal, a failure and a warning (#652)", async () => {
     const { blob, key } = await withPhone();
     const ledger = new MemoryStoryStore();
-    const home = (r: unknown) => (() => ({ act: async () => r }) as unknown as Home) as HavenDeps["devices"];
-    const ask = async (text: string, devices: HavenDeps["devices"]) => {
-      const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher }, devices });
-      return (await (await capture(post(key, { text, voice: true }), deps)).json()) as { quiet: boolean; audio?: string };
+    const acts: unknown[] = [];
+    const home = (r: unknown) => brain(async (req) => (acts.push(req), r));
+    const ask = async (text: string, skippy: HavenDeps["skippy"]) => {
+      const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher }, skippy });
+      return (await (await capture(post(key, { text, voice: true }), deps)).json()) as { quiet: boolean; audio?: string; say?: string };
     };
     const question = await ask("how is Ilyr", home({ ok: true, say: "x" }));
     expect(question.quiet).toBe(false);
     expect(question.audio).toBeTruthy();
     const refused = await ask("feed the cat a portion", home({ ok: false, code: "cap", say: "That's the lot for today." }));
-    expect(refused).toMatchObject({ quiet: false });
+    expect(refused).toMatchObject({ quiet: false, say: "That's the lot for today." });
     expect(refused.audio).toBeTruthy();
     const warned = await ask("give the cat wet food", home({ ok: true, warned: true, say: "The wet food feeder's lid is open. Heads up: the bowl in front is wet." }));
     expect(warned).toMatchObject({ quiet: false });
     expect(warned.audio).toBeTruthy();
     const tray = await ask("what's in the wet food feeder", home({ ok: true, say: "Bowl 2 is in front." }));
-    expect(tray.quiet).toBe(false);
+    expect(tray).toMatchObject({ quiet: false, say: "Bowl 2 is in front." });
     // #713: an opening says when it closes, so it is spoken too.
     const opened = await ask("open the wet food tray", home({ ok: true, say: "The wet food feeder's lid is open. It closes at 1pm." }));
     expect(opened.quiet).toBe(false);
-    const down = await ask("clean the litter box", (() => null) as HavenDeps["devices"]);
-    expect(down.quiet).toBe(false);
-    const broke = await ask("feed the cat", (() => { throw new Error("boom"); }) as HavenDeps["devices"]);
+    // The devices keep the words in the Council: the phone's own, said on the phone.
+    expect(acts).toContainEqual({ action: "wet.open", via: "phone", said: "open the wet food tray" });
+    const down = await ask("clean the litter box", brain(async () => ({ ok: false, say: "The home devices aren't set up on this copy yet." })));
+    expect(down).toMatchObject({ quiet: false, say: "The home devices aren't set up on this copy yet." });
+    const broke = await ask("feed the cat", async () => {
+      throw new Error("boom");
+    });
     expect(broke.audio).toBeUndefined();
   });
 });

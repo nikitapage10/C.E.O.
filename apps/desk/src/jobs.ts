@@ -25,6 +25,7 @@ export const JOBS: JobDef[] = [
   { file: "live-watch.yml", name: "Live watch", when: "hourly at :23", cron: "23 * * * *" },
   { file: "codeql.yml", name: "CodeQL scan", when: "Mondays, 04:29 UTC", cron: "29 4 * * 1" },
   { file: "scorecard.yml", name: "Scorecard", when: "Mondays, 05:41 UTC", cron: "41 5 * * 1" },
+  { file: "security-alerts.yml", name: "Security alert counts", when: "every two hours at :41", cron: "41 */2 * * *" },
   { file: "visual-qa.yml", name: "Visual QA", when: "after each push", cron: null },
   { file: "deploy-azure.yml", name: "Deploy to Azure", when: "after each push to main", cron: null },
 ];

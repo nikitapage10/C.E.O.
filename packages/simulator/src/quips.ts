@@ -111,6 +111,8 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Mind the clay dust. It gets everywhere. It gets into the Streams.",
     "Another one off the stage and into the crate. Godspeed, little figure.",
     "Every figure in the Lattice walked off that stage once.",
+    "Bay one's waiting on the network. Bays two to four are waiting on a printer.",
+    "Round it goes on the turntable. Fits the plate, stands up, no supports. Good pawn.",
   ],
   studio: [
     "Quiet on set. The red light's on.",

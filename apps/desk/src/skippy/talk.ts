@@ -7,6 +7,8 @@ import { texting as roomTexting } from "./rooms.ts";
 import { sendTalkTiming } from "./talkBeacon.ts";
 import { SILENCE_CHECK_MS, silenceGuard, type SilenceGuard } from "./silence.ts";
 import { holdBegin, holdCheck, holdEnd, holdHeard } from "./hold.ts";
+import { duckSite } from "@ceo/engine/web/siteSound.ts";
+import { createLanding, shortSpoken } from "./landing.ts";
 
 /**
  * Talking to Skippy out loud (#434), browser side; the function is api/skippy-voice.ts. A tap asks for the microphone,
@@ -220,7 +222,21 @@ export function clipSentence(text: string, max: number): string {
  * character (#498): the note never says "thread", "hand-off", "Kernel" or "crew", so he has nothing to echo.
  */
 export const landedNote = (text: string, final: boolean): string =>
-  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${clipSentence(text, LANDED_MAX)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after. Drop whatever else you were about to say, and no waiting line.`;
+  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${clipSentence(shortSpoken(text), LANDED_MAX)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after; the full version is in the chat. Drop whatever else you were about to say, and no waiting line. That question is settled: don't search for it, check on it or pass it on again, and no "still pondering".`;
+
+/** This call's landed answers (#952): held while a tool is out, said once, short. */
+const landing = createLanding();
+
+/** Puts a landed answer into the call now. */
+function putIn(text: string): void {
+  // The answer is in: the hold music is out before he says it (#546).
+  holdHeard();
+  try {
+    session?.speakNow(landedNote(text, true));
+  } catch {
+    /* the call is going: the answer is in the chat anyway */
+  }
+}
 
 /** The chat bubbles this call is waiting on (chat turn id to the text last told to Skippy), and the watch on them. */
 let heard = new Map<number, string>();
@@ -266,14 +282,9 @@ async function followHandoffs(id: string): Promise<void> {
     }
     // Several answers in one look: only the newest is spoken, so a stale line never queues behind it (#537).
     if (landed === null) return;
-    // The answer is in: the hold music is out before he says it (#546).
-    holdHeard();
-    const text: string = landed;
-    try {
-      session?.speakNow(landedNote(text, true));
-    } catch {
-      /* the call is going: the answer is in the chat anyway */
-    }
+    // Said at once, unless one of the call's tools is out (#952): then the moment it is back, and never twice.
+    const now = landing.landed(landed, inFlight > 0);
+    if (now !== null) putIn(now);
   });
 }
 
@@ -330,6 +341,7 @@ export const useTalk = create<TalkStore>((set, get) => {
     holdEnd();
     inFlight = 0;
     mine = new Set();
+    landing.reset();
     const was = session;
     session = null;
     setCallLive(false);
@@ -453,6 +465,11 @@ export const useTalk = create<TalkStore>((set, get) => {
           },
           onTool: (name, escalated) => {
             inFlight = Math.max(0, inFlight - 1);
+            // An answer that landed while this tool was out goes in now (#952), before the agent says anything else.
+            if (inFlight === 0) {
+              const held = landing.toolsDone();
+              if (held !== null) putIn(held);
+            }
             // A hand-off, or a lookup that went on to the deeper mind (#546): its answer is waited on in the chat.
             if ((name === "hand_to_kernel" || escalated) && conversation) void followHandoffs(conversation).catch(() => undefined);
             holdCheck();
@@ -501,6 +518,12 @@ export const useTalk = create<TalkStore>((set, get) => {
       await finish(null);
     },
   };
+});
+
+// The rest of the site goes quiet for the call (#952): the Senate, the rooms' voices, the Lattice's sounds and music,
+// from the tap until the call is over; then all of it comes back. Only the call itself (and its hold music) is heard.
+useTalk.subscribe((s, prev) => {
+  if (s.phase !== prev.phase) duckSite(s.phase !== "idle");
 });
 
 // A call never outlives the page.

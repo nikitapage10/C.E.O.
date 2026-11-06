@@ -1,7 +1,8 @@
 /**
  * Which Desk rooms stay mounted (#759, #934). The Senate (Today), the Haven and Relay are always loaded (Nikita,
  * 2026-11-06 01:05Z: "those three should always kind of be loaded in the background at all times"): once the Desk is
- * idle after its first paint they mount, hidden and paused, beside the room on screen, and stay. A hidden room is out
+ * idle after its first paint they mount one at a time, each in idle time of its own (a mount is a few hundred
+ * milliseconds of work, so never all three in one go), hidden and paused, beside the room on screen, and stay. A hidden room is out
  * of the layout, so its scene draws nothing (each scene's IntersectionObserver), and coming back shows it as it was,
  * with nothing to build or compile again. A kept room's keys stay quiet out of sight: the Senate's and Relay's
  * hold-to-talk take Space only on screen, and Relay's keys (Y to send, WASD) listen only while it is shown
@@ -18,12 +19,39 @@ export const SCENE_ROOMS: ReadonlySet<string> = new Set(["today", "haven"]);
 export const KEEP = ALWAYS_KEPT.length + 1;
 
 /**
- * The rooms to keep mounted once `route` is on screen, the one on screen first. Before the Desk has gone idle after
- * its first paint (`warm` false) only the always-kept rooms already visited stay, so the first load is unchanged;
- * once warm, all three are mounted. With `keep` false (little memory), only the room on screen.
+ * The rooms to keep mounted once `route` is on screen, the one on screen first. `warmed` is how many of the
+ * always-kept rooms the Desk's idle time has mounted so far, in ALWAYS_KEPT's order (none before its first paint, so
+ * the first load is unchanged); one already visited stays regardless. With `keep` false (little memory), only the
+ * room on screen.
  */
-export function keptAfter<T extends string>(kept: readonly T[], route: T, keep = true, warm = true): T[] {
+export function keptAfter<T extends string>(kept: readonly T[], route: T, keep = true, warmed: number = ALWAYS_KEPT.length): T[] {
   if (!keep) return [route];
-  const rest = (ALWAYS_KEPT as readonly string[]).filter((r) => r !== route && (warm || kept.includes(r as T))) as T[];
+  const rest = (ALWAYS_KEPT as readonly string[]).filter((r, i) => r !== route && (i < warmed || kept.includes(r as T))) as T[];
   return [route, ...rest];
+}
+
+/** What `settleShown` needs of a page's element: the DOM's own `getAnimations` and dataset. */
+type Shown = Pick<HTMLElement, "dataset"> & { getAnimations?: (opts?: GetAnimationsOptions) => Animation[] };
+
+/**
+ * A kept room coming back on screen shows as it was left (Nikita, 2026-11-06, #958). A hidden room is `display: none`,
+ * and the browser starts every CSS animation under it again when it shows, so each entrance (the page's rise, its
+ * stage's gold rule, an open sheet sliding in) used to replay on every visit. The first time a room is shown it is
+ * marked `data-seen` and plays them; each time after, before the frame paints, its one-shot CSS animations are
+ * finished. Looping ones (a breathing lamp, drifting motes) and script-made Web Animations carry on as they are.
+ * Returns how many it finished.
+ */
+export function settleShown(el: Shown): number {
+  if (el.dataset.seen === undefined) {
+    el.dataset.seen = "";
+    return 0;
+  }
+  let n = 0;
+  for (const a of el.getAnimations?.({ subtree: true }) ?? []) {
+    if (!("animationName" in a)) continue; // a CSSAnimation, not a script's own
+    if (a.effect?.getComputedTiming().iterations === Infinity) continue;
+    a.finish();
+    n++;
+  }
+  return n;
 }

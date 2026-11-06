@@ -72,6 +72,10 @@ export const SECRET_SETTINGS = [
   // Send to King Soopers (#664): the Kroger app's id and secret. Never settable from the Desk.
   "KROGER_CLIENT_ID",
   "KROGER_CLIENT_SECRET",
+  // The Haven's lights (#931): SwitchBot's token and secret and Govee's key. Settable on the Desk's Keys form.
+  "SWITCHBOT_TOKEN",
+  "SWITCHBOT_SECRET",
+  "GOVEE_API_KEY",
   // MealMe's key (#664): set before King Soopers replaced MealMe, kept so a deploy doesn't drop it. Nothing reads it.
   "MEALME_API_KEY",
 ] as const;

@@ -272,7 +272,7 @@ interface SkippyStore {
   tap: (turn: number, id: string, yes: boolean, doFetch?: typeof fetch) => Promise<void>;
   setOpen: (open: boolean) => void;
   setVoice: (on: boolean) => void;
-  /** Sends a message; resolves with the reply turn, or null when it failed (a note says why). */
+  /** Sends a message, never refused while another is out (#952): queued and answered in order; resolves with its reply turn, or null when it failed (a note says why). */
   send: (text: string, doFetch?: typeof fetch) => Promise<Turn | null>;
   /** Adds a line said on a voice call (#434), or a note from the Desk about it, to the conversation. */
   say: (who: Turn["who"], text: string, note?: boolean) => void;
@@ -290,33 +290,26 @@ interface SkippyStore {
 
 let nextId = 1;
 
-export const useSkippy = create<SkippyStore>((set, get) => ({
-  turns: [],
-  busy: false,
-  open: false,
-  unread: false,
-  voice: readVoice(),
-  spend: null,
-  setOpen: (open) => {
-    if (open) void loadRoundTrip().catch(() => null);
-    set(open ? { open, unread: false } : { open });
-  },
-  setVoice: (voice) => {
-    try {
-      localStorage.setItem(VOICE_KEY, voice ? "1" : "0");
-    } catch {
-      /* no storage: the toggle lasts this visit */
-    }
-    if (!voice) stopSpeaking();
-    set({ voice });
-  },
-  send: async (text, doFetch) => {
-    const message = text.trim().slice(0, MESSAGE_MAX);
-    if (!message || get().busy) return null;
-    const history = historyFor(get().turns);
-    set((s) => ({ busy: true, turns: [...s.turns, { id: nextId++, who: "nikita" as const, text: message }].slice(-KEEP_TURNS) }));
+/** One queued message (#952): its turn's id, the words, and who waits on its reply. */
+interface Queued {
+  id: number;
+  message: string;
+  doFetch?: typeof fetch;
+  resolve: (turn: Turn | null) => void;
+}
+
+export const useSkippy = create<SkippyStore>((set, get) => {
+  /** Messages sent while an earlier one is still out, answered one at a time in the order they were sent (#952). */
+  const queued: Queued[] = [];
+  let draining = false;
+
+  /** Answers one queued message: the history is what came before it, and its reply goes in right after it. */
+  const answerOne = async (q: Queued): Promise<Turn | null> => {
+    const turns = get().turns;
+    const at = turns.findIndex((t) => t.id === q.id);
+    const history = historyFor(at < 0 ? turns : turns.slice(0, at));
     const rt = await loadRoundTrip().catch(() => null);
-    const got = await askSkippy(message, history, doFetch, (await rt?.pageNow()) ?? "");
+    const got = await askSkippy(q.message, history, q.doFetch, (await rt?.pageNow()) ?? "");
     // A text to draft (#536): its card starts at once (drafting can't send anything) and sits under the reply. Texting is the Relay's, plugged in by the Desk (rooms.ts).
     const asked = got.ok ? got.actions.find((a) => a.kind === "text") : undefined;
     const compose = asked?.kind === "text" ? await texting()?.start(asked.who, asked.text).catch(() => undefined) : undefined;
@@ -335,39 +328,92 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     // A hand-off (#341): Skippy's quick take stays, and a pending bubble waits for the room's answer under it.
     const waits = rt && got.ok && got.turn && got.needs && (rt.WAIT_ROOMS as readonly string[]).includes(got.room ?? "");
     const pending: Turn | null = rt && waits ? { id: nextId++, who: "skippy", text: rt.pendingText(got.needs!, got.turn), pending: { turn: got.turn!, room: got.room as AskedRoom, needs: got.needs!, since: Date.now() } } : null;
-    set((s) => ({ busy: false, turns: [...s.turns, turn, ...(pending ? [pending] : [])].slice(-KEEP_TURNS), ...(got.ok && got.spend && { spend: got.spend }) }));
+    set((s) => ({ turns: placeReply(s.turns, [turn, ...(pending ? [pending] : [])], queued[0]?.id).slice(-KEEP_TURNS), ...(got.ok && got.spend && { spend: got.spend }) }));
     if (got.ok && get().voice) speak(got.reply);
-    if (rt && pending) rt.watchHandoffs(doFetch);
+    if (rt && pending) rt.watchHandoffs(q.doFetch);
     return got.ok ? turn : null;
-  },
-  say: (who, text, note = false) => {
-    const words = clip(text, 700);
-    if (words) set((s) => ({ turns: [...s.turns, { id: nextId++, who, text: words, ...(note && { note: true }) }].slice(-KEEP_TURNS) }));
-  },
-  wait: async (turn, room, needs, doFetch) => {
-    if (!/^[0-9a-f]{16}$/.test(turn) || get().turns.some((t) => t.pending?.turn === turn || t.handed === turn)) return null;
-    const rt = await loadRoundTrip().catch(() => null);
-    if (!rt || get().turns.some((t) => t.pending?.turn === turn || t.handed === turn)) return null;
-    const id = nextId++;
-    set((s) => ({ turns: [...s.turns, { id, who: "skippy" as const, text: rt.pendingText(needs, turn), handed: turn, pending: { turn, room, needs, since: Date.now() } }].slice(-KEEP_TURNS) }));
-    rt.watchHandoffs(doFetch);
-    return id;
-  },
-  mark: (id, index, state) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, done: { ...t.done, [index]: state } } : t)) })),
-  tap: async (turnId, id, yes, doFetch) => {
-    const patch = (c: Partial<Confirm>) => set((s) => ({ turns: s.turns.map((t) => (t.id === turnId ? { ...t, confirm: t.confirm?.map((x) => (x.id === id ? { ...x, ...c } : x)) } : t)) }));
-    const cur = get().turns.find((t) => t.id === turnId)?.confirm?.find((x) => x.id === id);
-    if (!cur || cur.state) return;
-    patch({ state: "busy" });
-    const got = await tapConfirm(id, yes, doFetch);
-    patch(got.ok ? { state: yes ? "done" : "declined", result: got.did ?? got.text } : { state: "failed", result: got.text });
-  },
-  addCard: (key) => set((s) => ({ turns: [...s.turns, { id: nextId++, who: "skippy" as const, text: "", compose: key }].slice(-KEEP_TURNS) })),
-  clear: () => {
-    stopSpeaking();
-    set({ turns: [], unread: false });
-  },
-}));
+  };
+
+  const drain = async () => {
+    if (draining) return;
+    draining = true;
+    try {
+      for (let q = queued.shift(); q; q = queued.shift()) q.resolve(await answerOne(q).catch(() => null));
+    } finally {
+      draining = false;
+      set({ busy: false });
+    }
+  };
+
+  return {
+    turns: [],
+    busy: false,
+    open: false,
+    unread: false,
+    voice: readVoice(),
+    spend: null,
+    setOpen: (open) => {
+      if (open) void loadRoundTrip().catch(() => null);
+      set(open ? { open, unread: false } : { open });
+    },
+    setVoice: (voice) => {
+      try {
+        localStorage.setItem(VOICE_KEY, voice ? "1" : "0");
+      } catch {
+        /* no storage: the toggle lasts this visit */
+      }
+      if (!voice) stopSpeaking();
+      set({ voice });
+    },
+    send: (text, doFetch) => {
+      const message = text.trim().slice(0, MESSAGE_MAX);
+      if (!message) return Promise.resolve(null);
+      // Never locked (#952, Nikita 02:22Z): his words show at once and queue; each is answered in turn, in order.
+      const id = nextId++;
+      set((s) => ({ busy: true, turns: [...s.turns, { id, who: "nikita" as const, text: message }].slice(-KEEP_TURNS) }));
+      return new Promise<Turn | null>((resolve) => {
+        queued.push({ id, message, doFetch, resolve });
+        void drain();
+      });
+    },
+    say: (who, text, note = false) => {
+      const words = clip(text, 700);
+      if (words) set((s) => ({ turns: [...s.turns, { id: nextId++, who, text: words, ...(note && { note: true }) }].slice(-KEEP_TURNS) }));
+    },
+    wait: async (turn, room, needs, doFetch) => {
+      if (!/^[0-9a-f]{16}$/.test(turn) || get().turns.some((t) => t.pending?.turn === turn || t.handed === turn)) return null;
+      const rt = await loadRoundTrip().catch(() => null);
+      if (!rt || get().turns.some((t) => t.pending?.turn === turn || t.handed === turn)) return null;
+      const id = nextId++;
+      set((s) => ({ turns: [...s.turns, { id, who: "skippy" as const, text: rt.pendingText(needs, turn), handed: turn, pending: { turn, room, needs, since: Date.now() } }].slice(-KEEP_TURNS) }));
+      rt.watchHandoffs(doFetch);
+      return id;
+    },
+    mark: (id, index, state) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, done: { ...t.done, [index]: state } } : t)) })),
+    tap: async (turnId, id, yes, doFetch) => {
+      const patch = (c: Partial<Confirm>) => set((s) => ({ turns: s.turns.map((t) => (t.id === turnId ? { ...t, confirm: t.confirm?.map((x) => (x.id === id ? { ...x, ...c } : x)) } : t)) }));
+      const cur = get().turns.find((t) => t.id === turnId)?.confirm?.find((x) => x.id === id);
+      if (!cur || cur.state) return;
+      patch({ state: "busy" });
+      const got = await tapConfirm(id, yes, doFetch);
+      patch(got.ok ? { state: yes ? "done" : "declined", result: got.did ?? got.text } : { state: "failed", result: got.text });
+    },
+    addCard: (key) => set((s) => ({ turns: [...s.turns, { id: nextId++, who: "skippy" as const, text: "", compose: key }].slice(-KEEP_TURNS) })),
+    clear: () => {
+      stopSpeaking();
+      set({ turns: [], unread: false });
+    },
+  };
+});
+
+/**
+ * A reply's place in the conversation (#952): right before the next message still queued (so each answer sits under
+ * its own question), or at the end when none is.
+ */
+export function placeReply(turns: Turn[], reply: Turn[], nextQueued?: number): Turn[] {
+  const at = nextQueued === undefined ? -1 : turns.findIndex((t) => t.id === nextQueued);
+  return at < 0 ? [...turns, ...reply] : [...turns.slice(0, at), ...reply, ...turns.slice(at)];
+}
 
 /* ── Spoken replies: the browser's own speech synthesis, nothing sent anywhere ── */
 

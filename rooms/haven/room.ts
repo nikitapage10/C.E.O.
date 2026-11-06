@@ -25,7 +25,7 @@ export default defineRoom({
   },
   keys: [],
   usesClaude: false,
-  threat: ["TB1", "TB10", "TB11"],
+  threat: ["TB1", "TB10", "TB11", "TB12"],
   budgetKb: 120,
   tools: [...TOOLS],
   purpose: {
@@ -35,6 +35,8 @@ export default defineRoom({
       { name: "Petlibro", use: "the feeders and the fountain" },
       { name: "Whisker", use: "the Litter-Robot" },
       { name: "Kroger", use: "the Kitchen list matched at King Soopers and sent to the cart on a tap" },
+      { name: "SwitchBot", use: "the lights on and off, its scenes, and the projector's power" },
+      { name: "Govee", use: "the Govee lights on and off" },
     ],
     measure: "devices live, rooms lit, and Kitchen list items open",
   },

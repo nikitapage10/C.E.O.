@@ -593,7 +593,8 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   // A text the agent had drafted (draft_text) goes through the same checks as the chat's own "text" action.
   const answered = got.textAction && got.answer && typeof got.answer === "object" ? { ...(got.answer as object), actions: [...(Array.isArray((got.answer as { actions?: unknown }).actions) ? ((got.answer as { actions: unknown[] }).actions) : []), got.textAction] } : got.answer;
   const first = readReply(answered, desk);
-  if (!first) return json({ error: "model" }, 502);
+  // On the Senate's floor an answer that can't be read goes to the members (#952), never the hiccup line.
+  if (!first) return opts?.agent?.floor ? json({ deeper: "floor", ...extra }) : json({ error: "model" }, 502);
   // A room's voice keeps its turns under its own room (#638), real work for the deeper self aside; a hand-off to "the
   // submind" then goes to that room's.
   const read = room?.log && first.room !== "kernel" ? withRoom(first, room.log) : first;

@@ -161,8 +161,23 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
     if (act === WEB_ACT) {
       const body = (await request.json().catch(() => null)) as { query?: unknown } | null;
       if (!deps.sources.web) return json({ read: "web", text: "Web search isn't set up on this call; hand the question to hand_to_kernel." });
+      const query = cleanQueryText(body?.query);
+      const key = `${check.hash}|${query.toLowerCase()}`;
+      // One path per question (#952): once a slow search is passed on, asking it again is answered with silence, so
+      // the search's late result is never said as a second answer.
+      if (query && passedOn.has(key)) return json({ read: "web", text: PASSED_ON });
       const text = await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - 300);
-      return json(await settle("web", text, cleanQueryText(body?.query), deps, check));
+      // Slow: no polling. The question goes to the deeper mind once, with its one waiting line, and its answer is put
+      // into the call the moment it lands (#952: polling kept a tool out while the answer landed, so it went unsaid).
+      if (text === STILL_SEARCHING && query) {
+        const filed = await fileHandoff(query, deps, check);
+        if (filed.ok) {
+          if (passedOn.size > 500) passedOn.clear();
+          passedOn.add(key);
+          return json({ read: "web", text: filed.text, escalated: true });
+        }
+      }
+      return json(await settle("web", text, query, deps, check));
     }
     return handOff(request, deps, check);
   }
@@ -240,6 +255,11 @@ const CALL_FAILED: Record<string, string> = {
   "not-set-up": "Your mind's chat isn't switched on on this copy. Say that in one line.",
   text: "Texts go through draft_text on this call. Use it.",
 };
+
+/** A call's searches already passed on to the deeper mind (#952), by call and query, on this instance. */
+const passedOn = new Set<string>();
+/** What a repeat of a passed-on search hears: nothing to say, the answer is coming. */
+export const PASSED_ON = "Your deeper mind already has this question, and its answer is put into the call the moment it lands. Say nothing now, don't search again, and stop.";
 
 /** How long the brain's quick pass may take inside the tool's five seconds. */
 export const QUICK_BUDGET_MS = 3_800;

@@ -71,6 +71,12 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
         ...(req.water && { water: req.water }),
       });
     },
+    lights: {
+      view: async () => (await lightsOf(env)).view(),
+      byName: async (words) => (await lightsOf(env)).byName(words),
+      set: async (id, on) => (await lightsOf(env)).set(id, on),
+      scene: async (id) => (await lightsOf(env)).scene(id),
+    },
     fileIssue: async (title, body) => {
       const token = await githubToken("issues");
       if (!token) return null;
@@ -83,6 +89,20 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
     },
     skipTerms,
     now,
+  };
+}
+
+/** The lights (#931), loaded only when a lights tool runs; a stand-in that says so when their keys aren't set. */
+async function lightsOf(env: Env) {
+  const { lightsFromEnv } = await import("../../_haven/lights/live.js");
+  const got = lightsFromEnv(env);
+  if (got) return got;
+  const no = { ok: false as const, code: "not-set-up" as const, say: "The lights aren't set up on this copy yet." };
+  return {
+    view: async () => ({ vendors: { switchbot: "waiting" as const, govee: "waiting" as const }, lights: [], scenes: [], remotes: [] }),
+    byName: async () => null,
+    set: async () => no,
+    scene: async () => no,
   };
 }
 

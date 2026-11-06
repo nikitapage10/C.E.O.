@@ -239,3 +239,73 @@
 @media (prefers-reduced-motion: no-preference) {
   .desk .bx .bx-cap-f { transition: width 0.5s ease; }
 }
+
+/* ── the Map's look on every page (#936): the whole screen, gold as the accent, the edges coming undone ──
+ * Solid panels with gold hairlines and corner ticks; behind them the gold wire grid and sigil nanites
+ * (@ceo/engine/sigils/UndoneField.tsx), strongest toward the sides; the head sits on a brass pipe with gold
+ * running through it. The lamp colours keep their meaning; only the chrome turns gold. */
+[data-room="boiler"].bx {
+  --bx-gold: #e3c98d;
+  --bx-gl: rgba(201, 168, 92, 0.24);
+  position: relative;
+  isolation: isolate;
+  min-height: max(640px, calc(100svh - 64px));
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--bx-gl);
+  border-radius: 0;
+  background: radial-gradient(70% 50% at 50% 0%, rgba(201, 168, 92, 0.07), transparent 70%), linear-gradient(180deg, #0b0c0f, #08080a);
+}
+[data-room="boiler"].bx > .bx-sig { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; -webkit-mask-image: linear-gradient(180deg, #000 0, #000 75%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 75%, transparent); }
+[data-room="boiler"].bx > :not(.bx-sig) { position: relative; z-index: 1; }
+[data-room="boiler"].bx .bx-top { padding: clamp(20px, 3vh, 34px) clamp(16px, 3vw, 44px) 14px; border-bottom: 0; }
+[data-room="boiler"].bx .bx-eyb span { color: var(--bx-gold); }
+[data-room="boiler"].bx .bx-h1 { font-size: clamp(28px, 2.6vw, 40px); }
+[data-room="boiler"].bx .bx-body { padding: 18px clamp(16px, 3vw, 44px) clamp(24px, 4vh, 48px); }
+
+/* The pipe under the head: brass, with gold pulses running along it (still under reduced motion). */
+[data-room="boiler"].bx .bx-pipe { height: 8px; margin: 0 clamp(16px, 3vw, 44px); border-radius: 4px; background: linear-gradient(#7a5e36, #c39a5b 45%, #e8c98a 55%, #6d5330); box-shadow: 0 0 0 1px #0008, 0 6px 18px -8px rgba(232, 199, 122, 0.45); overflow: hidden; }
+[data-room="boiler"].bx .bx-pipe i { display: block; height: 100%; background: repeating-linear-gradient(90deg, transparent 0 90px, rgba(255, 236, 190, 0.55) 110px, transparent 130px 220px); mix-blend-mode: screen; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-room="boiler"].bx .bx-pipe i { animation: bx-pipe-flow 4.5s linear infinite; }
+}
+@keyframes bx-pipe-flow { from { background-position: 0 0; } to { background-position: 220px 0; } }
+
+/* The tabs: gold underline on the page you're on. */
+[data-room="boiler"].bx .bx-tabs a { position: relative; background: none; border-radius: 2px; }
+[data-room="boiler"].bx .bx-tabs a:hover { color: var(--bx-gold); }
+[data-room="boiler"].bx .bx-tabs a[aria-current="page"] { background: none; color: #fff0c8; text-shadow: 0 0 16px rgba(232, 199, 122, 0.4); }
+[data-room="boiler"].bx .bx-tabs a[aria-current="page"]::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -2px; height: 2px; background: linear-gradient(90deg, transparent, var(--bx-gold), transparent); box-shadow: 0 0 10px rgba(232, 199, 122, 0.55); }
+
+/* Solid panels in gold wire: a hairline, a lit top edge and a tick at each corner. */
+[data-room="boiler"].bx .bx-panel,
+[data-room="boiler"].bx .bx-need { position: relative; border-radius: 2px; border-color: var(--bx-gl); background: linear-gradient(180deg, rgba(18, 16, 13, 0.96), rgba(10, 10, 11, 0.96)); box-shadow: inset 0 1px 0 rgba(232, 199, 122, 0.08), 0 24px 48px -32px #000; }
+[data-room="boiler"].bx .bx-need { border-left: 3px solid var(--c); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 7%, rgba(18, 16, 13, 0.96)), rgba(10, 10, 11, 0.96)); }
+[data-room="boiler"].bx .bx-panel::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 0 0 / 10px 1px,
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 0 0 / 1px 10px,
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 100% 0 / 10px 1px,
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 100% 0 / 1px 10px,
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 0 100% / 10px 1px,
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 0 100% / 1px 10px,
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 100% 100% / 10px 1px,
+    linear-gradient(var(--bx-brass), var(--bx-brass)) 100% 100% / 1px 10px;
+  background-repeat: no-repeat;
+}
+[data-room="boiler"].bx .bx-panel:hover, [data-room="boiler"].bx .bx-panel:focus-within { border-color: rgba(232, 199, 122, 0.45); }
+[data-room="boiler"].bx .bx-ph h2 { color: var(--bx-fg); }
+[data-room="boiler"].bx .bx-k { color: var(--bx-gold); }
+[data-room="boiler"].bx .bx-btn.is-pri { background: linear-gradient(180deg, #e3c98d, #c39a5b); border-color: #e3c98d; }
+[data-room="boiler"].bx .bx-fold { border-radius: 2px; border-color: var(--bx-gl); }
+[data-room="boiler"].bx .bx-fold:hover { color: var(--bx-gold); border-color: var(--bx-gold); }
+@media (max-width: 600px) {
+  [data-room="boiler"].bx { min-height: 0; }
+  [data-room="boiler"].bx .bx-top { padding: 16px 16px 10px; }
+  [data-room="boiler"].bx .bx-body { padding: 14px 16px 24px; }
+  [data-room="boiler"].bx .bx-pipe { margin: 0 16px; height: 6px; }
+}

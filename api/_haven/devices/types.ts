@@ -15,6 +15,8 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
+import type { VacSchedule } from "./schedule.js";
+
 export const VENDORS = ["roborock", "petlibro", "whisker", "nest"] as const;
 export type Vendor = (typeof VENDORS)[number];
 export const isVendor = (v: unknown): v is Vendor => typeof v === "string" && (VENDORS as readonly string[]).includes(v);
@@ -66,6 +68,9 @@ export interface DeviceReading {
   alerts: string[];
   /** The vacuum's named rooms (from its map and the app's names). */
   rooms?: string[];
+  /** The vacuum's schedules from the Roborock app (#952): each one's time, days and switch, never a room. Absent when
+   * the read didn't come back; empty when the app has none. */
+  schedule?: VacSchedule[];
   /** Feeders. */
   foodLow?: boolean;
   lastFed?: string | null;
@@ -189,6 +194,8 @@ export interface WetPlanShape {
   badTime: number;
   keys: string[];
   top: string[];
+  /** Petlibro's answer code when the read was refused (#952: a shared account may be refused the plan). */
+  code?: number;
 }
 
 /**

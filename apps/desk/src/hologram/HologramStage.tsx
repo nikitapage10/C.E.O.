@@ -7,6 +7,7 @@ import type { Holo } from "./holoScene.ts";
 import { personaOf } from "./persona.ts";
 import { expressionOf, stripTags, useHolo, type Expression } from "./signal.ts";
 import { PHONE, placeFor, type Place } from "./place.ts";
+import { captionTop, spokenShare } from "./captions.ts";
 import "./hologram.css";
 
 /**
@@ -56,6 +57,34 @@ export default function HologramStage({ route, leaving = false }: { route: strin
   const levelBars = useRef<HTMLSpanElement>(null);
   const inputs = useRef({ phase, mode, line });
   inputs.current = { phase, mode, line };
+  const capBox = useRef<HTMLParagraphElement>(null);
+  const caption = stripTags(line);
+
+  // The caption follows the speech (#952): a line longer than the box scrolls a line at a time as it is spoken, and
+  // shows its end once he stops. Counted only while he speaks, from the moment the line changes.
+  useEffect(() => {
+    const box = capBox.current;
+    if (!box) return;
+    box.scrollTop = 0;
+    let spoken = 0;
+    let spoke = false;
+    let last = performance.now();
+    const step = () => {
+      const now = performance.now();
+      const speaking = inputs.current.mode === "speaking";
+      if (speaking) {
+        spoken += now - last;
+        spoke = true;
+      }
+      last = now;
+      const lh = parseFloat(getComputedStyle(box).lineHeight) || 26;
+      const lines = Math.max(1, Math.round((box.scrollHeight - 10) / lh));
+      const share = spoke && !speaking ? 1 : spokenShare(spoken, caption.length);
+      box.scrollTop = captionTop(share, lines) * lh;
+    };
+    const timer = setInterval(step, 200);
+    return () => clearInterval(timer);
+  }, [caption]);
 
   // Where he stands, again whenever the window or the dock changes (the dock shrinks for the call, opens, closes).
   useLayoutEffect(() => {
@@ -165,7 +194,6 @@ export default function HologramStage({ route, leaving = false }: { route: strin
 
   const who = speaker ? `Skippy, the ${submindOf(speaker).job}` : "Skippy, the Magnificent";
   const tint = speaker ? submindOf(speaker).colour : undefined;
-  const caption = stripTags(line);
   const live = phase === "live";
   const px = (n: number) => `${n}px`;
   const style = {
@@ -221,7 +249,7 @@ export default function HologramStage({ route, leaving = false }: { route: strin
           {who}
         </p>
         {caption && !hidden && (
-          <p className="holo__cap" aria-hidden="true">
+          <p ref={capBox} className="holo__cap" aria-hidden="true">
             “{caption}”
           </p>
         )}

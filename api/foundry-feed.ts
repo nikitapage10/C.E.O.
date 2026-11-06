@@ -44,7 +44,7 @@ async function read(path: string): Promise<unknown> {
 const TTL = 5;
 
 /** The workflows on the Boiler Room's job board: every one with a `schedule:` trigger, Visual QA and Deploy to Azure (after each push to main). */
-export const JOB_FILES = ["backup-azure.yml", "checks.yml", "e2e.yml", "world-step.yml", "desk-pings.yml", "live-watch.yml", "codeql.yml", "scorecard.yml", "visual-qa.yml", "deploy-azure.yml"] as const;
+export const JOB_FILES = ["backup-azure.yml", "checks.yml", "e2e.yml", "world-step.yml", "desk-pings.yml", "live-watch.yml", "codeql.yml", "scorecard.yml", "security-alerts.yml", "visual-qa.yml", "deploy-azure.yml"] as const;
 
 /** The jobs that run after each push to main, read by that event instead of `schedule`. */
 const PUSH_FILES: ReadonlySet<string> = new Set(["visual-qa.yml", "deploy-azure.yml"]);

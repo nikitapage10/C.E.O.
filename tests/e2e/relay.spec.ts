@@ -300,13 +300,13 @@ for (const width of [1440, 400]) {
     await expect(focused(page).getByRole("button", { name: /Write for me/ })).toBeVisible();
     // The older lines sit faded behind the newest (#923) until hovered or tapped.
     const ctx = focused(page).locator(".cx-ctx");
-    await expect(ctx).not.toHaveAttribute("data-clear", "");
+    await expect(ctx).not.toHaveAttribute("data-clear", "true");
     if (SHOTS) await page.waitForTimeout(1_500);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/923-card-${width}.png` });
     await ctx.click();
-    await expect(ctx).toHaveAttribute("data-clear", "");
+    await expect(ctx).toHaveAttribute("data-clear", "true");
     await ctx.click();
-    await expect(ctx).not.toHaveAttribute("data-clear", "");
+    await expect(ctx).not.toHaveAttribute("data-clear", "true");
     await page.keyboard.press("r");
     await expect(box).toBeFocused();
     // The Mac already has a draft here: "Write for me" puts it in the box to edit, and nothing sends.

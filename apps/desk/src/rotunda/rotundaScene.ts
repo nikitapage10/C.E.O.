@@ -11,10 +11,12 @@ import {
   CylinderGeometry,
   DirectionalLight,
   DoubleSide,
+  DynamicDrawUsage,
   Euler,
   FogExp2,
   Group,
   HemisphereLight,
+  InstancedBufferAttribute,
   InstancedMesh,
   LineSegments,
   Matrix4,
@@ -60,6 +62,7 @@ import {
   FLY_MS,
   ITEM_END_MS,
   ITEM_GAP_MS,
+  LAND_MS,
   freshMurmur,
   MURMUR_MAX,
   murmurVoice,
@@ -74,7 +77,8 @@ import {
 import type { RotundaVoice } from "./voice.ts";
 import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig } from "./senateActor.ts";
 import { senatePoses, senatorOf } from "./senators.ts";
-import { debateLines, debateOpen } from "./debates.ts";
+import { debateLines, debateOpen, type Stance } from "./debates.ts";
+import { bakePose, BENCH_HEAD_DECL, BENCH_HEAD_GLSL, BENCH_HEAD_NORMAL, type BakedPose } from "./benchBake.ts";
 import type { FloorTopic, Joined, RecessSource } from "./liveTalk.ts";
 import { CAMERA_MAX_R, GALLERY_FADE, GALLERY_R0, KEEP_OUT, YAW_ARC, ZOOM, keepOutScale, softStep } from "./clearance.ts";
 import { ambientKey } from "./heard.ts";
@@ -559,6 +563,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   }
   // The gallery's silhouette (#878) is cut from the can standing as the members do, arms down at its sides.
   let shade: { tex: CanvasTexture; aspect: number } | null = null;
+  let benchPose: (BakedPose & { rel: Matrix4 }) | null = null;
   if (body) {
     const P = poses.get("rest");
     if (P) for (const n of ARMS) bones.get(n)?.quaternion.copy(P.get(n)!);
@@ -567,6 +572,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       shade = silhouette(body as SkinnedMesh);
     } catch {
       shade = null;
+    }
+    // The bench's figures stand the same way (#973): skinned once here, in this pose, for the whole bench to share.
+    const hb = bones.get("Head");
+    try {
+      if (hb) benchPose = { ...bakePose(body as SkinnedMesh, hb), rel: proto.matrixWorld.clone().invert().multiply((body as SkinnedMesh).matrixWorld) };
+    } catch {
+      benchPose = null;
     }
   }
   // The shared model goes back to its bind pose (modelCache.ts): every clone below takes its own.
@@ -790,108 +802,152 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const actors: Actor[] = [sk.a, ...pods.map((p) => p.a)];
 
   // The bench (#948). Nikita, 2026-11-06: a middle layer of "higher-fidelity Skippies" between the glowing gallery at the
-  // back and the members' podiums in front. Real cans this time, the same model as the members, on tall bronze plinths
-  // with a gold rim, in a ring behind the members and above them, never on the camera's side of the bowl (it keeps 1.6
-  // rad clear of the camera's own bearing, beyond the A/D arc and the chamber's sway). Dim bronze, a faint warm glow, sunk
-  // in the haze: they don't speak, they watch, each turning its head toward whoever has the floor, bobbing a little on
-  // its own beat. No faces, no shadows, no per-figure lights; a phone gets half as many. Any that came into the camera's
-  // keep-out (clearance.ts) would shrink away like a member's podium.
+  // back and the members' podiums in front. Real cans, the same model as the members, in a ring behind the members and
+  // above them, never on the camera's side of the bowl (it keeps 1.6 rad clear of the camera's own bearing, beyond the
+  // A/D arc and the chamber's sway). Dim bronze, a faint warm glow, sunk in the haze: they don't speak, they watch, each
+  // turning its head toward whoever has the floor. No faces, no shadows, no per-figure lights; a phone gets half as
+  // many. Any that came into the camera's keep-out (clearance.ts) would shrink away like a member's podium.
+  // Since #973 (Nikita: "floating podiums and not just like pillars") each stands on a floating podium like the members'
+  // own, its stem gone, hovering gently on a beat of its own with a faint warm glow beneath. And the bench is cheap to
+  // draw: the figures are the model skinned once in their standing pose (benchBake.ts), one instanced draw for all of
+  // them that turns each head in its vertex shader, and the podiums and their rims one draw each, all culled with the
+  // view; nothing is skinned per frame.
   interface Bencher {
-    g: Group;
-    inner: Group;
-    head: Bone | null;
-    bind: Quaternion;
+    x: number;
+    z: number;
+    yaw: number;
     y0: number;
+    /** Each part's place on its podium: the figure, the cup, the rim. */
+    body: Matrix4;
+    cup: Matrix4;
+    rim: Matrix4;
+    glowY: number;
     seed: number;
     hy: number;
   }
   const bench: Bencher[] = [];
-  {
+  let benchBody: InstancedMesh | null = null;
+  let benchCups: InstancedMesh | null = null;
+  let benchRims: InstancedMesh | null = null;
+  let benchGlow: Points | null = null;
+  let benchHy: InstancedBufferAttribute | null = null;
+  if (benchPose) {
     const BN = PH0 ? 7 : 14;
     const BR = 10.6;
     const ARC = Math.PI * 2 - 3.2;
-    // A slim stem and a small bronze cup like the members' own pods: a podium, never a column across the view.
-    const stemG = keep(new CylinderGeometry(0.05, 0.09, 1, 10));
+    // A small bronze cup and its gold rim, like the members' own pods.
     const cupG = keep(new CylinderGeometry(0.48, 0.26, 0.26, 28));
     const plinthM = keep(new MeshStandardMaterial({ color: 0x1d1813, metalness: 0.8, roughness: 0.42 }));
     const rimG2 = keep(new TorusGeometry(0.48, 0.014, 6, 64));
     const rimM2 = keep(new MeshBasicMaterial({ color: 0xc9a85c, transparent: true, opacity: 0.42 }));
-    let benchMat: MeshStandardMaterial | null = null;
-    const rest = poses.get("rest");
+    const src = body as SkinnedMesh | null;
+    const benchMat = keep(((src?.material as MeshStandardMaterial | undefined) ?? new MeshStandardMaterial()).clone() as MeshStandardMaterial);
+    benchMat.color.setScalar(0.5);
+    benchMat.emissive = new Color(0x3a2a12);
+    benchMat.emissiveMap = benchMat.map;
+    benchMat.emissiveIntensity = 0.55;
+    const headM = benchPose.head;
+    const headInv = headM.clone().invert();
+    benchMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uHead = { value: headM };
+      sh.uniforms.uHeadInv = { value: headInv };
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", `#include <common>\n${BENCH_HEAD_DECL}`)
+        .replace("#include <beginnormal_vertex>", `#include <beginnormal_vertex>\n${BENCH_HEAD_NORMAL}`)
+        .replace("#include <begin_vertex>", `#include <begin_vertex>\n${BENCH_HEAD_GLSL}`);
+    };
+    benchMat.customProgramCacheKey = () => "senate-bench";
+    const bodyG = keep(benchPose.geometry);
+    benchHy = new InstancedBufferAttribute(new Float32Array(BN), 1);
+    benchHy.setUsage(DynamicDrawUsage);
+    bodyG.setAttribute("aHy", benchHy);
+    // The figure in its podium's frame: as the skinned clone stood, the model centred and scaled, the mesh in it.
+    const size = 0.92;
+    const modelM = new Matrix4().compose(centre.clone().multiplyScalar(-1), proto.quaternion, proto.scale);
+    const glowP = new Float32Array(BN * 3);
+    const glowC = new Float32Array(BN * 3);
     for (let i = 0; i < BN; i++) {
       const a = Math.PI / 2 + 1.6 + ((i + 0.5) / BN) * ARC;
       const r = BR + (i % 2) * 0.7;
       const top = 3.2 + (i % 2) * 0.6;
-      const g = new Group();
-      g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
-      g.rotation.y = Math.atan2(-g.position.x, -g.position.z);
-      const stem = new Mesh(stemG, plinthM);
-      stem.scale.y = top - 0.2;
-      stem.position.y = (top - 0.2) / 2;
-      const cup = new Mesh(cupG, plinthM);
-      cup.position.y = top - 0.13;
-      const rim = new Mesh(rimG2, rimM2);
-      rim.rotation.x = Math.PI / 2;
-      rim.position.y = top + 0.004;
-      const model = cloneSkinned(proto);
-      let mesh: SkinnedMesh | null = null;
-      let head: Bone | null = null;
-      model.traverse((o) => {
-        if ((o as Bone).isBone) {
-          const n = o.name.replace(/^mixamorig:?/, "");
-          if (rest?.has(n)) (o as Bone).quaternion.copy(rest.get(n)!);
-          if (n === "Head") head = o as Bone;
-        }
-        if (!mesh && (o as SkinnedMesh).isSkinnedMesh) mesh = o as SkinnedMesh;
-      });
-      const sm = mesh as SkinnedMesh | null;
-      if (sm) {
-        if (!benchMat) {
-          benchMat = keep(((sm.material as MeshStandardMaterial).clone() as MeshStandardMaterial));
-          benchMat.color.setScalar(0.5);
-          benchMat.emissive = new Color(0x3a2a12);
-          benchMat.emissiveMap = benchMat.map;
-          benchMat.emissiveIntensity = 0.55;
-        }
-        sm.material = benchMat;
-        sm.castShadow = false;
-        sm.frustumCulled = false;
-      }
-      model.position.copy(centre).multiplyScalar(-1);
-      const inner = new Group();
-      inner.add(model);
-      const size = 0.92;
-      inner.scale.setScalar(size / height);
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
       const y0 = top + size / 2 + 0.02;
-      inner.position.y = y0;
-      g.add(stem, cup, rim, inner);
-      scene.add(g);
-      const hb = head as Bone | null;
-      bench.push({ g, inner, head: hb, bind: hb ? hb.quaternion.clone() : new Quaternion(), y0, seed: Math.random(), hy: 0 });
+      const k = size / height;
+      bench.push({
+        x,
+        z,
+        yaw: Math.atan2(-x, -z),
+        y0,
+        body: new Matrix4().makeTranslation(0, y0, 0).multiply(new Matrix4().makeScale(k, k, k)).multiply(modelM).multiply(benchPose.rel),
+        cup: new Matrix4().makeTranslation(0, top - 0.13, 0),
+        rim: new Matrix4().makeTranslation(0, top + 0.004, 0).multiply(new Matrix4().makeRotationX(Math.PI / 2)),
+        glowY: top - 0.45,
+        seed: Math.random(),
+        hy: 0,
+      });
     }
+    benchBody = new InstancedMesh(bodyG, benchMat, BN);
+    benchCups = new InstancedMesh(cupG, plinthM, BN);
+    benchRims = new InstancedMesh(rimG2, rimM2, BN);
+    const glowG = keep(new BufferGeometry());
+    glowG.setAttribute("position", new BufferAttribute(glowP, 3));
+    glowG.setAttribute("color", new BufferAttribute(glowC, 3));
+    benchGlow = new Points(glowG, keep(new PointsMaterial({ map: fieldTex, size: 1.1, vertexColors: true, transparent: true, opacity: 0.12, depthWrite: false, blending: AdditiveBlending })));
+    benchGlow.frustumCulled = false;
+    for (const m of [benchBody, benchCups, benchRims]) m.instanceMatrix.setUsage(DynamicDrawUsage);
   }
   const benchQ = new Quaternion();
   const benchE = new Euler();
   const benchSpot = new Vector3();
-  /** One frame of the bench: a bob, and each head turning toward whoever has the floor. */
+  const benchB = new Matrix4();
+  const benchM = new Matrix4();
+  const benchS = new Vector3();
+  const BENCH_GLOW = new Color(0xffc98a);
+  /** One frame of the bench: each podium hovering on its own beat, and each head turning toward whoever has the floor. */
   const stepBench = (dt: number, T: number, speaker: Vector3 | null, camAt: Vector3, camDirN: Vector3) => {
+    if (!benchBody || !benchCups || !benchRims || !benchGlow || !benchHy) return;
     const hk = reduce ? 1 : 1 - Math.exp(-dt * 2.5);
-    for (const b of bench) {
-      b.inner.position.y = b.y0 + (reduce ? 0 : Math.sin(T * (0.5 + b.seed * 0.3) + b.seed * 9) * 0.035);
+    const gp = benchGlow.geometry.getAttribute("position") as BufferAttribute;
+    const gc = benchGlow.geometry.getAttribute("color") as BufferAttribute;
+    for (let i = 0; i < bench.length; i++) {
+      const b = bench[i]!;
+      const hover = reduce ? 0 : Math.sin(T * (0.55 + b.seed * 0.3) + b.seed * 9) * 0.07;
+      const sway = reduce ? 0 : Math.sin(T * (0.4 + b.seed * 0.25) + b.seed * 4) * 0.025;
       let want = reduce ? 0 : Math.sin(T * (0.13 + b.seed * 0.08) + b.seed * 20) * 0.25;
       if (speaker) {
-        let d = Math.atan2(speaker.x - b.g.position.x, speaker.z - b.g.position.z) - b.g.rotation.y;
+        let d = Math.atan2(speaker.x - b.x, speaker.z - b.z) - b.yaw;
         d = Math.atan2(Math.sin(d), Math.cos(d));
         want = Math.max(-0.75, Math.min(0.75, d));
       }
       b.hy += (want - b.hy) * hk;
-      if (b.head) b.head.quaternion.copy(b.bind).multiply(benchQ.setFromEuler(benchE.set(0.06, b.hy, 0)));
-      benchSpot.set(b.g.position.x, b.y0, b.g.position.z);
+      benchHy.setX(i, b.hy);
+      benchSpot.set(b.x, b.y0, b.z);
       const clear = keepOutScale(benchSpot, camAt, camDirN, KEEP_OUT);
-      b.g.scale.setScalar(Math.max(1e-3, clear));
-      b.g.visible = clear > 0.01;
+      const sc = clear > 0.01 ? Math.max(1e-3, clear) : 0;
+      benchB.compose(benchSpot.set(b.x, hover, b.z), benchQ.setFromEuler(benchE.set(0, b.yaw, sway)), benchS.setScalar(sc));
+      benchBody.setMatrixAt(i, benchM.multiplyMatrices(benchB, b.body));
+      benchCups.setMatrixAt(i, benchM.multiplyMatrices(benchB, b.cup));
+      benchRims.setMatrixAt(i, benchM.multiplyMatrices(benchB, b.rim));
+      gp.setXYZ(i, b.x, (b.glowY + hover) * sc, b.z);
+      gc.setXYZ(i, BENCH_GLOW.r * sc, BENCH_GLOW.g * sc, BENCH_GLOW.b * sc);
     }
+    benchHy.needsUpdate = true;
+    benchBody.instanceMatrix.needsUpdate = true;
+    benchCups.instanceMatrix.needsUpdate = true;
+    benchRims.instanceMatrix.needsUpdate = true;
+    gp.needsUpdate = true;
+    gc.needsUpdate = true;
   };
+  if (benchBody && benchCups && benchRims && benchGlow) {
+    // Placed once before it is first drawn, so the culling spheres take in every podium.
+    stepBench(0, 0, null, new Vector3(0, 1e4, 0), new Vector3(0, 1, 0));
+    for (const m of [benchBody, benchCups, benchRims]) {
+      m.computeBoundingSphere();
+      scene.add(m);
+    }
+    scene.add(benchGlow);
+  }
   /** Who has the floor: the last to start a line that is still going. */
   let talker: Actor | null = null;
   let heldTalker: { a: Actor; left: number } | null = null;
@@ -1168,9 +1224,12 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const glide = (p: Pod, to: Vector3, dur = 2600) => {
     p.tw = { from: p.at.clone(), to: to.clone(), t0: clock.t, dur: (reduce ? 300 : dur) / 1000 };
   };
+  /** When each pod last set off for the floor (session clock), so a line waits only for what is left of LAND_MS. */
+  const flewAt = new Map<Pod, number>();
   const goIn = (p: Pod, spot: SpotId, counter = false) => {
     p.speaking = true;
-    glide(p, SPOT[spot]);
+    flewAt.set(p, sclock.t);
+    glide(p, SPOT[spot], FLY_MS);
     p.litTo = 1;
     p.disTo = counter ? 1 : 0;
     spotOn(p, counter ? COUNTER_LIGHT : TYPE_LIGHT[kind]);
@@ -1257,6 +1316,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     if (tk !== token || dead) throw new Error("cancel");
     await sleep((spoke ? SPOKEN_BEAT_MS : readMs(text)) + gap, tk);
   };
+  /** Until a pod that set off for the floor is LAND_MS into its flight: at once when it is further on, or already there (#973). */
+  const landed = (p: Pod | null, tk: number) => sleep(p ? Math.max(0, ((flewAt.get(p) ?? -1e9) + LAND_MS / 1000 - sclock.t) * 1000) : 0, tk);
   /** A pod flying in while the chair speaks: whichever takes longer. */
   const both = (a: Promise<void>, b: Promise<void>) => Promise.all([a, b]).then(() => undefined);
   /** Every line an item will say, so the voices are fetched before they're needed. */
@@ -1281,18 +1342,24 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     shareTo = 0;
     voteTo = 0;
     voice?.prefetch(linesOf(m));
+    // What comes after it, fetched behind it (#973): the next item's lines and the next status line, so neither waits.
+    const after = docket.find((x) => x !== m && fresh(x));
+    const amb = nextAmbient();
+    voice?.prefetch([...(amb ? [amb] : []), ...(after ? linesOf(after) : [])]);
     chair(m.clerk);
     lookTo.set(0, 2.4, 0.8);
     dollyTo = 1;
+    // A duty's pod flies in while the clerk reads it (#973), so it speaks as soon as he is done.
+    const duty = m.kind === "duty" ? podOr(m.by) : null;
+    if (duty) goIn(duty, "u");
     await line("kernel", m.clerk, tk);
     if (m.kind === "duty") {
-      const p = podOr(m.by);
+      const p = duty;
       if (p) {
-        goIn(p, "u");
         focus = p;
         lookTo.set(-1, 2.3, 1.4);
         dollyTo = 0.92;
-        await sleep(FLY_MS, tk);
+        await landed(p, tk);
         say("a", p, m.say);
       } else chair(m.say?.text ?? "");
       await line(p ? m.by : "kernel", spoken(m.say), tk);
@@ -1341,7 +1408,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       lookTo.set(0, 2.6, 0.4);
       dollyTo = 1.04;
       focus = null;
-      await line("kernel", m.done, tk, ITEM_END_MS + 1_200);
+      // A little longer on a decision: the question is put to Nikita, and its buttons come up.
+      await line("kernel", m.done, tk, ITEM_END_MS + 600);
     } else {
       const p = podOr(m.by);
       const rep = chairLine.report(m.by);
@@ -1385,6 +1453,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     opts.onFloor(null);
     await sleep(ITEM_GAP_MS, tk);
   }
+  /** The next argument's voices (#973), fetched once it is in: its first `n` lines, or all of them. */
+  const prefetchNextDebate = (tk: number, n?: number) => {
+    if (!voice || !opts.recess) return;
+    void opts.recess.peek().then((nd) => {
+      if (nd && tk === token && !dead) voice.prefetch(debateLines(nd).slice(0, n));
+    });
+  };
   /** The next status line not yet said, from a member with a seat. */
   const nextAmbient = () => ambient.find((a) => byId(a.by) && ambientFresh(a)) ?? null;
   async function interlude(it: { by: string; text: string }, tk: number) {
@@ -1398,11 +1473,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const p = byId(it.by);
     if (!p) return;
     voice?.prefetch([{ by: it.by, text: it.text }]);
+    // With nothing waiting on the docket, the recess comes next: its opening lines are fetched now (#973).
+    if (!docket.some(fresh)) prefetchNextDebate(tk, 3);
     goIn(p, "u");
     focus = p;
     lookTo.set(-1, 2.3, 1.3);
     dollyTo = 0.95;
-    await sleep(FLY_MS, tk);
+    await landed(p, tk);
     say("a", p, { text: it.text });
     await line(it.by, it.text, tk, 0);
     say("a", null);
@@ -1440,39 +1517,59 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     opts.onFloor(null);
     clearCaps();
     voice?.prefetch(debateLines(d));
+    // The next argument is asked for as this one is taken (liveTalk.ts); its voices are fetched as soon as it is in, behind
+    // this one's (#973), so the next recess opens without a wait.
+    prefetchNextDebate(tk);
     const open = debateOpen(d);
     chair(open);
     lookTo.set(0, 2.5, 0.8);
     dollyTo = 1;
-    await line("kernel", open, tk);
     const spots: [Slot, SpotId][] = [["a", "a"], ["c", "c"], ["b", "b"]];
     const held = new Map<SpotId, Pod>();
     let s = 0;
-    /** One member's line: from the spot it already stands on, or the next free one (the dissent takes the counter spot). */
-    const speak = async (by: string, text: string, nay: boolean) => {
+    /** Who is speaking now, never sent home to make room for the next. */
+    let up: Pod | null = null;
+    /**
+     * Where a member's line is said from: the spot it already stands on, or the next free one (the dissent takes the
+     * counter spot), flying it in. Ahead of its turn (#973: the next one flies in while the one before still speaks),
+     * only when that doesn't send home whoever is speaking; null then, or when it has no pod.
+     */
+    const place = (by: string, nay: boolean, ahead: boolean): { p: Pod; slot: Slot; spot: SpotId } | null => {
       const p = podOr(by);
-      const mine = p ? [...held].find(([, q]) => q === p)?.[0] : undefined;
-      const [slot, spot]: [Slot, SpotId] = mine ? [mine as Slot, mine] : nay ? ["d", "d"] : spots[s++ % spots.length]!;
+      if (!p) return null;
+      const mine = [...held].find(([, q]) => q === p)?.[0];
+      if (mine) return { p, slot: mine as Slot, spot: mine };
+      const [slot, spot]: [Slot, SpotId] = nay ? ["d", "d"] : spots[s % spots.length]!;
       const was = held.get(spot);
+      if (ahead && was && was === up) return null;
+      if (!nay) s++;
       if (was && was !== p) {
         say(slot, null);
         goHome(was);
       }
-      if (p) {
-        if (!mine) {
-          goIn(p, spot, nay);
-          held.set(spot, p);
-        }
-        focus = p;
-        lookTo.set(SPOT[spot].x * 0.4, 2.6, 0.8);
+      goIn(p, spot, nay);
+      held.set(spot, p);
+      return { p, slot, spot };
+    };
+    /** One member's line, the next one's pod flying in meanwhile when it can. */
+    const speak = async (by: string, text: string, nay: boolean, next?: { by: string; stance: Stance }) => {
+      const at = place(by, nay, false);
+      const p = at?.p ?? null;
+      if (at) {
+        focus = at.p;
+        lookTo.set(SPOT[at.spot].x * 0.4, 2.6, 0.8);
         dollyTo = 0.96;
-        if (!mine) await sleep(FLY_MS, tk);
-      }
-      if (p) say(slot, p, { text }, spot === "d");
-      else chair(text);
+        await landed(at.p, tk);
+        say(at.slot, at.p, { text }, at.spot === "d");
+      } else chair(text);
+      up = p;
+      if (next) place(next.by, next.stance === "nay", true);
       topic?.lines.push({ by, text });
       await line(p ? by : "kernel", text, tk);
     };
+    // The first speaker flies in while the chair opens.
+    if (d.lines[0]) place(d.lines[0].by, d.lines[0].stance === "nay", true);
+    await line("kernel", open, tk);
     let queue = [...d.lines];
     let close = d.close;
     let closed = false;
@@ -1491,7 +1588,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       }
       const l = queue.shift();
       if (l) {
-        await speak(l.by, l.text, l.stance === "nay");
+        await speak(l.by, l.text, l.stance === "nay", queue[0]);
         continue;
       }
       if (closed) break;

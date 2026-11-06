@@ -21,7 +21,7 @@ export default defineRoom({
   keys: [],
   usesClaude: false,
   threat: ["TB1"],
-  budgetKb: 40,
+  budgetKb: 64,
   purpose: {
     goal: "Stages short-run pop-ups on the engine, starting with live election results read from civicAPI, so a new agent feature can be tried for a night before it earns a room.",
     agents: [{ name: "civicAPI", use: "Election night's live results" }],

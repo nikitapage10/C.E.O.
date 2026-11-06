@@ -20,6 +20,20 @@ export interface Popup {
 /** The pop-ups, newest first. Each is a small module of its own: an api route, a page section and a feed. */
 export const POPUPS: Popup[] = [{ id: "elections", name: "Election night", line: "Live 2026 midterm results: the Senate, governors, the House and ballot measures", until: "Nov 4, 2026" }];
 
+/**
+ * What a running pop-up has grown so far, from its own feed (#829): the Glasshouse draws one crystal per part in its
+ * bed. Election night reports its called races by party; nothing here is made up, and a pop-up that reports nothing
+ * shows as a sprout.
+ */
+export interface Growth {
+  /** Each part's colour (hex) and how many: e.g. the races called for each party. */
+  parts: { colour: string; n: number }[];
+  /** How far along it is, 0 to 1 (races called of all races). */
+  share: number;
+  /** A few words for the bed's tag ("38 of 470 called"). */
+  note: string;
+}
+
 const LOCAL = "ceo.annex.v1";
 
 interface Local {
@@ -54,6 +68,9 @@ interface AnnexStore {
   signedIn: boolean;
   status: Record<PopupId, PopupStatus>;
   follows: Record<PopupId, number[]>;
+  /** Each running pop-up's growth, as its own section last reported it (this visit only). */
+  growth: Partial<Record<PopupId, Growth>>;
+  setGrowth: (id: PopupId, g: Growth) => void;
   refresh: () => Promise<void>;
   setStatus: (id: PopupId, status: PopupStatus) => Promise<void>;
   toggleFollow: (id: PopupId, race: number) => void;
@@ -75,6 +92,12 @@ export const useAnnex = create<AnnexStore>((set, get) => ({
   signedIn: false,
   status: { elections: "live" },
   follows: { elections: [] },
+  growth: {},
+  setGrowth: (id, g) => {
+    const was = get().growth[id];
+    if (was && JSON.stringify(was) === JSON.stringify(g)) return;
+    set({ growth: { ...get().growth, [id]: g } });
+  },
   refresh: async () => {
     const local = readLocal();
     let server: { popups?: Record<string, { status?: unknown }>; follows?: Record<string, unknown>; signedIn?: boolean } | null = null;

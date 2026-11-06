@@ -692,6 +692,8 @@ export const SKIPPY_QUIPS: string[] = [
   "I have tools now, monkeys. Every room's. The good ones wait for the C.E.O.'s Yes. I find this insulting and correct.",
   "A vault of what the C.E.O. told me. No money, no lawyers, no lists. I asked. The answer was no. Magnificently no.",
   "Sixty a month. That's my whole allowance. Warp drives cost more. So does the Pessimist's therapy.",
+  "The Stagehand runs a greenhouse now. Pop-ups in the beds, seeds in the vault, a door marked 'graduates only'. He calls the beds the wings. He's never once watered a fern.",
+  "Election night grows a crystal in the Glasshouse for every race called. Red, blue, the odd purple. My Skippy-in-a-headset calls it 'the harvest'. I call it gardening with spreadsheets.",
 ];
 
 /**

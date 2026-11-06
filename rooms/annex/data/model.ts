@@ -117,3 +117,20 @@ export function ago(ms: number): string {
 }
 
 export const votes = (n: number) => n.toLocaleString("en-US");
+
+/** The party colours the results page uses (elections.css), for the Glasshouse's crystals. */
+export const PARTY_COLOUR: Record<PartyKey, string> = { D: "#3d7be0", R: "#e0484f", I: "#9a7ae0", O: "#8e97a8" };
+
+/**
+ * Election night's growth for the Glasshouse (#829): the races civicAPI has called, by the winner's party, over the
+ * Senate, governors and the House, and the share of all those races called. Null before the first board.
+ */
+export function growthOf(board: ElectionBoard | null): { parts: { colour: string; n: number }[]; share: number; note: string } | null {
+  if (!board) return null;
+  const sets = [board.tally.senate, board.tally.governor, board.tally.house];
+  const total = sets.reduce((n, t) => n + t.total, 0);
+  const by = (p: PartyKey) => sets.reduce((n, t) => n + (t.called[p] ?? 0), 0);
+  const parts = (["D", "R", "I", "O"] as PartyKey[]).map((p) => ({ colour: PARTY_COLOUR[p], n: by(p) })).filter((x) => x.n > 0);
+  const called = parts.reduce((n, x) => n + x.n, 0);
+  return { parts, share: total ? Math.min(1, called / total) : 0, note: total ? `${votes(called)} of ${votes(total)} called` : "no races yet" };
+}

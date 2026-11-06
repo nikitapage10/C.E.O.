@@ -229,9 +229,10 @@ const focusWords = () => document.getElementById("cx-words")?.focus();
 /**
  * Nikita's own reply (#803), always open under the newest message on a text (#904): what he types here goes exactly
  * as typed when he taps Send or presses Enter (Shift+Enter is a new line), after the same few seconds of Undo; no
- * rewrite and no model. Blasto's draft waits in the empty box as ghost text: Tab (or "Use draft") puts it in, typing
- * replaces it, and it is never sent unless it is in the box and Send is pressed. Esc leaves the box so the page's keys
- * work again. Holding Space (outside a text field) talks into it (./holdSpace.ts).
+ * rewrite and no model. The box starts empty (#923, Nikita: "Don't populate the reply box with drafts"): "Write for
+ * me" beside Send asks Blasto for a draft only then, and it lands in the box to edit; it is never sent unless it is
+ * in the box and Send is pressed. Esc leaves the box so the page's keys work again. Holding Space (outside a text
+ * field) talks into it (./holdSpace.ts).
  */
 function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: ReturnType<typeof useThread>; focus: boolean; start?: string; launch: (el: HTMLElement | null) => void; children?: ReactNode }) {
   const [text, setText] = useState(start);
@@ -262,7 +263,6 @@ function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: Re
     return () => window.removeEventListener(WRITE_EVENT, open);
   }, [focus, x.key]);
   const locked = x.line === "text" && !t.unlocked;
-  const hint = x.hint && !t.hidden && !text ? x.hint : null;
   const take = (words: string) => {
     setText(words);
     window.setTimeout(() => {
@@ -271,12 +271,20 @@ function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: Re
       el?.setSelectionRange(words.length, words.length);
     }, 0);
   };
+  // "Write for me" (#923): Blasto's draft, once it is here, goes into the box to edit.
+  const fill = t.fill;
+  const clearFill = t.clearFill;
+  useEffect(() => {
+    if (!focus || !fill || fill.key !== x.key) return;
+    clearFill();
+    take(fill.text);
+  }, [focus, fill, clearFill, x.key]);
+  const canWrite = x.line === "text" && x.sendable && !x.group;
   const who = t.hidden ? "them" : x.who;
   const id = `cx-own-${x.key}`;
   return (
     <form
       className="cx-own"
-      data-hint={hint ? "" : undefined}
       data-hearing={hearing || undefined}
       onSubmit={(e) => {
         e.preventDefault();
@@ -297,10 +305,7 @@ function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: Re
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Tab" && !e.shiftKey && hint) {
-              e.preventDefault();
-              take(hint);
-            } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               e.currentTarget.form?.requestSubmit();
             } else if (e.key === "Escape") {
@@ -310,18 +315,9 @@ function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: Re
           }}
           rows={Math.min(6, Math.max(1, text.split("\n").length))}
           maxLength={2_000}
-          placeholder={hearing ? "Listening…" : (hint ?? `Reply to ${t.hidden ? "them" : first(x.who)}`)}
-          aria-describedby={hint ? `${id}-hint` : undefined}
+          placeholder={hearing ? "Listening…" : `Reply to ${t.hidden ? "them" : first(x.who)}`}
           data-private=""
         />
-        {hint && (
-          <button type="button" className="cx-take" onClick={() => take(hint)} title="Put Blasto's draft in the box (Tab)">
-            <span id={`${id}-hint`} className="cx-sr">
-              Blasto's draft is in the box as a suggestion; Tab puts it in.
-            </span>
-            Use draft <kbd>Tab</kbd>
-          </button>
-        )}
         {hearing && (
           <span className="cx-listen" role="status">
             <i aria-hidden="true" /> Listening · let go of Space to stop
@@ -336,6 +332,11 @@ function Own({ x, t, focus, start = "", launch, children }: { x: Exchange; t: Re
         ) : (
           <button type="submit" className="cx-opt is-yes cx-send" disabled={!text.trim() || t.hidden}>
             Send <kbd>Enter</kbd>
+          </button>
+        )}
+        {canWrite && (
+          <button type="button" className="cx-opt cx-write" disabled={t.hidden} onClick={() => t.say("draft")} title="Blasto writes a draft in your voice, into the box to edit; nothing sends until you tap Send">
+            <i aria-hidden="true">✦</i> Write for me
           </button>
         )}
         <EmojiPicker box={ref} value={text} set={setText} />
@@ -545,10 +546,11 @@ function GroupShelf({ groups, hidden, open }: { groups: readonly TextItem[]; hid
           const n = g.messages?.length ?? 0;
           return (
             <li key={g.id}>
-              <button type="button" onClick={() => open(g.id)} title={hidden ? "A group" : (g.summary?.text ?? g.name)} aria-label={`${hidden ? "A group" : g.name}${n ? `, ${n} new` : ""}${g.unread ? ", unread" : ""}`}>
+              <button type="button" onClick={() => open(g.id)} title={hidden ? "A group" : `${g.name}${n ? ` · ${n} new since you last wrote` : ""}${g.summary?.text ? `\n${g.summary.text}` : ""}`} aria-label={`${hidden ? "A group" : g.name}${n ? `, ${n} new` : ""}${g.unread ? ", unread" : ""}`}>
                 {g.unread && <span className="cx-dot" aria-hidden="true" />}
                 <Private as="b">{g.name || "Group"}</Private>
-                {n > 0 && <em aria-hidden="true">{n}</em>}
+                {/* #923 (Nikita: bare numbers "don't explain themselves"): the count says what it counts. */}
+                {n > 0 && <em aria-hidden="true">{n} new</em>}
               </button>
             </li>
           );

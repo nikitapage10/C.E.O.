@@ -175,8 +175,12 @@ describe("#895: every owed one-to-one thread the hub counts is on the Desk's lin
     const item = h.site.pushed!.items.find((i) => i.name === "Sample Person 0")!;
     expect(NOW - item.since).toBeGreaterThan(OWED_WINDOW_MS);
     expect(item.last).toBe(NOW - 2 * DAY);
-    // A shown text keeps its own 30 days (#803): the older one drops, the thread stays.
-    expect(readTextsView(h.site.pushed, NOW)!.items.find((i) => i.id === item.id)?.messages?.map((m) => m.text)).toEqual(["hey, did you see this?"]);
+    // Kept unread (#924), its shown texts keep the 60 days; read, a shown text keeps its own 30 (#803): the older one
+    // drops, the thread stays.
+    expect(item.unread).toBe(true);
+    expect(readTextsView(h.site.pushed, NOW)!.items.find((i) => i.id === item.id)?.messages?.map((m) => m.text)).toEqual(["are you around this month?", "hey, did you see this?"]);
+    const read = { ...h.site.pushed!, items: h.site.pushed!.items.map(({ unread: _u, ...i }) => i) };
+    expect(readTextsView(read, NOW)!.items.find((i) => i.id === item.id)?.messages?.map((m) => m.text)).toEqual(["hey, did you see this?"]);
   });
 
   it("shows a read thread as owed (no unread mark), and one still waiting on its gist or draft with its texts", async () => {

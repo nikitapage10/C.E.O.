@@ -1570,7 +1570,8 @@
   top: 58px;
 }
 
-/* the conversation: theirs on the left, his own on the right, older ones dimmer above, the newest large */
+/* the conversation: theirs on the left, his own on the right, the newest large and alone; the older ones (#923)
+   darkened, blurred and dissolving into Relay's white nanites above it, clear on hover, focus or a tap */
 .cx-head {
   margin-bottom: 18px;
 }
@@ -1585,6 +1586,7 @@
   display: grid;
   gap: 6px;
   outline: none;
+  cursor: pointer;
 }
 .cx-bub {
   margin: 0;
@@ -1610,11 +1612,81 @@
   letter-spacing: 0;
 }
 .cx-ctx > .cx-bub {
-  opacity: calc(0.92 - var(--d) * 0.12);
+  position: relative;
+  opacity: calc(0.62 - var(--d) * 0.08);
+  filter: blur(calc(1.4px + var(--d) * 0.5px)) brightness(0.55) saturate(0.6);
+  transition:
+    opacity 0.45s var(--cx-e),
+    filter 0.45s var(--cx-e);
 }
-.cx-conv:hover .cx-ctx > .cx-bub,
-.cx-ctx:focus-visible > .cx-bub {
+/* the words come apart into dots toward the far edge: a dot screen joined to a fade */
+.cx-ctx > .cx-bub .cx-ctxline {
+  -webkit-mask-image: linear-gradient(90deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
+  mask-image: linear-gradient(90deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
+  -webkit-mask-size:
+    100% 100%,
+    4px 4px;
+  mask-size:
+    100% 100%,
+    4px 4px;
+}
+.cx-ctx > .cx-bub[data-me] .cx-ctxline {
+  -webkit-mask-image: linear-gradient(270deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
+  mask-image: linear-gradient(270deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
+}
+/* the nanites: white motes drifting up off each older line */
+.cx-ctx > .cx-bub::after {
+  content: "";
+  position: absolute;
+  inset: -8px -10px;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 0.6px, transparent 1.2px),
+    radial-gradient(circle, rgba(238, 242, 255, 0.8) 0 1px, transparent 1.7px);
+  background-size:
+    11px 13px,
+    17px 9px,
+    23px 19px;
+  background-position:
+    0 0,
+    5px 4px,
+    9px 7px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 10%, #000 70%);
+  mask-image: linear-gradient(90deg, transparent 10%, #000 70%);
+  opacity: 0.55;
+  animation: cx-nanites 7s linear infinite;
+  transition: opacity 0.45s var(--cx-e);
+}
+.cx-ctx > .cx-bub[data-me]::after {
+  -webkit-mask-image: linear-gradient(270deg, transparent 10%, #000 70%);
+  mask-image: linear-gradient(270deg, transparent 10%, #000 70%);
+}
+@keyframes cx-nanites {
+  to {
+    background-position:
+      0 -52px,
+      5px -32px,
+      9px -69px;
+  }
+}
+.cx-ctx:hover > .cx-bub,
+.cx-ctx:focus-visible > .cx-bub,
+.cx-ctx[data-clear] > .cx-bub {
   opacity: 1;
+  filter: none;
+}
+.cx-ctx:hover > .cx-bub .cx-ctxline,
+.cx-ctx:focus-visible > .cx-bub .cx-ctxline,
+.cx-ctx[data-clear] > .cx-bub .cx-ctxline {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.cx-ctx:hover > .cx-bub::after,
+.cx-ctx:focus-visible > .cx-bub::after,
+.cx-ctx[data-clear] > .cx-bub::after {
+  opacity: 0;
 }
 .cx-ctx:focus-visible {
   outline: 1px dashed var(--cx-faint);
@@ -1625,7 +1697,7 @@
 }
 .cx-bub-hero {
   max-width: 88%;
-  margin-top: 6px;
+  margin-top: 14px;
   padding: 12px 20px 14px;
   border-radius: 24px 24px 24px 8px;
   background: rgba(255, 255, 255, 0.075);
@@ -1658,7 +1730,7 @@
   background: none;
 }
 
-/* the reply box, always open under the newest message; Blasto's draft is its ghost text */
+/* the reply box, always open under the newest message, empty until he types or asks "Write for me" (#923) */
 .cx-you {
   margin-top: 18px !important;
 }
@@ -1684,7 +1756,7 @@
   font-style: italic;
   opacity: 1;
 }
-.cx .cx-own:not([data-hint]) textarea::placeholder {
+.cx .cx-own textarea::placeholder {
   font-style: normal;
   color: var(--cx-faint);
 }
@@ -1695,33 +1767,28 @@
     inset 0 0 0 1.5px var(--cx-hi),
     0 0 0 4px rgba(10, 124, 255, 0.14);
 }
-.cx .cx-own:not([data-hint]) textarea {
+.cx .cx-own textarea {
   padding-right: 18px;
 }
-.cx .cx-take {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
+/* "Write for me" (#923): beside Send, quiet, white like Relay's nanites; it only fills the box */
+.cx .cx-opt.cx-write {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 9px;
+  padding: 7px 14px !important;
   border-radius: 999px;
-  font-size: 12px;
-  color: var(--cx-soft);
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--cx-ink) !important;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
-.cx .cx-take:hover {
-  color: var(--cx-ink);
-  background: rgba(255, 255, 255, 0.1);
+.cx .cx-opt.cx-write:hover:not(:disabled),
+.cx .cx-opt.cx-write:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
 }
-.cx-take kbd {
-  font: 400 9.5px/1 var(--cx-mono);
-  padding: 2px 4px;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--cx-line);
-  color: var(--cx-mute);
+.cx-write i {
+  font-style: normal;
+  color: #fff;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
 }
 .cx-own[data-hearing] textarea {
   box-shadow:
@@ -1827,17 +1894,8 @@
     font-size: 16px;
     padding-right: 18px;
   }
-  .cx .cx-own[data-hint] textarea {
-    min-height: calc(2 * 1.45em + 26px);
-  }
   .cx-box {
     display: grid;
-  }
-  .cx .cx-take {
-    position: static;
-    justify-self: end;
-    transform: none;
-    margin-top: 8px;
   }
   .cx-dock {
     padding-left: 16px !important;
@@ -1855,5 +1913,8 @@
   }
   .cx-bub {
     transition: none;
+  }
+  .cx-ctx > .cx-bub::after {
+    animation: none;
   }
 }

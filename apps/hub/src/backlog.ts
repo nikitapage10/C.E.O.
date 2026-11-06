@@ -1,4 +1,4 @@
-import { MAX_ITEMS, OLDER_WINDOW_MS, OWED_WINDOW_MS } from "../../../api/_relay/texts.ts";
+import { MAX_ITEMS, OLDER_WINDOW_MS, OWED_WINDOW_MS, UNREAD_WINDOW_MS } from "../../../api/_relay/texts.ts";
 import { onlyAcks } from "../../../api/_email/intentWords.ts";
 import type { BlueBubbles, ChatInfo, Contact } from "./bluebubbles.ts";
 import { settleByRule } from "./rules.ts";
@@ -17,8 +17,11 @@ import { settleByRule } from "./rules.ts";
  *            and sorts it again on the newest real one.
  *
  * Groups (#916: 6 or more other people, GROUP_MIN_PEOPLE) stay summary-only and are left out; a smaller chat of several
- * is sorted like a one-to-one chat. A chat whose last message is Nikita's own is answered. Read state
- * (Messages' `dateRead`) only marks an owed chat unread; it never hides one.
+ * is sorted like a one-to-one chat. A chat whose last message is Nikita's own is answered. Read state (Messages'
+ * `dateRead`) never hides a chat. Since #924 (Nikita, 2026-11-06: his phone's Unread filter is his real to-reply list)
+ * a chat whose last text from them is unread is owed for UNREAD_WINDOW_MS (60 days), not folded as older and not let
+ * go as an acknowledgement; the rules above still settle it. BlueBubbles 1.9 has no chat-level unread flag (its chat
+ * query serialises no unread state, and "Mark as Unread" is Messages' own), so "unread" is the last text's `dateRead`.
  */
 
 export interface BacklogEntry {
@@ -48,11 +51,12 @@ export type Verdict = "owed" | "older" | "settled" | "check" | "answered" | "gro
 export function verdictOf(c: ChatInfo, now: number, skipTerms: readonly string[], contactOf: (handle: string) => Contact | undefined): Verdict {
   if (c.group) return "group";
   const m = c.last;
-  if (!m) return c.lastAt && now - c.lastAt < OWED_WINDOW_MS ? "check" : "empty";
+  // #924: a chat kept unread reaches back 60 days, so a reaction or a photo last is read within that.
+  if (!m) return c.lastAt && now - c.lastAt < UNREAD_WINDOW_MS ? "check" : "empty";
   if (m.fromMe) return "answered";
   // No words and no attachment mark: the chat's latest messages decide. A photo or a file with no words (#870) is a
   // text that came like any other: their sender's rules (the skip list, a short code) still run, on the handle alone.
-  if (!m.text.trim() && !m.media) return now - m.at < OWED_WINDOW_MS ? "check" : "empty";
+  if (!m.text.trim() && !m.media) return now - m.at < UNREAD_WINDOW_MS ? "check" : "empty";
   // A small chat of several (#916): the chat query's last message names no sender, so the chat's latest messages
   // (which do) decide, and the skip list runs on whoever wrote it.
   if ((c.multi ?? c.group) && !m.handle) return now - m.at < OLDER_WINDOW_MS ? "check" : "empty";
@@ -61,6 +65,8 @@ export function verdictOf(c: ChatInfo, now: number, skipTerms: readonly string[]
   if (now - m.at < OWED_WINDOW_MS) return "owed";
   // Past 60 days (#803): let go on purpose, neither named nor counted.
   if (now - m.at >= OLDER_WINDOW_MS) return "empty";
+  // Kept unread in Messages (#924): owed, whatever closing intent reads.
+  if (m.read === false) return "owed";
   // No model reads an older chat, so its closing intent is judged here: an "ok" or a "thanks" owes nothing.
   return m.text.trim() && onlyAcks([m.text]) ? "settled" : "older";
 }

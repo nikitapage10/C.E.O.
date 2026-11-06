@@ -67,7 +67,7 @@ const FAKE_SPEECH = () => {
   };
 };
 
-async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; order?: string | null } = {}) {
+async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; order?: string | null; group?: boolean } = {}) {
   const signedIn = opts.signedIn ?? true;
   // Longest waiting first is the page's default (#904); most tests here walk the queue newest first (Sam, Jordan,
   // Priya), as a device that picked Newest would. null leaves the default.
@@ -147,12 +147,14 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; o
           { text: "Photo", at: now - 20 * 60_000, media: true, ref: "0000000b" },
           { text: "ok that meme you sent at 2am was way too accurate", at: now - 12 * 60_000, ref: "0000000c" },
         ] },
+        // An unnamed big group (#923): the hub names it by its people, the shelf counts what is new.
+        ...(opts.group ? [{ id: "9999999999999999", name: "Alex, Sam +5", channel: "iMessage", group: true, state: "settled", sort: null, since: now - 30 * 60_000, laterUntil: null, gist: "", draft: null, summary: { text: "They plan a picnic on Sunday.", asked: false }, messages: Array.from({ length: 5 }, (_, i) => ({ text: `picnic line ${i}`, at: now - (30 - i) * 60_000, from: i % 2 ? "Alex Test" : "Sam Other" })) }] : []),
       ];
       return r.fulfill({ json: { ok: true, status: textsStatus(), ready: true, paired: true, pairedAt: now - 86_400_000, lastSeen: now, unlockedUntil: now + 3_600_000, texts, cards: [], textsAt: now, requests, spend: { usd: 0.03, budget: 10 } } });
     }
     const body = r.request().postDataJSON() as Record<string, unknown>;
     posts.push({ line: "texts", ...body });
-    if (body.action === "restyle") samDraft = { text: SAM_DRAFT, at: Date.now() };
+    if (body.action === "restyle" || body.action === "draft") samDraft = { text: SAM_DRAFT, at: Date.now() };
     if (body.action === "send") requests = [{ rid: "b".repeat(24), kind: "send", thread: body.thread, text: body.text, created: Date.now(), until: Date.now() + 600_000, state: "sent" }];
     // The site holds a Done until the Mac takes it (#914).
     if (body.action === "done") requests = [...requests, { rid: "e".repeat(24), kind: "done", thread: body.thread, text: "", created: Date.now(), until: Date.now() + 600_000, state: "waiting" }];
@@ -291,13 +293,24 @@ for (const width of [1440, 400]) {
     await expect(focused(page).getByRole("button", { name: /^Later/ })).toBeVisible();
     const box = focused(page).getByRole("textbox", { name: /Your reply to Jordan Test/ });
     await expect(box).toBeVisible();
-    // Blasto's draft is the empty box's ghost text; R puts the cursor in, Tab takes it. Nothing sends.
-    await expect(box).toHaveAttribute("placeholder", "haha right?? saw it and thought of you");
+    // The box starts empty (#923): no ghost draft, no "Use draft"; "Write for me" sits beside Send.
+    await expect(box).toHaveAttribute("placeholder", "Reply to Jordan");
+    await expect(box).toHaveValue("");
+    await expect(focused(page).getByRole("button", { name: /Use draft/ })).toHaveCount(0);
+    await expect(focused(page).getByRole("button", { name: /Write for me/ })).toBeVisible();
+    // The older lines sit faded behind the newest (#923) until hovered or tapped.
+    const ctx = focused(page).locator(".cx-ctx");
+    await expect(ctx).not.toHaveAttribute("data-clear", "true");
     if (SHOTS) await page.waitForTimeout(1_500);
-    if (SHOTS) await page.screenshot({ path: `${SHOTS}/904-card-${width}.png` });
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/923-card-${width}.png` });
+    await ctx.click();
+    await expect(ctx).toHaveAttribute("data-clear", "true");
+    await ctx.click();
+    await expect(ctx).not.toHaveAttribute("data-clear", "true");
     await page.keyboard.press("r");
     await expect(box).toBeFocused();
-    await box.press("Tab");
+    // The Mac already has a draft here: "Write for me" puts it in the box to edit, and nothing sends.
+    await focused(page).getByRole("button", { name: /Write for me/ }).click();
     await expect(box).toHaveValue("haha right?? saw it and thought of you");
     // Typing replaces it; Shift+Enter is a new line, not a send; Esc leaves the box so the keys work again.
     await box.fill("");
@@ -339,6 +352,26 @@ for (const width of [1440, 400]) {
     expect(sends(posts)).toEqual([]);
   });
 }
+
+test("Write for me asks Blasto only on the tap, fills the box, and never sends (#923)", async ({ page }) => {
+  const posts = await stub(page, { group: true });
+  await page.goto(`${BASE}/relay`);
+  await expect(focused(page)).toContainText("Sam Test");
+  // Nothing asked for until the tap.
+  await page.waitForTimeout(500);
+  expect(posts.filter((p) => p.action === "draft")).toEqual([]);
+  const box = focused(page).getByRole("textbox", { name: /Your reply to Sam Test/ });
+  await expect(box).toHaveValue("");
+  await focused(page).getByRole("button", { name: /Write for me/ }).click();
+  await expect.poll(() => posts.filter((p) => p.action === "draft")).toEqual([{ line: "texts", action: "draft", thread: SAM }]);
+  await expect(box).toHaveValue(SAM_DRAFT, { timeout: 15_000 });
+  await page.waitForTimeout(800);
+  expect(sends(posts)).toEqual([]);
+  // The Groups shelf names the unnamed group by its people and says what its number counts.
+  const chip = page.locator(".cx-shelf button").first();
+  await expect(chip).toContainText("Alex, Sam +5");
+  await expect(chip).toContainText("5 new");
+});
 
 test("email sends from the codex once Gmail grants send: after the undo, the draft on screen, once", async ({ page }) => {
   test.setTimeout(60_000);

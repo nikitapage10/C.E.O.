@@ -35,11 +35,21 @@ export const OWED_WINDOW_MS = 30 * 24 * 60 * 60_000;
  */
 export const SHOWN_KEEP_MS = OWED_WINDOW_MS;
 
-/** Items with every shown text older than SHOWN_KEEP_MS dropped (an item whose texts all aged out shows its gist). */
+/**
+ * How far back a chat Nikita keeps unread in Messages is still owed (#924, Nikita 2026-11-06: his phone's Unread
+ * filter is his real to-reply list): 60 days, the older fold's reach. A read chat keeps OWED_WINDOW_MS.
+ */
+export const UNREAD_WINDOW_MS = 60 * 24 * 60 * 60_000;
+
+/** An owed item's window (#924): UNREAD_WINDOW_MS while their latest text is unread in Messages, else OWED_WINDOW_MS. */
+export const owedWindow = (unread: boolean | undefined) => (unread === true ? UNREAD_WINDOW_MS : OWED_WINDOW_MS);
+
+/** Items with every shown text older than its window dropped (SHOWN_KEEP_MS, an unread item's 60 days; an item whose texts all aged out shows its gist). */
 export function freshItems(items: readonly TextItem[], now: number): TextItem[] {
   return items.map((i) => {
     if (!i.messages) return i;
-    const fresh = i.messages.filter((m) => now - m.at < SHOWN_KEEP_MS);
+    const keep = Math.max(SHOWN_KEEP_MS, i.state === "settled" ? 0 : owedWindow(i.unread));
+    const fresh = i.messages.filter((m) => now - m.at < keep);
     const { messages: _old, ...rest } = i;
     return fresh.length ? { ...rest, messages: fresh } : rest;
   });
@@ -48,7 +58,7 @@ export function freshItems(items: readonly TextItem[], now: number): TextItem[] 
  * How far back an "older unanswered" chat still counts (#803, Nikita 2026-11-05): owed within 30 days, the older fold
  * from 30 to 60 days, and past 60 days nothing at all, neither named nor counted: those were let go on purpose.
  */
-export const OLDER_WINDOW_MS = 60 * 24 * 60 * 60_000;
+export const OLDER_WINDOW_MS = UNREAD_WINDOW_MS;
 
 /**
  * The older fold within OLDER_WINDOW_MS (#803). The hub names its newest MAX_OLDER, newest first, so once one named
@@ -99,7 +109,10 @@ export interface TextItem {
   summary: { text: string; asked: boolean } | null;
   /** The contact's photo id (#642, ./photos.ts): opaque, the Desk asks for it passkey-only. Left out without one. */
   photo?: string;
-  /** Their latest text has no read time in Messages (#758). Never hides an item: a read one is still owed. */
+  /**
+   * Their latest text has no read time in Messages (#758). Never hides an item: a read one is still owed. Since #924
+   * an unread one-to-one chat is owed for UNREAD_WINDOW_MS (60 days) whatever Dialtone or closing intent read.
+   */
   unread?: true;
   /**
    * Their own texts, for Nikita's eyes on the Desk (#758; Nikita, 2026-11-05: "It should be the full text"): an owed
@@ -349,9 +362,10 @@ export interface TextCard {
 
 /**
  * "rescan" and "learn" (#758) ask the hub to read every chat again, or to learn Nikita's voice from their sent texts:
- * chores, not about one thread, so they name a fresh random id and carry no text. Neither can send.
+ * chores, not about one thread, so they name a fresh random id and carry no text. Neither can send. "draft" (#923,
+ * "Write for me") asks Blasto for one draft for a one-to-one thread: no text, bound to no draft, and it can't send.
  */
-export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back", "react"] as const;
+export const REQUEST_KINDS = ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back", "react", "draft"] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 /** A request's state as the Desk sees it. "expired": never taken (the Mac was offline); Resend makes a new one. */
@@ -494,10 +508,11 @@ export function readTextCard(v: unknown): TextCard | null {
 
 /**
  * Whether an item is still on the list (#758): an owed one while their latest text is inside OWED_WINDOW_MS (#895: by
- * `last`, as the hub lists and counts it; an older hub's item by `since`), a settled one (a group's summary) a week.
+ * `last`, as the hub lists and counts it; an older hub's item by `since`; #924: 60 days while it is unread in
+ * Messages), a settled one (a group's summary) a week.
  */
-export function itemLive(i: Pick<TextItem, "state" | "since" | "last">, now: number): boolean {
-  return i.state === "settled" ? now - i.since < TEXT_KEEP_MS : now - Math.max(i.since, i.last ?? 0) < OWED_WINDOW_MS;
+export function itemLive(i: Pick<TextItem, "state" | "since" | "last" | "unread">, now: number): boolean {
+  return i.state === "settled" ? now - i.since < TEXT_KEEP_MS : now - Math.max(i.since, i.last ?? 0) < owedWindow(i.unread);
 }
 
 /** The list, checked whole: one bad item refuses it (a hub that sends something extra has a bug). */
@@ -542,8 +557,8 @@ export function readTextRequest(v: unknown): TextRequest | null {
   if (o.draftAt !== 0 && !isTime(o.draftAt)) return null;
   const text = str(o.text, o.kind === "restyle" ? DICTATED_MAX : o.kind === "compose" ? GIST_IN_MAX : SEND_MAX);
   if (text === null || ((o.kind === "send" || o.kind === "restyle" || o.kind === "compose") && !text.trim())) return null;
-  if ((o.kind === "later" || o.kind === "done" || o.kind === "rescan" || o.kind === "learn" || o.kind === "back") && text !== "") return null;
-  if (o.kind === "back" && o.draftAt !== 0) return null;
+  if ((o.kind === "later" || o.kind === "done" || o.kind === "rescan" || o.kind === "learn" || o.kind === "back" || o.kind === "draft") && text !== "") return null;
+  if ((o.kind === "back" || o.kind === "draft") && o.draftAt !== 0) return null;
   // A tapback (#888): which one and on which line, nothing else; bound to no draft.
   if (o.kind === "react" && (o.draftAt !== 0 || !readTapback(text))) return null;
   if ((o.kind === "rescan" || o.kind === "learn") && o.draftAt !== 0) return null;

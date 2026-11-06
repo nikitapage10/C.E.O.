@@ -164,7 +164,7 @@ const setup = () => {
 
 const text = (t: string, at: number, fromMe = false): Message => ({ text: t, fromMe, at, handle: fromMe ? "" : HANDLE });
 
-/** A thread owed with a draft ready, as after a real round of work. */
+/** A thread owed with a draft ready, as after a real round of work and Nikita's "Write for me" (#923). */
 const owedWithDraft = async () => {
   const h = setup();
   await h.engine.refreshSkipTerms(true);
@@ -172,8 +172,17 @@ const owedWithDraft = async () => {
   await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history[1]! });
   h.at(NOW + SETTLE_MS + 1);
   await h.engine.work();
+  await askDraft(h, h.store.load().threads[0]!.id);
   const t = h.store.load().threads[0]!;
   return { ...h, thread: t };
+};
+
+/** Nikita's "Write for me" (#923): a signed "draft" request, taken, then the round of work that drafts. */
+const askDraft = async (h: ReturnType<typeof setup>, thread: string, rid = "e".repeat(24)) => {
+  h.site.waiting = [req({ rid, kind: "draft", thread, draftAt: 0, text: "" }, KEY, h.now())];
+  await h.engine.act();
+  h.site.reported.length = 0;
+  await h.engine.work();
 };
 
 const req = (over: Partial<TextRequest> & Pick<TextRequest, "thread">, key = KEY, now = NOW + SETTLE_MS + 1): TextRequest => {
@@ -288,6 +297,7 @@ describe("the engine", () => {
     const mine = req({ thread: id, draftAt: 0, text: "Yes, see you then" }, KEY, NOW);
     h.at(NOW + SETTLE_MS + 1);
     await h.engine.work();
+    await askDraft(h, id);
     expect(h.store.load().threads[0]!.draft).not.toBeNull();
     h.site.waiting = [mine];
     await h.engine.act();
@@ -387,7 +397,8 @@ describe("the engine", () => {
     const h = await owedWithDraft();
     h.site.waiting = [req({ thread: h.thread.id, draftAt: h.thread.draft!.at })];
     await h.engine.act();
-    expect(h.store.load().seen).toHaveLength(1);
+    // The send and the "Write for me" before it (#923).
+    expect(h.store.load().seen).toHaveLength(2);
     h.at(NOW + Math.max(SEEN_KEEP_MS, DRAFT_KEEP_MS, THREAD_KEEP_MS, OWED_WINDOW_MS) + 60_000);
     h.engine.sweep();
     const s = h.store.load();
@@ -465,6 +476,7 @@ describe("the rules reach every model call (#541 review)", () => {
     await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history.at(-1)! });
     h.at(NOW + SETTLE_MS + 1);
     await h.engine.work();
+    await askDraft(h, h.store.load().threads[0]!.id);
     expect(h.site.drafts.length).toBe(1);
     expect(JSON.stringify(h.site.drafts[0])).not.toContain("settlement");
     expect(JSON.stringify(h.site.sorts)).not.toContain("settlement");
@@ -476,6 +488,7 @@ describe("the rules reach every model call (#541 review)", () => {
     await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history.at(-1)! });
     h.at(NOW + SETTLE_MS + 1);
     await h.engine.work();
+    await askDraft(h, h.store.load().threads[0]!.id);
     const sort = h.site.sorts[0]!;
     const draft = h.site.drafts[0]!;
     expect(sort.lines.length).toBeLessThanOrEqual(CAPS.sortMessages);
@@ -892,7 +905,8 @@ describe("closing intent on the Mac (#642)", () => {
   it("after Nikita's closing reply, a thanks owes nothing: settled with no model call and no draft", async () => {
     const h = setup();
     await h.engine.refreshSkipTerms(true);
-    h.bb.history = [text("Can you send the photos?", NOW - 300_000), text("no worries, already did it", NOW - 120_000, true), text("thanks!", NOW - 60_000)];
+    // Read on the phone (#924: kept unread, it would stay owed).
+    h.bb.history = [text("Can you send the photos?", NOW - 300_000), text("no worries, already did it", NOW - 120_000, true), { ...text("thanks!", NOW - 60_000), read: true }];
     await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history[2]! });
     h.at(NOW + SETTLE_MS + 1);
     await h.engine.work();

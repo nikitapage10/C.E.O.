@@ -75,18 +75,20 @@ export function explain(chat: ChatInfo, msgs: readonly Message[], stored: Thread
   const last = unanswered[unanswered.length - 1]!.at;
   if (rule) return { ...base, media, rule, verdict: "settled" };
   if (now - last >= OLDER_WINDOW_MS) return { ...base, media, verdict: "empty" };
+  // Kept unread in Messages (#924): owed for 60 days, whatever closing intent reads.
+  if (unanswered[unanswered.length - 1]!.read === false) return { ...base, media, verdict: "owed" };
   if (now - last >= OWED_WINDOW_MS) return { ...base, media, verdict: "older" };
   if (!media && lastMine >= 0 && closingReply(msgs[lastMine]!.text) && onlyAcks(unanswered.map((m) => m.text))) return { ...base, media, verdict: "closing" };
   return { ...base, media, verdict: "owed" };
 }
 
 const WORDS: Record<WhyVerdict, string> = {
-  owed: "owed: their text is the last word, within 30 days",
+  owed: "owed: their text is the last word, within 30 days (60 while it is unread in Messages)",
   answered: "answered: your message is the newest",
   group: "a group (groups are summarised, not listed one by one)",
   settled: "set aside by a rule",
   closing: "closing intent: only an acknowledgement after your closing reply",
-  older: "older than the 30-day window (shown in the older count)",
+  older: "read, and older than the 30-day window (shown in the older count)",
   empty: "nothing to answer (no messages, or past 60 days)",
   missing: "not in BlueBubbles",
 };

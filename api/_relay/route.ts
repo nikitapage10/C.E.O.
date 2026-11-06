@@ -24,6 +24,8 @@
  *          "later" | "done", thread        → a request to push a thread to the next nudge, or mark it handled
  *          "back", thread     → "Bring back" (#870): a thread Relay set aside (not by a rule) back in line, kept owed
  *          "restyle", thread, text         → Nikita's dictated words, for Blasto to put in his style
+ *          "draft", thread    → "Write for me" (#923): Blasto writes one draft for a one-to-one thread, only on this
+ *                                tap (the hub no longer drafts on its own). No text; it can't send
  *          "rescan"           → a request for the hub to read every chat again (#758): the backlog. Needs the session only
  *          "learn"            → a request for the hub to learn Nikita's voice from their sent texts (#758). Session only
  *          "compose", who, gist [, card, pick] → a new text Skippy was asked for (#536): the hub finds who on the Mac
@@ -380,7 +382,7 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
     const made = await update(store, (s) => makeChore(s, sendKey, action, deps.now));
     return requestAnswer(made, keep);
   }
-  if (action === "later" || action === "done" || action === "restyle") {
+  if (action === "later" || action === "done" || action === "restyle" || action === "draft") {
     const made = await update(store, (s) => makeRequest(s, sendKey, action, { thread: body?.thread, draftAt: body?.draftAt ?? 0, text: action === "restyle" ? body?.text : "" }, deps.now));
     return requestAnswer(made, keep);
   }
@@ -445,6 +447,8 @@ export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind,
   if (!item) return no("no-thread");
   const draftAt = typeof given.draftAt === "number" && Number.isInteger(given.draftAt) ? given.draftAt : -1;
   const text = typeof given.text === "string" ? given.text.replace(/\r\n?/g, "\n").replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")).trim() : "";
+  // "Write for me" (#923): a one-to-one thread still owed; a group is never drafted for.
+  if (kind === "draft" && (item.group || item.state === "settled")) return no("no-thread");
   if (kind === "send" || kind === "restyle") {
     // A group is never drafted for, so never restyled; it takes only Nikita's own typed words (#805), with no draft.
     if (item.group && (kind === "restyle" || draftAt !== 0)) return no("no-thread");

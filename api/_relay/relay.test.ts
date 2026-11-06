@@ -552,6 +552,20 @@ describe("send requests (single-use, 10 minutes, Resend)", () => {
     const made = makeRequest(s, key, "later", { thread: THREAD, draftAt: 0, text: "ignored" }, NOW);
     expect(made.next.requests[0]!.req.text).toBe("");
   });
+  it("\"Write for me\" (#923): a draft request carries no text and no draft, only for an owed one-to-one thread", () => {
+    const key = Buffer.alloc(32, 1);
+    const made = makeRequest({ texts: view(), requests: [] }, key, "draft", { thread: THREAD, draftAt: DRAFT_AT, text: "ignored" }, NOW);
+    expect("error" in made.result).toBe(false);
+    const req = made.next.requests[0]!.req;
+    expect(req).toMatchObject({ kind: "draft", text: "", draftAt: 0 });
+    expect(readTextRequest(req)).toMatchObject({ kind: "draft", text: "", draftAt: 0 });
+    expect(readTextRequest({ ...req, text: "send this" })).toBeNull();
+    expect(readTextRequest({ ...req, draftAt: DRAFT_AT })).toBeNull();
+    // One waiting at a time; never for a group or a thread set aside.
+    expect(makeRequest(made.next, key, "draft", { thread: THREAD, draftAt: 0, text: "" }, NOW).result).toEqual({ error: "busy" });
+    expect(makeRequest({ texts: view([item({ group: true, state: "settled", draft: null, summary: { text: "Planning a trip", asked: false } })]), requests: [] }, key, "draft", { thread: THREAD, draftAt: 0, text: "" }, NOW).result).toEqual({ error: "no-thread" });
+    expect(makeRequest({ texts: view([item({ state: "settled" })]), requests: [] }, key, "draft", { thread: THREAD, draftAt: 0, text: "" }, NOW).result).toEqual({ error: "no-thread" });
+  });
 });
 
 describe("texts Skippy asks for (#536): compose, the card, and its send", () => {

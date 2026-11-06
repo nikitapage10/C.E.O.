@@ -147,6 +147,14 @@ async function chatOf(chat: string, people: number) {
   await h.engine.onMessage(inbound(chat, people, "Can you bring chairs?", NOW - 60_000, num(1)));
   h.at(NOW + SETTLE_MS + 1);
   for (let i = 0; i < 4 && h.engine.pending(); i++) await h.engine.work();
+  // A regular chat's draft comes on "Write for me" (#923): a signed "draft" request.
+  const t = h.store.load().threads.find((x) => x.chat === chat);
+  if (t && !t.group) {
+    const f = { rid: "e".repeat(24), kind: "draft" as const, thread: t.id, draftAt: 0, text: "", until: h.now() + REQUEST_MS };
+    h.site.waiting = [{ ...f, created: h.now(), sig: signRequest(KEY, f) }];
+    await h.engine.act();
+    await h.engine.work();
+  }
   await h.engine.report(true);
   return h;
 }
@@ -241,7 +249,8 @@ describe("6 or more other people stay a group (#916)", () => {
     expect(h.site.sorts.every((s) => s.group)).toBe(true);
     expect(h.site.drafts).toHaveLength(0);
     const view = readTextsView(h.site.views.at(-1), h.now())!;
-    expect(view.items.find((i) => i.id === t.id)).toMatchObject({ group: true, name: "Group chat" });
+    // Unnamed in Messages, it is named by its first two people and how many more (#923), not "Group chat".
+    expect(view.items.find((i) => i.id === t.id)).toMatchObject({ group: true, name: "Avery, Blake +4" });
     expect(queueOf([], view.items, [], true).some((e) => e.id === t.id)).toBe(false);
   });
 

@@ -27,7 +27,7 @@ export type TextsLoad = "idle" | "off" | "live" | "failed";
 
 export interface TextRequestView {
   rid: string;
-  kind: "send" | "later" | "done" | "restyle" | "compose" | "rescan" | "learn" | "back" | "react";
+  kind: "send" | "later" | "done" | "restyle" | "compose" | "rescan" | "learn" | "back" | "react" | "draft";
   thread: string;
   text: string;
   created: number;
@@ -71,7 +71,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
   if (!st.ok || !Array.isArray(o.texts) || !Array.isArray(o.requests)) return null;
   const spend = o.spend as Record<string, unknown> | null;
   const requests: TextRequestView[] = (o.requests as Record<string, unknown>[]).flatMap((r) =>
-    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back", "react"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
+    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose", "rescan", "learn", "back", "react", "draft"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
       ? [{ rid: r.rid, kind: r.kind as TextRequestView["kind"], thread: r.thread, text: typeof r.text === "string" ? r.text.slice(0, 2_000) : "", created: r.created, until: r.until, state: r.state as RequestState, ...(readReason(r.reason) && { reason: readReason(r.reason) }) }]
       : [],
   );

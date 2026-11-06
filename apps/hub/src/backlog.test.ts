@@ -36,7 +36,9 @@ describe("the backlog classifier", () => {
   it("owes a chat whose last message is someone else's within 30 days, and folds older ones into a count", () => {
     expect(verdictOf(chat(A, msg("Are we still on for Friday?", NOW - 3 * DAY)), NOW, [], contactOf)).toBe("owed");
     expect(verdictOf(chat(A, msg("Are we still on for Friday?", NOW - OWED_WINDOW_MS + 60_000)), NOW, [], contactOf)).toBe("owed");
-    expect(verdictOf(chat(A, msg("Are we still on for Friday?", NOW - OWED_WINDOW_MS - 60_000)), NOW, [], contactOf)).toBe("older");
+    expect(verdictOf(chat(A, msg("Are we still on for Friday?", NOW - OWED_WINDOW_MS - 60_000, false, A, true)), NOW, [], contactOf)).toBe("older");
+    // Kept unread in Messages (#924): still owed past 30 days.
+    expect(verdictOf(chat(A, msg("Are we still on for Friday?", NOW - OWED_WINDOW_MS - 60_000)), NOW, [], contactOf)).toBe("owed");
     expect(verdictOf(chat(A, msg("sounds good, see you", NOW - DAY, true)), NOW, [], contactOf)).toBe("answered");
   });
 
@@ -53,15 +55,20 @@ describe("the backlog classifier", () => {
   });
 
   it("judges an older chat's closing intent without a model: an acknowledgement owes nothing", () => {
-    expect(verdictOf(chat(A, msg("thanks!", NOW - 45 * DAY)), NOW, [], contactOf)).toBe("settled");
-    expect(verdictOf(chat(A, msg("ok", NOW - 45 * DAY)), NOW, [], contactOf)).toBe("settled");
+    expect(verdictOf(chat(A, msg("thanks!", NOW - 45 * DAY, false, A, true)), NOW, [], contactOf)).toBe("settled");
+    expect(verdictOf(chat(A, msg("ok", NOW - 45 * DAY, false, A, true)), NOW, [], contactOf)).toBe("settled");
+    // Kept unread (#924): an acknowledgement Nikita keeps unread is owed, closing intent or not.
+    expect(verdictOf(chat(A, msg("thanks!", NOW - 45 * DAY)), NOW, [], contactOf)).toBe("owed");
     // Within the window an acknowledgement still goes on, where Nikita's own last reply and Dialtone decide.
     expect(verdictOf(chat(A, msg("thanks!", NOW - 2 * DAY)), NOW, [], contactOf)).toBe("owed");
   });
 
-  it("folds 30 to 60 days as older and leaves out anything past 60 days (#803)", () => {
-    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 59 * DAY)), NOW, [], contactOf)).toBe("older");
+  it("folds 30 to 60 days as older and leaves out anything past 60 days (#803); unread, 60 days are owed (#924)", () => {
+    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 59 * DAY, false, A, true)), NOW, [], contactOf)).toBe("older");
+    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 59 * DAY)), NOW, [], contactOf)).toBe("owed");
     expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 61 * DAY)), NOW, [], contactOf)).toBe("empty");
+    // A reaction last within the 60 days is read again: its newest real message decides.
+    expect(verdictOf(chat(A, null, { lastAt: NOW - 45 * DAY }), NOW, [], contactOf)).toBe("check");
   });
 
   it("reads a chat again when a reaction, a system item or a photo was last", () => {
@@ -71,7 +78,7 @@ describe("the backlog classifier", () => {
   });
 
   it("orders owed chats oldest first, older newest first, marks unread from Messages' read time, and caps the owed list", () => {
-    const got = sortBacklog([chat(A, msg("one", NOW - 5 * DAY, false, A, true)), chat(B, msg("two", NOW - 9 * DAY, false, B)), chat(C, msg("three", NOW - 50 * DAY, false, C)), chat("+15555550104", msg("four", NOW - 40 * DAY, false, "+15555550104"))], NOW, [], contactOf);
+    const got = sortBacklog([chat(A, msg("one", NOW - 5 * DAY, false, A, true)), chat(B, msg("two", NOW - 9 * DAY, false, B)), chat(C, msg("three", NOW - 50 * DAY, false, C, true)), chat("+15555550104", msg("four", NOW - 40 * DAY, false, "+15555550104", true))], NOW, [], contactOf);
     expect(got.owed.map((e) => e.chat)).toEqual([chatOf(B), chatOf(A)]);
     expect(got.owed.map((e) => e.unread)).toEqual([true, false]);
     expect(got.older.map((e) => e.chat)).toEqual([chatOf("+15555550104"), chatOf(C)]);
@@ -208,7 +215,7 @@ const seed = (h: ReturnType<typeof setup>) => {
   const avery = [msg("see you soon", NOW - 6 * DAY, true), msg("Are we still on for Friday? Call +1 555 555 0177", NOW - 5 * DAY, false, A, false)];
   const blake = [msg("no worries", NOW - 4 * DAY, true), msg("thanks!", NOW - 3 * DAY, false, B, true)];
   const priv = [msg("hey, quick one", NOW - 2 * DAY, false, C)];
-  const old = [msg("did you ever get the photos?", NOW - 45 * DAY, false, "+15555550104")];
+  const old = [msg("did you ever get the photos?", NOW - 45 * DAY, false, "+15555550104", true)];
   h.bb.byChat.set(chatOf(A), avery);
   h.bb.byChat.set(chatOf(B), blake);
   h.bb.byChat.set(chatOf(C), priv);
@@ -228,11 +235,12 @@ describe("the engine's backlog scan", () => {
     expect(s.threads.find((t) => t.chat === chatOf(A))?.unread).toBe(true);
     await h.engine.work();
     s = h.store.load();
-    // Blake's "thanks!" after Nikita's "no worries" settles with no model call; Avery is sorted and drafted.
+    // Blake's "thanks!" (read) after Nikita's "no worries" settles with no model call; Avery is sorted, and drafted
+    // only when Nikita asks (#923).
     expect(s.threads.find((t) => t.chat === chatOf(B))).toMatchObject({ state: "settled", why: "closing" });
     expect(s.threads.find((t) => t.chat === chatOf(A))).toMatchObject({ state: "owed" });
     expect(h.site.sorts).toHaveLength(1);
-    expect(h.site.drafts).toHaveLength(1);
+    expect(h.site.drafts).toHaveLength(0);
     expect(JSON.stringify([h.site.sorts, h.site.drafts])).not.toMatch(/Avery|Blake|555/);
   });
 
@@ -280,7 +288,7 @@ describe("the engine's backlog scan", () => {
     const view = readTextsView(h.engine.texts(), NOW)!;
     expect(view.items.map((i) => i.name).sort()).toEqual(["Avery Sample", "Blake Example"]);
     expect(view.items.every((i) => !i.unread)).toBe(true);
-    expect(view.older).toEqual({ count: 1, items: [{ id: expect.stringMatching(/^[0-9a-f]{16}$/), name: "Unknown (ending 0104)", channel: "iMessage", since: NOW - 45 * DAY, unread: true }] });
+    expect(view.older).toEqual({ count: 1, items: [{ id: expect.stringMatching(/^[0-9a-f]{16}$/), name: "Unknown (ending 0104)", channel: "iMessage", since: NOW - 45 * DAY }] });
     // Never a number, a chat id or a message (ids are random hex, so the check looks for the numbers' own shape).
     expect(JSON.stringify(view)).not.toMatch(/\+1 ?555|555 0177|iMessage;-;|Are we still/);
     expect(view.scannedAt).toBe(NOW);
@@ -292,7 +300,13 @@ describe("the engine's backlog scan", () => {
     seed(h);
     await h.engine.backlog();
     expect(readTextsView(h.engine.texts(), NOW)!.items.some((i) => i.name === "Avery Sample")).toBe(true);
+    // Unread in Messages (#924), it stays owed and listed past 30 days, here and on the site.
     h.at(NOW + 26 * DAY);
+    h.engine.sweep();
+    expect(h.store.load().threads.find((t) => t.chat === chatOf(A))?.state).toBe("owed");
+    expect(readTextsView(h.engine.texts(), NOW + 26 * DAY)!.items.some((i) => i.name === "Avery Sample" && i.unread)).toBe(true);
+    // Read, the 30 days apply.
+    h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => (t.chat === chatOf(A) ? { ...t, unread: false } : t)) });
     h.engine.sweep();
     expect(h.store.load().threads.some((t) => t.chat === chatOf(A))).toBe(false);
     expect(h.store.load().older.some((o) => o.chat === chatOf(A))).toBe(true);

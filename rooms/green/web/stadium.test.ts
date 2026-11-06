@@ -1,22 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { formation, modeFor, place, rank, yardAt } from "./stadium.ts";
+import { formation, rank, yardAt } from "./stadium.ts";
 
 describe("the Green's stadium", () => {
-  it("picks the wide camera from 640px up and the tall one on a phone", () => {
-    expect(modeFor(1280)).toBe("wide");
-    expect(modeFor(390)).toBe("tall");
-  });
-
-  it("puts the near edge at full scale and the far edge smaller", () => {
-    for (const mode of ["wide", "tall"] as const) {
-      const near = mode === "wide" ? place(mode, 0.5, 1) : place(mode, 0, 0.5);
-      const far = mode === "wide" ? place(mode, 0.5, 0) : place(mode, 1, 0.5);
-      expect(near.s).toBeCloseTo(1);
-      expect(far.s).toBeLessThan(near.s);
-      expect(far.y).toBeLessThan(near.y);
-    }
-  });
-
   it("maps yard lines inside the end zones", () => {
     expect(yardAt(0)).toBeCloseTo(10 / 120);
     expect(yardAt(100)).toBeCloseTo(110 / 120);

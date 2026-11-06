@@ -9,7 +9,6 @@ import { modelReady } from "../modelCache.ts";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import type { ChamberLink } from "../../../../rooms/today/web/TodayNow.tsx";
 import type { Rotunda as Scene, RotundaSeat } from "./rotundaScene.ts";
-import { SUBMIND_TITLE } from "./rite.ts";
 import { createVoice, setSound, useRotundaSound, type RotundaVoice } from "./voice.ts";
 import { isArchived, isSaid, useSenateMemory } from "./heard.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
@@ -218,7 +217,9 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       talk: (by, seconds) => scene.current?.talk(by, seconds),
       seated: () => live.current.seats.map((s) => s.id),
       topic: () => scene.current?.topic() ?? null,
-      join: (said, j) => scene.current?.join(said, j) ?? null,
+      join: (said, j) => scene.current?.join(said, j) ?? false,
+      rise: (id) => scene.current?.rise(id),
+      where: () => scene.current?.where() ?? null,
       light: (id) => setHot(id),
     });
     const off = registerHoldToTalk(
@@ -241,8 +242,9 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       setFloorScene(null);
     };
   }, []);
-  // Joined to the argument (#925), the chamber's own captions are the answers: only his line stays up, and nothing dims.
-  const floorOn = useFloor((s) => s.phase !== "idle" && s.phase !== "joined");
+  // While he has the floor the session's own captions wait, dimmed; the floor's line is the one written large.
+  const floorOn = useFloor((s) => s.phase !== "idle");
+  const said = useFloor((s) => (s.turn && s.phase !== "listening" ? s.turn : null));
 
   useEffect(() => {
     if (!sel) return;
@@ -287,6 +289,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
       >
         <b>Skippy, the Magnificent</b>
         <span>presiding</span>
+        {said?.by === "kernel" && <FloorSaid by="Skippy, the Magnificent" turn={said} c="143,216,255" />}
       </button>
       {ordered.map((p, i) => {
         const s = seats[i]!;
@@ -308,7 +311,8 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
             onBlur={() => point(null)}
           >
             <i className="rt-pod-body" aria-hidden="true" />
-            {lit === p.id && !sel && (
+            {said?.by === p.id && <FloorSaid by={`${p.submind.title} · ${p.name}`} turn={said} c={RC[p.id] ?? "200,200,220"} />}
+            {lit === p.id && !sel && said?.by !== p.id && (
               <span className="rt-tip" aria-hidden="true">
                 <b>{p.submind.title}</b>
                 <span>
@@ -327,44 +331,43 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
 }
 
 /**
- * Nikita's floor (#905): his words as the floor's caption while he holds Space, the chair's word on who answers, and the
- * answer being heard. Only this is written large while he has the floor; the session's own lines wait, dimmed.
+ * Nikita's floor (#905): his words as the floor's caption while he holds Space. Since #948 that is all it shows: on the
+ * release the box goes, and the answer is said aloud in the chamber, captioned over whoever says it (`FloorSaid`).
  */
 function FloorCaption() {
   const phase = useFloor((s) => s.phase);
   const question = useFloor((s) => s.question);
-  const chair = useFloor((s) => s.chair);
-  const turn = useFloor((s) => s.turn);
+  const turn = useFloor((s) => (s.phase === "listening" ? null : s.turn));
   if (phase === "idle") return null;
-  // His words in the argument (#925): his line stays up as his, small, while the members answer it in the chamber.
-  if (phase === "joined")
-    return (
-      <div className="rt-ask is-joined" role="status" aria-live="polite">
-        <div className="rt-ask-q">
-          <span className="rt-ask-who">Nikita · from the floor</span>
-          <p>
-            <Private>{question}</Private>
-          </p>
-        </div>
+  if (phase !== "listening")
+    // Screen readers still hear the answer; on screen it is the chamber's caption.
+    return turn ? (
+      <div className="wv-sr" role="status" aria-live="polite">
+        <Private>{turn.say}</Private>
       </div>
-    );
-  const by = turn ? (turn.by === "kernel" ? "Skippy, the Magnificent" : (SUBMIND_TITLE[turn.by] ?? turn.by)) : "";
+    ) : null;
   return (
     <div className="rt-ask" role="status" aria-live="polite">
       <div className="rt-ask-q">
-        <span className="rt-ask-who">{phase === "listening" ? "Nikita has the floor" : "Nikita"}</span>
+        <span className="rt-ask-who">Nikita has the floor</span>
         <p>{question ? <Private>{question}</Private> : "Listening… let go of Space to ask."}</p>
       </div>
-      {chair && !turn && <p className="rt-ask-chair">{chair}</p>}
-      {turn && (
-        <div className={`rt-ask-a${turn.failed ? " is-failed" : ""}`} style={{ "--c": turn.by === "kernel" ? "143,216,255" : (RC[turn.by] ?? "200,200,220") } as CSSProperties}>
-          <span className="rt-ask-who">{by}</span>
-          <p>
-            <Private>{turn.say}</Private>
-          </p>
-        </div>
-      )}
     </div>
+  );
+}
+
+/**
+ * A line said on the floor (#948), captioned over the one who says it as any line in the Senate is: risen on his podium
+ * to answer Nikita, or steering the chamber back. It rides on his seat's button, so it follows him as he rises.
+ */
+function FloorSaid({ by, turn, c }: { by: string; turn: { say: string; failed: boolean }; c: string }) {
+  return (
+    <span className={`rt-said${turn.failed ? " is-failed" : ""}`} style={{ "--c": c } as CSSProperties} aria-hidden="true">
+      <b>{by}</b>
+      <Private as="span" className="rt-said-p">
+        {turn.say}
+      </Private>
+    </span>
   );
 }
 

@@ -652,6 +652,8 @@ export const SUBMIND_COMMAND: Record<string, string[]> = {
  */
 export const SKIPPY_QUIPS: string[] = [
   "Today is the Senate now. I chair it. Twelve of me sit round the bowl, each in its own mood, and a gallery of shadows I may or may not have invented.",
+  "The Senate has a bench now. Fourteen of me in bronze, watching from the fog. Reserves, monkeys. The Pessimist calls them understudies.",
+  "Before we were interrupted, monkeys, I was being magnificent. I still am. Carry on.",
   "Watch the Senate, monkeys. The Pessimist sighs, the Party spins, the Bookie counts, the Director frames me. Naturally. I'm the shot.",
   "I ran a whole Lattice before this one. It had better monkeys.",
   "One voice, monkeys. Mine, through ElevenLabs. No understudy. If it goes quiet, that's an intermission, not a replacement.",

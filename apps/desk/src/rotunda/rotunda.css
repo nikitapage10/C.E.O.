@@ -33,7 +33,7 @@
 .desk .rt-stage{position:absolute;inset:0;z-index:1;overflow:hidden}
 .desk .rt-gl{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity 1.2s ease}
 .desk .rt-stage[data-gl="on"] .rt-gl{opacity:1}
-.desk .rt-vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(110% 80% at 50% 40%,transparent 50%,rgba(3,4,7,.6) 85%,#030407 100%)}
+.desk .rt-vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(110% 80% at 50% 42%,transparent 42%,rgba(1,1,3,.68) 80%,#010103 100%)}
 .desk .rt-host{position:absolute;inset:0;pointer-events:none;z-index:2}
 /* The flat chamber: the bowl's tiers, the podium's shaft, the inlaid rings. */
 .desk .rt-flat{position:absolute;inset:0;transition:opacity 1.2s ease;background:
@@ -250,15 +250,15 @@
 .desk .rt-ask-who{display:block;font:600 11px var(--rt-sans);letter-spacing:.16em;text-transform:uppercase;color:#e8dcc0}
 .desk .rt-ask p{margin:6px 0 0;padding:9px 13px;font:400 17px/1.45 var(--rt-serif);color:#f3ecdc;background:rgba(10,11,16,.9);border-left:2px solid #e8dcc0}
 .desk .rt-ask-q p{font-style:italic}
-.desk .rt-ask p.rt-ask-chair{margin:0;padding:2px 13px;background:none;border:0;font:italic 400 14px var(--rt-serif);color:#e8dcc0;opacity:.8}
-.desk .rt-ask-a{color:rgb(var(--c))}
-.desk .rt-ask-a .rt-ask-who{color:rgb(var(--c))}
-.desk .rt-ask-a p{border-left-color:rgb(var(--c))}
-.desk .rt-ask-a.is-failed p{opacity:.75}
-.desk .rt-ask.is-joined{top:clamp(150px,19%,180px);width:min(440px,calc(100% - 32px))}
-.desk .rt-ask.is-joined p{font-size:14.5px;padding:6px 11px;background:rgba(10,11,16,.72)}
 .desk .rt-stage.is-floor .rt-chair.on,.desk .rt-stage.is-floor .rt-cap.on{opacity:.18}
 .desk .rt-stage.is-floor .rt-mur.on{opacity:.08}
+/* A line said on the floor (#948): captioned over whoever says it, as any Senate line is, and following him as he rises. */
+.desk .rt-said{position:absolute;z-index:5;left:50%;bottom:calc(100% + 26px);transform:translateX(-50%);display:block;width:min(300px,70vw);text-align:left;white-space:normal;pointer-events:none;color:rgb(var(--c));text-shadow:none;animation:rt-said-in .35s ease-out both}
+.desk .rt-pres .rt-said{bottom:calc(100% + 10px)}
+.desk .rt-said>b{display:block;font:600 11px var(--rt-sans);letter-spacing:.16em;text-transform:uppercase;color:rgb(var(--c))}
+.desk .rt-said .rt-said-p{display:block;margin:6px 0 0;padding:8px 12px;font:400 16px/1.4 var(--rt-serif);letter-spacing:0;text-transform:none;color:#f3ecdc;background:rgba(10,11,16,.88);border-left:2px solid rgb(var(--c))}
+.desk .rt-said.is-failed .rt-said-p{opacity:.75}
+@keyframes rt-said-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes rt-ask-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
-@media (max-width:760px){.desk .rt-ask,.desk .rt-ask.is-joined{top:96px}.desk .rt-ask p{font-size:14.5px}.desk .rt-ask.is-joined p{font-size:13px}}
-@media (prefers-reduced-motion:reduce){.desk .rt-ask{animation:none}}
+@media (max-width:760px){.desk .rt-ask{top:96px}.desk .rt-ask p{font-size:14.5px}.desk .rt-said{width:min(240px,64vw)}.desk .rt-said .rt-said-p{font-size:13.5px;padding:6px 9px}}
+@media (prefers-reduced-motion:reduce){.desk .rt-ask,.desk .rt-said{animation:none}}

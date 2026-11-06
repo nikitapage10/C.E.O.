@@ -7,7 +7,6 @@ export default defineRoom({
   id: "foundry",
   ...nav,
   path: "/foundry",
-  navKey: "3",
   accent: "--room-foundry",
   submind: "ember",
   live: true,

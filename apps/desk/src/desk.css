@@ -108,6 +108,12 @@ body {
 /* ── Notice ── */
 
 /* ── Main and footer ── */
+/* The page takes focus after a change of page (#934, pageFocus.ts) so a held Space talks; it is a landing spot, not a
+   control, so no ring. */
+.desk__main:focus,
+.desk__main:focus-visible {
+  outline: none;
+}
 .desk__main {
   position: relative;
   z-index: 1;

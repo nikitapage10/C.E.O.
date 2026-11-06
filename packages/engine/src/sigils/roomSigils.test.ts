@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GRID, LATTICE_C, pointOn, rgbOf, ROOM_SIGILS, seats, sigilOf, sigilPath, strokeLength } from "./roomSigils.ts";
 // The Desk's pages (route.ts NAV_ORDER); the engine imports no app code, so they are listed here.
-const PAGES = ["today", "haven", "foundry", "relay", "archive", "spire", "exchange", "green", "workshop", "studio", "annex", "boiler"];
+const PAGES = ["today", "haven", "relay", "green", "exchange", "archive", "annex", "spire", "workshop", "studio", "foundry", "boiler"];
 const rng = (seed: number) => {
   let s = seed;
   return () => (s = (s * 16807) % 2147483647) / 2147483647;

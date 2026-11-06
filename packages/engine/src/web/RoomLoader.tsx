@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { reducedMotion } from "../sigils/motion.tsx";
 import { GRID, pointOn, rgbOf, seats, sigilOf, sigilPath, type RoomSigil } from "../sigils/roomSigils.ts";
 import { TAU } from "../sigils/wvCanvas.ts";
-import { CAP_MS, ReadyGate, RoomReadyContext } from "./roomReady.ts";
+import { CAP_MS, ReadyGate, RoomReadyContext, RoomShownContext } from "./roomReady.ts";
 import "./roomLoader.css";
 
 /**
@@ -19,7 +19,8 @@ import "./roomLoader.css";
  *   - With reduced motion the sigil is a still and the cover simply fades.
  *
  * The cover sits over the page (not the bar, Ask Skippy or the room mic), and takes no clicks. A room the Desk keeps
- * mounted out of sight (#759) passes `shown={false}`: it keeps counting towards ready, and shows no cover.
+ * mounted out of sight (#759) passes `shown={false}`: it keeps counting towards ready, shows no cover, and tells the
+ * page so (`useRoomShown`, roomReady.ts) for its keys to stay quiet.
  */
 
 /** Rooms that have been ready once this visit. */
@@ -73,7 +74,7 @@ export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, chi
 
   return (
     <RoomReadyContext.Provider value={gate}>
-      {children}
+      <RoomShownContext.Provider value={shown}>{children}</RoomShownContext.Provider>
       {shown && phase !== "gone" && (
         <div className="room-loader" data-phase={phase} role="status" aria-label={`Opening ${name}`} style={style}>
           <div className="room-loader__mark" aria-hidden="true">

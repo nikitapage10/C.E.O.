@@ -1223,10 +1223,10 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   }
 
   // The world's limb lies far off beyond the table's far right, where the threads run to.
-  const PLANET = new Vector3(99, -9, -124);
+  const PLANET = new Vector3(112, -17, -124);
   const PLANET_R = 72;
   // Where the threads go in: a point on the limb as the composed view sees it, low on the planet's near edge.
-  const limb = new Vector3(47, -42, -87);
+  const limb = new Vector3(60, -50, -87);
 
   // ---- the light threads: silver strands between the places, and off the table into the dark -----------------------
   const ixOf = (id: PlaceId) => PLACES.findIndex((p) => p.id === id);

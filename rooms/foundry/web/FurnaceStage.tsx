@@ -11,12 +11,13 @@ import { CHECKS, coilState, furnaceOf, heightOf, mainCoil, paintOf, SLOT_HANDS, 
 import type { Furnace, FurnaceSlotView, FurnaceView } from "./furnaceScene.ts";
 
 /**
- * The Foundry's stage as the Deep Furnace (#813): the forge shaft in 3D (furnaceScene.ts, lazy loaded with three.js)
- * with a light overlay over it, no side panels. The headline and what needs Nikita sit top left, five numbers top
- * right; each slot's job carries a tag that rides its ingot up the shaft, and a tag (or the ingot, the cart, the hatch)
- * opens a card: the job's Trail (Work, Pictures, Checks, Ship), its five checks, its progress and its links. Pointing
- * shows the card, a tap or click pins it. Until the 3D is up, and on a device without WebGL, the tags stand in a flat
- * shaft drawn in CSS, so the page is whole and usable at once.
+ * The Foundry's stage as the Deep Furnace (#813, second pass #922): the forge shaft in 3D (furnaceScene.ts, lazy
+ * loaded with three.js) filling the screen, with a light overlay over it, no side panels. The headline and what needs
+ * Nikita sit top left, five numbers top right; each slot's job carries a small card that rides its ingot up the shaft
+ * and says at a glance what is being built (the job's Short line), and a card (or the ingot, a hand, the cart, the
+ * hatch) opens the full one: the job's Trail (Work, Pictures, Checks, Ship), its five checks, its progress and its
+ * links. Pointing shows it, a tap or click pins it, and it stands beside the shaft, never over it. Until the 3D is up,
+ * and on a device without WebGL, the tags stand in a flat shaft drawn in CSS, so the page is whole and usable at once.
  */
 
 type GL = "idle" | "loading" | "on" | "off";
@@ -31,8 +32,10 @@ const PILL: Record<Stage, "run" | "ok" | "hot" | "bad" | "off"> = { waiting: "of
 const COIL_WORD: Record<CoilState, string> = { wait: "not yet", run: "running", pass: "passed", fail: "red" };
 /** Where each tag stands in the flat shaft before the 3D is up (percent of the stage). */
 /** The tags kept apart on screen (the zone labels sit off the shaft and never meet them). */
-const TAGS = new Set(["s0", "s1", "s2", "s3", "rivet", "queue", "ship"]);
-const FLAT: Record<string, [number, number]> = { s0: [30, 78], s1: [43, 70], s2: [57, 70], s3: [70, 78], rivet: [86, 70], queue: [13, 80], ship: [50, 16], more: [22, 34] };
+const TAGS = new Set(["s0", "s1", "s2", "s3", "rivet", "rocky", "queue", "ship"]);
+const FLAT: Record<string, [number, number]> = { s0: [30, 78], s1: [43, 70], s2: [57, 70], s3: [70, 78], rivet: [86, 70], rocky: [14, 70], queue: [22, 84], ship: [50, 16], more: [22, 34] };
+/** What a job is building, at a glance: its Short line, or its title. */
+const shortOf = (c: Crate) => (c.short || ideaTitle(c.title)).replace(/\.$/, "");
 
 export interface FurnaceProps {
   data: FoundryData;
@@ -89,6 +92,7 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
   const questions = ideas.filter((c) => !c.revising && c.asking && c.question);
   const toPick = ideas.filter((c) => !c.revising).length - questions.length;
   const rivetLane = furnace.rivet[0] ?? null;
+  const rockyBusy = furnace.slots.some((s) => s.lane?.hand === "Rocky");
 
   const view: FurnaceView = useMemo(
     () => ({
@@ -113,11 +117,21 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
     if (!p) return;
     const W = st.clientWidth;
     const H = st.clientHeight;
-    const w = c.offsetWidth || 340;
+    const w = c.offsetWidth || 360;
     const h = c.offsetHeight || 300;
-    const right = p[0] < W * 0.58;
-    const x = Math.max(16, Math.min(W - w - 16, right ? p[0] + 96 : p[0] - w - 96));
-    const y = Math.max(96, Math.min(H - h - 16, p[1] - h * 0.35));
+    // Beside the shaft, never over its rings: on the side the anchor is on when there is room, else the other side.
+    const L = at.current.get("shaft-l")?.[0] ?? W * 0.36;
+    const R = at.current.get("shaft-r")?.[0] ?? W * 0.64;
+    const roomL = L - 40 >= w;
+    const roomR = W - R - 40 >= w;
+    const side = p[0] < W / 2 ? (roomL ? "l" : roomR ? "r" : null) : roomR ? "r" : roomL ? "l" : null;
+    const below = (sel: string) => {
+      const el = st.querySelector(sel);
+      return el ? el.getBoundingClientRect().bottom - st.getBoundingClientRect().top + 16 : 96;
+    };
+    const top = side === "l" ? below(".fo-needs") : side === "r" ? below(".fo-stats") : 96;
+    const x = side === "l" ? Math.max(16, L - w - 28) : side === "r" ? Math.min(W - w - 16, R + 28) : Math.max(16, Math.min(W - w - 16, p[0] < W * 0.58 ? p[0] + 96 : p[0] - w - 96));
+    const y = Math.max(top, Math.min(H - h - 16, p[1] - h * 0.35));
     c.style.setProperty("--cx", `${Math.round(x)}px`);
     c.style.setProperty("--cy", `${Math.round(y)}px`);
   };
@@ -134,24 +148,36 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
     let dead = false;
     let settle = 0;
     // The tags ride their anchors, but never on top of one another: lowest first, each one that would cover a tag
-    // already placed is lifted just above it (jobs at the same height stack their tags up the shaft).
+    // already placed fans out sideways at its own height (jobs on the deck spread across it, not up over the rings),
+    // and only when there's no room either side is it lifted just above.
     const spread = () => {
       const boxes: { l: number; r: number; t: number; b: number }[] = [];
-      const list = [...TAGS].map((id) => ({ id, p: at.current.get(id), el: els.current.get(id) })).filter((x) => x.p && x.el);
+      const W = stage.current?.clientWidth ?? window.innerWidth;
+      const list = [...TAGS].map((id) => ({ id, p: at.current.get(id), el: els.current.get(id) })).filter((x) => x.p && x.el && !x.el.classList.contains("is-away"));
       list.sort((a, b) => b.p![1] - a.p![1]);
       for (const { p, el } of list) {
         const w = el!.offsetWidth;
         const h = el!.offsetHeight;
-        const x = p![0];
+        let x = p![0];
         let y = p![1];
+        const boxAt = (bx: number, by: number) => ({ l: bx - w / 2 - 4, r: bx + w / 2 + 4, t: by - 12 - h - 4, b: by - 12 + 4 });
+        const hits = (b: ReturnType<typeof boxAt>) => boxes.find((o) => o.l < b.r && b.l < o.r && o.t < b.b && b.t < o.b);
         for (let k = 0; k < 8; k++) {
-          const box = { l: x - w / 2 - 4, r: x + w / 2 + 4, t: y - 10 - h - 4, b: y - 10 + 4 };
-          const hit = boxes.find((o) => o.l < box.r && box.l < o.r && o.t < box.b && box.t < o.b);
-          if (!hit) {
-            boxes.push(box);
-            break;
+          let placed = false;
+          for (const n of [0, -1, 1, -2, 2]) {
+            const bx = x + n * (w + 8);
+            if (bx - w / 2 < 8 || bx + w / 2 > W - 8) continue;
+            const box = boxAt(bx, y);
+            if (!hits(box)) {
+              boxes.push(box);
+              x = bx;
+              placed = true;
+              break;
+            }
           }
-          y = hit.t + 10 - 4;
+          if (placed) break;
+          const hit = hits(boxAt(x, y));
+          y = (hit ? hit.t : y - h) + 12 - 4;
         }
         el!.style.setProperty("--gx", `${Math.round(x)}px`);
         el!.style.setProperty("--gy", `${Math.round(y)}px`);
@@ -172,6 +198,7 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
             view: live.current,
             onPlace: (id, x, y, on) => {
               at.current.set(id, [x, y]);
+              if (id.startsWith("shaft-")) return;
               const t = els.current.get(id);
               if (TAGS.has(id)) {
                 t?.classList.toggle("is-away", !on);
@@ -283,6 +310,7 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
     if (slot?.lane) pop = <LaneCard lane={slot.lane} progress={progress?.get(slot.lane.crate.number)} now={now} stop={stop} />;
     else if (slot) pop = <FreeCard hand={slot.hand} i={slot.i} connected={connected} />;
     else if (open === "rivet") pop = rivetLane ? <LaneCard lane={rivetLane} progress={progress?.get(rivetLane.crate.number)} now={now} stop={stop} extra={furnace.rivet.length - 1} /> : <RivetCard main={main} connected={connected} />;
+    else if (open === "rocky") pop = <RockyCard connected={connected} />;
     else if (open === "queue") pop = <QueueCard queue={queue} now={now} connected={connected} />;
     else if (open === "ship") pop = <ShipCard data={data} now={now} today={today} week={week} onShips={onShips} />;
     else if (open === "more") pop = <MoreCard more={furnace.more} progress={progress} />;
@@ -387,33 +415,35 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
           const l = s.lane;
           return (
             <li key={id}>
-              <button type="button" className={`fo-tag${l ? "" : " is-free"}${open === id ? " is-lit" : ""}`} data-slot={s.i} data-stage={l?.stage} style={{ ...flat(id), "--c": paintOf(s.hand) } as CSSProperties} {...tagProps(id)}>
-                <b>{s.hand}</b>
-                {l ? (
+              <button type="button" className={`fo-tag${l ? " fo-job" : " is-free"}${open === id ? " is-lit" : ""}`} data-slot={s.i} data-stage={l?.stage} style={{ ...flat(id), "--c": paintOf(s.hand) } as CSSProperties} {...tagProps(id)}>
+                {l ? <JobTag lane={l} /> : (
                   <>
-                    <span className="fo-tag-n">#{l.crate.number}</span>
-                    <small className={`fo-tag-s is-${PILL[l.stage]}`}>{STAGE_WORDS[l.stage]}</small>
+                    <b>{s.hand}</b>
+                    <small>{connected ? "asleep on the ring" : "waiting for GitHub"}</small>
                   </>
-                ) : (
-                  <small>{connected ? "asleep in the bay" : "waiting for GitHub"}</small>
                 )}
               </button>
             </li>
           );
         })}
         <li>
-          <button type="button" className={`fo-tag is-rivet${rivetLane ? "" : " is-free"}${open === "rivet" ? " is-lit" : ""}`} data-slot="rivet" data-stage={rivetLane?.stage} style={{ ...flat("rivet"), "--c": paintOf("Rivet") } as CSSProperties} {...tagProps("rivet")}>
-            <b>Rivet</b>
-            {rivetLane ? (
+          <button type="button" className={`fo-tag is-rivet${rivetLane ? " fo-job" : " is-free"}${open === "rivet" ? " is-lit" : ""}`} data-slot="rivet" data-stage={rivetLane?.stage} style={{ ...flat("rivet"), "--c": paintOf("Rivet") } as CSSProperties} {...tagProps("rivet")}>
+            {rivetLane ? <JobTag lane={rivetLane} /> : (
               <>
-                <span className="fo-tag-n">#{rivetLane.crate.number}</span>
-                <small className={`fo-tag-s is-${PILL[rivetLane.stage]}`}>{STAGE_WORDS[rivetLane.stage]}</small>
+                <b>Rivet</b>
+                <small>on watch</small>
               </>
-            ) : (
-              <small>on watch</small>
             )}
           </button>
         </li>
+        {!rockyBusy && (
+          <li>
+            <button type="button" className={`fo-tag is-free${open === "rocky" ? " is-lit" : ""}`} data-slot="rocky" style={{ ...flat("rocky"), "--c": paintOf("Rocky") } as CSSProperties} {...tagProps("rocky")}>
+              <b>Rocky</b>
+              <small>{connected ? "asleep over the plan" : "waiting for GitHub"}</small>
+            </button>
+          </li>
+        )}
         <li>
           <button type="button" className={`fo-tag is-zone${open === "queue" ? " is-lit" : ""}`} data-slot="queue" style={flat("queue")} {...tagProps("queue")}>
             <b>Queue</b>
@@ -441,6 +471,21 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
         </div>
       )}
     </section>
+  );
+}
+
+/** The small card a job carries up its chain: who, which issue, what it builds (its Short line) and where it stands. */
+function JobTag({ lane }: { lane: Lane }) {
+  return (
+    <>
+      <span className="fo-job-k">
+        <i aria-hidden="true" />
+        <b>{lane.hand}</b>
+        <span className="fo-tag-n">#{lane.crate.number}</span>
+      </span>
+      <span className="fo-job-t">{shortOf(lane.crate)}</span>
+      <small className={`fo-tag-s is-${PILL[lane.stage]}`}>{STAGE_WORDS[lane.stage]}</small>
+    </>
   );
 }
 
@@ -528,6 +573,21 @@ function FreeCard({ hand, i, connected }: { hand: string; i: number; connected: 
       </p>
       <h3 className="fo-pop-h">{connected ? "Free, asleep on the charging ring" : "Waiting for GitHub"}</h3>
       <p className="fo-pop-p">{i === 0 ? "Rusty's own slot. He takes the next build off the queue." : `${hand} wakes when a job runs past Rusty's own, and works it here beside him.`} Four jobs run at once at most; Rocky takes a free slot when he builds.</p>
+    </div>
+  );
+}
+
+function RockyCard({ connected }: { connected: boolean }) {
+  return (
+    <div className="fo-pop-b">
+      <p className="fo-pop-k" style={{ "--c": paintOf("Rocky") } as CSSProperties}>
+        <img src={pic("caret")} alt="" />
+        <span>
+          <b>Rocky</b> · master builder, one big job at a time
+        </span>
+      </p>
+      <h3 className="fo-pop-h">{connected ? "Asleep over the plan at his drafting table" : "Waiting for GitHub"}</h3>
+      <p className="fo-pop-p">When a big build comes his way he takes a free slot: he comes apart into nanites at his table and puts himself back together at its anvil, and that slot's hand steps aside for him.</p>
     </div>
   );
 }

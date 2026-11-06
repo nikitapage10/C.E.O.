@@ -243,6 +243,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Small green one walks! Small legs, big ears. Amaze, amaze, amaze!",
     "Big plan on table. Rocky feels lines. Good lines. Big big big.",
     "Rivet brings crate. Rocky takes crate. Teamwork, question? Teamwork!",
+    "Rocky goes to anvil. Rocky comes apart, Rocky comes back. Faster than legs. Faster faster faster.",
+    "Gold rings in furnace sing when checks run. Rocky hears. Good chord.",
     "Small brothers sleep on shelf. Rocky bump them anyway. Is polite.",
     "Bell sings! Thing is shipped! Rocky hear it with whole body. Good good good.",
     "Blue small brother fast fast fast. Green small brother... still on first crate. Rocky likes green one.",

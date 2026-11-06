@@ -18,7 +18,9 @@ import { navigateTo } from "../../../apps/world/src/route.ts";
 import { PORTRAITS } from "@ceo/desk/portraits.ts";
 import { SetupAsks } from "@ceo/desk/skippy/SetupAsks.tsx";
 import { RC } from "@ceo/desk/flow/index.ts";
+import { countdown, nextRuns } from "@ceo/desk/crewRuns.ts";
 import { FurnaceStage } from "./FurnaceStage.tsx";
+import { ConsoleSigils } from "./ConsoleSigils.tsx";
 import { BenchCard, CrewStations, RunsLine, VqaLine } from "./ForgeParts.tsx";
 import { forgeLanes, queueOf } from "../data/forge.ts";
 import { progressMap, progressWords, stepWords, type Progress } from "../data/progress.ts";
@@ -28,10 +30,10 @@ import "./foundry.css";
 /**
  * The Foundry's own Desk page (#432), on the Desk's flow kit with the Builder's forge orange. The stage leads: the
  * Deep Furnace (#813, FurnaceStage.tsx), the forge shaft in 3D where every job rises from the crucible through Work,
- * Pictures, the five checks and Ship, with the headline and what needs Nikita over it. Below it, simple first and
- * deeper on click: the
- * ideas on the bench as cards with their pictures beside the Suggest box, the crew at their stations (every job in hand
- * and the queue one click deeper), the Changelog, and the next runs, usage, Visual QA and connections. GitHub is read
+ * Pictures, the five checks and Ship, with the headline and what needs Nikita over it, filling the screen. Below it,
+ * one console with four tabs (#922) instead of a long page: the ideas on the bench as cards with their pictures beside
+ * the Suggest box, the crew at their stations (every job in hand and the queue one click deeper), the Changelog, and
+ * the next runs, usage, Visual QA and connections. GitHub is read
  * through the Desk's feed (see foundry.ts); the idea buttons write through the function in api/foundry.ts (on Azure,
  * #313).
  */
@@ -93,17 +95,46 @@ export function FoundryPage({ now }: { now: number }) {
     return progressMap([...lanes, ...more], usage.feed?.trails ?? null, data.timings ?? [], data.branches ?? [], now);
   }, [data.crates, data.prs, data.timings, data.branches, usage.feed, now]);
   const suggest = useRef<HTMLElement>(null);
-  const log = useRef<HTMLElement>(null);
+  const deck = useRef<HTMLElement>(null);
+  const [tab, setTab] = useState<DeckTab>("ideas");
+  // Each jump opens its tab first, then goes to it once it has drawn.
+  const later = (f: () => void) => window.setTimeout(f, 30);
   const toSuggest = () => {
-    suggest.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" });
-    window.setTimeout(() => suggest.current?.querySelector("textarea")?.focus({ preventScroll: true }), 400);
+    setTab("ideas");
+    later(() => {
+      suggest.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" });
+      window.setTimeout(() => suggest.current?.querySelector("textarea")?.focus({ preventScroll: true }), 400);
+    });
   };
   const toIdea = (n: number) => {
-    const el = document.getElementById(`fo-idea-${n}`);
-    el?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" });
-    el?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    setTab("ideas");
+    later(() => {
+      const el = document.getElementById(`fo-idea-${n}`);
+      el?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" });
+      el?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    });
   };
-  const toLog = () => log.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" });
+  const toLog = () => {
+    setTab("shipped");
+    later(() => deck.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" }));
+  };
+  const today = changelog.filter((c) => c.at >= new Date(now).setHours(0, 0, 0, 0)).length;
+  const counts: Record<DeckTab, string> = {
+    ideas: connected ? String(ideas.length) : "—",
+    crew: connected ? String(inFlight) : "—",
+    shipped: connected ? `${today} today` : "—",
+    runs: countdown(nextRuns(new Date(now)).queue, new Date(now)).replace(/^in /, ""),
+  };
+  /** The tabs take the arrow keys, Home and End, as a tab list should. */
+  const tabKeys = (e: React.KeyboardEvent) => {
+    const i = DECK.findIndex((d) => d.id === tab);
+    const to = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? DECK.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    const next = DECK[(to + DECK.length) % DECK.length]!.id;
+    setTab(next);
+    document.getElementById(`fo-tab-${next}`)?.focus();
+  };
   const stop = (c: Crate) => (c.auto ? <StopAuto crate={c} setup={setup} /> : null);
 
   return (
@@ -115,79 +146,95 @@ export function FoundryPage({ now }: { now: number }) {
       )}
       <FurnaceStage data={data} ideas={ideas} progress={progress} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
 
-      <section className="fl-below fo-bench" aria-label="Ideas waiting">
-        <div className="fo-sec">
-          <p className="fl-eyb">
-            <span>On the bench</span>
-            <i />
-            {ideas.length ? (questions.length ? "Rivet asks about one first" : "shaped by Rivet and the Builder") : connected ? `the next ideas arrive ${inTime(nextIdeas(now) - now)}, at 9:00` : "connecting to GitHub"}
-          </p>
-          <h2 className="fl-h2">{ideas.length ? `${NUMBER_WORD[ideas.length] ?? ideas.length} ${ideas.length === 1 ? "idea waits" : "ideas wait"} for your pick` : "The bench is clear"}</h2>
+      {/* Under the furnace, one console instead of a long page (#922): the bench, the crew, what shipped and the
+          clock, one at a time behind a row of tabs, so the page ends a screen below the furnace. */}
+      <section ref={deck} className="fl-below fo-deck" aria-label="The forge's console">
+        <ConsoleSigils />
+        <div className="fo-deck-tabs" role="tablist" aria-label="Under the furnace" onKeyDown={tabKeys}>
+          {DECK.map((d) => (
+            <button key={d.id} id={`fo-tab-${d.id}`} type="button" role="tab" aria-selected={tab === d.id} aria-controls={`fo-panel-${d.id}`} tabIndex={tab === d.id ? 0 : -1} className={`fo-deck-tab${tab === d.id ? " is-on" : ""}`} onClick={() => setTab(d.id)}>
+              <span>{d.label}</span>
+              <b className="fl-num">{counts[d.id]}</b>
+            </button>
+          ))}
         </div>
-        <div className="fo-bench-g">
-          {ideas.length > 0 ? (
-            <div className="fo-cards">
-              {ideas.map((c, i) => (
-                <BenchCard key={c.number} crate={c} setup={setup} now={now} i={i} />
-              ))}
+        <div id={`fo-panel-${tab}`} role="tabpanel" aria-labelledby={`fo-tab-${tab}`} className="fo-deck-p">
+          {tab === "ideas" && (
+            <div className="fo-bench">
+              <div className="fo-sec">
+                <p className="fl-eyb">
+                  <span>On the bench</span>
+                  <i />
+                  {ideas.length ? (questions.length ? "Rivet asks about one first" : "shaped by Rivet and the Builder") : connected ? `the next ideas arrive ${inTime(nextIdeas(now) - now)}, at 9:00` : "connecting to GitHub"}
+                </p>
+                <h2 className="fl-h2">{ideas.length ? `${NUMBER_WORD[ideas.length] ?? ideas.length} ${ideas.length === 1 ? "idea waits" : "ideas wait"} for your pick` : "The bench is clear"}</h2>
+              </div>
+              <div className="fo-bench-g">
+                {ideas.length > 0 ? (
+                  <div className="fo-cards">
+                    {ideas.map((c, i) => (
+                      <BenchCard key={c.number} crate={c} setup={setup} now={now} i={i} />
+                    ))}
+                  </div>
+                ) : (
+                  <BenchClear now={now} connected={connected} onSuggest={toSuggest} />
+                )}
+                <div className="fo-side">
+                  <Propose setup={setup} box={suggest} />
+                  {setup !== null && !setup.buttons && <SetupNote />}
+                </div>
+              </div>
+              {data.shelved > 0 && (
+                <p className="fo-note fo-shelf">
+                  {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
+                </p>
+              )}
             </div>
-          ) : (
-            <BenchClear now={now} connected={connected} onSuggest={toSuggest} />
           )}
-          <div className="fo-side">
-            <Propose setup={setup} box={suggest} />
-            {setup !== null && !setup.buttons && <SetupNote />}
-          </div>
+          {tab === "crew" && (
+            <CrewStations data={data} progress={progress} now={now}>
+              <details className="fo-more-d">
+                <summary>
+                  Every job in hand, and the queue <span className="fl-num">{inFlight}</span>
+                </summary>
+                <Crew now={now} setup={setup} progress={progress} />
+              </details>
+            </CrewStations>
+          )}
+          {tab === "shipped" && (
+            <section className="fo-log fy-changelog" aria-label="Changelog">
+              <p className="fl-eyb">
+                <span>Changelog</span>
+                <i />
+                newest first
+              </p>
+              <h2 className="fl-h2">What reached the Lattice</h2>
+              {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} setup={setup} /> : <p className="fl-wait">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
+              <p className="fo-note changelog__all">
+                Every commit on main, one-offs included, is on{" "}
+                <a className="fo-link" href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
+                  GitHub ↗
+                </a>
+              </p>
+            </section>
+          )}
+          {tab === "runs" && (
+            <div className="fo-flow2-r fo-runs-p">
+              <RunsLine now={now} />
+              {/* Usage, budgets and the connections live in the Boiler Room now (#647): one link, no copy. */}
+              <a className="fo-usage-go" href="/boiler/controls" onClick={toControls}>
+                <span className="fl-k">
+                  <span>Usage</span>
+                </span>
+                <b>Usage → Boiler Room</b>
+                <small>Meters, caps, switches, connections and keys</small>
+              </a>
+              <VqaLine />
+              <SetupAsks room="foundry" />
+            </div>
+          )}
         </div>
-        {data.shelved > 0 && (
-          <p className="fo-note fo-shelf">
-            {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
-          </p>
-        )}
       </section>
-
-      <CrewStations data={data} progress={progress} now={now}>
-        <details className="fo-more-d">
-          <summary>
-            Every job in hand, and the queue <span className="fl-num">{inFlight}</span>
-          </summary>
-          <Crew now={now} setup={setup} progress={progress} />
-        </details>
-      </CrewStations>
-
-      <div className="fl-below fo-flow2">
-        <section ref={log} className="fo-log fy-changelog" aria-label="Changelog">
-          <p className="fl-eyb">
-            <span>Changelog</span>
-            <i />
-            newest first
-          </p>
-          <h2 className="fl-h2">What reached the Lattice</h2>
-          {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} setup={setup} /> : <p className="fl-wait">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
-          <p className="fo-note changelog__all">
-            Every commit on main, one-offs included, is on{" "}
-            <a className="fo-link" href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
-              GitHub ↗
-            </a>
-          </p>
-        </section>
-        <div className="fo-flow2-r">
-          <RunsLine now={now} />
-          {/* Usage, budgets and the connections live in the Boiler Room now (#647): one link, no copy. */}
-          <a className="fo-usage-go" href="/boiler/controls" onClick={toControls}>
-            <span className="fl-k">
-              <span>Usage</span>
-            </span>
-            <b>Usage → Boiler Room</b>
-            <small>Meters, caps, switches, connections and keys</small>
-          </a>
-          <VqaLine />
-        </div>
-      </div>
-
-      <div className="fl-below">
-        <SetupAsks room="foundry" />
-      </div>
     </div>
   );
 }
@@ -230,6 +277,15 @@ function BenchClear({ now, connected, onSuggest }: { now: number; connected: boo
     </div>
   );
 }
+
+type DeckTab = "ideas" | "crew" | "shipped" | "runs";
+/** The console's tabs under the furnace, left to right. */
+const DECK: { id: DeckTab; label: string }[] = [
+  { id: "ideas", label: "Ideas" },
+  { id: "crew", label: "Crew and queue" },
+  { id: "shipped", label: "Shipped" },
+  { id: "runs", label: "On the clock" },
+];
 
 const NUMBER_WORD = ["None", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 

@@ -79,6 +79,7 @@ export const LORE: Record<string, Lore> = {
     chronicle: [
       "Rebuilt the Foundry's conveyor in one shift with no plan, no manual and five hands. It still runs. Rusty is still checking it.",
       "Learned his first idiom from Rivet, before she went up to the Spire. 'Hold your horses.' Spent a day looking for the horses. Skippy says he is still looking.",
+      "In the Deep Furnace, crosses the deck by coming apart into gold nanites at his drafting table and putting himself back together at the anvil. Says walking is slower. Says it three times. Musty still steps aside for him a little late.",
       "Took the shipping record, 41 to 40. Reported it as 105 to 104, in base six. Nobody else could work out how.",
       "Became the Foundry's master builder: the first responder takes the first look (Rivet, Skippy, Rivet again), Rocky the hard ones and the approved builds. 'Good good good.'",
       "Watched Kevin sleep through an entire pickup game. Calls it the best afternoon of his life.",

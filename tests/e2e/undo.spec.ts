@@ -74,6 +74,8 @@ test("a shipped change on the Changelog can be undone in two taps", async ({ pag
   await page.goto(BASE + "/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await page.goto(BASE + "/foundry");
+  // The Changelog is the console's Shipped tab, under the furnace (#922).
+  await page.getByRole("tab", { name: /Shipped/ }).click();
   const log = page.locator(".fy-changelog");
   const podium = log.locator(".cl-entry", { hasText: "Podium in the Spire" });
   await expect(podium.getByRole("button", { name: "Undo" })).toBeVisible();
@@ -106,6 +108,8 @@ test("the Undo button stays off when the Desk's buttons aren't set up", async ({
   await stub(page);
   await page.route(`${BASE}/api/foundry`, (r) => r.fulfill({ json: { buttons: false } }));
   await page.goto(BASE + "/foundry");
+  // The Changelog is the console's Shipped tab, under the furnace (#922).
+  await page.getByRole("tab", { name: /Shipped/ }).click();
   const log = page.locator(".fy-changelog");
   await expect(log.locator(".cl-entry", { hasText: "Podium in the Spire" })).toBeVisible();
   await expect(log.getByRole("button", { name: "Undo" })).toHaveCount(0);
@@ -116,6 +120,8 @@ test("the Undo shows at phone width without breaking the entry", async ({ page }
   await page.setViewportSize({ width: 390, height: 844 });
   await stub(page);
   await page.goto(BASE + "/foundry");
+  // The Changelog is the console's Shipped tab, under the furnace (#922).
+  await page.getByRole("tab", { name: /Shipped/ }).click();
   const log = page.locator(".fy-changelog");
   await expect(log.locator(".cl-entry", { hasText: "Podium in the Spire" }).getByRole("button", { name: "Undo" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

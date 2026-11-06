@@ -567,6 +567,7 @@ writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environme
 | Dependency review (`.github/workflows/dependency-review.yml`) | Every pull request | Packages or actions the change adds or bumps that carry a known vulnerability; fails on high or critical | The pull request's checks, with a summary of what changed |
 | OpenSSF Scorecard (`.github/workflows/scorecard.yml`) | Pushes to `main`, weekly | How the repo is run: pinned actions, workflow permissions, branch protection, dependency updates | Security tab, Code scanning (category `scorecard`) |
 | Dependabot (`.github/dependabot.yml`) | Weekly, and at once for a security fix | Out-of-date or vulnerable npm packages and GitHub Actions | Pull requests labelled `dependencies`; alerts in the Security tab |
+| Security alert counts (`.github/workflows/security-alerts.yml`, #918) | Every two hours, and by hand | Not a scan: counts the open code scanning and Dependabot alerts for Rivet's upkeep tick, whose Claude Code session can't read the alert APIs. Read only (`security-events: read` on the built-in token; Dependabot through the crew's App, minted with Dependabot alerts: read and nothing else). Counts by severity and scanner only, never a rule, path or package, since the log is public | The run's log line `SECURITY_ALERTS {…}` and summary; `scripts/foundry-alerts.sh` prints the latest; Boiler Room jobs board |
 | Live watch (`.github/workflows/live-watch.yml`, #181) | Hourly | Not a security scan: the live Desk and Lattice open in Chromium without a page error. Reads only the public site; its report job is the only one that may write, and only issues | A "Live site not loading" `foundry:fix` issue labelled `foundry:down` (which pings); Systems on the Desk |
 | Visual QA (`.github/workflows/visual-qa.yml`) | Every push to `main` | Not a security scan: Gemini watches a clip of each Lattice room for visual bugs. Listed because it is the one workflow that sends data out (renders of the public Lattice only) and holds an outside key | A `foundry:fix` issue per room with a blocker; the run's summary; Systems > Foundry on the Desk |
 | Secret scanning | Every push | Keys and tokens committed by mistake; push protection blocks the push | Security tab, Secret scanning |
@@ -574,6 +575,26 @@ writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environme
 Every action in the workflows is pinned to a full commit SHA with its version in a comment, so a moved tag can't
 change what runs. Dependabot proposes the bumps. Each workflow starts with read-only permissions and grants write
 access only to the job that needs it.
+
+### How the upkeep reads alerts (#918)
+
+The upkeep tick runs in a Claude Code session, and that session reaches GitHub through the Claude GitHub App's
+access to Nikita's account, which has no code scanning or Dependabot alert permission (its calls come back 403,
+"Resource not accessible by integration"). That access is set by Anthropic where the sessions run, not here, and
+there is no switch for it in this repo or in its settings. So the Security alert counts workflow reads the alerts
+instead and the tick reads its log: `bash scripts/foundry-alerts.sh` prints the latest counts as JSON. The counts say
+whether anything is open and how severe; the alert itself stays in the Security tab, so a non-zero count the tick
+can't place becomes an idea card for Nikita rather than a guess.
+
+For the Dependabot half to report, two clicks for Nikita (the code scanning half needs nothing):
+
+1. **Turn Dependabot alerts on** (step 2 of "Settings Nikita switches on" below): C.E.O. > Settings > Advanced
+   Security > Dependabot > Dependabot alerts > Enable. Until then GitHub answers "Dependabot alerts are disabled" and
+   the counts say `unreported` (HTTP 403).
+2. **Give the crew's App Dependabot read, if it lacks it:** github.com > your picture > Settings > Developer settings >
+   GitHub Apps > `ceo-foundry` > Edit > Permissions & events > Repository permissions > Dependabot alerts:
+   Read-only (and Code scanning alerts: Read-only) > Save changes; then Settings > Applications > Installed GitHub
+   Apps > `ceo-foundry` > Configure > **Review request** > Accept new permissions. Nothing else on the App changes.
 
 ## What GitHub can do in Azure
 

@@ -1,0 +1,50 @@
+# Security alert counts for the upkeep tick (#918). Rivet's upkeep runs in a Claude Code session whose GitHub access
+# can't read the alert APIs (403 "Resource not accessible by integration"), and that access is set where the sessions
+# run, not in this repo. So this job reads them, read-only, and prints counts the session can fetch from the job log
+# with scripts/foundry-alerts.sh. Counts only: the repo and its logs are public, so no rule, path or package
+# (docs/THREAT-MODEL.md, TB6; the same posture the Desk's Systems > Security page shows).
+name: Security alerts
+
+on:
+  schedule:
+    - cron: "41 */2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: security-alerts
+  cancel-in-progress: false
+
+jobs:
+  count:
+    if: github.repository == 'nikitapage10/C.E.O.'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Read only. Code scanning alerts through the built-in token; GitHub gives that token no Dependabot permission, so
+    # Dependabot's come through the crew's App, minted with Dependabot alerts: read and nothing else (GitHub calls
+    # that permission vulnerability_alerts). Without it on the App the mint fails and Dependabot reads "unreported".
+    permissions:
+      contents: read
+      security-events: read
+    env:
+      HAS_APP: ${{ secrets.FOUNDRY_APP_ID != '' && secrets.FOUNDRY_APP_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+      - name: The crew's read-only token
+        id: app
+        if: env.HAS_APP == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.FOUNDRY_APP_ID }}
+          private-key: ${{ secrets.FOUNDRY_APP_PRIVATE_KEY }}
+          permission-vulnerability-alerts: read
+      - name: Count the open alerts
+        run: node scripts/security-alerts.mjs
+        env:
+          CODE_SCANNING_TOKEN: ${{ github.token }}
+          DEPENDABOT_TOKEN: ${{ steps.app.outputs.token }}

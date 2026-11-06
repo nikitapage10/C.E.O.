@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALWAYS_KEPT, KEEP, keptAfter } from "./keptRooms.ts";
+import { ALWAYS_KEPT, KEEP, keptAfter, settleShown } from "./keptRooms.ts";
 
 describe("kept rooms (#759, #934)", () => {
   it("always keeps the Senate, the Haven and Relay beside the room on screen", () => {
@@ -39,5 +39,31 @@ describe("kept rooms (#759, #934)", () => {
   it("keeps nothing on a machine short of memory", () => {
     expect(keptAfter(["today", "haven", "relay"], "green", false)).toEqual(["green"]);
     expect(keptAfter(["today", "haven"], "relay", false, 3)).toEqual(["relay"]);
+  });
+});
+
+describe("a kept room shown again (#958)", () => {
+  const anim = (name: string | null, iterations: number) => {
+    const a = { finished: false, effect: { getComputedTiming: () => ({ iterations }) }, finish: () => void (a.finished = true) };
+    return name === null ? a : Object.assign(a, { animationName: name });
+  };
+  const page = (list: ReturnType<typeof anim>[]) => ({ dataset: {} as DOMStringMap, getAnimations: () => list as unknown as Animation[] });
+
+  it("plays its entrances the first time, and marks it seen", () => {
+    const rise = anim("wv-page-in", 1);
+    const el = page([rise]);
+    expect(settleShown(el)).toBe(0);
+    expect(rise.finished).toBe(false);
+    expect(el.dataset.seen).toBe("");
+  });
+
+  it("finishes its one-shot CSS animations each time after, leaving loops and script animations alone", () => {
+    const rise = anim("wv-page-in", 1), rule = anim("fl-draw", 1), sheet = anim("hv-in", 1), breathe = anim("hv-breathe", Infinity), swarm = anim(null, 1);
+    const el = page([rise, rule, sheet, breathe, swarm]);
+    settleShown(el);
+    expect(settleShown(el)).toBe(3);
+    expect([rise, rule, sheet].every((a) => a.finished)).toBe(true);
+    expect(breathe.finished).toBe(false);
+    expect(swarm.finished).toBe(false);
   });
 });

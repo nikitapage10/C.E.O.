@@ -483,7 +483,9 @@ real; "nothing shipped" is only for a tick where every rung comes up empty, and 
 (Nikita, 2026-11-03: upkeep should be "a little bit more impactful without necessarily needing input"):
 
 - **security and compliance first:** the most pressing open item on the Desk's Security and Compliance pages (risks
-  R1–R6 and the open OWASP LLM, NIST AI RMF and SAIF gaps in [THREAT-MODEL.md](THREAT-MODEL.md), or a failing scan).
+  R1–R6 and the open OWASP LLM, NIST AI RMF and SAIF gaps in [THREAT-MODEL.md](THREAT-MODEL.md), or a failing scan;
+  `bash scripts/foundry-alerts.sh` gives the open code scanning and Dependabot alerts as counts, since the session
+  can't call the alert APIs itself; SECURITY.md, "How the upkeep reads alerts").
   A small, safe fix ships as upkeep, with the threat model and `rooms/boiler/data/model.ts` updated
   together so the Desk shows it; anything bigger becomes an idea card for Nikita's pick;
 - take in Dependabot's grouped minor and patch update (Nikita, 2026-10-21, #204): when Dependabot's grouped

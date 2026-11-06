@@ -333,6 +333,7 @@ export const LORE: Record<string, Lore> = {
       "Took Gary's tape and Gary's bucket, and keeps both exactly where he left them. The bucket has still never moved.",
       "Plugged into the world clock's pipe at five past the hour and lit up when it ran hot. Clause logged it as an unauthorised celebration.",
       "Lets Kevin sleep on the warm side of the boiler, and logs it as spiritual maintenance, a habit it kept from Gary.",
+      "Since the blueprint table's edges came undone into gold wire, rolls a lap of the rim each night sweeping loose sigils back to the middle. They drift out by morning.",
     ],
   },
   clause: {
@@ -355,6 +356,7 @@ export const LORE: Record<string, Lore> = {
       "Asked the incident sign to be repainted DAYS SINCE LAST NON-COMPLIANCE. Drop reset it to zero out of spite.",
       "Read Rusty's 71-page boiler manual twice and sent back eleven corrections. Rusty framed them.",
       "Wrote Gary a retirement card on behalf of the whole Boiler Room. Drop added a beep. It was not a polite one.",
+      "Filed the blueprint table's gold edges as 'cosmetic, pending review', then saw the sigils peeling off were the ledger's own words. Reads them back in triplicate.",
     ],
   },
   daub: {

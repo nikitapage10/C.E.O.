@@ -855,6 +855,15 @@ The **Stagehand**, a piece of Skippy who wears a headset and no costume, sets th
 cues, not speeches, and thinks the main rooms are a bit precious. The first pop-up was **Election night**, the 2026
 midterms read live from civicAPI's public results, with the races Nikita follows pinned to the top.
 
+Since #829 the Annex is the **Glasshouse**: a round crystal nursery under Ilyr's dusk, gold-ribbed glass on a bronze
+sill, its edges coming undone into gold wire and sigils like the Senate's. Running pop-ups grow in four beds on a slow
+carousel, each under its own lamp and cloche; Election night's bed grows one crystal for every race called, in the
+winner's colour, and a followed race stakes the bed in gold. The Shelf is the **seed vault** under the glass floor: a
+shelved pop-up pulls back to a seed and sinks into its drawer, and a re-spin brings the same seed up into the same bed.
+Graduation carries the crop out of the door, down the lantern path, to a **plot** of its own. Ferns crowd the wall and
+the night garden outside; fireflies keep to the grass. The Stagehand calls the beds "the wings" and the door "stage left",
+and will not water anything that isn't on the running order.
+
 ## The Haven
 
 Another door off the Desk (#616), and the first that opens onto Nikita's own home: the **Haven**, a night house drawn

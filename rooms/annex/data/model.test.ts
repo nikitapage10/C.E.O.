@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readBoard } from "./feed.ts";
-import { ago, leaderOf, matches, newCalls, ordered, STATE_NAMES, TILES, tileFill, type Filters, type Race } from "./model.ts";
+import { ago, growthOf, leaderOf, matches, newCalls, ordered, PARTY_COLOUR, STATE_NAMES, TILES, tileFill, type Filters, type Race } from "./model.ts";
 
 const race = (id: number, state: string, office: Race["office"], cands: [string, "D" | "R" | "I" | "O", number, boolean?][], reporting = 50, district: string | null = null): Race => ({
   id,
@@ -79,5 +79,17 @@ describe("Election night's parts", () => {
     expect(readBoard({ archived: true })).toBeNull();
     const b = readBoard({ date: "2026-11-03", at: null, source: { state: "ok", lastTry: null }, tally: {}, races: [race(1, "GA", "senate", []), { id: "x" }] });
     expect(b?.races).toHaveLength(1);
+  });
+
+  it("grows the Glasshouse's bed from the races called, by party (#829)", () => {
+    expect(growthOf(null)).toBeNull();
+    const t = (total: number, D: number, R: number) => ({ total, called: { D, R, I: 0, O: 0 } });
+    const g = growthOf({ date: "2026-11-03", at: null, source: { state: "ok", lastTry: null }, races: [], tally: { senate: t(35, 3, 4), governor: t(36, 1, 0), house: t(429, 10, 12) } });
+    expect(g?.parts).toEqual([
+      { colour: PARTY_COLOUR.D, n: 14 },
+      { colour: PARTY_COLOUR.R, n: 16 },
+    ]);
+    expect(g?.share).toBeCloseTo(30 / 500);
+    expect(g?.note).toBe("30 of 500 called");
   });
 });

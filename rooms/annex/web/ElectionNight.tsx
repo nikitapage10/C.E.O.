@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { useAnnex } from "../data/annex.ts";
 import { useElections } from "../data/feed.ts";
-import { ago, GRID_H, GRID_W, leaderOf, matches, ordered, PARTY_NAME, placeOf, STATE_NAMES, TABS, TILES, tileFill, votes, type Filters, type PartyKey, type Race, type Tab, type TileFill } from "../data/model.ts";
+import { ago, GRID_H, GRID_W, growthOf, leaderOf, matches, ordered, PARTY_NAME, placeOf, STATE_NAMES, TABS, TILES, tileFill, votes, type Filters, type PartyKey, type Race, type Tab, type TileFill } from "../data/model.ts";
 import "./elections.css";
 
 /**
@@ -20,6 +20,12 @@ export function ElectionNight() {
   const now = useNow(5_000);
   const followsList = useAnnex((s) => s.follows.elections);
   const toggleFollow = useAnnex((s) => s.toggleFollow);
+  const setGrowth = useAnnex((s) => s.setGrowth);
+  // Its bed in the Glasshouse grows from the same board: one crystal per race called (#829).
+  useEffect(() => {
+    const g = growthOf(board);
+    if (g) setGrowth("elections", g);
+  }, [board, setGrowth]);
   const follows = useMemo(() => new Set(followsList), [followsList]);
   const [f, setF] = useState<Filters>({ tab: "senate", state: null, party: null, following: false, query: "" });
   const [shown, setShown] = useState(LIST_STEP);

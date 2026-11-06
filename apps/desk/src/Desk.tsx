@@ -1,5 +1,5 @@
 import "./roomHooks.ts";
-import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { startFoundry } from "../../world/src/foundry.ts";
 import { keepLattice, warmLattice } from "../../world/src/latticeWarm.ts";
 import { navigate, renamedPath, usePathname } from "../../world/src/route.ts";
@@ -23,7 +23,7 @@ import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import { installHoldToTalk } from "./holdToTalk.ts";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
-import { ALWAYS_KEPT, keptAfter, SCENE_ROOMS } from "./keptRooms.ts";
+import { ALWAYS_KEPT, keptAfter, SCENE_ROOMS, settleShown } from "./keptRooms.ts";
 import { focusPage } from "./pageFocus.ts";
 import { RoomGuard } from "./RoomGuard.tsx";
 import { canWarm, warmRotunda } from "./rotunda/warm.ts";
@@ -152,19 +152,34 @@ export function Desk({ route }: { route: DeskPage }) {
   // The rooms kept mounted (#759, #934, keptRooms.ts): the one on screen, and the Senate, the Haven and Relay hidden and
   // paused, mounted one at a time in the Desk's idle time after its first paint.
   const [warmed, setWarmed] = useState(0);
+  const [kept, setKept] = useState<DeskPage[]>([route]);
+  const next = ALWAYS_KEPT[warmed] as DeskPage | undefined;
+  const nextMounted = next !== undefined && kept.includes(next);
   useEffect(() => {
     if (warmed >= ALWAYS_KEPT.length || !keepLattice()) return;
+    // One already mounted (the room on screen, or visited) costs nothing: straight on to the next.
+    if (nextMounted) return setWarmed((n) => n + 1);
     let gone = false;
-    // A few seconds after first paint, so the room just opened settles first; then one room per idle slot.
-    const t = window.setTimeout(() => idle(() => !gone && setWarmed((n) => n + 1), 5000), warmed ? 2000 : 4000);
+    let raf = 0;
+    // Promptly (#958): the first just after the first paint, then one room per idle slot, each its own task (a mount
+    // is a few hundred milliseconds of work, so never two in one go), with a short breath between.
+    const slot = () => idle(() => !gone && setWarmed((n) => n + 1), 2500);
+    const t = window.setTimeout(() => (raf = requestAnimationFrame(slot)), warmed ? 300 : 0);
     return () => {
       gone = true;
       window.clearTimeout(t);
+      cancelAnimationFrame(raf);
     };
-  }, [warmed]);
-  const [kept, setKept] = useState<DeskPage[]>([route]);
+  }, [warmed, nextMounted]);
   const want = keptAfter(kept, route, keepLattice(), warmed);
   if (want.join() !== kept.join()) setKept(want);
+
+  // Back on a kept room, it shows as it was left (#958, keptRooms.ts settleShown): no entrance plays again.
+  const mains = useRef(new Map<DeskPage, HTMLElement>());
+  useLayoutEffect(() => {
+    const el = mains.current.get(route);
+    if (el) settleShown(el);
+  }, [route]);
 
   // A change of page moves focus to it (#934, pageFocus.ts): a held Space then talks, not presses the bar's link.
   const shownPath = useRef(pathname);
@@ -204,7 +219,11 @@ export function Desk({ route }: { route: DeskPage }) {
           mounted, hidden and inert, with no cover, until it is back on screen. */}
       {[...kept].sort((a, b) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(b)).map((r) => (
         <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} cap={SCENE_ROOMS.has(r) ? SCENE_CAP_MS : undefined}>
-          <main className="desk__main" tabIndex={-1} hidden={r !== route} inert={r !== route} data-room={r === "today" ? undefined : r}>
+          <main
+            ref={(el) => void (el ? mains.current.set(r, el) : mains.current.delete(r))}
+            className="desk__main"
+            tabIndex={-1}
+            hidden={r !== route} inert={r !== route} data-room={r === "today" ? undefined : r}>
             <RoomGuard name={pageName(r)}>
               <Suspense fallback={null}>
                 {page(r)}

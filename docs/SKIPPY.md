@@ -82,6 +82,22 @@ The same personalities show in the Senate, the Desk's first page (called Today u
 `apps/desk/src/rotunda/senators.ts`, played by `senateActor.ts`. Tune a submind's manner there, beside its voice
 here.
 
+**The Senate talks live (#910).** Nikita, 2026-11-05: "nothing loops, ever"; conversations are AI made, live, a new
+topic every time, and when he chips in the members answer in kind. With nothing on the docket the recess argues a
+motion made on Claude Haiku as the page runs (`api/_skippy/senatetalk.ts` through `POST /api/skippy-room`
+`{ room: "today", senate: "debate" }`; `apps/desk/src/rotunda/liveTalk.ts` in the browser): the chamber's list of
+motions already argued (`desk/senate/topics.json`) is in the prompt and a repeat is refused, a random subject and a
+random handful of members steer it, and each one brings a few new gallery murmurs. Words on the floor about nothing in
+particular get one or two members' live answer in the argument's context (`senate: "reply"`). Only public-safe facts go
+in (titles, room names, who is at work, how many items wait); Nikita's words only past the privacy check, and every
+line back is checked again (nothing private, no money values) or the whole answer is dropped. It costs a hard **$10 a
+month inside Skippy's $60**: each call is written to the chat's ledger as the part `senate` (the meter shows it), and a
+call goes only while that part and Skippy's whole month both have room for it. Past either, or signed out, the chamber
+takes a written argument (`debates.ts`) this viewer hasn't heard yet, each once ever, then keeps quiet and asks again
+later; the murmurs too are each said once. The voices are unchanged: each new line is voiced once under the Rotunda's
+ElevenLabs share (`ROTUNDA_SHARE_USD`) and read as a caption past it. A murmur, once started, always plays to its end
+(a speaker may talk over its tail; one at a time).
+
 ## The room voice: talking to a room without a call (#638)
 
 Nikita, 2026-11-04: "I don't want to have to initiate a call every time we want to do a command." So there is no call
@@ -262,7 +278,8 @@ the facts and the pages, forgets any of them, and takes a paste of the project's
 
 **The month.** One cap covers his chat, the Kernel, Opus research and web lookups: `SKIPPY_BUDGET_USD` (an app setting,
 not a secret; $60 by default, warn at $50, aiming for about $50). The Kernel keeps its own ledger and its own lower
-share (`KERNEL_AGENT_BUDGET_USD`) and also stops when the shared month is spent. Email and texts keep their own $10
+share (`KERNEL_AGENT_BUDGET_USD`) and also stops when the shared month is spent. The Senate's live talk (#910) has a
+hard $10 inside it, written to the chat's ledger as the part `senate`. Email and texts keep their own $10
 caps. At the cap Skippy stops calling Claude and says so; the gauge under his name shows the month.
 
 **Endpoints** (passkey session only; 401 signed out, 403 cross-site, 503 not set up):
@@ -274,7 +291,7 @@ caps. At the cap Skippy stops calling Claude and says so; the gauge under his na
   topic?, source? }` (at most 200, answered `{ kept, refused: { reason: count } }`), `page { title, topic, summary,
   body }`, `forget { id }`.
 - `GET /api/skippy-spend` → `{ month, capUsd, warnUsd, spentUsd, leftUsd, state: "ok" | "warn" | "capped", parts:
-  { triage, talk, research, web, kernel, agents }, calls, others: { emailCapUsd, textsCapUsd } }`. The Boiler Room's
+  { triage, talk, research, web, kernel, agents, senate }, calls, others: { emailCapUsd, textsCapUsd } }`. The Boiler Room's
   Controls (#647) read this shape.
 
 **Later phases** (not built yet): a nightly distiller from the journal into facts and pages, a ChatGPT and file import,

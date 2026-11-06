@@ -3,6 +3,8 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { holdHint } from "../holdToTalk.ts";
 import { askRoom, listen, micSupported, recall, remember, setOwnVoice, silentWav, type Listener, type RoomAnswer } from "../roomvoice/roomVoice.ts";
 import { readMs, SUBMIND_TITLE } from "./rite.ts";
+import { fetchFloorReply } from "./liveTalk.ts";
+import { fetchLine } from "./voice.ts";
 
 /**
  * Nikita has the floor (#905). Nikita, 2026-11-05: "At any point while the skippies are talking in the Senate, I should be
@@ -14,6 +16,11 @@ import { readMs, SUBMIND_TITLE } from "./rite.ts";
  * only, no model call) answer in turn, each through its room's own voice (POST /api/skippy-room as that room: the same
  * chat, caps, pace and privacy check as the room mic, the answer read in that submind's voice); words about nothing in
  * particular go to Skippy himself. Then the session picks up the line it was on.
+ *
+ * Since #910, words about nothing in particular get the members' live answer instead (liveTalk.ts, `fetchFloorReply`:
+ * Claude Haiku under the Senate's $10, after the privacy check): one or two of them answer him in kind, in the context of
+ * the argument on the floor, each in Skippy's voice bent its way (the Rotunda's share; past it, read). When that can't
+ * come, the chair answers as before.
  *
  * Nothing is kept: the turns live in roomVoice.ts's memory for a follow-on, and are forgotten on reload.
  */
@@ -91,6 +98,8 @@ export interface FloorScene {
   seated: () => string[];
   /** Lights the member who has the floor (null: none). */
   light: (id: string | null) => void;
+  /** The argument on the floor now (#910), if one is. */
+  topic?: () => { motion: string; lines: { by: string; text: string }[] } | null;
 }
 
 /** A beat between turns, and how long the last answer stays once it is said. */
@@ -121,9 +130,9 @@ function release(): void {
 }
 
 /** Plays an answer's audio to its end (false when it couldn't play), or holds for its reading time. */
-function hear(by: string, a: RoomAnswer, n: number): Promise<boolean> {
+function hear(by: string, a: Pick<RoomAnswer, "say" | "audio">, n: number, url?: string | null): Promise<boolean> {
   const p = player;
-  if (!a.audio || !p) {
+  if ((!a.audio && !url) || !p) {
     scene?.talk(by, Math.min(5, readMs(a.say) / 1000));
     return wait(readMs(a.say), n);
   }
@@ -134,7 +143,7 @@ function hear(by: string, a: RoomAnswer, n: number): Promise<boolean> {
       res(run === n);
     };
     p.onended = p.onerror = done;
-    p.src = `data:audio/mpeg;base64,${a.audio}`;
+    p.src = url ?? `data:audio/mpeg;base64,${a.audio}`;
     scene?.talk(by, 30);
     p.play().catch(() => {
       // Blocked: read instead.
@@ -191,6 +200,27 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
   const ids = text ? routeFloor(text, scene?.seated() ?? []) : ["kernel"];
   set({ phase: "asking", question: text || useFloor.getState().question, chair: floorChair(ids) });
   scene?.talk("kernel", 1.6);
+  // About nothing in particular: the members answer him live, in kind (#910); the chair's own answer when they can't.
+  if (text && ids.length === 1 && ids[0] === "kernel") {
+    const lines = await fetchFloorReply(text, scene?.seated() ?? [], scene?.topic?.() ?? null, doFetch);
+    if (run !== n) return;
+    if (lines) {
+      const members = lines.map((l) => l.by).filter((b) => b !== "kernel");
+      set({ chair: floorChair(members.length ? [...new Set(members)] : ["kernel"]) });
+      for (const l of lines) {
+        const voiced = await fetchLine(l.by, l.text, doFetch);
+        if (run !== n) return;
+        set({ phase: "answering", turn: { by: l.by, say: l.text, failed: false } });
+        scene?.light(l.by === "kernel" ? null : l.by);
+        const ok = await hear(l.by, { say: l.text }, n, voiced.url);
+        if (voiced.url) URL.revokeObjectURL(voiced.url);
+        if (!ok) return;
+        if (!(await wait(TURN_GAP_MS, n))) return;
+      }
+      if (!(await wait(AFTER_MS, n))) return;
+      return release();
+    }
+  }
   for (const id of ids) {
     const room = floorRoom(id);
     const { turns, last } = recall(room);

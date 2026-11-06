@@ -3,8 +3,11 @@ import { SUBMIND_TITLE } from "./rite.ts";
 /**
  * The Senate in recess (#878). Nikita, 2026-11-05: when nothing needs him, the chamber shouldn't loop the Builder
  * reading out the Foundry's status; the Skippies pick a topic of their own and argue it out, more members joining in.
- * Shows, films, books, opera, games and music. Written here, in the repo, and rotated: no model is asked for them, so
- * they cost nothing past each line's one-time voicing (api/_skippy/rotundavoice.ts keeps every line it makes).
+ * Shows, films, books, opera, games and music.
+ *
+ * Since #910 the arguments are made live (liveTalk.ts, api/_skippy/senatetalk.ts: Claude Haiku, a new motion every time).
+ * These written ones are only the fallback when a live one can't come (signed out, past the Senate's $10, the model
+ * down), and each is said once ever per viewer, never rotated: nothing loops (Nikita, 2026-11-05).
  *
  * Every line is canned and public-safe by construction: opinions on stories, games and songs, in each member's own voice
  * (docs/SKIPPY.md, "Voices"). Never anyone's data, and never a word about whose taste the topics follow. Anything real on
@@ -27,6 +30,8 @@ export interface Debate {
   lines: DebateLine[];
   /** The chair's closing ruling. */
   close: string;
+  /** New gallery murmurs a live argument brings (#910), said once each. */
+  murmurs?: string[];
 }
 
 const L = (by: string, stance: Stance, text: string): DebateLine => ({ by, stance, text });
@@ -166,9 +171,6 @@ export const DEBATES: Debate[] = [
     close: "Carried. The chair has been told he sings like a fallen angel, and will not be taking questions.",
   },
 ];
-
-/** The debate for this turn of the recess: the list in order, round and round. */
-export const debateAt = (k: number): Debate => DEBATES[((k % DEBATES.length) + DEBATES.length) % DEBATES.length]!;
 
 /** The chair's opening, naming the motion. */
 export const debateOpen = (d: Debate): string => `The chamber is in recess. The motion before it: ${d.motion}.`;

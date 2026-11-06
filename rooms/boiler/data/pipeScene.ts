@@ -40,7 +40,8 @@ import {
   type Object3D,
   type Texture,
 } from "three";
-import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
+import { edgeFactor, SOFT, wasdPan } from "@ceo/engine/web/wasdPan.ts";
+import { comeUndone, sigilAtlas, type Undone } from "@ceo/engine/sigils/undone.ts";
 import { CODE, ARC } from "@ceo/engine/sigils/sigils.ts";
 import type { StationState } from "./pipes.ts";
 import type { MapGeo, PipeKind, RoomSection, V2 } from "./rooms.ts";
@@ -56,6 +57,11 @@ import { windRoom, type RoomWind } from "./wind.ts";
  * drips coral with its gauge in the red; one not connected yet stays dry, and a planned one is a ghost. Hovering a
  * pipe, valve or gauge tells the page which (onHover), a click or tap picks it (onPick), and the page can track one
  * station's place on screen for its card. Loaded lazily by PipeBoard.tsx. With reduced motion nothing moves.
+ *
+ * Since #936 the map wears the Senate's edges (@ceo/engine/sigils/undone.ts): the middle stays solid brass and iron,
+ * and toward the frame's edges the blueprint sheet and the pipes themselves turn into gold wire and sigil nanites
+ * peeling off it. WASD swivels the view round the map within a set arc and dollies it in and out (the shared helper's
+ * orbit mode), resisted past the soft edge and eased back when the keys let go; Escape snaps home.
  */
 
 const CORAL = "#ff6f61";
@@ -77,6 +83,42 @@ const ND = 14;
 const MAX_GLOWS = 3;
 
 const W = (p: V2, h = H) => new Vector3(p[0], h, p[1]);
+/** The swivel: how far either way the view turns from home (rad), and how far it dollies in or out (share). */
+const SWIVEL = 0.42;
+const DOLLY = 0.22;
+/** A step of a bounded swivel: free inside the soft edge, resisted past it outward, stopped at the limit. */
+function swing(v: number, d: number, lim: number): number {
+  const out = d !== 0 && Math.sign(d) === Math.sign(v);
+  return Math.max(-lim, Math.min(lim, v + (out ? d * edgeFactor(Math.abs(v) / lim) : d)));
+}
+/** The wire laid over a pipe for the edges to come undone into: four lines along it and a ring every so often. */
+function traceTube(out: number[], a: Vector3, b: Vector3, r: number): void {
+  const d = b.clone().sub(a);
+  const len = d.length();
+  if (len < 1e-3) return;
+  d.divideScalar(len);
+  const u = Math.abs(d.y) > 0.9 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+  const n1 = new Vector3().crossVectors(d, u).normalize();
+  const n2 = new Vector3().crossVectors(d, n1).normalize();
+  const at = (p: Vector3, k: number) => {
+    const t = (k / 8) * Math.PI * 2;
+    return p.clone().addScaledVector(n1, Math.cos(t) * r).addScaledVector(n2, Math.sin(t) * r);
+  };
+  for (let k = 0; k < 8; k += 2) {
+    const p = at(a, k);
+    const q = at(b, k);
+    out.push(p.x, p.y, p.z, q.x, q.y, q.z);
+  }
+  const rings = Math.max(1, Math.round(len / 0.55));
+  for (let j = 0; j <= rings; j++) {
+    const c = a.clone().addScaledVector(d, (j / rings) * len);
+    for (let k = 0; k < 8; k++) {
+      const p = at(c, k);
+      const q = at(c, k + 1);
+      out.push(p.x, p.y, p.z, q.x, q.y, q.z);
+    }
+  }
+}
 
 export function canDraw3D(): boolean {
   try {
@@ -244,6 +286,19 @@ export class PipeScene {
   private roomPer = 0;
   private lastSet: [Record<string, StationState>, string | null, string | null] | null = null;
   private sigils: Sigils;
+  /** The Senate's edges (#936): the gold wire and code nanites, laid again with each build over its floor and pipes. */
+  private atlas: CanvasTexture | null = null;
+  private undone: Undone | null = null;
+  private undoneG = new Group();
+  private undoneKept: { dispose: () => void }[] = [];
+  private wire: number[] = [];
+  private px = { value: 1 };
+  private gone = false;
+  /** The swivel round the map (A/D) and the dolly (W/S), and where each is easing to. */
+  private yaw = 0;
+  private yawTo = 0;
+  private zoom = 1;
+  private zoomTo = 1;
 
   constructor(
     private host: HTMLElement,
@@ -278,7 +333,7 @@ export class PipeScene {
       new ShaderMaterial({
         vertexShader: `varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
         fragmentShader: `varying vec2 vP; void main(){ vec2 g = abs(fract(vP)-.5); float l = 1.-smoothstep(.0,.03,min(g.x,g.y)); vec2 g4 = abs(fract(vP*.25)-.5); float L = 1.-smoothstep(.0,.012,min(g4.x,g4.y));
-          float v = 1.-smoothstep(10.,28.,length(vP)); vec3 c = vec3(.043,.051,.066) + vec3(.03,.036,.05)*l*v + vec3(.05,.06,.08)*L*v; gl_FragColor = vec4(c,1.); }`,
+          float v = 1.-smoothstep(10.,28.,length(vP)); vec3 c = vec3(.043,.047,.056) + vec3(.034,.031,.026)*l*v + vec3(.075,.062,.036)*L*v; gl_FragColor = vec4(c,1.); }`,
       }),
     );
     floor.rotation.x = -Math.PI / 2;
@@ -365,6 +420,13 @@ export class PipeScene {
     // The sigils that ride the flow: the Desk's glyphs, not dots.
     this.sigils = new Sigils(opts.reduce);
     scene.add(this.sigils.points);
+    // The edges come undone (#936), once the runes are drawn.
+    scene.add(this.undoneG);
+    void sigilAtlas().then((a) => {
+      if (this.gone) return a.dispose();
+      this.atlas = a;
+      this.layUndone();
+    });
 
     canvas.addEventListener("click", this.onClick);
     canvas.addEventListener("pointermove", this.onMove);
@@ -379,7 +441,24 @@ export class PipeScene {
     this.io.observe(host);
     document.addEventListener("visibilitychange", this.onVis);
     const b = () => this.geo?.box ?? this.focusBox;
-    this.pan = wasdPan({ el: host, reduce: opts.reduce, bounds: () => ({ kind: "box", x0: b()[0], z0: b()[1], x1: b()[2], z1: b()[3] }), origin: () => [this.look.x, this.look.z], forward: () => [this.look.x - this.cam.position.x, this.look.z - this.cam.position.z] });
+    // WASD swivels the view round the map (#936): not free roam. A/D (and the arrows) turn within a set arc, W/S dolly
+    // in and out within tight bounds, both resisted past the soft edge and eased back once the keys let go.
+    this.pan = wasdPan({
+      el: host,
+      reduce: opts.reduce,
+      bounds: () => ({ kind: "box", x0: b()[0], z0: b()[1], x1: b()[2], z1: b()[3] }),
+      origin: () => [this.look.x, this.look.z],
+      forward: () => [this.look.x - this.cam.position.x, this.look.z - this.cam.position.z],
+      orbit: {
+        turn: (r) => (this.yawTo = swing(this.yawTo, r * 0.6, SWIVEL)),
+        zoom: (a) => (this.zoomTo = 1 + swing(this.zoomTo - 1, -a * 0.35, DOLLY)),
+        home: () => {
+          this.yawTo = 0;
+          this.zoomTo = 1;
+          this.dirty = Math.max(this.dirty, 30);
+        },
+      },
+    });
     this.size();
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -397,12 +476,14 @@ export class PipeScene {
     const brass = this.brass;
     const { flange, band } = this.kit();
     const bodyG = new CylinderGeometry(0.17, 0.17, 0.3, 16);
+    const wire: number[] = [];
 
     for (const t of geo.trunks) {
       const a = W(t[0]!);
       const b = W(t[1]!);
       const tan = b.clone().sub(a).normalize();
       net.add(tube(a, b, R * 1.15, brass));
+      traceTube(wire, a, b, R * 1.6);
       flange(a, tan, null, 1.1);
       flange(b, tan, null, 1.1);
     }
@@ -418,6 +499,7 @@ export class PipeScene {
       const curve = runCurve(pts, 0.45);
       const len = curve.getLength();
       const head = tubeAlong(curve, R, brass);
+      for (let k = 0; k < pts.length - 1; k++) traceTube(wire, pts[k]!, pts[k + 1]!, R * 1.45);
       head.userData.room = sec.id;
       net.add(head);
       this.picks.push(head);
@@ -450,6 +532,7 @@ export class PipeScene {
         const dir = tip.clone().sub(root).normalize();
         const planned = p.kind === "planned";
         const pipe = tube<Material>(root, tip, RB, planned ? this.ghostMat : brass);
+        traceTube(wire, root, tip, RB * 1.7);
         pipe.userData.pipe = p.id;
         net.add(pipe);
         this.picks.push(pipe);
@@ -477,6 +560,8 @@ export class PipeScene {
         this.byId.set(p.id, st);
       });
     }
+    this.wire = wire;
+    this.layUndone();
     this.dirty = 4;
   }
 
@@ -518,6 +603,7 @@ export class PipeScene {
     const net = this.net;
     const brass = this.brass;
     const { flange, band } = this.kit();
+    const wire: number[] = [];
 
     for (const n of w.nodes) {
       const at = W(n.at);
@@ -554,6 +640,7 @@ export class PipeScene {
       const curve = runCurve(pts, 0.4);
       const len = curve.getLength();
       const pipe = tubeAlong<Material>(curve, RB, l.planned ? this.ghostMat : brass);
+      for (let k = 0; k < pts.length - 1; k++) traceTube(wire, pts[k]!, pts[k + 1]!, RB * 1.7);
       pipe.userData.pipe = l.target;
       net.add(pipe);
       this.picks.push(pipe);
@@ -580,7 +667,47 @@ export class PipeScene {
       this.stations.push(st);
       if (!this.byId.has(l.target)) this.byId.set(l.target, st);
     }
+    this.wire = wire;
+    this.layUndone();
     this.dirty = 4;
+  }
+
+  /**
+   * The Senate's edges over this view (#936): a gold wire grid on the blueprint sheet round the view's box, the wire
+   * traced over every pipe laid, code nanites strewn on the sheet and along the pipes, and sigils peeling off the
+   * wires. Weighted by the frame (undone.ts), so the middle stays solid and only the edges come undone.
+   */
+  private layUndone(): void {
+    for (const x of this.undoneKept) x.dispose();
+    this.undoneKept = [];
+    this.undoneG.clear();
+    this.undone = null;
+    if (!this.atlas) return;
+    const phone = this.phone();
+    const [x0, z0, x1, z1] = this.focusBox;
+    const gx0 = Math.floor(x0 - 16);
+    const gx1 = Math.ceil(x1 + 16);
+    const gz0 = Math.floor(z0 - 12);
+    const gz1 = Math.ceil(z1 + 12);
+    const wire = this.wire.slice();
+    const step = phone ? 1.6 : 1.1;
+    for (let x = gx0; x <= gx1; x += step) wire.push(x, 0.02, gz0, x, 0.02, gz1);
+    for (let z = gz0; z <= gz1; z += step) wire.push(gx0, 0.02, z, gx1, 0.02, z);
+    const nFloor = phone ? 420 : 1300;
+    const pipeSegs = this.wire.length / 6;
+    const nPipe = pipeSegs ? (phone ? 160 : 520) : 0;
+    const dust = new Float32Array((nFloor + nPipe) * 3);
+    for (let i = 0; i < nFloor; i++) dust.set([gx0 + Math.random() * (gx1 - gx0), 0.04, gz0 + Math.random() * (gz1 - gz0)], i * 3);
+    for (let i = 0; i < nPipe; i++) {
+      const k = Math.floor(Math.random() * pipeSegs) * 6;
+      const f = Math.random();
+      const w = this.wire;
+      dust.set([w[k]! + (w[k + 3]! - w[k]!) * f, w[k + 1]! + (w[k + 4]! - w[k + 1]!) * f + 0.05, w[k + 2]! + (w[k + 5]! - w[k + 2]!) * f], (nFloor + i) * 3);
+    }
+    const keep = <T extends { dispose: () => void }>(x: T): T => (this.undoneKept.push(x), x);
+    this.undone = comeUndone({ wire, dust, atlas: this.atlas, px: this.px, peel: phone ? 120 : 380, shape: [0.84, 1.3], keep });
+    this.undone.addTo(this.undoneG);
+    this.dirty = Math.max(this.dirty, 4);
   }
 
   /** The fittings both views share: a flange (with a band in a room's colour) and the band's material. */
@@ -700,6 +827,7 @@ export class PipeScene {
   }
 
   dispose(): void {
+    this.gone = true;
     cancelAnimationFrame(this.raf);
     this.pan.dispose();
     this.ro.disconnect();
@@ -714,6 +842,9 @@ export class PipeScene {
     freeTree(this.scene);
     for (const m of [this.flowOk, this.flowLate, this.dryMat, this.ghostMat, this.brass, this.iron, ...this.bands.values()]) m.dispose();
     this.sigils.dispose();
+    for (const x of this.undoneKept) x.dispose();
+    this.undoneKept = [];
+    this.atlas?.dispose();
     this.renderer.dispose();
     c.remove();
     this.lbls.remove();
@@ -859,6 +990,7 @@ export class PipeScene {
     this.cam.aspect = w / h;
     this.cam.updateProjectionMatrix();
     this.steamU.px.value = this.renderer.getPixelRatio();
+    this.px.value = this.renderer.getPixelRatio();
     // A room's own run winds to the map's shape: lay it again when the shape calls for a different band.
     if (this.mode === "room" && this.roomSrc && windRoom(this.roomSrc.section, this.roomSrc.model, this.want()).per !== this.roomPer) this.layRoom();
     this.dirty = 4;
@@ -881,7 +1013,8 @@ export class PipeScene {
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
     const reduce = this.opts.reduce;
-    if (!this.visible || document.hidden || (reduce && this.dirty <= 0 && !this.moved && !this.pan.busy)) {
+    const easing = Math.abs(this.yawTo - this.yaw) > 1e-4 || Math.abs(this.zoomTo - this.zoom) > 1e-4;
+    if (!this.visible || document.hidden || (reduce && this.dirty <= 0 && !this.moved && !this.pan.busy && !easing)) {
       this.last = now;
       return;
     }
@@ -951,18 +1084,30 @@ export class PipeScene {
 
     // The camera: fits the whole map, or the room in focus, with a slow drift. On a phone the map turns so its rooms
     // run top to bottom.
+    // A/D swivel it round the middle of the view and W/S dolly it, within their bounds (#936).
     const { c, d } = this.fit(this.focusBox);
     const ease = reduce || !this.dist ? 1 : 1 - Math.pow(0.04, real);
     this.look.lerp(c, ease);
     this.dist += (d - this.dist) * ease;
     const cam = this.cam;
     const sway = reduce ? 0 : Math.sin(T * 0.1) * 0.08;
-    if (this.phone()) cam.position.set(this.look.x + this.dist * 0.52, this.dist * 0.85, this.look.z + Math.sin(sway) * this.dist * 0.3);
-    else cam.position.set(this.look.x + Math.sin(sway) * this.dist * 0.4, this.dist * 0.84, this.look.z + this.dist * 0.55);
     this.pan.step(real);
-    cam.position.x += this.pan.x;
-    cam.position.z += this.pan.z;
-    cam.lookAt(this.look.x + this.pan.x, this.look.y, this.look.z + this.pan.z);
+    if (!this.pan.busy) {
+      if (Math.abs(this.yawTo) > SWIVEL * SOFT) this.yawTo += (Math.sign(this.yawTo) * SWIVEL * SOFT - this.yawTo) * (reduce ? 1 : 1 - Math.exp(-4 * real));
+      if (Math.abs(this.zoomTo - 1) > DOLLY * SOFT) this.zoomTo += (1 + Math.sign(this.zoomTo - 1) * DOLLY * SOFT - this.zoomTo) * (reduce ? 1 : 1 - Math.exp(-4 * real));
+    }
+    const ek = reduce ? 1 : 1 - Math.exp(-real * 5);
+    this.yaw += (this.yawTo - this.yaw) * ek;
+    this.zoom += (this.zoomTo - this.zoom) * ek;
+    const D = this.dist * this.zoom;
+    const [ox, oz] = this.phone() ? [D * 0.52, Math.sin(sway) * D * 0.3] : [Math.sin(sway) * D * 0.4, D * 0.55];
+    const cy = Math.cos(this.yaw);
+    const sy = Math.sin(this.yaw);
+    cam.position.set(this.look.x + ox * cy + oz * sy, D * (this.phone() ? 0.85 : 0.84), this.look.z - ox * sy + oz * cy);
+    cam.lookAt(this.look.x, this.look.y, this.look.z);
+    // The nanites are sized for a scene seen from a few metres; the map stands much further back, so they grow with it.
+    this.px.value = this.renderer.getPixelRatio() * Math.max(1, D / 10);
+    this.undone?.step(T, this.renderer);
     this.renderer.render(this.scene, cam);
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;

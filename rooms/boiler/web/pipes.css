@@ -1,7 +1,9 @@
 /*
  * The Boiler Room's Map (#732, the B4 schematic): the pipe map (boiler/pipeScene.ts) beside the fault panel
  * (PipeBoard.tsx). Ink-dark, brass and coral; Big Shoulders for the stencilled words, Overpass Mono for the readouts.
- * Scoped to the Boiler Room's page.
+ * Scoped to the Boiler Room's page. Since #936 it fills the screen under the bar like the other rooms' heroes, with gold
+ * as the one accent (the tabs, the hairlines, the panel's corner ticks) and the edges of the map coming undone into
+ * gold wire and nanites (pipeScene.ts); the four lamp colours keep their meaning.
  */
 
 [data-room="boiler"] .bp {
@@ -12,6 +14,8 @@
   --bp-mut: #8e95a1;
   --bp-dim: #5b6270;
   --bp-brass: #c39a5b;
+  --bp-gold: #e3c98d;
+  --bp-gl: rgba(201, 168, 92, 0.26);
   /* The four lamp colours, the same as the 3D gauges' (pipeScene.ts, GLOW; #866). */
   --bp-coral: #ff5a4e;
   --bp-amber: #f0b93f;
@@ -21,15 +25,16 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
-  /* The chip row is one slim line; the map takes any height the panel beside it needs (#751). */
-  grid-template-rows: auto 40px minmax(clamp(500px, 70vh, 720px), auto);
-  margin: 0 0 32px;
+  /* The whole screen under the bar (#936): the head, the slim chip row, then the map beside the panel, which scrolls. */
+  grid-template-rows: auto 40px minmax(0, 1fr);
+  height: max(640px, calc(100svh - 64px));
+  margin: 0;
   overflow: hidden;
   isolation: isolate;
   color: var(--bp-fg);
   background: var(--bp-ink);
-  border: 1px solid var(--bp-line);
-  border-radius: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--bp-gl);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -39,8 +44,8 @@
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px 22px;
-  padding: 18px 20px 12px;
-  border-bottom: 1px solid var(--bp-line);
+  padding: 18px clamp(16px, 2.4vw, 32px) 12px;
+  border-bottom: 1px solid var(--bp-gl);
 }
 [data-room="boiler"] .bp .bp-h {
   margin: 0;
@@ -59,9 +64,10 @@
 /* The tabs: Map, Controls, Security, Compliance, each with its count. */
 [data-room="boiler"] .bp .bp-tabs { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
 [data-room="boiler"] .bp .bp-tabs a {
+  position: relative;
   padding: 7px 12px;
-  border-radius: 3px;
-  background: #151922;
+  border-radius: 2px;
+  background: none;
   color: var(--bp-mut);
   font-family: var(--bp-cond);
   font-weight: 650;
@@ -70,15 +76,15 @@
   text-transform: uppercase;
   text-decoration: none;
 }
-[data-room="boiler"] .bp .bp-tabs a:hover { color: var(--bp-fg); }
+[data-room="boiler"] .bp .bp-tabs a:hover { color: var(--bp-gold); }
 [data-room="boiler"] .bp .bp-tabs a b { margin-left: 6px; font: 500 11px var(--bp-mono); letter-spacing: 0; color: var(--bp-ok); }
 [data-room="boiler"] .bp .bp-tabs a b.is-warn { color: var(--bp-amber); }
-[data-room="boiler"] .bp .bp-tabs a[aria-current="page"] { background: var(--bp-fg); color: var(--bp-ink); }
-[data-room="boiler"] .bp .bp-tabs a[aria-current="page"] b { color: #1f7a4d; }
+[data-room="boiler"] .bp .bp-tabs a[aria-current="page"] { color: #fff0c8; text-shadow: 0 0 16px rgba(232, 199, 122, 0.4); }
+[data-room="boiler"] .bp .bp-tabs a[aria-current="page"]::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -2px; height: 2px; background: linear-gradient(90deg, transparent, var(--bp-gold), transparent); box-shadow: 0 0 10px rgba(232, 199, 122, 0.55); }
 [data-room="boiler"] .bp .bp-tabs a:focus-visible { outline: 2px solid var(--bp-brass); outline-offset: 2px; }
 
 /* The rooms over the map: picking one focuses its manifold. */
-[data-room="boiler"] .bp .bp-rooms { grid-column: 1; display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; height: 40px; padding: 0 10px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; border-bottom: 1px solid var(--bp-line); background: #0d1015; }
+[data-room="boiler"] .bp .bp-rooms { grid-column: 1; display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; height: 40px; padding: 0 clamp(10px, 2vw, 26px); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; border-bottom: 1px solid rgba(201, 168, 92, 0.14); background: #0d0e11; }
 [data-room="boiler"] .bp .bp-rooms::-webkit-scrollbar { display: none; }
 [data-room="boiler"] .bp .bp-rooms button {
   display: inline-flex;
@@ -101,7 +107,7 @@
   cursor: pointer;
 }
 [data-room="boiler"] .bp .bp-rooms button:hover { color: var(--bp-fg); }
-[data-room="boiler"] .bp .bp-rooms button[aria-pressed="true"] { border-color: var(--rc, var(--bp-fg)); color: var(--bp-fg); background: #ffffff0a; }
+[data-room="boiler"] .bp .bp-rooms button[aria-pressed="true"] { border-color: var(--rc, var(--bp-gold)); color: var(--bp-fg); background: rgba(201, 168, 92, 0.07); }
 [data-room="boiler"] .bp .bp-rooms button:focus-visible { outline: 2px solid var(--bp-brass); outline-offset: 1px; }
 [data-room="boiler"] .bp .bp-rooms i { width: 8px; height: 8px; border-radius: 50%; background: var(--bp-ok); }
 [data-room="boiler"] .bp .bp-rooms i:is(.is-late, .is-shut) { background: var(--bp-amber); }
@@ -117,10 +123,10 @@
   max-height: calc(100% - 16px);
   overflow: auto;
   padding: 12px 14px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid rgba(201, 168, 92, 0.24);
   border-top: 3px solid var(--bp-ok);
-  border-radius: 6px;
-  background: #11151cf2;
+  border-radius: 2px;
+  background: #100f0ef2;
   box-shadow: 0 12px 32px #0008;
   color: #c9ced8;
   font-size: 12.5px;
@@ -250,9 +256,12 @@
   min-width: 0;
   padding: 20px 22px;
   overflow: auto;
-  border-left: 1px solid var(--bp-line);
-  background: var(--bp-panel);
+  border-left: 1px solid var(--bp-gl);
+  background: linear-gradient(180deg, rgba(16, 14, 11, 0.97), rgba(10, 10, 11, 0.97));
+  box-shadow: inset 1px 0 0 rgba(232, 199, 122, 0.06);
 }
+/* The panel's head wears the gold hairline the other rooms' consoles do. */
+[data-room="boiler"] .bp .bp-panel::before { content: ""; display: block; flex: none; height: 1px; margin: -20px -22px 6px; background: linear-gradient(90deg, transparent, rgba(232, 199, 122, 0.85) 50%, transparent); box-shadow: 0 0 14px rgba(255, 154, 42, 0.35); }
 [data-room="boiler"] .bp .bp-panel p { margin: 0; color: #a9b0bb; font-size: 14px; }
 [data-room="boiler"] .bp .bp-k { display: flex; justify-content: space-between; gap: 10px; font: 500 11px var(--bp-mono); letter-spacing: 0.08em; text-transform: uppercase; }
 [data-room="boiler"] .bp .bp-k b { font-weight: 500; color: #ff8a7e; }
@@ -294,7 +303,7 @@
 [data-room="boiler"] .bp .bp-note { color: var(--bp-mut); font-style: italic; }
 [data-room="boiler"] .bp .bp-panel ol { margin: 0; padding-left: 20px; color: var(--bp-mut); font-size: 13px; }
 [data-room="boiler"] .bp .bp-panel ol li { padding: 3px 0; }
-[data-room="boiler"] .bp .bp-more { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--bp-brass); font: inherit; font-size: 13px; cursor: pointer; }
+[data-room="boiler"] .bp .bp-more { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--bp-gold); font: inherit; font-size: 13px; cursor: pointer; }
 [data-room="boiler"] .bp .bp-more:focus-visible { outline: 1px solid var(--bp-brass); }
 [data-room="boiler"] .bp .bp-queue { display: grid; gap: 6px; margin-top: auto; padding-top: 12px; border-top: 1px solid #ffffff12; }
 [data-room="boiler"] .bp .bp-queue small { font: 500 11px var(--bp-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--bp-dim); }
@@ -321,7 +330,7 @@
 
 /* A phone: the map runs top to bottom above the panel. */
 @media (max-width: 760px) {
-  [data-room="boiler"] .bp { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 40px 600px auto; margin-inline: -4px; }
+  [data-room="boiler"] .bp { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 40px max(460px, calc(100svh - 230px)) auto; height: auto; }
   [data-room="boiler"] .bp .bp-rooms { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   [data-room="boiler"] .bp .bp-rooms button { flex: none; }
   [data-room="boiler"] .bp .bp-panel { grid-column: 1; grid-row: auto; }
@@ -330,7 +339,8 @@
   [data-room="boiler"] .bp .bp-h { font-size: 23px; }
   [data-room="boiler"] .bp .bp-tabs { margin-left: 0; }
   [data-room="boiler"] .bp .bp-tabs a { padding: 7px 9px; letter-spacing: 0.08em; }
-  [data-room="boiler"] .bp .bp-panel { padding: 16px; border-left: 0; border-top: 1px solid var(--bp-line); overflow: visible; }
+  [data-room="boiler"] .bp .bp-panel { padding: 16px; border-left: 0; border-top: 1px solid var(--bp-gl); overflow: visible; }
+  [data-room="boiler"] .bp .bp-panel::before { display: none; }
   [data-room="boiler"] .bp .bp-title { font-size: 26px; }
   [data-room="boiler"] .bp .bp-lb.is-room { font-size: 12px; margin-left: 0 !important; }
   [data-room="boiler"] .bp .bp-key { display: none; }

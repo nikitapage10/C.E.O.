@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { readPlan } from "../../../api/_haven/planShape.ts";
 import type { HavenPlan, PlanItem } from "./data.ts";
-import { furnish, mainRect, withOpenings } from "./furnish.ts";
+import { BALCONY_DOOR, furnish, mainRect, withOpenings } from "./furnish.ts";
 import { KIND_STYLE } from "./style.ts";
 
 /** The main rooms dressed by rule (#747), on the made-up plan: nothing here is anyone's real home. */
@@ -313,10 +313,71 @@ describe("dressing the rooms (#747, #764)", () => {
     it("lets openings set in the editor win: exactly as saved, every other wall solid", () => {
       const kept = withOpenings(base).plan;
       expect(kept.windows).toEqual(base.windows);
-      expect(kept.balconies).toEqual(base.balconies);
+      // Balcony doors as saved, each drawn one single door wide within its saved run (#935).
+      expect(kept.balconies).toHaveLength(base.balconies.length);
+      kept.balconies.forEach((d, i) => {
+        const [x0, y0, x1, y1] = base.balconies[i]!;
+        expect(d[0]).toBe(x0);
+        expect(Math.min(d[1], d[3])).toBeGreaterThanOrEqual(y0);
+        expect(Math.max(d[1], d[3])).toBeLessThanOrEqual(y1);
+        expect(Math.abs(d[3] - d[1]) + Math.abs(d[2] - d[0])).toBe(BALCONY_DOOR);
+        expect(x1).toBe(x0);
+      });
       expect(kept.tv).toEqual(base.tv);
       const none = withOpenings({ ...base, windows: [], balconies: [], tv: [] }).plan;
       expect([none.windows, none.balconies, none.tv]).toEqual([[], [], []]);
+    });
+  });
+
+  describe("single balcony doors and the turned sectional (#935)", () => {
+    const bare: HavenPlan = { ...base, windows: [], balconies: [], tv: [], openings: undefined };
+    const len = (d: number[]) => Math.abs(d[2]! - d[0]!) + Math.abs(d[3]! - d[1]!);
+
+    it("draws every balcony door one single door wide, saved or derived", () => {
+      for (const p of [plan, furnish(bare), furnish({ ...base, balconies: [[960, 200, 960, 330]] })]) {
+        expect(p.balconies.length).toBeGreaterThan(0);
+        for (const d of p.balconies) expect(len(d)).toBeLessThanOrEqual(BALCONY_DOOR);
+      }
+    });
+
+    // The made-up living room hangs its TV on the west wall: the long run is the sofa standing tall.
+    const sofas = (p: HavenPlan) => {
+      const two = p.items.filter(inRoom("living")).filter((i) => i.k === "sofa");
+      expect(two).toHaveLength(2);
+      const [run, ret] = two[0]!.h >= two[1]!.h ? [two[0]!, two[1]!] : [two[1]!, two[0]!];
+      return { run, ret };
+    };
+
+    it("turns the L to the east and south walls by default: across from the TV, the return to the south", () => {
+      const { run, ret } = sofas(plan);
+      expect(mid(ret)[1]).toBeGreaterThan(mid(run)[1]);
+      // A balcony door on the wall behind it: the sofa stays off that wall.
+      expect(run.x + run.w).toBeLessThan(960 - 30);
+    });
+
+    it("backs onto both walls in their corner when no balcony door is behind it", () => {
+      const p = furnish({ ...base, balconies: base.balconies.slice(1) });
+      const { run, ret } = sofas(p);
+      expect(960 - (run.x + run.w)).toBeLessThanOrEqual(8);
+      expect(460 - (ret.y + ret.h)).toBeLessThanOrEqual(8);
+      const st = p.items.filter(inRoom("living")).filter(solid);
+      for (let a = 0; a < st.length; a++)
+        for (let b = a + 1; b < st.length; b++) {
+          const P = boxOf(st[a]!), Q = boxOf(st[b]!);
+          expect(P[0] < Q[2] - 1 && P[2] > Q[0] + 1 && P[1] < Q[3] - 1 && P[3] > Q[1] + 1, `${st[a]!.k} and ${st[b]!.k}`).toBe(false);
+        }
+    });
+
+    it("faces the TV with its long run and the other wall with its return when the TV is on one of them", () => {
+      // Turned to the west (the TV) and the south: the return at the north end, facing south.
+      const { run, ret } = sofas(furnish({ ...base, sectional: ["w", "s"] }));
+      expect(mid(ret)[1]).toBeLessThan(mid(run)[1]);
+      expect(ret.x).toBeLessThan(run.x);
+    });
+
+    it("follows the walls the plan names", () => {
+      const { run, ret } = sofas(furnish({ ...base, sectional: ["n", "e"] }));
+      expect(mid(ret)[1]).toBeLessThan(mid(run)[1]);
     });
   });
 

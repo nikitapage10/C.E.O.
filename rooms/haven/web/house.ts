@@ -10,7 +10,7 @@ import { gymBeyond, gymRoom, withGym } from "./gymFill.ts";
 import { emittersOf, type EmitterIn } from "./emitters.ts";
 import { disposeMats, GYM_MODELS, GymGeo, gymMats, gymModel } from "./gymKit.ts";
 import { CatBrain, navGrid, type CatSignals } from "./catBrain.ts";
-import { furnish } from "./furnish.ts";
+import { BALCONY_DOOR, furnish } from "./furnish.ts";
 import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
 import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
@@ -738,14 +738,15 @@ export class House {
       const { a, b, mid, put } = along(s);
       const L = (b - a) / U;
       const H = DOOR_H, tr = DOOR_H * 0.86;
-      // One single door (Nikita 2026-11-05: single doors, never a pair): glass, a frame round it, the transom bar. An
-      // opening wider than a door gets a fixed glass sidelight beside it, split off by a full-height mullion.
+      // One single door (Nikita 2026-11-05, #935: single doors, never a pair, and one door wide): glass, a frame round
+      // it, the transom bar. furnish.ts draws every balcony door that wide; an opening wider still gets a fixed glass
+      // sidelight beside it, split off by a full-height mullion.
       put(pane, L, H, 0.012, mid, 0, H / 2, 3);
       for (const e of [a + 2, b - 2]) put(frame, 0.035, H, T + 0.02, e, 0, H / 2);
       put(frame, L, 0.035, T + 0.02, mid, 0, H);
       put(frame, L, 0.025, T + 0.02, mid, 0, tr);
-      const leaf = Math.min(b - a, 95);
-      if (b - a > leaf + 20) put(frame, 0.035, H, T + 0.02, a + leaf, 0, H / 2);
+      const leaf = Math.min(b - a, BALCONY_DOOR);
+      if (b - a > leaf + 4) put(frame, 0.035, H, T + 0.02, a + leaf, 0, H / 2);
       // The handle, a tall bar near the door's free edge, so a door never reads as a window.
       put(frame, 0.03, WH * 0.12, 0.06, a + leaf - 8, 0, WH * 0.3);
     }

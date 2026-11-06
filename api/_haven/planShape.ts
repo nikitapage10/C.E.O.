@@ -37,6 +37,10 @@ export const KINDS = [
 ] as const;
 export type Kind = (typeof KINDS)[number];
 
+/** A room's walls by compass point, north at the top of the plan. */
+export const WALLS = ["n", "e", "s", "w"] as const;
+export type Wall = (typeof WALLS)[number];
+
 /** [x, y, width, depth] in plan units, from the top left. */
 export type Rect = [number, number, number, number];
 /** [x1, y1, x2, y2]: a straight run along a wall (doors, windows and balcony doors). */
@@ -92,6 +96,11 @@ export interface HavenPlan {
    * was glazed from (rooms/haven/web/furnish.ts); the door out is one of `balconies`.
    */
   decks?: Seg[];
+  /**
+   * The two walls (one each way) the living room's L sectional turns to (#935): when the TV hangs on one, the long run
+   * faces it and the return faces the other; otherwise the L backs onto them. Unset: the east and south walls.
+   */
+  sectional?: [Wall, Wall];
   /** True once the openings were set in the wall editor: then windows, balcony doors and TV above are exactly what is drawn. */
   openings?: true;
   items: PlanItem[];
@@ -108,6 +117,13 @@ const n = (v: unknown, lo = 0, hi = PLAN_MAX): number | null => (typeof v === "n
 const ID = /^[a-z][a-z0-9-]{0,23}$/;
 /** A room's name: plain words, no markup, at most 32 characters. */
 const name = (v: unknown): string => (typeof v === "string" ? v.replace(/[<>&"'`\\{}]/g, "").replace(/\s+/g, " ").trim().slice(0, 32) : "");
+/** Two walls meeting at a corner (one north or south, one east or west), or null. */
+function corner(v: unknown): [Wall, Wall] | null {
+  if (!Array.isArray(v) || v.length !== 2 || !v.every((x) => WALLS.includes(x as Wall))) return null;
+  const [a, b] = v as [Wall, Wall];
+  const ns = (x: Wall) => x === "n" || x === "s";
+  return ns(a) !== ns(b) ? [a, b] : null;
+}
 const pick = <T extends string>(v: unknown, set: readonly T[], fallback: T): T => (set.includes(v as T) ? (v as T) : fallback);
 
 function rect(v: unknown): Rect | null {
@@ -175,6 +191,7 @@ export function readPlan(v: unknown): HavenPlan | null {
     windows: arr(b.windows, LIMITS.windows).map(seg).filter((s): s is Seg => s !== null),
     balconies: arr(b.balconies, LIMITS.balconies).map(seg).filter((s): s is Seg => s !== null),
     tv: arr(b.tv, LIMITS.tv).map(seg).filter((s): s is Seg => s !== null),
+    ...(corner(b.sectional) ? { sectional: corner(b.sectional)! } : {}),
     ...(b.openings === true ? { openings: true as const } : {}),
     items,
     devices,

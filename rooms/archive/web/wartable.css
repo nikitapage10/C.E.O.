@@ -1,19 +1,21 @@
 /*
  * The war table (#826): the Archive's page as a campaign table filling the screen. The 3D is warTableScene.ts; this
  * is its chrome: the head over the table's far edge, the pins over the miniatures, the legend along the bottom, and the
- * panel each place opens in (a sheet on a phone). Clean and modern over a physical table: hairlines, Jost, one gold.
+ * panel each place opens in (a sheet on a phone). Since #937 in the Tide's look: near monochrome, black glass and
+ * graphite with silver-white light, sharp glass edges instead of soft cards. Gold stays in the shared site chrome.
  * Everything is scoped to .wt.
  */
 .desk .ax.wt {
-  --wt-gold: 226, 191, 114;
-  --wt-ink: #f1eadb;
-  --wt-soft: rgba(241, 234, 219, 0.72);
-  --wt-mute: rgba(241, 234, 219, 0.5);
-  --wt-glass: rgba(10, 9, 14, 0.78);
+  --wt-lum: 214, 222, 234;
+  --wt-ink: #eef2f7;
+  --wt-soft: rgba(226, 232, 240, 0.74);
+  --wt-mute: rgba(226, 232, 240, 0.5);
+  --wt-glass: linear-gradient(180deg, rgba(22, 26, 31, 0.82), rgba(6, 7, 9, 0.86));
+  --wt-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6);
   --wt-h: max(600px, calc(100svh - 64px));
   position: relative;
   padding: 0;
-  background: #060508;
+  background: #030405;
 }
 .desk .ax.wt > .wt-hall {
   position: relative;
@@ -46,27 +48,25 @@
   opacity: 1;
 }
 
-/* The flat chart, while the 3D loads or without WebGL: a carved board in CSS. */
+/* The flat chart, while the 3D loads or without WebGL: a drowned atlas in CSS, black water, silver contours round the
+   isles, a storm's eye in the Tide's corner, on an obsidian slab with a silver edge. */
 .desk .wt-flat {
   position: absolute;
   inset: 12% 5% 8%;
-  border-radius: 10px;
+  border-radius: 3px;
   background:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 calc(12.5% - 1px),
-      rgba(var(--wt-gold), 0.12) calc(12.5% - 1px) 12.5%
-    ),
-    repeating-linear-gradient(
-      0deg,
-      transparent 0 calc(20% - 1px),
-      rgba(var(--wt-gold), 0.12) calc(20% - 1px) 20%
-    ),
-    radial-gradient(40% 50% at 30% 50%, #b9a174 0 40%, transparent 41%),
-    radial-gradient(30% 40% at 62% 58%, #c1a97c 0 45%, transparent 46%), #1e2f37;
+    radial-gradient(9% 14% at 86% 18%, transparent 0 30%, rgba(var(--wt-lum), 0.2) 31% 33%, transparent 34% 52%, rgba(var(--wt-lum), 0.12) 53% 55%, transparent 56%),
+    repeating-radial-gradient(18% 26% at 22% 50%, rgba(var(--wt-lum), 0.2) 0 1px, transparent 1px 9px),
+    repeating-radial-gradient(12% 18% at 44% 30%, rgba(var(--wt-lum), 0.16) 0 1px, transparent 1px 8px),
+    repeating-radial-gradient(10% 15% at 58% 62%, rgba(var(--wt-lum), 0.16) 0 1px, transparent 1px 8px),
+    radial-gradient(18% 26% at 22% 50%, #2a2e34 0 60%, rgba(236, 242, 250, 0.7) 61% 62%, transparent 63%),
+    radial-gradient(12% 18% at 44% 30%, #24282d 0 60%, rgba(236, 242, 250, 0.6) 61% 62%, transparent 63%),
+    radial-gradient(10% 15% at 58% 62%, #24282d 0 60%, rgba(236, 242, 250, 0.6) 61% 62%, transparent 63%),
+    radial-gradient(5% 8% at 74% 40%, #202429 0 60%, rgba(236, 242, 250, 0.5) 61% 63%, transparent 64%),
+    #050608;
   box-shadow:
-    0 0 0 18px #3a2416,
-    0 0 0 19px rgba(var(--wt-gold), 0.5),
+    0 0 0 18px #0b0d10,
+    0 0 0 19px rgba(var(--wt-lum), 0.45),
     0 40px 80px -20px #000;
   transform: perspective(1200px) rotateX(38deg);
   transform-origin: 50% 70%;
@@ -75,7 +75,7 @@
 .desk .wt-flat i {
   position: absolute;
   inset: 0;
-  border: 1px solid rgba(var(--wt-gold), 0.5);
+  border: 1px solid rgba(var(--wt-lum), 0.5);
   border-radius: inherit;
 }
 .desk .wt-view[data-gl="on"] .wt-flat {
@@ -116,7 +116,10 @@
   text-shadow: 0 2px 24px rgba(0, 0, 0, 0.8);
 }
 .desk .wt-head .fl-h1 em {
-  color: rgb(var(--wt-gold));
+  color: #f4f7fb;
+  text-shadow:
+    0 0 18px rgba(var(--wt-lum), 0.55),
+    0 2px 24px rgba(0, 0, 0, 0.8);
 }
 .desk .wt-head .fl-say {
   margin: 10px 0 0;
@@ -133,7 +136,7 @@
 }
 .desk .wt-ledger > div {
   padding: 0 16px;
-  border-left: 1px solid rgba(var(--wt-gold), 0.28);
+  border-left: 1px solid rgba(var(--wt-lum), 0.28);
 }
 .desk .wt-ledger > div:first-child {
   padding-left: 0;
@@ -156,7 +159,7 @@
   color: var(--wt-mute);
 }
 .desk .wt-ledger .is-hot dd {
-  color: rgb(var(--wt-gold));
+  color: rgb(var(--wt-lum));
 }
 .desk .wt-hint {
   position: absolute;
@@ -182,9 +185,10 @@
   justify-items: center;
   gap: 2px;
   padding: 6px 11px 7px;
-  border: 1px solid rgba(var(--wt-gold), 0.32);
-  border-radius: 7px;
-  background: rgba(8, 7, 11, 0.62);
+  border: 1px solid rgba(var(--wt-lum), 0.3);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(24, 28, 34, 0.7), rgba(5, 6, 8, 0.72));
+  box-shadow: var(--wt-bevel);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   color: var(--wt-ink);
@@ -206,8 +210,8 @@
   width: 1px;
   height: 14px;
   background: linear-gradient(
-    rgba(var(--wt-gold), 0.7),
-    rgba(var(--wt-gold), 0)
+    rgba(var(--wt-lum), 0.7),
+    rgba(var(--wt-lum), 0)
   );
 }
 .desk .wt-pin b {
@@ -222,18 +226,20 @@
 .desk .wt-pin:hover,
 .desk .wt-pin.is-hot,
 .desk .wt-pin:focus-visible {
-  border-color: rgba(var(--wt-gold), 0.9);
-  background: rgba(14, 12, 18, 0.86);
-  box-shadow: 0 0 24px -6px rgba(var(--wt-gold), 0.6);
+  border-color: rgba(var(--wt-lum), 0.9);
+  background: linear-gradient(180deg, rgba(30, 35, 42, 0.88), rgba(8, 9, 12, 0.9));
+  box-shadow:
+    var(--wt-bevel),
+    0 0 24px -6px rgba(var(--wt-lum), 0.7);
   outline: none;
 }
 .desk .wt-pin.is-on {
-  border-color: rgb(var(--wt-gold));
-  background: rgba(var(--wt-gold), 0.16);
+  border-color: rgb(var(--wt-lum));
+  background: linear-gradient(180deg, rgba(var(--wt-lum), 0.22), rgba(var(--wt-lum), 0.06));
 }
 .desk .wt-pin.is-on small,
 .desk .wt-pin.is-hot small {
-  color: rgba(var(--wt-gold), 0.95);
+  color: rgba(var(--wt-lum), 0.95);
 }
 .desk .wt-pin.is-wire {
   border-style: dashed;
@@ -260,9 +266,10 @@
   align-items: baseline;
   gap: 7px;
   padding: 7px 11px;
-  border: 1px solid rgba(var(--wt-gold), 0.2);
-  border-radius: 999px;
+  border: 1px solid rgba(var(--wt-lum), 0.2);
+  border-radius: 2px;
   background: var(--wt-glass);
+  box-shadow: var(--wt-bevel);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--wt-soft);
@@ -278,18 +285,18 @@
 }
 .desk .wt-legend .wt-n {
   font: 400 11px/1 var(--fl-disp);
-  color: rgba(var(--wt-gold), 0.75);
+  color: rgba(var(--wt-lum), 0.75);
 }
 .desk .wt-legend button:hover,
 .desk .wt-legend button.is-hot,
 .desk .wt-legend button:focus-visible {
-  border-color: rgba(var(--wt-gold), 0.7);
+  border-color: rgba(var(--wt-lum), 0.7);
   color: var(--wt-ink);
   outline: none;
 }
 .desk .wt-legend button.is-on {
-  border-color: rgb(var(--wt-gold));
-  background: rgba(var(--wt-gold), 0.16);
+  border-color: rgb(var(--wt-lum));
+  background: linear-gradient(180deg, rgba(var(--wt-lum), 0.22), rgba(var(--wt-lum), 0.06));
   color: var(--wt-ink);
 }
 
@@ -305,12 +312,10 @@
   overflow: auto;
   overscroll-behavior: contain;
   padding: 0 0 110px;
-  background: linear-gradient(
-    90deg,
-    rgba(9, 8, 12, 0.94),
-    rgba(9, 8, 12, 0.985) 30%
-  );
-  border-left: 1px solid rgba(var(--wt-gold), 0.35);
+  background:
+    linear-gradient(90deg, rgba(var(--wt-lum), 0.07), transparent 40px),
+    linear-gradient(90deg, rgba(6, 7, 9, 0.94), rgba(6, 7, 9, 0.985) 30%);
+  border-left: 1px solid rgba(var(--wt-lum), 0.45);
   box-shadow: -40px 0 80px -30px #000;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -334,8 +339,8 @@
   align-items: flex-start;
   gap: 16px;
   padding: 26px 28px 18px;
-  background: rgba(9, 8, 12, 0.96);
-  border-bottom: 1px solid rgba(var(--wt-gold), 0.18);
+  background: linear-gradient(180deg, rgba(18, 21, 26, 0.97), rgba(6, 7, 9, 0.97));
+  border-bottom: 1px solid rgba(var(--wt-lum), 0.22);
 }
 .desk .wt-k {
   display: flex;
@@ -345,12 +350,12 @@
   font: 500 10.5px/1.2 var(--fl-text);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(var(--wt-gold), 0.85);
+  color: rgba(var(--wt-lum), 0.85);
 }
 .desk .wt-k i {
   width: 18px;
   height: 1px;
-  background: rgba(var(--wt-gold), 0.5);
+  background: rgba(var(--wt-lum), 0.5);
 }
 .desk .wt-sheet-head h2 {
   margin: 0;
@@ -372,15 +377,16 @@
   place-items: center;
   width: 38px;
   height: 38px;
-  border: 1px solid rgba(var(--wt-gold), 0.28);
-  border-radius: 50%;
-  background: transparent;
+  border: 1px solid rgba(var(--wt-lum), 0.28);
+  border-radius: 2px;
+  background: var(--wt-glass);
+  box-shadow: var(--wt-bevel);
   color: var(--wt-soft);
   cursor: pointer;
 }
 .desk .wt-sheet-nav button:hover,
 .desk .wt-sheet-nav button:focus-visible {
-  border-color: rgb(var(--wt-gold));
+  border-color: rgb(var(--wt-lum));
   color: var(--wt-ink);
   outline: none;
 }
@@ -544,15 +550,35 @@
     padding: 14px 16px 120px;
   }
   .desk .wt-legend button {
+    position: relative;
+    overflow: hidden;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: baseline;
     gap: 2px 8px;
     padding: 11px 12px;
-    border-radius: 10px;
+    border-radius: 2px;
     text-align: left;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+  /* A sheen across each slab of glass, and a thread of light along its foot. */
+  .desk .wt-legend button::before,
+  .desk .wt-legend button::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+  .desk .wt-legend button::before {
+    inset: 0;
+    background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.06) 50%, transparent 62%);
+  }
+  .desk .wt-legend button::after {
+    left: 10%;
+    right: 10%;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--wt-lum), 0.6), transparent);
   }
   .desk .wt-legend button b {
     font-weight: 500;
@@ -570,7 +596,7 @@
   .desk .wt-sheet {
     position: fixed;
     inset: var(--wt-top, 0px) 0 0;
-    background: #09080c;
+    background: #050608;
     width: auto;
     height: auto;
     max-height: none;

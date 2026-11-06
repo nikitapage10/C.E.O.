@@ -5,7 +5,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
-  CircleGeometry,
+  CapsuleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -18,6 +18,7 @@ import {
   HemisphereLight,
   IcosahedronGeometry,
   LatheGeometry,
+  LineBasicMaterial,
   LineSegments,
   Matrix4,
   Mesh,
@@ -30,12 +31,9 @@ import {
   Points,
   QuadraticBezierCurve3,
   Raycaster,
-  RepeatWrapping,
   SRGBColorSpace,
   Scene,
   ShaderMaterial,
-  Shape,
-  ExtrudeGeometry,
   SphereGeometry,
   SpotLight,
   Sprite,
@@ -45,36 +43,44 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
-  type Material,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { comeUndone, sigilAtlas, SIGIL_GLYPHS } from "@ceo/engine/sigils/undone.ts";
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { groundOf, heightAt, MAP_D, MAP_W, PLACES, surfaceAt, type ModelKind, type Place, type PlaceId } from "../data/warTable.ts";
 
 /**
- * The war table in 3D (#826; Nikita, 2026-11-05: "the war table itself to be bigger and take up most of the screen ...
- * the map itself is going to be the different features of the archive ... mostly physical with actual 3D models of
- * the cities and worlds ... a physical 3D model with wireframe and nano stuff overlays ... nanite and grid, kind of like
- * we have in the Senate").
+ * The war table in 3D (#826; re-skinned in the Tide's look in #937).
  *
- * Physical first: a heavy walnut table with a brass-inlaid rim, a sea chart carved into its top (relief, contours, gold
- * rhumb lines and a compass rose), and on it a pewter-and-brass miniature for each of the Archive's places
- * (data/warTable.ts): the lighthouse, the clock town, the citadel, the twin towers, the library, the theatre, the
- * harbour and its ships, and the compass. The Tide's isle stands only in gold wire: its chart isn't drawn until its
- * feed is connected. A violet d20 rests by the rim. Over the solids, the overlays: each model's edges as faint gold
- * wire that wakes under the pointer, sigil nanites (code and rune glyphs, never dots) rising off the places, and, as
- * in the Senate (desk/rotunda/rotundaScene.ts), the frame's edges coming undone into a gold grid and code.
+ * Nikita, 2026-11-05: "the war table itself to be bigger and take up most of the screen ... mostly physical with actual
+ * 3D models of the cities and worlds ... a physical 3D model with wireframe and nano stuff overlays". And 2026-11-06,
+ * with nine references: "this looks more like a fantasy world. The tide is more of like a futuristic post-apocalyptic
+ * sci-fi with a little arcane world ... Still do like the table with the map ... but change some of the colors, some of
+ * the feel, the look, the maps, the locations".
  *
- * The camera stands still at rest (the pins over the models stay put); drag to walk round a little, and opening a
- * place eases the view toward it. Phones get fewer glyphs, no shadows and 30 frames a second; reduced motion holds the
- * glyphs and the ships still. Lazy loaded with three.js, never in the Desk's first load.
+ * So, near monochrome: black, graphite and silver-white light. An obsidian table on veined glass legs stands on a wet
+ * black floor in a drift of mist; its top is a drowned world's atlas in relief (data/warTable.ts): an archipelago in
+ * black water, contour lines on every slope, rivers of white light running down to the sea, storm spirals out on the
+ * deep, and the Tide's corner open water in a storm's eye. The places are the Undertow's leftovers: a drowned beacon,
+ * an hourglass spire in a broken ring, a drowned citadel round a stasis monolith, twin stasis monoliths with figures
+ * asleep in the glass, the glass stacks, a sunken amphitheatre under a floating sphere, a drowned harbour and its
+ * glass-sailed skiffs, the glass lab on its piers, and the Tide's isle, shattered rock hanging in the air, still only
+ * wire until its feed is connected. Silver light threads run between the places and off the table into the dark,
+ * toward a planet's limb. Over the solids, the overlays: each model's edges as silver wire that wakes under the
+ * pointer, silver sigil nanites rising off the places, and the frame's edges coming undone (engine/sigils/undone.ts)
+ * into silver wire and code. Gold is left to the shared site chrome.
+ *
+ * The camera stands still at rest (the pins over the models stay put); drag or A/D to swivel a little, W/S to lean in,
+ * and opening a place eases the view toward it. Phones get fewer glyphs and threads, no shadows and 30 frames a second;
+ * reduced motion holds the water, the threads and the glyphs still. Lazy loaded with three.js, never in the Desk's
+ * first load.
  */
 
 export interface PlaceState {
   /** Real data behind it: the model is lit; without, it stands dim. */
   lit: boolean;
-  /** 0..1, how busy: windows, lantern and nanites. */
+  /** 0..1, how busy: windows, cores, figures and nanites. */
   level: number;
 }
 
@@ -104,10 +110,14 @@ export function canDraw3D(): boolean {
   }
 }
 
-const GLYPHS = [..."ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ{}<>/=;∴"];
-const GOLD = new Color(0xe2bf72);
+const SILVER = new Color(0xdfe6ef);
+/** The silver the wire and the nanites are drawn in, 0..1, and its bright end. */
+const WIRE: [number, number, number] = [0.66, 0.72, 0.8];
+const HI: [number, number, number] = [0.93, 0.96, 1.0];
+const FLOOR = -6.6;
 
-type Mat = "stone" | "brass" | "glow" | "sail" | "wood";
+/** stone: wet basalt ruins; metal: brushed steel; glass: stasis glass; glow: cold light; figure: the sleepers; vein: the glass's smoke. */
+type Mat = "stone" | "metal" | "glass" | "glow" | "figure" | "vein";
 interface Part {
   geo: BufferGeometry;
   mat: Mat;
@@ -121,193 +131,349 @@ function put(geo: BufferGeometry, mat: Mat, x = 0, y = 0, z = 0, ry = 0, rx = 0,
   return { geo, mat };
 }
 
-/** A gabled roof: a three-sided prism lying along x. */
-const gable = (w: number, d: number, h: number) => {
-  const g = new CylinderGeometry(1, 1, w, 3, 1);
-  g.rotateZ(Math.PI / 2);
-  g.rotateX(Math.PI / 6 + Math.PI);
-  g.scale(1, h / 1.5, d / 1.732);
-  return g;
-};
+/** A local offset turned by ry, as put() turns a part. */
+const turn = (x: number, z: number, lx: number, lz: number, ry: number): [number, number] => [x + lx * Math.cos(ry) + lz * Math.sin(ry), z - lx * Math.sin(ry) + lz * Math.cos(ry)];
 
-/** A small house: walls and a roof. */
-function house(parts: Part[], x: number, z: number, y: number, w: number, d: number, h: number, ry: number) {
-  const c = Math.cos(ry);
-  const s = Math.sin(ry);
-  const at = (lx: number, lz: number): [number, number] => [x + lx * c + lz * s, z - lx * s + lz * c];
-  const [hx, hz] = at(0, 0);
-  parts.push(put(new BoxGeometry(w, h, d), "stone", hx, y + h / 2, hz, ry));
-  parts.push(put(gable(w * 1.06, d * 1.1, h * 0.55), "brass", hx, y + h + h * 0.18, hz, ry));
+/** A broken basalt tower from below the water (y0) to about h, its top snapped off unevenly. */
+function ruin(P: Part[], x: number, z: number, w: number, h: number, d: number, seed: number, y0 = -0.3, ry = 0) {
+  const tall = h - y0;
+  const g = new BoxGeometry(w, tall, d, 2, 1, 2);
+  const pos = g.attributes.position as BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) < tall / 2 - 1e-4) continue;
+    // A jag from where the corner sits, so the faces that share it stay closed.
+    const j = Math.sin(pos.getX(i) * 91.7 + pos.getZ(i) * 47.3 + seed * 13.1) * 0.5 + 0.5;
+    pos.setY(i, tall / 2 - j * Math.min(0.32, tall * 0.28));
+  }
+  g.computeVertexNormals();
+  P.push(put(g, "stone", x, y0 + tall / 2, z, ry));
 }
 
-/** The miniatures, built in place-local space, standing on y = 0. */
+/** A drowned arch: two piers and the half ring over them. */
+function arch(P: Part[], x: number, z: number, span: number, h: number, ry: number, y0 = -0.3) {
+  for (const s of [-1, 1]) {
+    const [px, pz] = turn(x, z, (s * span) / 2, 0, ry);
+    P.push(put(new BoxGeometry(0.08, h - y0, 0.08), "stone", px, y0 + (h - y0) / 2, pz, ry));
+  }
+  P.push(put(new TorusGeometry(span / 2, 0.04, 5, 14, Math.PI), "stone", x, h, z, ry));
+}
+
+/** A sleeper: a figure standing in the glass, feet at y, about s tall. */
+function figure(P: Part[], x: number, y: number, z: number, s: number, ry: number) {
+  const at = (g: BufferGeometry, lx: number, ly: number, rz = 0) => {
+    const [px, pz] = turn(x, z, lx * s, 0, ry);
+    P.push(put(g, "figure", px, y + ly * s, pz, ry, 0, rz));
+  };
+  at(new SphereGeometry(0.06 * s, 10, 8), 0, 0.9);
+  at(new CapsuleGeometry(0.075 * s, 0.22 * s, 3, 8), 0, 0.62);
+  for (const k of [-1, 1]) {
+    at(new CapsuleGeometry(0.032 * s, 0.32 * s, 3, 6), k * 0.045, 0.24, k * 0.03);
+    at(new CapsuleGeometry(0.024 * s, 0.26 * s, 3, 6), k * 0.11, 0.6, k * 0.14);
+  }
+}
+
+/** A stasis monolith: a slab of glass on a steel foot, smoke in it, and a sleeper inside. */
+function monolith(P: Part[], x: number, z: number, w: number, h: number, d: number, ry: number, y0 = 0, sleeper = true) {
+  P.push(put(new BoxGeometry(w * 1.18, 0.05, d * 1.6), "metal", x, y0 + 0.025, z, ry));
+  P.push(put(new BoxGeometry(w, h, d), "glass", x, y0 + 0.05 + h / 2, z, ry));
+  P.push(put(new PlaneGeometry(w * 0.9, h * 0.94), "vein", x, y0 + 0.05 + h / 2, z, ry));
+  if (sleeper) figure(P, x, y0 + 0.09, z, h * 0.86, ry);
+}
+
+/** A rock shard: a rough ball, pulled long and pointed down, as the Tide's broken isles hang. */
+function shard(r: number, stretch: number, rnd: () => number): BufferGeometry {
+  const g = new IcosahedronGeometry(r, 0);
+  const pos = g.attributes.position as BufferAttribute;
+  const seen = new Map<string, number>();
+  for (let i = 0; i < pos.count; i++) {
+    const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+    const f = seen.get(key) ?? 0.75 + rnd() * 0.5;
+    seen.set(key, f);
+    const y = pos.getY(i);
+    pos.setXYZ(i, pos.getX(i) * f, y < 0 ? y * stretch * f : y * 0.55 * f, pos.getZ(i) * f);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** An hourglass, as a lathe: wide at both ends, a waist in the middle. */
+function hourglass(r: number, h: number): BufferGeometry {
+  const pts: Vector2[] = [];
+  for (let k = 0; k <= 12; k++) {
+    const t = k / 12;
+    const w = 0.12 + 0.88 * Math.pow(Math.abs(t - 0.5) * 2, 1.6);
+    pts.push(new Vector2(r * w, -h / 2 + t * h));
+  }
+  return new LatheGeometry(pts, 16);
+}
+
+/** The miniatures, built in place-local space, standing on y = 0 (the sea is at the place's -ground). */
 function modelOf(kind: ModelKind, rnd: () => number): Part[] {
   const P: Part[] = [];
   switch (kind) {
-    case "lighthouse": {
-      P.push(put(new CylinderGeometry(0.36, 0.42, 0.12, 20), "stone", 0, 0.06, 0));
-      P.push(put(new CylinderGeometry(0.13, 0.22, 1.25, 18), "stone", 0, 0.12 + 0.625, 0));
-      for (const y of [0.45, 0.85]) P.push(put(new CylinderGeometry(0.19 - y * 0.06, 0.2 - y * 0.06, 0.04, 18), "brass", 0, 0.12 + y, 0));
-      P.push(put(new CylinderGeometry(0.22, 0.2, 0.05, 18), "brass", 0, 1.39, 0));
-      P.push(put(new CylinderGeometry(0.11, 0.11, 0.2, 12), "glow", 0, 1.51, 0));
-      P.push(put(new ConeGeometry(0.16, 0.22, 12), "brass", 0, 1.72, 0));
-      house(P, 0.36, 0.18, 0.12, 0.28, 0.2, 0.18, 0.5);
+    case "beacon": {
+      // A drowned beacon: a crystal spire on a basalt crag, the walls of its keepers' houses broken round it.
+      P.push(put(new CylinderGeometry(0.42, 0.58, 0.3, 7), "stone", 0, 0.1, 0));
+      ruin(P, 0.42, 0.22, 0.14, 0.5, 0.12, 1, 0);
+      ruin(P, -0.4, 0.28, 0.12, 0.38, 0.16, 2, 0);
+      ruin(P, 0.12, -0.46, 0.18, 0.32, 0.1, 3, 0);
+      P.push(put(new CylinderGeometry(0.21, 0.23, 0.05, 6), "metal", 0, 0.28, 0));
+      P.push(put(new CylinderGeometry(0.1, 0.19, 1.45, 6), "glass", 0, 1.0, 0));
+      P.push(put(new PlaneGeometry(0.26, 1.3), "vein", 0, 0.98, 0, 0.5));
+      P.push(put(new CylinderGeometry(0.04, 0.04, 1.2, 8), "glow", 0, 0.92, 0));
+      P.push(put(new CylinderGeometry(0.13, 0.13, 0.035, 6), "metal", 0, 1.22, 0));
+      P.push(put(new ConeGeometry(0.1, 0.32, 6), "glass", 0, 1.88, 0));
       break;
     }
-    case "clocktower": {
-      P.push(put(new BoxGeometry(0.3, 1.25, 0.3), "stone", 0, 0.625, 0));
-      P.push(put(new BoxGeometry(0.36, 0.06, 0.36), "brass", 0, 1.25, 0));
-      P.push(put(new ConeGeometry(0.25, 0.55, 4), "brass", 0, 1.55, 0, Math.PI / 4));
-      for (let k = 0; k < 4; k++) {
-        const a = (k * Math.PI) / 2;
-        P.push(put(new CircleGeometry(0.1, 20), "glow", Math.sin(a) * 0.152, 1.02, Math.cos(a) * 0.152, a));
+    case "hourglass": {
+      // The Book of Hours: an hourglass held in a glass tube, a broken ring of pillars round it, the town's stumps beyond.
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2;
+        if (k === 4) continue;
+        ruin(P, Math.cos(a) * 0.62, Math.sin(a) * 0.62, 0.08, 0.2 + rnd() * 0.4, 0.08, k, -0.05, -a);
       }
-      const spots: [number, number, number][] = [
-        [-0.5, 0.2, 0.3],
-        [-0.42, -0.3, -0.2],
-        [0.48, 0.25, -0.5],
-        [0.5, -0.28, 0.1],
-        [-0.05, 0.52, 0.9],
-        [0.05, -0.55, 1.4],
-        [-0.72, 0.0, 1.6],
-        [0.74, 0.0, 1.5],
+      P.push(put(new CylinderGeometry(0.24, 0.24, 0.07, 20), "metal", 0, 0.035, 0));
+      P.push(put(new CylinderGeometry(0.17, 0.17, 1.1, 20), "glass", 0, 0.62, 0));
+      P.push(put(hourglass(0.15, 0.98), "glow", 0, 0.62, 0));
+      P.push(put(new CylinderGeometry(0.21, 0.21, 0.06, 20), "metal", 0, 1.2, 0));
+      P.push(put(new ConeGeometry(0.06, 0.2, 6), "metal", 0, 1.33, 0));
+      const spots: [number, number][] = [
+        [-0.95, 0.35],
+        [-0.85, -0.4],
+        [0.95, 0.3],
+        [0.9, -0.42],
+        [0.05, 0.95],
+        [-0.4, -0.9],
       ];
-      for (const [x, z, r] of spots) house(P, x, z, 0, 0.22 + rnd() * 0.08, 0.16 + rnd() * 0.05, 0.16 + rnd() * 0.12, r);
+      for (const [i, [x, z]] of spots.entries()) ruin(P, x, z, 0.16 + rnd() * 0.08, 0.18 + rnd() * 0.24, 0.14 + rnd() * 0.06, 10 + i, -0.05, rnd() * 3);
       break;
     }
     case "citadel": {
-      const R = 0.68;
-      const N = 8;
-      for (let k = 0; k < N; k++) {
-        const a = (k / N) * Math.PI * 2;
-        P.push(put(new CylinderGeometry(0.085, 0.1, 0.48, 10), "stone", Math.cos(a) * R, 0.24, Math.sin(a) * R));
-        P.push(put(new ConeGeometry(0.11, 0.2, 10), "brass", Math.cos(a) * R, 0.58, Math.sin(a) * R));
-        const b = a + Math.PI / N;
-        const len = 2 * R * Math.sin(Math.PI / N);
-        P.push(put(new BoxGeometry(len, 0.28, 0.07), "stone", Math.cos(b) * R * 0.93, 0.14, Math.sin(b) * R * 0.93, -b + Math.PI / 2));
+      // The drowned citadel: snapped basalt towers and arches standing out of the water round a stasis monolith.
+      const R = 0.62;
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + 0.3;
+        const h = 0.55 + rnd() * 0.7;
+        ruin(P, Math.cos(a) * R, Math.sin(a) * R, 0.17, h, 0.17, 20 + k, -0.3, -a);
+        // A lit slit window high on each tower, toward the middle.
+        P.push(put(new BoxGeometry(0.035, 0.12, 0.01), "glow", Math.cos(a) * (R - 0.09), h * 0.62, Math.sin(a) * (R - 0.09), Math.PI / 2 - a));
+        if (k % 2 === 0) {
+          const b = a + Math.PI / 6;
+          arch(P, Math.cos(b) * R * 0.98, Math.sin(b) * R * 0.98, 0.3, 0.32 + rnd() * 0.12, Math.PI / 2 - b);
+        }
       }
-      P.push(put(new BoxGeometry(0.5, 0.55, 0.5), "stone", 0, 0.275, 0));
+      monolith(P, 0, 0, 0.32, 1.2, 0.14, 0.4, -0.02);
+      for (let k = 0; k < 7; k++) {
+        const a = rnd() * Math.PI * 2;
+        const r = 0.3 + rnd() * 0.55;
+        P.push(put(new BoxGeometry(0.08 + rnd() * 0.1, 0.12, 0.07 + rnd() * 0.08), "stone", Math.cos(a) * r, 0.0, Math.sin(a) * r, rnd() * 3, rnd() * 0.5, rnd() * 0.5));
+      }
+      break;
+    }
+    case "monoliths": {
+      // Bonds: two stasis monoliths turned toward each other, a thread of light strung between the sleepers.
+      monolith(P, -0.48, 0, 0.3, 1.05, 0.11, 0.42, 0.04);
+      monolith(P, 0.48, 0, 0.3, 1.22, 0.11, -0.42, 0.04);
+      const arc = new QuadraticBezierCurve3(new Vector3(-0.42, 0.95, 0), new Vector3(0, 1.45, 0.05), new Vector3(0.42, 1.08, 0));
+      P.push({ geo: new TubeGeometry(arc, 24, 0.012, 5), mat: "glow" });
+      ruin(P, 0.15, -0.55, 0.12, 0.22, 0.1, 31, 0);
+      ruin(P, -0.2, 0.6, 0.1, 0.16, 0.14, 32, 0);
+      break;
+    }
+    case "stacks": {
+      // Past days: glass shelves on a steel frame, a veined glass leaf standing on them for every day on file.
+      P.push(put(new BoxGeometry(1.3, 0.14, 0.56), "stone", 0, 0.05, 0));
       for (const [x, z] of [
-        [-0.25, -0.25],
-        [0.25, -0.25],
-        [-0.25, 0.25],
-        [0.25, 0.25],
-      ] as const) {
-        P.push(put(new CylinderGeometry(0.07, 0.07, 0.72, 10), "stone", x, 0.36, z));
-        P.push(put(new ConeGeometry(0.09, 0.18, 10), "brass", x, 0.81, z));
-      }
-      P.push(put(new CylinderGeometry(0.12, 0.15, 1.35, 14), "stone", 0, 0.675, 0));
-      P.push(put(new CylinderGeometry(0.135, 0.135, 0.12, 14), "glow", 0, 1.2, 0));
-      P.push(put(new ConeGeometry(0.17, 0.45, 14), "brass", 0, 1.57, 0));
-      // The windows of the keep, lit by the day's hours.
-      for (let k = 0; k < 4; k++) {
-        const a = (k * Math.PI) / 2;
-        P.push(put(new BoxGeometry(0.06, 0.1, 0.01), "glow", Math.sin(a) * 0.255, 0.38, Math.cos(a) * 0.255, a));
+        [-0.6, -0.2],
+        [0.6, -0.2],
+        [-0.6, 0.2],
+        [0.6, 0.2],
+      ] as const)
+        P.push(put(new BoxGeometry(0.025, 0.95, 0.025), "metal", x, 0.6, z));
+      for (const y of [0.16, 0.46, 0.76, 1.06]) P.push(put(new BoxGeometry(1.26, 0.022, 0.46), "glass", 0, y, 0));
+      for (const y of [0.16, 0.46, 0.76]) {
+        let x = -0.54;
+        while (x < 0.5) {
+          const hh = 0.14 + rnd() * 0.12;
+          const dd = 0.22 + rnd() * 0.14;
+          P.push(put(new BoxGeometry(0.03, hh, dd), "glass", x, y + 0.012 + hh / 2, 0));
+          P.push(put(new PlaneGeometry(dd * 0.9, hh * 0.9), "vein", x, y + 0.012 + hh / 2, 0, Math.PI / 2));
+          x += 0.08 + rnd() * 0.07;
+        }
       }
       break;
     }
-    case "twin": {
-      for (const [x, h] of [
-        [-0.55, 1.05],
-        [0.55, 1.2],
-      ] as const) {
-        P.push(put(new CylinderGeometry(0.2, 0.26, 0.12, 14), "stone", x, 0.06, 0));
-        P.push(put(new CylinderGeometry(0.1, 0.14, h, 14), "stone", x, 0.12 + h / 2, 0));
-        P.push(put(new CylinderGeometry(0.115, 0.115, 0.1, 14), "glow", x, 0.12 + h - 0.05, 0));
-        P.push(put(new ConeGeometry(0.15, 0.38, 14), "brass", x, 0.12 + h + 0.19, 0));
-      }
-      const arc = new QuadraticBezierCurve3(new Vector3(-0.47, 0.82, 0), new Vector3(0, 1.25, 0), new Vector3(0.47, 0.9, 0));
-      P.push({ geo: new TubeGeometry(arc, 24, 0.025, 6), mat: "brass" });
-      const low = new QuadraticBezierCurve3(new Vector3(-0.45, 0.35, 0), new Vector3(0, 0.6, 0), new Vector3(0.45, 0.35, 0));
-      P.push({ geo: new TubeGeometry(low, 20, 0.04, 6), mat: "stone" });
-      break;
-    }
-    case "library": {
-      P.push(put(new CylinderGeometry(0.66, 0.7, 0.06, 28), "stone", 0, 0.03, 0));
-      P.push(put(new CylinderGeometry(0.6, 0.62, 0.06, 28), "stone", 0, 0.09, 0));
-      P.push(put(new CylinderGeometry(0.42, 0.42, 0.42, 28), "stone", 0, 0.33, 0));
-      for (let k = 0; k < 16; k++) {
-        const a = (k / 16) * Math.PI * 2;
-        P.push(put(new CylinderGeometry(0.025, 0.03, 0.42, 6), "stone", Math.cos(a) * 0.53, 0.33, Math.sin(a) * 0.53));
-      }
-      P.push(put(new CylinderGeometry(0.58, 0.58, 0.05, 28), "brass", 0, 0.565, 0));
-      const dome = new SphereGeometry(0.42, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-      P.push(put(dome, "brass", 0, 0.59, 0));
-      P.push(put(new CylinderGeometry(0.07, 0.07, 0.14, 10), "glow", 0, 1.06, 0));
-      P.push(put(new ConeGeometry(0.09, 0.16, 10), "brass", 0, 1.21, 0));
-      break;
-    }
-    case "theatre": {
+    case "amphitheatre": {
+      // The week told: a sunken ring of steps, a curtain of veined glass panels, and a sphere hung over the stage.
       const prof = [
-        [0.26, 0],
-        [0.26, 0.04],
-        [0.38, 0.04],
-        [0.38, 0.1],
-        [0.5, 0.1],
-        [0.5, 0.17],
-        [0.62, 0.17],
-        [0.62, 0.25],
-        [0.72, 0.25],
-        [0.72, 0],
+        [0.24, -0.12],
+        [0.24, -0.06],
+        [0.36, -0.06],
+        [0.36, 0.0],
+        [0.48, 0.0],
+        [0.48, 0.07],
+        [0.6, 0.07],
+        [0.6, 0.15],
+        [0.72, 0.15],
+        [0.72, -0.12],
       ]
         .reverse()
         .map(([r, y]) => new Vector2(r!, y!));
       P.push(put(new LatheGeometry(prof, 28, Math.PI / 2, Math.PI), "stone"));
-      P.push(put(new BoxGeometry(0.6, 0.05, 0.26), "stone", 0, 0.025, 0.14));
-      P.push(put(new BoxGeometry(0.7, 0.07, 0.05), "brass", 0, 0.035, 0.29));
-      for (let k = 0; k < 6; k++) P.push(put(new CylinderGeometry(0.02, 0.02, 0.16, 6), "brass", -0.3 + k * 0.12, 0.08, 0.3));
-      P.push(put(new CircleGeometry(0.1, 16), "glow", 0, 0.052, 0.1, 0, -Math.PI / 2));
+      P.push(put(new CylinderGeometry(0.24, 0.24, 0.02, 24), "glow", 0, -0.08, 0));
+      for (let k = 0; k < 5; k++) {
+        const a = Math.PI * (0.18 + (k / 4) * 0.64);
+        const h = 0.42 + (k % 2) * 0.16 + (k === 2 ? 0.14 : 0);
+        P.push(put(new BoxGeometry(0.16, h, 0.025), "glass", Math.cos(a) * 0.82, 0.15 + h / 2, -Math.sin(a) * 0.82, Math.PI / 2 - a));
+        P.push(put(new PlaneGeometry(0.14, h * 0.92), "vein", Math.cos(a) * 0.82, 0.15 + h / 2, -Math.sin(a) * 0.82, Math.PI / 2 - a));
+      }
+      P.push(put(new SphereGeometry(0.15, 20, 14), "glass", 0, 0.72, 0));
+      P.push(put(new SphereGeometry(0.05, 10, 8), "glow", 0, 0.72, 0));
+      P.push(put(new TorusGeometry(0.3, 0.006, 4, 56), "metal", 0, 0.72, 0, 0.3, Math.PI / 2 - 0.35));
       break;
     }
     case "harbour": {
-      P.push(put(new BoxGeometry(1.2, 0.1, 0.3), "stone", 0, 0.05, -0.1));
-      P.push(put(new BoxGeometry(0.16, 0.08, 0.9), "wood", 0.42, 0.04, -0.6));
-      house(P, -0.35, 0.18, 0.1, 0.32, 0.22, 0.24, 0);
-      house(P, 0.0, 0.2, 0.1, 0.28, 0.22, 0.3, 0);
-      house(P, 0.32, 0.2, 0.1, 0.26, 0.2, 0.2, 0);
-      P.push(put(new CylinderGeometry(0.07, 0.09, 0.5, 10), "stone", -0.6, 0.35, -0.12));
-      P.push(put(new CylinderGeometry(0.06, 0.06, 0.08, 10), "glow", -0.6, 0.64, -0.12));
-      P.push(put(new ConeGeometry(0.09, 0.14, 10), "brass", -0.6, 0.75, -0.12));
+      // What shipped: a drowned quay, its arches under the waterline, and a signal tower still lit.
+      P.push(put(new BoxGeometry(1.25, 0.38, 0.3), "stone", 0, -0.1, -0.1));
+      P.push(put(new BoxGeometry(0.15, 0.32, 0.95), "stone", 0.45, -0.13, -0.6));
+      arch(P, -0.3, 0.2, 0.3, 0.3, 0);
+      arch(P, 0.12, 0.24, 0.26, 0.24, 0);
+      ruin(P, 0.38, 0.22, 0.14, 0.42, 0.14, 41);
+      ruin(P, -0.62, -0.12, 0.15, 0.62, 0.15, 42);
+      P.push(put(new CylinderGeometry(0.05, 0.05, 0.1, 8), "glow", -0.62, 0.6, -0.12));
+      P.push(put(new ConeGeometry(0.08, 0.16, 6), "glass", -0.62, 0.73, -0.12));
       break;
     }
-    case "compass": {
-      P.push(put(new CylinderGeometry(0.6, 0.62, 0.05, 40), "brass", 0, 0.025, 0));
-      const star = new Shape();
-      for (let k = 0; k < 16; k++) {
-        const a = (k / 16) * Math.PI * 2;
-        const r = k % 4 === 0 ? 0.55 : k % 2 === 0 ? 0.34 : 0.13;
-        const [x, y] = [Math.cos(a) * r, Math.sin(a) * r];
-        if (k === 0) star.moveTo(x, y);
-        else star.lineTo(x, y);
+    case "lab": {
+      // How it's written: a glass lab on piers out on the water, a crystal being drawn up under a beam of light.
+      for (const [x, z] of [
+        [-0.4, -0.3],
+        [0.4, -0.3],
+        [-0.4, 0.3],
+        [0.4, 0.3],
+      ] as const)
+        P.push(put(new CylinderGeometry(0.05, 0.065, 0.45, 8), "stone", x, -0.12, z));
+      P.push(put(new BoxGeometry(1.0, 0.06, 0.78), "metal", 0, 0.12, 0));
+      const [fw, fh, fd] = [0.8, 0.78, 0.6];
+      const y0 = 0.15;
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) P.push(put(new BoxGeometry(0.022, fh, 0.022), "metal", (sx * fw) / 2, y0 + fh / 2, (sz * fd) / 2));
+      for (const y of [y0, y0 + fh]) {
+        for (const sz of [-1, 1]) P.push(put(new BoxGeometry(fw, 0.022, 0.022), "metal", 0, y, (sz * fd) / 2));
+        for (const sx of [-1, 1]) P.push(put(new BoxGeometry(0.022, 0.022, fd), "metal", (sx * fw) / 2, y, 0));
       }
-      const sg = new ExtrudeGeometry(star, {
-        depth: 0.025,
-        bevelEnabled: false,
-      });
-      sg.rotateX(-Math.PI / 2);
-      P.push(put(sg, "stone", 0, 0.05, 0));
-      P.push(put(new CylinderGeometry(0.05, 0.05, 0.06, 12), "glow", 0, 0.1, 0));
+      P.push(put(new BoxGeometry(fw, fh, fd), "glass", 0, y0 + fh / 2, 0));
+      P.push(put(new BoxGeometry(0.12, 0.08, 0.12), "metal", 0, y0 + fh - 0.06, 0));
+      P.push(put(new CylinderGeometry(0.006, 0.006, 0.42, 6), "glow", 0, y0 + fh - 0.32, 0));
+      P.push(put(new ConeGeometry(0.17, 0.3, 6), "glass", 0, y0 + 0.17, 0));
+      P.push(put(new SphereGeometry(0.06, 10, 8), "glow", 0, y0 + 0.12, 0));
+      for (const [x, z, h] of [
+        [0.6, 0.18, 0.5],
+        [-0.62, -0.1, 0.36],
+      ] as const) {
+        P.push(put(new CylinderGeometry(0.07, 0.07, h, 14), "glass", x, 0.15 + h / 2, z));
+        P.push(put(new CylinderGeometry(0.012, 0.012, h * 0.8, 6), "glow", x, 0.15 + h / 2, z));
+        P.push(put(new CylinderGeometry(0.08, 0.08, 0.04, 14), "metal", x, 0.17 + h, z));
+      }
       break;
     }
     case "ghost": {
-      const hill = new ConeGeometry(0.95, 0.7, 18, 5);
-      const pos = hill.attributes.position as BufferAttribute;
-      for (let i = 0; i < pos.count; i++) {
-        const y = pos.getY(i);
-        if (y < 0.34) {
-          const f = 1 + (rnd() - 0.5) * 0.35;
-          pos.setX(i, pos.getX(i) * f);
-          pos.setZ(i, pos.getZ(i) * f);
-        }
+      // The Tide's isle: rock shattered and hanging over the storm's eye, a monolith split among it. Wire only.
+      P.push(put(shard(0.42, 2.2, rnd), "stone", 0.05, 0.85, 0.02));
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + rnd();
+        const r = 0.45 + rnd() * 0.5;
+        P.push(put(shard(0.08 + rnd() * 0.14, 1.6, rnd), "stone", Math.cos(a) * r, 0.35 + rnd() * 1.1, Math.sin(a) * r, rnd() * 3));
       }
-      P.push(put(hill, "stone", 0, 0.35, 0));
-      P.push(put(new CylinderGeometry(0.08, 0.11, 0.7, 8, 3), "stone", 0.18, 0.95, 0.05));
-      P.push(put(new ConeGeometry(0.13, 0.26, 8), "stone", 0.18, 1.43, 0.05));
+      P.push(put(new BoxGeometry(0.2, 0.55, 0.08), "glass", 0.12, 1.42, 0.05, 0.4, 0, 0.12));
+      P.push(put(new BoxGeometry(0.2, 0.38, 0.08), "glass", -0.04, 1.86, 0.02, 0.4, 0, -0.2));
       break;
     }
   }
   return P;
 }
+
+/** Smoke in glass, white on black: wisps rising and a few hairline cracks (ref: the Tide's stasis monoliths). */
+function veinTexture(rnd: () => number): CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 512;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, 256, 512);
+  g.lineCap = "round";
+  for (let k = 0; k < 46; k++) {
+    let x = rnd() * 256;
+    let y = 512 + 20;
+    const drift = (rnd() - 0.5) * 3;
+    g.strokeStyle = `rgba(235,242,255,${0.05 + rnd() * 0.16})`;
+    g.lineWidth = 0.6 + rnd() * 2.4;
+    g.shadowColor = "rgba(220,232,255,.9)";
+    g.shadowBlur = 6;
+    g.beginPath();
+    g.moveTo(x, y);
+    const ph = rnd() * 9;
+    while (y > -20) {
+      y -= 10;
+      x += Math.sin(y * 0.03 + ph) * 4 + drift;
+      g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  g.shadowBlur = 0;
+  for (let k = 0; k < 9; k++) {
+    let x = rnd() * 256;
+    let y = rnd() * 512;
+    g.strokeStyle = `rgba(255,255,255,${0.35 + rnd() * 0.4})`;
+    g.lineWidth = 0.7;
+    g.beginPath();
+    g.moveTo(x, y);
+    for (let s = 0; s < 8; s++) {
+      x += (rnd() - 0.5) * 40;
+      y += (rnd() - 0.5) * 40;
+      g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/** A soft drift of mist, white on clear. */
+function mistTexture(rnd: () => number): CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d")!;
+  for (let k = 0; k < 26; k++) {
+    const x = 60 + rnd() * 136;
+    const y = 90 + rnd() * 76;
+    const r = 30 + rnd() * 60;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(255,255,255,${0.05 + rnd() * 0.07})`);
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 256, 256);
+  }
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/** The links the light threads run along, place to place. */
+const LINKS: [PlaceId, PlaceId][] = [
+  ["today", "week"],
+  ["today", "ships"],
+  ["week", "day"],
+  ["week", "ships"],
+  ["day", "bonds"],
+  ["day", "shelf"],
+  ["shelf", "told"],
+  ["told", "day"],
+  ["how", "shelf"],
+  ["how", "today"],
+  ["bonds", "tide"],
+];
 
 export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElement, opts: WarTableOpts): Promise<WarTable> {
   const { reduce } = opts;
@@ -320,13 +486,13 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.5 : 1.75));
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.1;
   renderer.shadowMap.enabled = !PH;
   renderer.shadowMap.type = PCFShadowMap;
   const scene = new Scene();
-  scene.background = new Color(0x060508);
-  scene.fog = new FogExp2(0x07060a, 0.018);
-  const cam = new PerspectiveCamera(38, 1, 0.1, 140);
+  scene.background = new Color(0x030405);
+  scene.fog = new FogExp2(0x040506, 0.016);
+  const cam = new PerspectiveCamera(38, 1, 0.1, 320);
   const disposables: { dispose: () => void }[] = [];
   const keep = <T extends { dispose: () => void }>(x: T) => (disposables.push(x), x);
   let rs = 1;
@@ -335,9 +501,9 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     return (rs - 1) / 2147483646;
   };
 
-  // ---- light: a hanging lamp over the table, candles at the far corners, a cool fill ---------------------------
-  scene.add(new HemisphereLight(0x8f9ac8, 0x0a0806, 0.55));
-  const lamp = new SpotLight(0xffe2b0, 420, 40, 0.62, 0.65, 1.4);
+  // ---- light: one cold lamp over the table, a pale rim from behind, almost no fill --------------------------------
+  scene.add(new HemisphereLight(0x8c96a6, 0x020203, 0.42));
+  const lamp = new SpotLight(0xe8f0ff, 430, 40, 0.62, 0.7, 1.4);
   lamp.position.set(-1.5, 15, 3);
   lamp.target.position.set(0, 0, 0.2);
   lamp.castShadow = !PH;
@@ -346,73 +512,76 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   lamp.shadow.camera.near = 6;
   lamp.shadow.camera.far = 30;
   scene.add(lamp, lamp.target);
-  const rim = new DirectionalLight(0x9fb2ff, 0.35);
+  const rim = new DirectionalLight(0xc8d6ff, 0.5);
   rim.position.set(8, 6, -12);
   scene.add(rim);
 
-  // ---- the table: walnut, a raised rim with a brass inlay, heavy legs ---------------------------------------------
-  const woodTex = (() => {
-    const c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 256;
-    const g = c.getContext("2d")!;
-    g.fillStyle = "#3a2416";
-    g.fillRect(0, 0, 512, 256);
-    for (let y = 0; y < 256; y++) {
-      const w = Math.sin(y * 0.21 + Math.sin(y * 0.031) * 4) * 0.5 + 0.5;
-      g.fillStyle = `rgba(${18 + w * 30},${10 + w * 16},${6 + w * 8},${0.35 + w * 0.3})`;
-      g.fillRect(0, y, 512, 1);
-    }
-    for (let k = 0; k < 140; k++) {
-      const y = rnd() * 256;
-      g.strokeStyle = `rgba(20,10,5,${0.15 + rnd() * 0.25})`;
-      g.lineWidth = 0.6 + rnd();
-      g.beginPath();
-      g.moveTo(0, y);
-      for (let x = 0; x <= 512; x += 32) g.lineTo(x, y + Math.sin(x * 0.01 + k) * 3);
-      g.stroke();
-    }
-    const t = keep(new CanvasTexture(c));
-    t.colorSpace = SRGBColorSpace;
-    t.wrapS = t.wrapT = RepeatWrapping;
-    t.repeat.set(2, 1);
-    return t;
-  })();
-  const wood = keep(
+  const veinTex = keep(veinTexture(rnd));
+  const veinMat = (opacity: number) =>
+    keep(
+      new MeshBasicMaterial({
+        map: veinTex,
+        color: SILVER,
+        transparent: true,
+        opacity,
+        blending: AdditiveBlending,
+        depthWrite: false,
+        side: DoubleSide,
+      }),
+    );
+  const glassMat = () =>
+    keep(
+      new MeshStandardMaterial({
+        color: 0xdfe8f2,
+        roughness: 0.06,
+        metalness: 0.2,
+        transparent: true,
+        opacity: 0.16,
+        emissive: 0x1c232c,
+        emissiveIntensity: 1,
+        depthWrite: false,
+        side: DoubleSide,
+      }),
+    );
+
+  // ---- the table: an obsidian slab on veined glass legs, a silver inlay round the rim ------------------------------
+  const obsidian = keep(new MeshStandardMaterial({ color: 0x0b0d10, roughness: 0.18, metalness: 0.55 }));
+  const steel = keep(
     new MeshStandardMaterial({
-      color: 0xb08868,
-      map: woodTex,
-      roughness: 0.55,
-      metalness: 0.05,
+      color: 0xc9d0d8,
+      roughness: 0.25,
+      metalness: 0.9,
+      emissive: 0x7c8898,
+      emissiveIntensity: 0.3,
     }),
   );
-  const brassMat = keep(
-    new MeshStandardMaterial({
-      color: 0xc9a053,
-      roughness: 0.32,
-      metalness: 0.85,
-      emissive: 0x2a1c06,
-      emissiveIntensity: 0.6,
-    }),
-  );
+  const edgeLine = keep(new LineBasicMaterial({ color: SILVER, transparent: true, opacity: 0.32, blending: AdditiveBlending, depthWrite: false }));
   const table = new Group();
   scene.add(table);
   const W2 = MAP_W / 2;
   const D2 = MAP_D / 2;
   const RIM = 0.55;
-  const slab = new Mesh(keep(new BoxGeometry(MAP_W + RIM * 2 + 0.3, 0.6, MAP_D + RIM * 2 + 0.3)), wood);
+  const slabGeo = keep(new BoxGeometry(MAP_W + RIM * 2 + 0.3, 0.6, MAP_D + RIM * 2 + 0.3));
+  const slab = new Mesh(slabGeo, obsidian);
   slab.position.y = -0.36;
   slab.receiveShadow = true;
   table.add(slab);
+  const slabEdge = new LineSegments(keep(new EdgesGeometry(slabGeo)), edgeLine);
+  slabEdge.position.y = -0.36;
+  table.add(slabEdge);
   const rimH = 0.34;
   const rimPart = (w: number, d: number, x: number, z: number) => {
-    const m = new Mesh(keep(new BoxGeometry(w, rimH, d)), wood);
+    const g = keep(new BoxGeometry(w, rimH, d));
+    const m = new Mesh(g, obsidian);
     m.position.set(x, rimH / 2 - 0.06, z);
     m.castShadow = !PH;
     m.receiveShadow = true;
     table.add(m);
-    const inlay = new Mesh(keep(new BoxGeometry(w - (w > d ? RIM : 0.04) + 0.02, 0.012, d - (d > w ? RIM : 0.04) + 0.02)), brassMat);
-    inlay.scale.set(w > d ? 1 : 0.18, 1, d > w ? 1 : 0.18);
+    const e = new LineSegments(keep(new EdgesGeometry(g)), edgeLine);
+    e.position.copy(m.position);
+    table.add(e);
+    const inlay = new Mesh(keep(new BoxGeometry(w - (w > d ? RIM : 0.04) + 0.02, 0.012, d - (d > w ? RIM : 0.04) + 0.02)), steel);
+    inlay.scale.set(w > d ? 1 : 0.12, 1, d > w ? 1 : 0.12);
     inlay.position.set(x, rimH - 0.054, z);
     table.add(inlay);
   };
@@ -420,21 +589,109 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   rimPart(MAP_W + RIM * 2, RIM, 0, D2 + RIM / 2);
   rimPart(RIM, MAP_D, -W2 - RIM / 2, 0);
   rimPart(RIM, MAP_D, W2 + RIM / 2, 0);
+  const legGlass = glassMat();
+  legGlass.opacity = 0.2;
+  const legVein = veinMat(0.5);
+  const legH = -0.66 - FLOOR;
+  const legGeo = keep(new BoxGeometry(1.15, legH, 1.15));
+  const legs: [number, number][] = [];
   for (const [x, z] of [
     [-1, -1],
     [1, -1],
     [-1, 1],
     [1, 1],
   ] as const) {
-    const cap = new Mesh(keep(new BoxGeometry(RIM + 0.06, 0.06, RIM + 0.06)), brassMat);
+    const cap = new Mesh(keep(new BoxGeometry(RIM + 0.06, 0.05, RIM + 0.06)), steel);
     cap.position.set(x * (W2 + RIM / 2), rimH - 0.03, z * (D2 + RIM / 2));
     table.add(cap);
-    const leg = new Mesh(keep(new CylinderGeometry(0.42, 0.3, 6, 16)), wood);
-    leg.position.set(x * (W2 - 0.4), -3.6, z * (D2 - 0.4));
+    const lx = x * (W2 - 1.2);
+    const lz = z * (D2 - 0.9);
+    legs.push([lx, lz]);
+    const leg = new Mesh(legGeo, legGlass);
+    leg.position.set(lx, FLOOR + legH / 2, lz);
     table.add(leg);
+    const smoke = new Mesh(legGeo, legVein);
+    smoke.scale.setScalar(0.94);
+    smoke.position.copy(leg.position);
+    table.add(smoke);
+    const e = new LineSegments(keep(new EdgesGeometry(legGeo)), edgeLine);
+    e.position.copy(leg.position);
+    table.add(e);
   }
 
-  // ---- the chart: carved relief, painted ---------------------------------------------------------------------------
+  // ---- the floor: wet black stone, the legs' light smeared in it, mist lying on it ---------------------------------
+  {
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 800;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#000";
+    g.fillRect(0, 0, 1024, 800);
+    const FW = 90;
+    const FD = 70;
+    const fx = (x: number) => ((x + FW / 2) / FW) * 1024;
+    const fz = (z: number) => ((z + FD / 2) / FD) * 800;
+    // The table's own glow, pooled under it.
+    const pool = g.createRadialGradient(fx(0), fz(1), 0, fx(0), fz(1), (14 / FW) * 1024);
+    pool.addColorStop(0, "rgba(150,165,185,.22)");
+    pool.addColorStop(1, "rgba(150,165,185,0)");
+    g.fillStyle = pool;
+    g.fillRect(0, 0, 1024, 800);
+    // Streaks: each lit leg reflected toward the viewer, broken by ripples.
+    for (const [x, z] of legs) {
+      for (let k = 0; k < 14; k++) {
+        const sx = fx(x + (rnd() - 0.5) * 1.1);
+        const w = 1 + rnd() * 3;
+        const top = fz(z + 0.3);
+        const len = (4 + rnd() * 6) * (800 / FD);
+        const gr = g.createLinearGradient(0, top, 0, top + len);
+        gr.addColorStop(0, `rgba(225,235,250,${0.25 + rnd() * 0.3})`);
+        gr.addColorStop(1, "rgba(225,235,250,0)");
+        g.fillStyle = gr;
+        g.fillRect(sx, top, w, len);
+      }
+    }
+    // Fine ripples and grit, so it reads as wet.
+    for (let k = 0; k < 900; k++) {
+      g.fillStyle = `rgba(200,212,230,${rnd() * 0.12})`;
+      g.fillRect(rnd() * 1024, rnd() * 800, 1 + rnd() * 6, 1);
+    }
+    const tex = keep(new CanvasTexture(c));
+    tex.colorSpace = SRGBColorSpace;
+    // The floor gives out a way past the table: beyond it, the dark, and the world's limb far below.
+    const fade = document.createElement("canvas");
+    fade.width = 256;
+    fade.height = 200;
+    const fg = fade.getContext("2d")!;
+    const fr = fg.createRadialGradient(128, 100, 0, 128, 100, 128);
+    fr.addColorStop(0, "#fff");
+    fr.addColorStop(0.3, "#fff");
+    fr.addColorStop(0.62, "#000");
+    fg.fillStyle = fr;
+    fg.fillRect(0, 0, 256, 200);
+    const alpha = keep(new CanvasTexture(fade));
+    const floor = new Mesh(
+      keep(new PlaneGeometry(FW, FD)),
+      keep(
+        new MeshStandardMaterial({
+          color: 0x050607,
+          roughness: 0.2,
+          metalness: 0.75,
+          emissive: 0xffffff,
+          emissiveMap: tex,
+          emissiveIntensity: 0.55,
+          alphaMap: alpha,
+          transparent: true,
+        }),
+      ),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = FLOOR;
+    floor.receiveShadow = true;
+    scene.add(floor);
+  }
+
+  // ---- the chart: a drowned world's atlas in relief, painted ---------------------------------------------------------
   const TW = PH ? 1024 : 2048;
   const TH = Math.round((TW * MAP_D) / MAP_W);
   const GW = 320;
@@ -442,8 +699,8 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   const grid = new Float32Array((GW + 1) * (GH + 1));
   for (let j = 0; j <= GH; j++) for (let i = 0; i <= GW; i++) grid[j * (GW + 1) + i] = heightAt(-W2 + (i / GW) * MAP_W, -D2 + (j / GH) * MAP_D);
   const hAt = (u: number, v: number) => {
-    const fx = u * GW;
-    const fy = v * GH;
+    const fx = Math.max(0, Math.min(1, u)) * GW;
+    const fy = Math.max(0, Math.min(1, v)) * GH;
     const i = Math.min(GW - 1, Math.floor(fx));
     const j = Math.min(GH - 1, Math.floor(fy));
     const a = fx - i;
@@ -452,101 +709,203 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     return (g(i, j) * (1 - a) + g(i + 1, j) * a) * (1 - b) + (g(i, j + 1) * (1 - a) + g(i + 1, j + 1) * a) * b;
   };
   await yieldNow();
-  const paint = document.createElement("canvas");
-  paint.width = TW;
-  paint.height = TH;
-  const pg = paint.getContext("2d")!;
-  const glow = document.createElement("canvas");
-  glow.width = TW;
-  glow.height = TH;
-  const gg = glow.getContext("2d")!;
+  const mkCanvas = () => {
+    const c = document.createElement("canvas");
+    c.width = TW;
+    c.height = TH;
+    return [c, c.getContext("2d")!] as const;
+  };
+  const [paint, pg] = mkCanvas();
+  const [glow, gg] = mkCanvas();
+  const [rough, rg] = mkCanvas();
+  const px = (x: number) => ((x + W2) / MAP_W) * TW;
+  const pz = (z: number) => ((z + D2) / MAP_D) * TH;
+  const S = TW / 2048;
   {
     const img = pg.createImageData(TW, TH);
+    const gim = gg.createImageData(TW, TH);
+    const rim2 = rg.createImageData(TW, TH);
     const d = img.data;
-    const sea0 = [20, 34, 42];
-    const sea1 = [38, 62, 70];
-    const land0 = [150, 122, 80];
-    const land1 = [204, 180, 132];
-    const high = [140, 124, 98];
+    const gd = gim.data;
+    const rd = rim2.data;
+    const du = 1 / TW;
+    const dv = 1 / TH;
+    // The light the relief is shaded by: from the far left, high.
+    const L = new Vector3(-0.55, 0.75, -0.4).normalize();
     for (let y = 0; y < TH; y++) {
       const v = y / (TH - 1);
       for (let x = 0; x < TW; x++) {
         const u = x / (TW - 1);
         const h = hAt(u, v);
+        const hx = (hAt(u + du, v) - hAt(u - du, v)) / 2;
+        const hz = (hAt(u, v + dv) - hAt(u, v - dv)) / 2;
+        // How much the height changes per pixel, so contour lines keep one width on any slope.
+        const per = Math.max(1e-5, Math.hypot(hx, hz));
         let r: number, g: number, b: number;
+        let e = 0;
+        let ro = 22;
         if (h < 0) {
-          const k = Math.min(1, -h * 2.4);
-          r = sea1[0]! + (sea0[0]! - sea1[0]!) * k;
-          g = sea1[1]! + (sea0[1]! - sea1[1]!) * k;
-          b = sea1[2]! + (sea0[2]! - sea1[2]!) * k;
-          // Coast-parallel ripples, as engravers drew them.
-          const rip = Math.abs(((-h * 14) % 1) - 0.5);
-          if (-h < 0.32 && rip < 0.07) {
-            r += 26;
-            g += 34;
-            b += 34;
+          const k = Math.min(1, -h * 2.2);
+          r = 17 + (4 - 17) * k;
+          g = 20 + (5 - 20) * k;
+          b = 24 + (7 - 24) * k;
+          // Drowned contours: the old land's lines, faint under the water.
+          const f = -h * 10;
+          const dist = (0.5 - Math.abs((f % 1) - 0.5)) / (per * 10);
+          if (-h < 0.6 && dist < 0.7) {
+            r += 12;
+            g += 14;
+            b += 17;
+            e = 18;
           }
         } else {
-          const k = Math.min(1, h * 1.6);
-          r = land0[0]! + (land1[0]! - land0[0]!) * k;
-          g = land0[1]! + (land1[1]! - land0[1]!) * k;
-          b = land0[2]! + (land1[2]! - land0[2]!) * k;
-          if (h > 0.62) {
-            const q = Math.min(1, (h - 0.62) * 3);
-            r += (high[0]! - r) * q;
-            g += (high[1]! - g) * q;
-            b += (high[2]! - b) * q;
+          ro = 200;
+          // Hillshade: the slope's normal against the light.
+          const nx = -hx * TW * 0.06;
+          const nz = -hz * TH * 0.06;
+          const nl = Math.hypot(nx, 1, nz);
+          const shade = Math.max(0, (nx * L.x + L.y + nz * L.z) / nl);
+          const k = Math.min(1, h * 1.25);
+          const base = 8 + k * 44;
+          const lit = base * (0.12 + Math.pow(shade, 3) * 1.7);
+          r = lit;
+          g = lit * 1.02 + 1;
+          b = lit * 1.06 + 3;
+          // Contours, dense as a survey's.
+          const f = h * 18;
+          const dist = (0.5 - Math.abs((f % 1) - 0.5)) / (per * 18);
+          if (dist < 0.8) {
+            const q = 1 - dist / 0.8;
+            r += 46 * q;
+            g += 50 * q;
+            b += 56 * q;
+            e = Math.max(e, 30 * q);
           }
-          // Contours.
-          const c = Math.abs(((h * 9) % 1) - 0.5);
-          if (c > 0.455) {
-            r *= 0.72;
-            g *= 0.66;
-            b *= 0.58;
-          }
-          // The coastline, inked.
-          if (h < 0.025) {
-            r = 52;
-            g = 36;
-            b = 24;
+          // The coast, drawn in white light.
+          const cd = h / per;
+          if (cd < 2.4) {
+            const q = 1 - cd / 2.4;
+            r += (232 - r) * q;
+            g += (238 - g) * q;
+            b += (246 - b) * q;
+            e = Math.max(e, 230 * q);
           }
         }
-        const n = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
-        const grain = (n - Math.floor(n) - 0.5) * 10;
+        const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+        const grain = (n - Math.floor(n) - 0.5) * 7;
         const o = (y * TW + x) * 4;
         d[o] = r + grain;
         d[o + 1] = g + grain;
         d[o + 2] = b + grain;
         d[o + 3] = 255;
+        gd[o] = gd[o + 1] = gd[o + 2] = e;
+        gd[o + 3] = 255;
+        rd[o] = rd[o + 1] = rd[o + 2] = ro;
+        rd[o + 3] = 255;
       }
-      if (y % 64 === 63) await yieldNow();
+      if (y % 48 === 47) await yieldNow();
     }
     pg.putImageData(img, 0, 0);
-    gg.fillStyle = "#000";
-    gg.fillRect(0, 0, TW, TH);
-    // The chart's furniture, in gold leaf: a graticule, rhumb lines from two roses, the rose itself.
-    const px = (x: number) => ((x + W2) / MAP_W) * TW;
-    const pz = (z: number) => ((z + D2) / MAP_D) * TH;
-    const s = TW / 2048;
-    for (const g of [pg, gg]) {
-      g.save();
-      g.strokeStyle = g === pg ? "rgba(226,191,114,.42)" : "rgba(226,191,114,.55)";
-      g.lineWidth = 1.4 * s;
-      for (const [cx, cz] of [
-        [-6.5, 3.7],
-        [3.4, 3.4],
-      ] as const) {
-        for (let k = 0; k < 32; k++) {
-          const a = (k / 32) * Math.PI * 2;
-          g.globalAlpha = k % 4 === 0 ? 0.9 : 0.45;
+    gg.putImageData(gim, 0, 0);
+    rg.putImageData(rim2, 0, 0);
+
+    const both = (draw: (g: CanvasRenderingContext2D, onGlow: boolean) => void) => {
+      for (const g of [pg, gg]) {
+        g.save();
+        draw(g, g === gg);
+        g.restore();
+      }
+    };
+
+    // Rivers of white light: from the high ground, down the steepest way to the sea, gathering as they go.
+    const near = (x: number, z: number) => PLACES.some((p) => Math.hypot(p.x - x, p.z - z) < 0.75);
+    const rivers: [number, number][][] = [];
+    for (let tries = 0; tries < 900 && rivers.length < (PH ? 12 : 18); tries++) {
+      let x = (rnd() - 0.5) * (MAP_W - 2);
+      let z = (rnd() - 0.5) * (MAP_D - 2);
+      if (heightAt(x, z) < 0.38 || near(x, z)) continue;
+      const path: [number, number][] = [[x, z]];
+      let dx = 0;
+      let dz = 0;
+      for (let s = 0; s < 260; s++) {
+        const e = 0.03;
+        const gx = heightAt(x + e, z) - heightAt(x - e, z);
+        const gz = heightAt(x, z + e) - heightAt(x, z - e);
+        const gl = Math.hypot(gx, gz) || 1;
+        const wob = Math.sin(s * 0.35 + x * 3) * 0.25;
+        dx = dx * 0.55 + (-gx / gl + wob * (-gz / gl)) * 0.45;
+        dz = dz * 0.55 + (-gz / gl - wob * (-gx / gl)) * 0.45;
+        const dl = Math.hypot(dx, dz) || 1;
+        x += (dx / dl) * 0.04;
+        z += (dz / dl) * 0.04;
+        path.push([x, z]);
+        if (heightAt(x, z) < -0.02 || near(x, z)) break;
+      }
+      if (path.length > 18) rivers.push(path);
+    }
+    both((g, onGlow) => {
+      g.lineCap = "round";
+      g.lineJoin = "round";
+      for (const path of rivers) {
+        for (const [w, a] of [
+          [7, onGlow ? 0.16 : 0.08],
+          [2.4, onGlow ? 0.7 : 0.5],
+          [0.9, 1],
+        ] as const) {
+          g.strokeStyle = `rgba(236,242,252,${a})`;
           g.beginPath();
-          g.moveTo(px(cx), pz(cz));
-          g.lineTo(px(cx + Math.cos(a) * 30), pz(cz + Math.sin(a) * 30));
+          path.forEach(([x, z], i) => {
+            g.lineWidth = w * S;
+            if (i === 0) g.moveTo(px(x), pz(z));
+            else g.lineTo(px(x), pz(z));
+          });
           g.stroke();
         }
       }
-      g.globalAlpha = 0.5;
-      g.setLineDash([10 * s, 8 * s]);
+    });
+
+    // Storms out on the deep: spirals of cloud, the largest round the Tide's isle.
+    const storms: [number, number, number, number][] = [
+      [6.0, -3.2, 1.55, 1],
+      [-6.4, -3.7, 0.9, -1],
+      [1.8, -4.1, 0.65, 1],
+      [6.4, 3.4, 0.8, -1],
+    ];
+    both((g, onGlow) => {
+      for (const [cx, cz, R, dir] of storms) {
+        const halo = g.createRadialGradient(px(cx), pz(cz), 0, px(cx), pz(cz), (R / MAP_W) * TW);
+        halo.addColorStop(0, `rgba(220,228,240,${onGlow ? 0.22 : 0.14})`);
+        halo.addColorStop(0.25, "rgba(220,228,240,0.02)");
+        halo.addColorStop(0.6, `rgba(220,228,240,${onGlow ? 0.07 : 0.05})`);
+        halo.addColorStop(1, "rgba(220,228,240,0)");
+        g.fillStyle = halo;
+        g.fillRect(0, 0, TW, TH);
+        for (let arm = 0; arm < 4; arm++) {
+          for (let strand = 0; strand < 7; strand++) {
+            const off = (arm / 4) * Math.PI * 2 + strand * 0.07;
+            g.strokeStyle = `rgba(232,238,248,${(onGlow ? 0.22 : 0.16) * (1 - strand / 9)})`;
+            g.lineWidth = (0.7 + rnd() * 1.6) * S;
+            g.beginPath();
+            for (let k = 0; k <= 80; k++) {
+              const th = (k / 80) * Math.PI * 3.2;
+              const r = R * Math.exp(-0.3 * th) * (1 + strand * 0.02);
+              const a = off + dir * th;
+              const X = px(cx + Math.cos(a) * r);
+              const Z = pz(cz + Math.sin(a) * r * 0.95);
+              if (k === 0) g.moveTo(X, Z);
+              else g.lineTo(X, Z);
+            }
+            g.stroke();
+          }
+        }
+      }
+    });
+
+    // The chart's furniture, in silver hairline: a faint graticule, a border inside the rim, the Tide's uncharted ring.
+    both((g, onGlow) => {
+      g.strokeStyle = onGlow ? "rgba(210,220,235,.22)" : "rgba(210,220,235,.16)";
+      g.lineWidth = 1 * S;
+      g.setLineDash([3 * S, 9 * S]);
       for (let x = -6; x <= 6; x += 2) {
         g.beginPath();
         g.moveTo(px(x), 0);
@@ -559,29 +918,37 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
         g.lineTo(TW, pz(z));
         g.stroke();
       }
-      g.setLineDash([]);
-      // The Tide's corner: a blank chart in a dashed ring, waiting for its feed.
-      g.globalAlpha = 0.85;
-      g.lineWidth = 2.2 * s;
-      g.setLineDash([16 * s, 10 * s]);
+      g.setLineDash([16 * S, 10 * S]);
+      g.strokeStyle = onGlow ? "rgba(225,232,244,.7)" : "rgba(225,232,244,.5)";
+      g.lineWidth = 1.6 * S;
       g.beginPath();
-      g.ellipse(px(6.0), pz(-3.2), (1.5 / MAP_W) * TW, (1.5 / MAP_D) * TH, 0, 0, Math.PI * 2);
+      g.ellipse(px(6.0), pz(-3.2), (1.75 / MAP_W) * TW, (1.75 / MAP_D) * TH, 0, 0, Math.PI * 2);
       g.stroke();
       g.setLineDash([]);
-      // A neat border inside the rim.
-      g.globalAlpha = 0.9;
-      g.lineWidth = 3 * s;
-      g.strokeRect(14 * s, 14 * s, TW - 28 * s, TH - 28 * s);
-      g.lineWidth = 1 * s;
-      g.strokeRect(24 * s, 24 * s, TW - 48 * s, TH - 48 * s);
-      g.restore();
-    }
+      g.strokeStyle = onGlow ? "rgba(225,232,244,.55)" : "rgba(225,232,244,.4)";
+      g.lineWidth = 2 * S;
+      g.strokeRect(14 * S, 14 * S, TW - 28 * S, TH - 28 * S);
+      g.lineWidth = 0.8 * S;
+      g.strokeRect(24 * S, 24 * S, TW - 48 * S, TH - 48 * S);
+      // Tick marks along the border, as a survey's frame has.
+      for (let x = 0; x <= 64; x++) {
+        const X = 24 * S + (x / 64) * (TW - 48 * S);
+        const L2 = (x % 8 === 0 ? 10 : 4) * S;
+        g.beginPath();
+        g.moveTo(X, 24 * S);
+        g.lineTo(X, 24 * S + L2);
+        g.moveTo(X, TH - 24 * S);
+        g.lineTo(X, TH - 24 * S - L2);
+        g.stroke();
+      }
+    });
   }
   const mapTex = keep(new CanvasTexture(paint));
   mapTex.colorSpace = SRGBColorSpace;
   mapTex.anisotropy = 4;
   const glowTex = keep(new CanvasTexture(glow));
   glowTex.colorSpace = SRGBColorSpace;
+  const roughTex = keep(new CanvasTexture(rough));
   const mapGeo = keep(new PlaneGeometry(MAP_W, MAP_D, PH ? 200 : 320, PH ? 125 : 200));
   mapGeo.rotateX(-Math.PI / 2);
   {
@@ -594,23 +961,52 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     keep(
       new MeshStandardMaterial({
         map: mapTex,
-        roughness: 0.78,
-        metalness: 0.02,
-        emissive: 0xffffff,
+        roughness: 1,
+        roughnessMap: roughTex,
+        metalness: 0.12,
+        emissive: 0xdfe8f5,
         emissiveMap: glowTex,
-        emissiveIntensity: 0.18,
+        emissiveIntensity: 0.62,
       }),
     ),
   );
   chart.receiveShadow = true;
   scene.add(chart);
+
+  // The black water over the drowned land: glints and a slow swell, so the sea reads wet.
+  const waterU = { t: { value: 0 } };
+  const water = new Mesh(
+    keep(new PlaneGeometry(MAP_W, MAP_D, 1, 1)),
+    keep(
+      new ShaderMaterial({
+        uniforms: waterU,
+        transparent: true,
+        depthWrite: false,
+        vertexShader: `varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+        fragmentShader: `uniform float t; varying vec2 vP;
+          float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float vn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
+            return mix(mix(h2(i), h2(i + vec2(1., 0.)), u.x), mix(h2(i + vec2(0., 1.)), h2(i + vec2(1., 1.)), u.x), u.y); }
+          void main(){
+            float n = vn(vP * 2.6 + vec2(t * .12, -t * .08)) * .6 + vn(vP * 6.5 - vec2(t * .18, t * .1)) * .4;
+            float glint = pow(n, 7.) * 2.4;
+            float sp = step(.993, h2(floor(vP * 36.) + floor(t * 1.5)));
+            vec3 c = vec3(.01, .013, .017) + vec3(.78, .84, .92) * (glint * .3 + sp * .55);
+            gl_FragColor = vec4(c, .42 + glint * .25 + sp * .3); }`,
+      }),
+    ),
+  );
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = 0.004;
+  water.renderOrder = 2;
+  scene.add(water);
   await yieldNow();
 
-  // ---- the miniatures --------------------------------------------------------------------------------------------
+  // ---- the places --------------------------------------------------------------------------------------------------
   interface Mini {
     p: Place;
     g: Group;
-    mats: Record<Mat, MeshStandardMaterial>;
+    mats: Record<Mat, MeshStandardMaterial | MeshBasicMaterial>;
     wire: LineSegments<BufferGeometry, ShaderMaterial>;
     ring: Mesh<TorusGeometry, MeshBasicMaterial>;
     light: PointLight | null;
@@ -623,12 +1019,12 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   const wireU = { t: { value: 0 }, res: { value: new Vector2(1, 1) } };
   const EDGE = `uniform vec2 res; float edgeOf(){ vec2 q = gl_FragCoord.xy / res * 2. - 1.; return length(q * vec2(.86, 1.)) / 1.31; }
     float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }`;
-  const wireMat = (ghost: boolean) =>
+  const wireMat = (a0: number) =>
     keep(
       new ShaderMaterial({
         uniforms: {
           ...wireU,
-          a: { value: ghost ? 0.7 : 0.1 },
+          a: { value: a0 },
           top: { value: 1 },
         },
         transparent: true,
@@ -639,77 +1035,68 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
           void main(){ float e = smoothstep(.45, .95, edgeOf());
             float scan = smoothstep(.12, 0., abs(fract(t * .22) * (top + .6) - .3 - vL.y));
             float h = hash(floor(vL * 9.) + floor(t * 1.3));
-            float fl = .78 + .22 * sin(t * 4. + h * 30.);
-            float al = clamp(a + e * .55 + scan * (a * 1.6 + .08), 0., 1.) * fl;
+            float fl = .8 + .2 * sin(t * 4. + h * 30.);
+            float al = clamp(a + e * .5 + scan * (a * 1.6 + .08), 0., 1.) * fl;
             if (al < .01) discard;
-            gl_FragColor = vec4(vec3(.89, .75, .45), al); }`,
+            gl_FragColor = vec4(vec3(.86, .9, .97), al); }`,
       }),
     );
   const minis: Mini[] = [];
+  const glassWires: ShaderMaterial[] = [];
   const hits: { id: PlaceId; m: Mesh }[] = [];
   const hitMat = keep(new MeshBasicMaterial());
   for (const p of PLACES) {
     const parts = modelOf(p.kind, rnd);
     const ghost = p.kind === "ghost";
-    const mats: Record<Mat, MeshStandardMaterial> = {
-      stone: keep(
-        new MeshStandardMaterial({
-          color: 0x77736d,
-          roughness: 0.42,
-          metalness: 0.62,
-          emissive: 0x000000,
-          side: DoubleSide,
-        }),
-      ),
-      brass: keep(brassMat.clone()),
-      glow: keep(
-        new MeshStandardMaterial({
-          color: 0x2a2010,
-          emissive: 0xffc56a,
-          emissiveIntensity: 0.4,
-          roughness: 0.4,
-        }),
-      ),
-      sail: keep(
-        new MeshStandardMaterial({
-          color: 0xe8dcc2,
-          roughness: 0.8,
-          side: DoubleSide,
-        }),
-      ),
-      wood: keep(new MeshStandardMaterial({ color: 0x6a4a30, roughness: 0.7 })),
+    const mats: Mini["mats"] = {
+      stone: keep(new MeshStandardMaterial({ color: 0x1b1e22, roughness: 0.32, metalness: 0.45, side: DoubleSide })),
+      metal: keep(steel.clone()),
+      glass: glassMat(),
+      glow: keep(new MeshStandardMaterial({ color: 0x101418, emissive: 0xe4eeff, emissiveIntensity: 0.4, roughness: 0.4 })),
+      figure: keep(new MeshStandardMaterial({ color: 0x14181d, emissive: 0xdfe8f5, emissiveIntensity: 0.3, roughness: 0.6, transparent: true, opacity: 0.6, depthWrite: false })),
+      vein: veinMat(0.55),
     };
     const g = new Group();
     g.position.set(p.x, groundOf(p), p.z);
     scene.add(g);
     const byMat = new Map<Mat, BufferGeometry[]>();
     const edges: BufferGeometry[] = [];
+    const glassEdges: BufferGeometry[] = [];
     let top = 0;
     for (const part of parts) {
       const geo = part.geo.index ? part.geo.toNonIndexed() : part.geo;
-      for (const k of Object.keys(geo.attributes)) if (k !== "position" && k !== "normal") geo.deleteAttribute(k);
+      for (const k of Object.keys(geo.attributes)) if (k !== "position" && k !== "normal" && !(k === "uv" && part.mat === "vein")) geo.deleteAttribute(k);
       if (!geo.attributes.normal) geo.computeVertexNormals();
       byMat.set(part.mat, [...(byMat.get(part.mat) ?? []), geo]);
-      edges.push(ghost ? new EdgesGeometry(geo, 1) : new EdgesGeometry(geo, 28));
+      if (part.mat === "stone" || part.mat === "metal") edges.push(ghost ? new EdgesGeometry(geo, 1) : new EdgesGeometry(geo, 28));
+      else if (part.mat === "glass") (ghost ? edges : glassEdges).push(new EdgesGeometry(geo, 28));
       geo.computeBoundingBox();
       top = Math.max(top, geo.boundingBox!.max.y);
     }
     if (!ghost)
       for (const [m, geos] of byMat) {
         const mesh = new Mesh(keep(mergeGeometries(geos)!), mats[m]);
-        mesh.castShadow = !PH;
-        mesh.receiveShadow = true;
+        mesh.castShadow = !PH && (m === "stone" || m === "metal");
+        mesh.receiveShadow = m !== "vein" && m !== "glass";
+        if (m === "glass" || m === "vein" || m === "figure") mesh.renderOrder = 3;
         g.add(mesh);
       }
-    const wire = new LineSegments(keep(mergeGeometries(edges)!), wireMat(ghost));
+    const wire = new LineSegments(keep(mergeGeometries(edges)!), wireMat(ghost ? 0.7 : 0.08));
     wire.material.uniforms.top!.value = top;
     wire.renderOrder = 5;
     g.add(wire);
+    if (glassEdges.length) {
+      const gw = new LineSegments(keep(mergeGeometries(glassEdges)!), wireMat(0.42));
+      gw.material.uniforms.top!.value = top;
+      gw.renderOrder = 5;
+      g.add(gw);
+      glassWires.push(gw.material);
+    }
     const ring = new Mesh(
-      keep(new TorusGeometry(p.kind === "citadel" || p.kind === "harbour" ? 0.95 : 0.8, 0.012, 6, 64)),
+      keep(new TorusGeometry(p.kind === "citadel" || p.kind === "harbour" || p.kind === "hourglass" ? 1.0 : 0.82, 0.01, 6, 72)),
       keep(
         new MeshBasicMaterial({
-          color: GOLD,
+          color: SILVER,
           transparent: true,
           opacity: 0,
           blending: AdditiveBlending,
@@ -721,9 +1108,9 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     ring.position.y = 0.03;
     g.add(ring);
     let light: PointLight | null = null;
-    if (!PH && (p.kind === "lighthouse" || p.kind === "citadel")) {
-      light = new PointLight(0xffc77a, 0, 3.2, 1.6);
-      light.position.set(0, top * 0.85, 0);
+    if (!PH && (p.kind === "beacon" || p.kind === "citadel" || p.kind === "lab")) {
+      light = new PointLight(0xdfe9ff, 0, 3.4, 1.6);
+      light.position.set(0, top * 0.7, 0);
       g.add(light);
     }
     const hit = new Mesh(keep(new CylinderGeometry(0.85, 0.85, top + 0.4, 10)), hitMat);
@@ -746,162 +1133,236 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   }
   const miniOf = (id: PlaceId) => minis.find((m) => m.p.id === id)!;
 
-  // The harbour's ships, riding at anchor off the quay.
+  // The beacon's beam: a shaft of cold light straight up, as bright as today is busy.
+  const beacon = miniOf("today");
+  const beamMat = keep(
+    new ShaderMaterial({
+      uniforms: { k: { value: 0.4 }, t: wireU.t },
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      side: DoubleSide,
+      vertexShader: `varying float vY; void main(){ vY = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+      fragmentShader: `uniform float k, t; varying float vY;
+        void main(){ float a = (1. - smoothstep(0., 1., vY)) * smoothstep(0., .04, vY) * k * (.85 + .15 * sin(t * 2.3 + vY * 9.));
+          gl_FragColor = vec4(vec3(.9, .94, 1.), a * .55); }`,
+    }),
+  );
+  const beam = new Mesh(keep(new CylinderGeometry(0.11, 0.04, 2.6, 16, 1, true)), beamMat);
+  beam.position.set(beacon.p.x, groundOf(beacon.p) + 1.9 + 1.3, beacon.p.z);
+  beam.renderOrder = 6;
+  scene.add(beam);
+
+  // The harbour's skiffs: dark hulls with a lit keel and a glass sail, riding at anchor off the drowned quay.
   const harbour = miniOf("ships");
-  const ships: { g: Group; ph: number; x: number; z: number }[] = [];
+  const ships: { g: Group; ph: number }[] = [];
   for (const [dx, dz, r] of [
     [-0.2, -1.55, 0.4],
     [0.75, -1.75, -0.3],
     [-1.0, -1.35, 1.1],
   ] as const) {
     const s = new Group();
-    const hull = new CylinderGeometry(0.075, 0.075, 0.46, 10, 1, false, Math.PI / 2, Math.PI);
-    hull.rotateZ(Math.PI / 2);
-    hull.scale(1, 1, 1.25);
-    const hm = new Mesh(keep(hull), harbour.mats.wood);
-    hm.position.y = 0.075;
+    // A long low hull, half under the water.
+    const hull = new SphereGeometry(1, 16, 8);
+    hull.scale(0.25, 0.05, 0.06);
+    const hm = new Mesh(keep(hull), harbour.mats.stone);
+    hm.position.y = 0.02;
     hm.castShadow = !PH;
     s.add(hm);
-    const mast = new Mesh(keep(new CylinderGeometry(0.008, 0.01, 0.42, 5)), harbour.mats.brass);
-    mast.position.y = 0.26;
-    s.add(mast);
-    const sail = new Mesh(keep(new PlaneGeometry(0.24, 0.22, 1, 1)), harbour.mats.sail);
-    sail.position.set(0, 0.29, 0);
-    sail.rotation.y = Math.PI / 2;
+    const keel = new Mesh(keep(new BoxGeometry(0.46, 0.008, 0.012)), harbour.mats.glow);
+    keel.position.y = 0.072;
+    s.add(keel);
+    const sailShape = new BufferGeometry();
+    sailShape.setAttribute("position", new BufferAttribute(new Float32Array([-0.12, 0.08, 0, 0.1, 0.08, 0, -0.02, 0.36, 0]), 3));
+    sailShape.computeVertexNormals();
+    const sail = new Mesh(keep(sailShape), harbour.mats.glass);
+    sail.renderOrder = 3;
     s.add(sail);
     s.position.set(harbour.p.x + dx, 0.0, harbour.p.z + dz);
     s.rotation.y = r;
     s.scale.setScalar(1.45);
     scene.add(s);
-    ships.push({ g: s, ph: rnd() * 6, x: s.position.x, z: s.position.z });
+    ships.push({ g: s, ph: rnd() * 6 });
   }
 
-  // The d20, Historian violet, resting by the near rim.
-  const d20 = new Mesh(
-    keep(new IcosahedronGeometry(0.3, 0)),
-    keep(
-      new MeshStandardMaterial({
-        color: 0x5a3c9e,
-        roughness: 0.22,
-        metalness: 0.15,
-        emissive: 0x1a0d36,
-        emissiveIntensity: 0.6,
-      }),
-    ),
-  );
+  // The d20, in glass now, resting by the near rim: the game master's hands, whatever the world.
+  const d20 = new Mesh(keep(new IcosahedronGeometry(0.3, 0)), glassMat());
   d20.position.set(5.6, surfaceAt(5.6, 3.6) + 0.24, 3.6);
   d20.rotation.set(0.35, 0.6, 0.2);
-  d20.castShadow = !PH;
+  d20.renderOrder = 3;
   scene.add(d20);
-  const d20w = new LineSegments(
-    keep(new EdgesGeometry(d20.geometry)),
-    keep(
-      new MeshBasicMaterial({
-        color: GOLD,
-        transparent: true,
-        opacity: 0.55,
-        blending: AdditiveBlending,
-        depthWrite: false,
-      }),
-    ) as unknown as Material,
-  );
+  const d20w = new LineSegments(keep(new EdgesGeometry(d20.geometry)), edgeLine);
   d20w.scale.setScalar(1.005);
   d20.add(d20w);
-  // Brass dividers left open on the chart.
-  const dividers = new Group();
-  for (const s of [-1, 1]) {
-    const leg = new Mesh(keep(new BoxGeometry(1.3, 0.03, 0.05)), brassMat);
-    leg.position.set(0.62, 0, 0);
-    const arm = new Group();
-    arm.add(leg);
-    arm.rotation.y = s * 0.16;
-    dividers.add(arm);
-  }
-  const hinge = new Mesh(keep(new CylinderGeometry(0.06, 0.06, 0.06, 12)), brassMat);
-  dividers.add(hinge);
-  dividers.position.set(2.7, surfaceAt(2.7, 3.7) + 0.06, 3.7);
-  dividers.rotation.y = 2.6;
-  scene.add(dividers);
-  // Candles on the far corners of the rim.
-  const flameTex = (() => {
-    const c = document.createElement("canvas");
-    c.width = c.height = 64;
-    const g = c.getContext("2d")!;
-    const gr = g.createRadialGradient(32, 38, 0, 32, 34, 30);
-    gr.addColorStop(0, "rgba(255,240,200,1)");
-    gr.addColorStop(0.3, "rgba(255,190,90,.7)");
-    gr.addColorStop(1, "rgba(255,140,40,0)");
-    g.fillStyle = gr;
-    g.fillRect(0, 0, 64, 64);
-    const t = keep(new CanvasTexture(c));
-    t.colorSpace = SRGBColorSpace;
-    return t;
-  })();
-  const flames: { s: Sprite; l: PointLight | null; ph: number }[] = [];
+
+  // Glass tubes on the far corners of the rim, an hourglass of light in each, in place of candles.
+  const tubes: { core: Mesh; l: PointLight | null; ph: number }[] = [];
+  const coreMat = keep(new MeshStandardMaterial({ color: 0x101418, emissive: 0xe4eeff, emissiveIntensity: 1.2 }));
   for (const x of [-1, 1]) {
     const cx = x * (W2 + RIM / 2);
     const cz = -D2 - RIM / 2;
-    const candle = new Mesh(
-      keep(new CylinderGeometry(0.11, 0.12, 0.62, 14)),
-      keep(
-        new MeshStandardMaterial({
-          color: 0xe9dcc0,
-          roughness: 0.9,
-          emissive: 0x3a2208,
-          emissiveIntensity: 0.4,
-        }),
-      ),
-    );
-    candle.position.set(cx, rimH + 0.31, cz);
-    scene.add(candle);
-    const s = new Sprite(
-      keep(
-        new SpriteMaterial({
-          map: flameTex,
-          transparent: true,
-          blending: AdditiveBlending,
-          depthWrite: false,
-        }),
-      ),
-    );
-    s.scale.set(0.3, 0.46, 1);
-    s.position.set(cx, rimH + 0.78, cz);
-    scene.add(s);
-    const l = PH ? null : new PointLight(0xffb060, 3.2, 7, 1.8);
+    const tube = new Mesh(keep(new CylinderGeometry(0.15, 0.15, 0.9, 20)), glassMat());
+    tube.position.set(cx, rimH + 0.47, cz);
+    tube.renderOrder = 3;
+    scene.add(tube);
+    const te = new LineSegments(keep(new EdgesGeometry(tube.geometry, 20)), edgeLine);
+    te.position.copy(tube.position);
+    scene.add(te);
+    for (const y of [rimH + 0.03, rimH + 0.94]) {
+      const c = new Mesh(keep(new CylinderGeometry(0.18, 0.18, 0.05, 20)), steel);
+      c.position.set(cx, y, cz);
+      scene.add(c);
+    }
+    const core = new Mesh(keep(hourglass(0.12, 0.78)), coreMat);
+    core.position.set(cx, rimH + 0.47, cz);
+    scene.add(core);
+    const l = PH ? null : new PointLight(0xdfe9ff, 2.2, 7, 1.8);
     l?.position.set(cx, rimH + 0.9, cz);
     if (l) scene.add(l);
-    flames.push({ s, l, ph: rnd() * 6 });
+    tubes.push({ core, l, ph: rnd() * 6 });
+  }
+
+  // The world's limb lies far off beyond the table's far right, where the threads run to.
+  const PLANET = new Vector3(99, -9, -124);
+  const PLANET_R = 72;
+  // Where the threads go in: a point on the limb as the composed view sees it, low on the planet's near edge.
+  const limb = new Vector3(47, -42, -87);
+
+  // ---- the light threads: silver strands between the places, and off the table into the dark -----------------------
+  const ixOf = (id: PlaceId) => PLACES.findIndex((p) => p.id === id);
+  const threadU = {
+    t: wireU.t,
+    hov: { value: new Array<number>(PLACES.length).fill(0) },
+    lit: { value: new Array<number>(PLACES.length).fill(1) },
+  };
+  {
+    const STR = PH ? 2 : 4;
+    const SEG = 40;
+    const pos: number[] = [];
+    const uu: number[] = [];
+    const ends: number[] = [];
+    const seeds: number[] = [];
+    const anchor = (m: Mini) => new Vector3(m.p.x, groundOf(m.p) + Math.min(m.top * 0.75, 1.1), m.p.z);
+    const strand = (a: Vector3, b: Vector3, c: Vector3, ia: number, ib: number) => {
+      const curve = new QuadraticBezierCurve3(a, c, b);
+      const seed = rnd();
+      let prev = curve.getPoint(0);
+      for (let k = 1; k <= SEG; k++) {
+        const cur = curve.getPoint(k / SEG);
+        pos.push(prev.x, prev.y, prev.z, cur.x, cur.y, cur.z);
+        uu.push((k - 1) / SEG, k / SEG);
+        ends.push(ia, ib, ia, ib);
+        seeds.push(seed, seed);
+        prev = cur;
+      }
+    };
+    for (const [ida, idb] of LINKS) {
+      const A = miniOf(ida);
+      const B = miniOf(idb);
+      const a = anchor(A);
+      const b = anchor(B);
+      const len = a.distanceTo(b);
+      for (let s = 0; s < STR; s++) {
+        const c = a
+          .clone()
+          .lerp(b, 0.5)
+          .add(new Vector3((rnd() - 0.5) * 0.6, 0.9 + len * 0.18 + rnd() * 0.5, (rnd() - 0.5) * 0.6));
+        strand(a, b, c, ixOf(ida), ixOf(idb));
+      }
+    }
+    // Off the table: a bundle streaming from the far places away into the dark, toward the world's limb.
+    for (const id of ["tide", "bonds", "week", "today"] as PlaceId[]) {
+      const A = miniOf(id);
+      const a = anchor(A);
+      for (let s = 0; s < STR + 1; s++) {
+        const b = limb.clone().add(new Vector3((rnd() - 0.5) * 6, (rnd() - 0.5) * 6, (rnd() - 0.5) * 6));
+        const c = new Vector3(a.x * 0.3 + 16 + rnd() * 3, 2.5 + rnd() * 1.5, -18 - rnd() * 3);
+        strand(a, b, c, ixOf(id), ixOf(id));
+      }
+    }
+    const geo = keep(new BufferGeometry());
+    geo.setAttribute("position", new BufferAttribute(new Float32Array(pos), 3));
+    geo.setAttribute("u", new BufferAttribute(new Float32Array(uu), 1));
+    geo.setAttribute("ends", new BufferAttribute(new Float32Array(ends), 2));
+    geo.setAttribute("seed", new BufferAttribute(new Float32Array(seeds), 1));
+    const threads = new LineSegments(
+      geo,
+      keep(
+        new ShaderMaterial({
+          uniforms: threadU,
+          transparent: true,
+          depthWrite: false,
+          blending: AdditiveBlending,
+          vertexShader: `attribute float u, seed; attribute vec2 ends; uniform float hov[${PLACES.length}], lit[${PLACES.length}];
+            varying float vU, vS, vH, vL;
+            void main(){ vU = u; vS = seed; int a = int(ends.x + .5); int b = int(ends.y + .5);
+              vH = max(hov[a], hov[b]); vL = min(lit[a], lit[b]);
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+          fragmentShader: `uniform float t; varying float vU, vS, vH, vL;
+            void main(){ float f = fract(vU * 1.6 - t * (.1 + vS * .12) + vS * 7.);
+              float pulse = smoothstep(0., .05, f) * (1. - smoothstep(.05, .3, f));
+              float tips = smoothstep(0., .05, vU) * smoothstep(1., .9, vU);
+              float a = tips * ((.1 + .32 * vH) * (.35 + .65 * vL) + pulse * (.35 + .6 * vH) * (.25 + .75 * vL));
+              if (a < .004) discard;
+              gl_FragColor = vec4(vec3(.88, .92, 1.), a); }`,
+        }),
+      ),
+    );
+    threads.frustumCulled = false;
+    threads.renderOrder = 7;
+    scene.add(threads);
+  }
+
+  // The world's limb, far off in the dark beyond the table: a drowned planet, its storms and its silver rim.
+  {
+    const planet = new Mesh(
+      keep(new SphereGeometry(PLANET_R, PH ? 40 : 72, PH ? 28 : 48)),
+      keep(
+        new ShaderMaterial({
+          uniforms: { t: wireU.t },
+          vertexShader: `varying vec3 vN, vV, vO; void main(){ vO = position; vec4 mv = modelViewMatrix * vec4(position, 1.); vV = mv.xyz; vN = normalMatrix * normal; gl_Position = projectionMatrix * mv; }`,
+          fragmentShader: `uniform float t; varying vec3 vN, vV, vO;
+            float h3(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+            float n3(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+              return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+                         mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+            void main(){ vec3 n = normalize(vN); float f = 1. - max(dot(n, normalize(-vV)), 0.);
+              vec3 q = normalize(vO) * 3.2 + vec3(t * .01, 0., 0.);
+              float c = n3(q) * .55 + n3(q * 2.3) * .3 + n3(q * 5.1) * .15;
+              float cloud = smoothstep(.48, .8, c);
+              vec3 body = vec3(.01, .012, .015) + vec3(.34, .37, .42) * cloud * .22 * (.3 + .7 * pow(f, .8));
+              float rim = pow(f, 2.6);
+              gl_FragColor = vec4(body + vec3(.78, .86, 1.) * rim * 1.15, 1.); }`,
+        }),
+      ),
+    );
+    planet.position.copy(PLANET);
+    scene.add(planet);
+  }
+
+  // Mist: drifting low on the floor round the legs, and thin over the water by the drowned places.
+  const mistTex = keep(mistTexture(rnd));
+  const mists: { s: Sprite; ph: number; x: number; base: number }[] = [];
+  const mistAt = (x: number, y: number, z: number, sc: number, op: number) => {
+    const s = new Sprite(keep(new SpriteMaterial({ map: mistTex, transparent: true, opacity: op, depthWrite: false, color: 0xd8e2ee })));
+    s.scale.set(sc, sc * 0.45, 1);
+    s.position.set(x, y, z);
+    s.renderOrder = 4;
+    scene.add(s);
+    mists.push({ s, ph: rnd() * 6, x, base: op });
+  };
+  if (!PH) for (const [x, z] of legs) mistAt(x * 1.2, FLOOR + 1.2, z * 1.1, 14, 0.5);
+  if (!PH) for (let k = 0; k < 5; k++) mistAt((rnd() - 0.5) * 30, FLOOR + 0.8, (rnd() - 0.5) * 20, 16, 0.4);
+  for (const id of ["day", "ships", "tide", "how"] as PlaceId[]) {
+    const m = miniOf(id);
+    mistAt(m.p.x + 0.3, 0.32, m.p.z + 0.3, 2.6, 0.32);
   }
   await yieldNow();
 
-  // ---- nanites: the sigil atlas -------------------------------------------------------------------------------------
-  try {
-    await document.fonts.load('40px "Noto Sans Runic"', "ᚠ");
-  } catch {
-    /* the fallback glyphs are fine */
-  }
-  const atlas = (() => {
-    const c = document.createElement("canvas");
-    c.width = c.height = 512;
-    const g = c.getContext("2d")!;
-    g.fillStyle = "#fff";
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.font = `44px "Noto Sans Runic","Geist Mono Variable",monospace`;
-    GLYPHS.slice(0, 64).forEach((ch, i) => g.fillText(ch, (i % 8) * 64 + 32, Math.floor(i / 8) * 64 + 34));
-    const t = keep(new CanvasTexture(c));
-    t.colorSpace = SRGBColorSpace;
-    return t;
-  })();
-  const NG = GLYPHS.length;
-  const edgeU = {
-    t: { value: 0 },
-    res: wireU.res,
-    atlas: { value: atlas },
-    px: { value: renderer.getPixelRatio() },
-  };
-
-  // Glyphs rising off each place: a loose column that thickens with the place's level, and many more off the Tide.
+  // ---- nanites: silver sigils rising off the places -----------------------------------------------------------------
+  const atlas = keep(await sigilAtlas());
+  const NG = SIGIL_GLYPHS.length;
+  const pxU = { value: renderer.getPixelRatio() };
   const PER = PH ? 14 : 30;
   const counts = minis.map((m) => (m.p.kind === "ghost" ? PER * 3 : PER));
   const NN = counts.reduce((a, b) => a + b, 0);
@@ -909,7 +1370,6 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   const ng = new Float32Array(NN);
   const nr = new Float32Array(NN);
   const nw = new Float32Array(NN);
-
   {
     let i = 0;
     minis.forEach((m, k) => {
@@ -931,7 +1391,7 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     nGeo,
     keep(
       new ShaderMaterial({
-        uniforms: edgeU,
+        uniforms: { t: wireU.t, atlas: { value: atlas }, px: pxU },
         transparent: true,
         depthWrite: false,
         blending: AdditiveBlending,
@@ -943,7 +1403,7 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
             vec4 mv = modelViewMatrix * vec4(p, 1.); gl_PointSize = (.55 + rnd * .45) * 20. * px * (6. / -mv.z); gl_Position = projectionMatrix * mv; }`,
         fragmentShader: `uniform sampler2D atlas; varying vec2 vCell; varying float vA;
           void main(){ if (vA < .01) discard; vec2 uv = (vCell + gl_PointCoord) / 8.; uv.y = 1. - uv.y; float m = texture2D(atlas, uv).a; if (m < .05) discard;
-            gl_FragColor = vec4(vec3(.93, .79, .5), m * vA); }`,
+            gl_FragColor = vec4(vec3(.9, .94, 1.), m * vA); }`,
       }),
     ),
   );
@@ -951,116 +1411,46 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   nanites.renderOrder = 8;
   scene.add(nanites);
 
-  // ---- the edges of the frame come undone: a veil, the gold grid the table stands in, code on it ------------------
-  const veil = new Mesh(
-    keep(new PlaneGeometry(2, 2)),
-    keep(
-      new ShaderMaterial({
-        uniforms: edgeU,
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-        vertexShader: `void main(){ gl_Position = vec4(position.xy, 0., 1.); }`,
-        fragmentShader: `uniform float t; ${EDGE}
-          void main(){ float e = smoothstep(.56, 1.02, edgeOf()); if (e < .01) discard;
-            float g = hash(vec3(floor(gl_FragCoord.xy / 3.), floor(t * 6.)));
-            float scan = .5 + .5 * sin(gl_FragCoord.y * .9 + t * 2.);
-            vec3 c = vec3(.025, .02, .03) + vec3(.79, .66, .36) * e * .05 * scan;
-            gl_FragColor = vec4(c, e * (.6 + .14 * g)); }`,
-      }),
-    ),
-  );
-  veil.frustumCulled = false;
-  veil.renderOrder = 20;
-  scene.add(veil);
-  const wire: number[] = [];
-  const GX = 30;
-  const GZ = 22;
-  const FY = -0.08;
-  for (let x = -GX; x <= GX; x += 1) wire.push(x, FY, -GZ, x, FY, GZ);
-  for (let z = -GZ; z <= GZ; z += 1) wire.push(-GX, FY, z, GX, FY, z);
-  // The table's own outline and its legs, traced.
-  const ow = W2 + RIM + 0.15;
-  const od = D2 + RIM + 0.15;
-  for (const y of [0.3, -0.66]) wire.push(-ow, y, -od, ow, y, -od, ow, y, -od, ow, y, od, ow, y, od, -ow, y, od, -ow, y, od, -ow, y, -od);
-  for (const [x, z] of [
-    [-ow, -od],
-    [ow, -od],
-    [-ow, od],
-    [ow, od],
-  ] as const)
-    wire.push(x, 0.3, z, x, -6, z);
-  const wireGeo = keep(new BufferGeometry());
-  wireGeo.setAttribute("position", new BufferAttribute(new Float32Array(wire), 3));
-  const wires = new LineSegments(
-    wireGeo,
-    keep(
-      new ShaderMaterial({
-        uniforms: edgeU,
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        vertexShader: `varying vec3 vW; void main(){ vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
-        fragmentShader: `uniform float t; varying vec3 vW; ${EDGE}
-          void main(){ float e = smoothstep(.36, .92, edgeOf()); float near = 1. - smoothstep(9., 24., length(vW.xz));
-            float a = max(e, near * .22); if (a < .01) discard;
-            vec3 cell = floor(vW * 1.6); float h = hash(cell + floor(t * .7 + hash(cell) * 4.));
-            if (h < .3 - e * .2) discard;
-            float fl = .75 + .25 * sin(t * 3. + h * 40.);
-            gl_FragColor = vec4(vec3(.79, .66, .36) * fl, a * .62); }`,
-      }),
-    ),
-  );
-  wires.frustumCulled = false;
-  wires.renderOrder = 21;
-  scene.add(wires);
-  // Code on the grid and the rim, rising and winking; and sigils peeling off the wires.
-  const NE = PH ? 380 : 1100;
-  const ep = new Float32Array(NE * 3);
-  const eg = new Float32Array(NE);
-  const er = new Float32Array(NE);
-  for (let i = 0; i < NE; i++) {
-    let x = (rnd() - 0.5) * GX * 1.6;
-    let z = (rnd() - 0.5) * GZ * 1.6;
-    let y = FY;
-    if (rnd() < 0.3) {
-      // On the rim and the table's flanks.
-      const side = Math.floor(rnd() * 4);
-      x = side < 2 ? (rnd() - 0.5) * ow * 2 : side === 2 ? -ow : ow;
-      z = side >= 2 ? (rnd() - 0.5) * od * 2 : side === 0 ? -od : od;
-      y = -0.6 + rnd() * 0.9;
+  // ---- the edges of the frame come undone: the floor's grid, the table's outline, code on them, in silver -----------
+  let stepUndone: (t: number, r: WebGLRenderer) => void = () => undefined;
+  {
+    const wire: number[] = [];
+    const GX = 30;
+    const GZ = 22;
+    const FY = FLOOR + 0.02;
+    for (let x = -GX; x <= GX; x += 1.5) wire.push(x, FY, -GZ, x, FY, GZ);
+    for (let z = -GZ; z <= GZ; z += 1.5) wire.push(-GX, FY, z, GX, FY, z);
+    const ow = W2 + RIM + 0.15;
+    const od = D2 + RIM + 0.15;
+    for (const y of [0.3, -0.66]) wire.push(-ow, y, -od, ow, y, -od, ow, y, -od, ow, y, od, ow, y, od, -ow, y, od, -ow, y, od, -ow, y, -od);
+    for (const [x, z] of legs) for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) wire.push(x + sx * 0.58, -0.66, z + sz * 0.58, x + sx * 0.58, FLOOR, z + sz * 0.58);
+    const ND = PH ? 380 : 1100;
+    const dust = new Float32Array(ND * 3);
+    for (let i = 0; i < ND; i++) {
+      let x = (rnd() - 0.5) * GX * 1.6;
+      let z = (rnd() - 0.5) * GZ * 1.6;
+      let y = FY;
+      if (rnd() < 0.3) {
+        const side = Math.floor(rnd() * 4);
+        x = side < 2 ? (rnd() - 0.5) * ow * 2 : side === 2 ? -ow : ow;
+        z = side >= 2 ? (rnd() - 0.5) * od * 2 : side === 0 ? -od : od;
+        y = -0.6 + rnd() * 0.9;
+      }
+      dust.set([x, y, z], i * 3);
     }
-    ep.set([x, y, z], i * 3);
-    eg[i] = Math.floor(rnd() * NG);
-    er[i] = rnd();
+    const undone = comeUndone({
+      wire,
+      dust,
+      atlas,
+      px: pxU,
+      peel: PH ? 140 : 420,
+      shape: [0.86, 1.31],
+      tint: { wire: WIRE, hi: HI },
+      keep,
+    });
+    undone.addTo(scene);
+    stepUndone = undone.step;
   }
-  const eGeo = keep(new BufferGeometry());
-  eGeo.setAttribute("position", new BufferAttribute(ep, 3));
-  eGeo.setAttribute("glyph", new BufferAttribute(eg, 1));
-  eGeo.setAttribute("rnd", new BufferAttribute(er, 1));
-  const codeDust = new Points(
-    eGeo,
-    keep(
-      new ShaderMaterial({
-        uniforms: edgeU,
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        vertexShader: `attribute float glyph, rnd; uniform float t, px; varying vec2 vCell; varying float vR;
-          void main(){ vR = rnd; float g = mod(glyph + floor(t * .8 + rnd * 9.), ${NG.toFixed(1)}); vCell = vec2(mod(g, 8.), floor(g / 8.));
-            vec3 p = position; p.y += fract(t * .03 + rnd) * 1.4;
-            vec4 mv = modelViewMatrix * vec4(p, 1.); gl_PointSize = (.6 + rnd * .6) * 24. * px * (6. / -mv.z); gl_Position = projectionMatrix * mv; }`,
-        fragmentShader: `uniform sampler2D atlas; uniform float t; varying vec2 vCell; varying float vR; ${EDGE}
-          void main(){ float e = smoothstep(.42, .95, edgeOf()); if (e < .01) discard;
-            vec2 uv = (vCell + gl_PointCoord) / 8.; uv.y = 1. - uv.y; float m = texture2D(atlas, uv).a; if (m < .05) discard;
-            float wink = .45 + .55 * sin(t * 1.7 + vR * 50.);
-            gl_FragColor = vec4(mix(vec3(.79, .66, .36), vec3(.89, .79, .55), vR), m * e * wink * .8); }`,
-      }),
-    ),
-  );
-  codeDust.frustumCulled = false;
-  codeDust.renderOrder = 22;
-  scene.add(codeDust);
 
   // ---- the camera ----------------------------------------------------------------------------------------------------
   let phoneView = host.clientWidth < 700;
@@ -1101,8 +1491,8 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     if (!open) distTo = view.dist;
     cam.fov = view.fov;
     cam.updateProjectionMatrix();
-    renderer.getDrawingBufferSize(edgeU.res.value);
-    edgeU.px.value = renderer.getPixelRatio();
+    renderer.getDrawingBufferSize(wireU.res.value);
+    pxU.value = renderer.getPixelRatio();
     moved = true;
   };
   let open: PlaceId | null = null;
@@ -1240,7 +1630,8 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   io?.observe(host);
   let raf = 0;
   let last = performance.now();
-  let T = 0;
+  // Under reduced motion the clock stands at a moment where the threads and the water read well, and stays there.
+  let T = reduce ? 7.3 : 0;
   const minStep = PH ? 1000 / 30 - 2 : 0;
   const placed = new Map<PlaceId, string>();
   const v3 = new Vector3();
@@ -1256,6 +1647,7 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
       opts.onPlace(m.p.id, x, y, vis);
     }
   };
+  const ghostMini = miniOf("tide");
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
     if (!visible || document.visibilityState === "hidden") {
@@ -1266,9 +1658,11 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
     if (!reduce) T += dt;
-    edgeU.t.value = T;
     wireU.t.value = T;
+    waterU.t.value = T;
     for (const m of minis) (m.wire.material.uniforms.t as { value: number }).value = T;
+    for (const g of glassWires) (g.uniforms.t as { value: number }).value = T;
+    stepUndone(T, renderer);
     // The camera eases, and the pins follow only while it moves.
     const k = reduce ? 1 : 1 - Math.exp(-dt * 4.2);
     const panning = pan.step(dt);
@@ -1290,7 +1684,7 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
       place();
       moved = false;
     }
-    // The places: lit from real state, warmer under the pointer and while open.
+    // The places: lit from real state, brighter under the pointer and while open.
     let i = 0;
     for (const [mi, m] of minis.entries()) {
       const on = m.p.id === hover || m.p.id === hoverExt || m.p.id === open;
@@ -1298,29 +1692,42 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
       m.lit += ((m.state.lit ? 1 : 0) - m.lit) * Math.min(1, dt * 3);
       m.level += (m.state.level - m.level) * Math.min(1, dt * 3);
       const ghost = m.p.kind === "ghost";
-      m.mats.stone.color.setRGB(0.3 + 0.17 * m.lit, 0.29 + 0.16 * m.lit, 0.28 + 0.15 * m.lit);
-      m.mats.stone.emissive.setRGB(0.18 * m.hov, 0.13 * m.hov, 0.05 * m.hov);
-      const flick = reduce ? 1 : 0.9 + 0.1 * Math.sin(T * 7 + mi);
-      m.mats.glow.emissiveIntensity = (0.15 + m.level * 2.2 * m.lit + m.hov * 0.8) * flick;
-      if (m.light) m.light.intensity = (m.level * 2.6 + m.hov * 1.5) * m.lit * flick;
-      (m.wire.material.uniforms.a as { value: number }).value = ghost ? 0.55 + 0.25 * m.hov + 0.1 * Math.sin(T * 2) : 0.05 + 0.5 * m.hov + (1 - m.lit) * 0.25;
+      const stone = m.mats.stone as MeshStandardMaterial;
+      stone.color.setRGB(0.07 + 0.05 * m.lit, 0.075 + 0.055 * m.lit, 0.085 + 0.06 * m.lit);
+      stone.emissive.setRGB(0.07 * m.hov, 0.08 * m.hov, 0.1 * m.hov);
+      const flick = reduce ? 1 : 0.92 + 0.08 * Math.sin(T * 5 + mi);
+      (m.mats.glow as MeshStandardMaterial).emissiveIntensity = (0.2 + m.level * 2.0 * m.lit + m.hov * 0.8) * flick;
+      (m.mats.figure as MeshStandardMaterial).emissiveIntensity = 0.12 + m.level * 0.6 * m.lit + m.hov * 0.5;
+      (m.mats.glass as MeshStandardMaterial).emissiveIntensity = (0.7 + m.hov * 1.6) * (m.p.kind === "stacks" ? 0.5 : 1);
+      // The stacks hold dozens of leaves, so each is fainter.
+      m.mats.vein.opacity = (0.22 + 0.4 * m.lit + 0.35 * m.hov) * (0.75 + 0.25 * m.level) * (m.p.kind === "stacks" ? 0.4 : 1);
+      if (m.light) m.light.intensity = (m.level * 2.4 + m.hov * 1.5) * m.lit * flick;
+      (m.wire.material.uniforms.a as { value: number }).value = ghost ? 0.55 + 0.25 * m.hov + 0.1 * Math.sin(T * 2) : 0.04 + 0.5 * m.hov + (1 - m.lit) * 0.22;
       m.ring.material.opacity = m.hov * 0.85;
       m.ring.scale.setScalar(1 + (reduce ? 0 : Math.sin(T * 2.4) * 0.03 * m.hov));
       const w = ghost ? 0.45 + 0.35 * m.hov : (0.1 + 0.5 * m.level * m.lit + 0.55 * m.hov) * (0.6 + 0.4 * m.lit);
       for (let n = 0; n < counts[mi]!; n++, i++) nw[i] = w * (nr[i]! < 0.35 + 0.65 * Math.max(m.level, m.hov) || ghost ? 1 : 0);
+      threadU.hov.value[mi] = m.hov;
+      threadU.lit.value[mi] = ghost ? 0.25 : m.lit;
     }
     (nGeo.attributes.w as BufferAttribute).needsUpdate = true;
+    (beamMat.uniforms.k as { value: number }).value = (0.25 + beacon.level * 0.9 + beacon.hov * 0.6) * beacon.lit;
     if (!reduce) {
+      ghostMini.g.rotation.y = T * 0.06;
       for (const s of ships) {
         s.g.position.y = Math.sin(T * 1.3 + s.ph) * 0.012;
         s.g.rotation.z = Math.sin(T * 1.1 + s.ph) * 0.05;
         s.g.rotation.x = Math.sin(T * 0.9 + s.ph * 2) * 0.03;
       }
-      for (const f of flames) {
-        const q = 0.85 + 0.15 * Math.sin(T * 9 + f.ph) * Math.sin(T * 5.3 + f.ph * 2);
-        f.s.scale.set(0.3 * q, 0.46 * (0.9 + 0.2 * q), 1);
-        if (f.l) f.l.intensity = 3.2 * q;
+      for (const m of mists) {
+        m.s.position.x = m.x + Math.sin(T * 0.05 + m.ph) * 0.8;
+        m.s.material.opacity = m.base * (0.75 + 0.25 * Math.sin(T * 0.2 + m.ph));
       }
+      for (const tb of tubes) {
+        const q = 0.88 + 0.12 * Math.sin(T * 1.7 + tb.ph);
+        if (tb.l) tb.l.intensity = 2.2 * q;
+      }
+      coreMat.emissiveIntensity = 1.0 + 0.25 * Math.sin(T * 1.7);
     }
     renderer.render(scene, cam);
   };
@@ -1329,6 +1736,7 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   await yieldNow();
   cam.position.set(Math.sin(yaw) * Math.sin(pitch) * dist, Math.cos(pitch) * dist, look.z + Math.cos(yaw) * Math.sin(pitch) * dist);
   cam.lookAt(look);
+  stepUndone(T, renderer);
   renderer.render(scene, cam);
   raf = requestAnimationFrame(frame);
 

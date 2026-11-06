@@ -6,7 +6,7 @@
 .rq {
   position: absolute;
   left: 0;
-  top: 96px;
+  top: 84px;
   bottom: 118px;
   width: var(--spine);
   z-index: 32;
@@ -71,24 +71,16 @@
   font-family: var(--cx-serif);
   font-style: italic;
   font-weight: 400;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.15;
   color: var(--cx-ink);
-  max-width: 130px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .rq-top em {
-  font: normal 8.5px/1 var(--cx-mono);
+  font: normal 10px/1 var(--cx-mono);
   letter-spacing: 0.04em;
-  color: var(--cx-mute);
-}
-.rq-gist {
-  max-width: 170px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 9.5px;
-  line-height: 1.3;
   color: var(--cx-mute);
 }
 .cx .rq-row:hover .rq-face,
@@ -187,8 +179,7 @@
   font-size: 10.5px;
   max-width: 64px;
 }
-.rq[data-narrow] .rq-top em,
-.rq[data-narrow] .rq-gist {
+.rq[data-narrow] .rq-top em {
   display: none;
 }
 

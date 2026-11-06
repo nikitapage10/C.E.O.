@@ -18,7 +18,7 @@ import { navigateTo } from "../../../apps/world/src/route.ts";
 import { PORTRAITS } from "@ceo/desk/portraits.ts";
 import { SetupAsks } from "@ceo/desk/skippy/SetupAsks.tsx";
 import { RC } from "@ceo/desk/flow/index.ts";
-import { ForgeStage } from "./ForgeStage.tsx";
+import { FurnaceStage } from "./FurnaceStage.tsx";
 import { BenchCard, CrewStations, RunsLine, VqaLine } from "./ForgeParts.tsx";
 import { forgeLanes, queueOf } from "../data/forge.ts";
 import { progressMap, progressWords, stepWords, type Progress } from "../data/progress.ts";
@@ -26,9 +26,10 @@ import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./foundry.css";
 
 /**
- * The Foundry's own Desk page (#432), on the Desk's flow kit in Today's language with the Builder's forge orange. The
- * stage leads: the pipeline as particle lines (ideas, the queue, the forge's four lanes, checks, shipped; see
- * foundry/ForgeStage.tsx) with what needs Nikita beside the headline. Below it, simple first and deeper on click: the
+ * The Foundry's own Desk page (#432), on the Desk's flow kit with the Builder's forge orange. The stage leads: the
+ * Deep Furnace (#813, FurnaceStage.tsx), the forge shaft in 3D where every job rises from the crucible through Work,
+ * Pictures, the five checks and Ship, with the headline and what needs Nikita over it. Below it, simple first and
+ * deeper on click: the
  * ideas on the bench as cards with their pictures beside the Suggest box, the crew at their stations (every job in hand
  * and the queue one click deeper), the Changelog, and the next runs, usage, Visual QA and connections. GitHub is read
  * through the Desk's feed (see foundry.ts); the idea buttons write through the function in api/foundry.ts (on Azure,
@@ -112,7 +113,7 @@ export function FoundryPage({ now }: { now: number }) {
           As of {ago(keptAt, now)}, from this device; refreshing.
         </p>
       )}
-      <ForgeStage data={data} ideas={ideas} progress={progress} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
+      <FurnaceStage data={data} ideas={ideas} progress={progress} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
 
       <section className="fl-below fo-bench" aria-label="Ideas waiting">
         <div className="fo-sec">

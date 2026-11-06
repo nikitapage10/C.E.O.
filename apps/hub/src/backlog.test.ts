@@ -88,7 +88,10 @@ describe("the backlog classifier", () => {
     expect(readChat(row)).toEqual({ chat: chatOf(A), group: false, name: "", handle: A, last: { text: "hey", fromMe: false, at: NOW - DAY, handle: A, read: false, guid: "m1" }, lastAt: NOW - DAY });
     expect(readChat({ ...row, lastMessage: { ...row.lastMessage, dateRead: NOW } })?.last?.read).toBe(true);
     expect(readChat({ ...row, lastMessage: { ...row.lastMessage, associatedMessageGuid: "p:0/x" } })?.last).toBeNull();
-    expect(readChat({ ...row, guid: "iMessage;+;chat99", style: 43, displayName: "Climbing" })).toMatchObject({ group: true, name: "Climbing", handle: "" });
+    // A chat of several (#916): a group only with 6 or more other people; with fewer, a regular chat.
+    expect(readChat({ ...row, guid: "iMessage;+;chat99", style: 43, displayName: "Climbing" })).toMatchObject({ group: false, multi: true, people: 1, name: "Climbing", handle: "" });
+    const six = Array.from({ length: 6 }, (_, i) => ({ address: `+1555555030${i}` }));
+    expect(readChat({ ...row, guid: "iMessage;+;chat99", style: 43, displayName: "Climbing", participants: six })).toMatchObject({ group: true, multi: true, people: 6, name: "Climbing", handle: "" });
   });
 });
 

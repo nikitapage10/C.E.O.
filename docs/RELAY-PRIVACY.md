@@ -17,7 +17,10 @@ only. It is not an urgency filter. It keeps track of who Nikita owes a reply, so
 come first, lets them push a reply to later, nudges them gently once or twice a day, and drafts replies in their own
 voice, learned from their own past replies to that contact. A dictated reply is lightly restyled. **Nothing is sent
 without Nikita's tap on the Desk.** Group chats are only summarised, never drafted for; since #805 Nikita can answer
-one with his own typed words, sent exactly as typed.
+one with his own typed words, sent exactly as typed. Since #916 a chat counts as a group only with 6 or more other
+people (`GROUP_MIN_PEOPLE` in `apps/hub/src/bluebubbles.ts`, from BlueBubbles' participants; a chat whose size
+BlueBubbles doesn't give stays a group). A smaller chat of several is handled as a one-to-one thread (see "Small chats
+of several" below).
 
 The parts:
 
@@ -59,7 +62,7 @@ The parts:
 | --- | --- | --- | --- |
 | Messages | Every message and attachment | Apple's `chat.db`. Relay never opens it; it asks BlueBubbles for a chat's latest messages when it needs them | Apple's choice, not Relay's |
 | BlueBubbles | Its own cache, settings and server password | `~/Library/Application Support/bluebubbles-server/` | Until BlueBubbles is removed (see the wipe) |
-| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen; the new-message poll's cursor (the newest message time read, and 16 hex of the SHA-256 of each message guid read in the last 2 minutes, never the guid). Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. Since #758: per thread whether its last text is unread; the backlog's older unanswered chats (a random id, the chat id, the time, unread or not; 200 at most) and when it last ran; the learned voice (style traits, tones by relationship, the numbers, when, the cost) and, per learned contact, 16 hex of a SHA-256 of their handle with its relationship (family, friends, work, other). **Never a copy of a message body** |
+| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time, and (#914) when Nikita marked it Done, so a rescan never re-lists it for a text from before then; daily counts; the ids of send requests already seen; the new-message poll's cursor (the newest message time read, and 16 hex of the SHA-256 of each message guid read in the last 2 minutes, never the guid). Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. Since #758: per thread whether its last text is unread; the backlog's older unanswered chats (a random id, the chat id, the time, unread or not; 200 at most) and when it last ran; the learned voice (style traits, tones by relationship, the numbers, when, the cost) and, per learned contact, 16 hex of a SHA-256 of their handle with its relationship (family, friends, work, other). **Never a copy of a message body** |
 | Shown texts (#758) | An owed thread's last 5 texts (1,000 characters in all; since #870 its recent turns from both sides), a group's since Nikita's last reply, with each sender's name | The hub's memory only, never the state file | Until the thread closes or the hub restarts |
 | Tapback line ids (#888) | Each of their shown lines' message guid in Messages, under an opaque 8-hex ref; the site gets only the ref | The hub's memory only, never the state file, the site or a log | With the shown texts: until the thread closes or the hub restarts |
 | The learn pass (#758) | A year of Nikita's messages, read once from BlueBubbles to make the numbers and the sample | Memory, for one run | The run | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
@@ -98,6 +101,13 @@ cost (tokens and dollars) is kept.
   earlier turns (2,000 characters in all), up to 8 of Nikita's own past replies to that same contact as style
   examples (1,500 characters in all), the style profile's four numbers, and, when Nikita dictated, their words to
   restyle (1,000 characters at most). Never another contact's messages.
+- **Small chats of several (#916).** A chat with 2 to 5 other people is sorted and drafted for like a one-to-one
+  thread, under every rule above: each person in it is `Member 1`, `Member 2`… inside the placeholdered text, every
+  line of theirs is written `them` (no Member line reaches Blasto), the rules run on each line with its own sender
+  and the skip list over everyone in the chat, so one skip-listed person keeps the whole chat from the models. Its
+  style examples are Nikita's own past texts in that chat; no learned relationship applies. The names go back only on
+  the Mac, into the gist and draft. Its reply goes to that chat's own id, never to one of its people, through the same
+  signed, single-use, 10-minute send as any other. The learn pass still reads one-to-one chats only.
 - **Blasto, learning the voice** (#758, Claude Sonnet, once per tap of "Learn from my texts") sees about 1,000 of
   Nikita's own sent texts from the last 12 months: one-to-one chats only, contacts in Mac Contacts only, the 60
   most-texted at most, 30 texts per contact at most (spread over the year), 200 characters each and 60,000 in all,
@@ -457,7 +467,9 @@ sealed list holds. The public site still gets counts only.
   (money, legal, codes, short codes, promos, the skip list): the hub clears them the moment a rule matches, and the
   site never sees them. They are never logged, never in the state file and never sent to a model beyond the
   placeholdered snippets above. The gist stays as a small line under them.
-- **Groups.** A group's summary shows in a Groups section on the Texts page. A group becomes owed when Dialtone says
+- **Groups.** A group (6 or more other people, #916) has its summary in a Groups section on the Texts page; a smaller
+  chat of several is on the line with the one-to-one threads, named by its name in Messages or its people's first
+  names, each of its lines with its sender. A group becomes owed when Dialtone says
   Nikita was asked something, or when one of Nikita's names (`me` in the hub's `config.json`, "Nikita" by default)
   stands as a word in a member's text. It is still never drafted for. BlueBubbles 1.9.12 doesn't expose a chat's mute
   state (its `isFiltered` is the unknown-senders filter), so muted groups aren't treated apart.

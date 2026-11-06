@@ -11,7 +11,10 @@ import { rateOf } from "./senators.ts";
  * a line can't be spoken (signed out, capped, down, blocked) `say` answers false at once and the caption is held for its
  * reading time instead, so a failure is never heard, only read.
  *
- * Murmurs play quieter on a second player, only while the main speaker is silent, and stop the moment it speaks.
+ * Murmurs play quieter on a second player. One starts only while the main speaker is silent, and then plays to its end
+ * (#910, Nikita, 2026-11-05: background sounds are never cut off; a little overlap is fine, as long as it doesn't get
+ * too crazy): a speaker who starts meanwhile talks over its tail, one murmur at a time. Held (out of view, or Nikita has
+ * the floor), it pauses and picks up where it was; only turning the sound off, or leaving, stops it.
  */
 
 const KEY = "ceo.rotunda.sound";
@@ -62,7 +65,7 @@ export interface RotundaVoice {
   prefetch: (lines: { by: string; text: string }[]) => void;
   /** A quiet murmur from the gallery, only while no one speaks: its length in seconds, or null when it wasn't played. */
   murmur: (by: string, text: string) => Promise<number | null>;
-  /** Stops whatever is playing (a new item brought to the floor). */
+  /** Stops the speaker (a new item brought to the floor); a murmur still plays out (#910). */
   stop: () => void;
   /** Holds the sound while the chamber is out of view ("view"), or while Nikita has the floor ("floor", #905). */
   hold: (held: boolean, why?: "view" | "floor") => void;
@@ -126,6 +129,8 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   main.preload = mur.preload = "auto";
   let end: ((ok: boolean) => void) | null = null;
   let murEnd: (() => void) | null = null;
+  /** A murmur paused by a hold, to pick up again. */
+  let murHeld = false;
   const on = () => useRotundaSound.getState().on && !gone && !dead;
   const speaking = (v: boolean) => useRotundaSound.getState().speaking !== v && useRotundaSound.getState().set({ speaking: v });
 
@@ -166,7 +171,9 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
     return got;
   };
 
+  /** Stops a murmur: only for the sound going off, or the chamber going. */
   const hushMurmur = () => {
+    murHeld = false;
     if (!mur.paused) mur.pause();
     murEnd?.();
     murEnd = null;
@@ -199,8 +206,12 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
     for (const ev of GESTURES) document.removeEventListener(ev, firstTap, true);
   };
   for (const ev of GESTURES) document.addEventListener(ev, firstTap, true);
-  // Off means quiet at once, mid-line included.
-  const unsub = useRotundaSound.subscribe((s, was) => s.on !== was.on && !s.on && voice.stop());
+  // Off means quiet at once, mid-line and murmurs included.
+  const unsub = useRotundaSound.subscribe((s, was) => {
+    if (s.on === was.on || s.on) return;
+    voice.stop();
+    hushMurmur();
+  });
 
   const voice: RotundaVoice = {
     async say(by, text) {
@@ -208,7 +219,6 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       const url = await get(by, text);
       if (!url || !on()) return false;
       finish(false);
-      hushMurmur();
       return new Promise<boolean>((res) => {
         // A line held (out of view, or Nikita has the floor) isn't let go for it: the clock starts again.
         const giveUp = () => {
@@ -256,7 +266,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       return new Promise<number | null>((res) => {
         const d = Number.isFinite(mur.duration) ? mur.duration / rateOf(by) : 1.5;
         murEnd = () => res(d);
-        mur.onended = () => {
+        mur.onended = mur.onerror = () => {
           murEnd?.();
           murEnd = null;
         };
@@ -265,7 +275,6 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
     stop() {
       if (!main.paused) main.pause();
       finish(false);
-      hushMurmur();
     },
     hold(h, why = "view") {
       if (h) holds.add(why);
@@ -275,12 +284,24 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
       // Only the chamber leaving the page holds the voices; another window or tab doesn't (#898).
       if (h) {
         if (!main.paused) main.pause();
-        hushMurmur();
-      } else if (end && main.paused && main.src) main.play().catch(() => finish(false));
+        // A murmur pauses with the chamber and picks up where it was, never cut off (#910).
+        if (!mur.paused) {
+          mur.pause();
+          murHeld = true;
+        }
+      } else {
+        if (end && main.paused && main.src) main.play().catch(() => finish(false));
+        if (murHeld) {
+          murHeld = false;
+          if (on()) mur.play().catch(() => hushMurmur());
+          else hushMurmur();
+        }
+      }
     },
     dispose() {
       dead = true;
       voice.stop();
+      hushMurmur();
       unsub();
       unlockers.delete(unlock);
       for (const ev of GESTURES) document.removeEventListener(ev, firstTap, true);

@@ -120,7 +120,7 @@ describe("the message query and the old webhook (#749)", () => {
     const u = new URL(s.url);
     expect(u.pathname).toBe("/api/v1/message/query");
     expect(u.searchParams.get("password")).toBe(PW);
-    expect(JSON.parse(String(s.init?.body))).toEqual({ with: ["chat"], sort: "ASC", after: 1_699_999_999_000, limit: 1000 });
+    expect(JSON.parse(String(s.init?.body))).toEqual({ with: ["chat", "chat.participants"], sort: "ASC", after: 1_699_999_999_000, limit: 1000 });
   });
 
   it("a poll that BlueBubbles refuses throws its status, for the log's class", async () => {

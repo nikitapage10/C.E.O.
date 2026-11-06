@@ -67,7 +67,7 @@ const FAKE_SPEECH = () => {
   };
 };
 
-async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; order?: string | null; group?: boolean; failSends?: number[]; tapbacks?: "on" | "off" } = {}) {
+async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; order?: string | null; group?: boolean; failSends?: number[]; tapbacks?: "on" | "off"; newTextAfter?: number } = {}) {
   const signedIn = opts.signedIn ?? true;
   // Longest waiting first is the page's default (#904); most tests here walk the queue newest first (Sam, Jordan,
   // Priya), as a device that picked Newest would. null leaves the default.
@@ -78,6 +78,8 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; o
   let requests: Record<string, unknown>[] = [];
   let rids = 0;
   let sendsMade = 0;
+  // #980: after this many signed-in reads, a new text from Jordan comes in (the Mac reported it).
+  let reads = 0;
   const now = Date.now();
   await page.route("https://api.github.com/**", (r) => r.fulfill({ json: [] }));
   await page.route(`${BASE}/api/foundry-feed`, (r) => r.fulfill({ json: { issues: [], runs: { workflow_runs: [] }, e2e: { workflow_runs: [] }, pulls: [], commits: [] } }));
@@ -141,6 +143,8 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; o
     const url = new URL(r.request().url());
     if (r.request().method() === "GET") {
       if (url.searchParams.get("view") === "status" || !signedIn) return r.fulfill({ json: { ok: true, status: textsStatus() } });
+      reads++;
+      const fresh = opts.newTextAfter !== undefined && reads > opts.newTextAfter ? [{ text: "also are you free saturday", at: now - 60_000, ref: "0000000d" }] : [];
       const texts = [
         { id: SAM, name: "Sam Test", channel: "iMessage", group: false, state: "owed", sort: "sooner", since: now - 4 * 60_000, laterUntil: null, gist: "Everyone's there already; they ask if they should start without you", draft: samDraft, summary: null },
         { id: JORDAN, name: "Jordan Test", channel: "iMessage", group: false, state: "owed", sort: "normal", since: now - 12 * 60_000, laterUntil: null, gist: "Says the meme you sent at 2am was too accurate", draft: { text: "haha right?? saw it and thought of you", at: now - 60_000 }, summary: null, messages: [
@@ -148,6 +152,7 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean; o
           { text: "the one with the cat in the box", at: now - 39 * 60_000, me: true },
           { text: "Photo", at: now - 20 * 60_000, media: true, ref: "0000000b" },
           { text: "ok that meme you sent at 2am was way too accurate", at: now - 12 * 60_000, ref: "0000000c" },
+          ...fresh,
         ] },
         // An unnamed big group (#923): the hub names it by its people, the shelf counts what is new.
         ...(opts.group ? [{ id: "9999999999999999", name: "Alex, Sam +5", channel: "iMessage", group: true, state: "settled", sort: null, since: now - 30 * 60_000, laterUntil: null, gist: "", draft: null, summary: { text: "They plan a picnic on Sunday.", asked: false }, messages: Array.from({ length: 5 }, (_, i) => ({ text: `picnic line ${i}`, at: now - (30 - i) * 60_000, from: i % 2 ? "Alex Test" : "Sam Other" })) }] : []),
@@ -316,9 +321,10 @@ for (const width of [1440, 400]) {
     await expect(ctx).not.toHaveAttribute("data-clear", "true");
     if (SHOTS) await page.waitForTimeout(1_500);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/923-card-${width}.png` });
-    await ctx.click();
+    // A tap on the faded lines (on one of his own, so it picks nothing; #980: a pick no longer clears them all).
+    await ctx.locator(".cx-bub[data-me]").dispatchEvent("click");
     await expect(ctx).toHaveAttribute("data-clear", "true");
-    await ctx.click();
+    await ctx.locator(".cx-bub[data-me]").dispatchEvent("click");
     await expect(ctx).not.toHaveAttribute("data-clear", "true");
     await page.keyboard.press("r");
     await expect(box).toBeFocused();
@@ -669,6 +675,17 @@ test("#950: any of their earlier bubbles takes a tapback, and Reply answers it i
     await expect(earlier).toHaveAttribute("data-picked", "true", { timeout: 1_000 });
   }).toPass({ timeout: 10_000 });
   await expect(focused(page).locator(".cx-tbwhich")).toContainText("did you see what I sent");
+  // #980: ‹ › step through their lines too, and stepping onto the latest lets the pick go.
+  await focused(page).getByRole("button", { name: "Pick a later message of theirs" }).click();
+  await expect(focused(page).locator(".cx-ctx .cx-bub[data-picked]")).toContainText("Photo");
+  await focused(page).getByRole("button", { name: "Pick a later message of theirs" }).click();
+  await expect(focused(page).locator(".cx-tbwhich")).toHaveText("on their latest");
+  await focused(page).getByRole("button", { name: "Pick an earlier message of theirs" }).click();
+  await focused(page).getByRole("button", { name: "Pick an earlier message of theirs" }).click();
+  await expect(earlier).toHaveAttribute("data-picked", "true");
+  await expect(focused(page).locator(".cx-tbwhich")).toContainText("did you see what I sent");
+  // The other older lines keep their fade while one is picked.
+  await expect.poll(() => focused(page).locator(".cx-ctx").getAttribute("data-clear")).toBeNull();
   // His own line can't be picked.
   await expect(focused(page).locator(".cx-ctx .cx-bub[data-me][data-pick]")).toHaveCount(0);
   await focused(page).getByRole("button", { name: "Heart" }).click();
@@ -703,4 +720,22 @@ test("#950: Relay refreshes by itself while it shows, keeping the card and the w
   await expect.poll(() => reads, { timeout: 25_000 }).toBeGreaterThan(before + 1);
   await expect(focused(page)).toContainText("Jordan Test");
   await expect(box).toHaveValue("half a thought");
+});
+
+test("#980: a new text shows on the card by itself, no refresh, and the older lines stay dark and blurred", async ({ page }) => {
+  test.setTimeout(60_000);
+  await stub(page, { newTextAfter: 1 });
+  await page.goto(`${BASE}/relay`);
+  await expect(page.locator(".cx-rows button", { hasText: "Jordan Test" })).toBeVisible();
+  await page.locator(".cx-rows button", { hasText: "Jordan Test" }).click();
+  await expect(focused(page)).toContainText("Jordan Test");
+  await page.mouse.move(0, 0);
+  // Their older lines: each has its depth, and is faded and blurred (#980: at least #923's).
+  const older = focused(page).locator(".cx-ctx > .cx-bub").first();
+  await expect.poll(() => older.evaluate((el) => (el as HTMLElement).style.getPropertyValue("--d"))).not.toBe("");
+  await expect.poll(() => older.evaluate((el) => Number(getComputedStyle(el).opacity)), { timeout: 5_000 }).toBeLessThanOrEqual(0.55);
+  await expect.poll(() => older.evaluate((el) => getComputedStyle(el).filter)).toMatch(/blur\((?:[2-9]|1\.[5-9])/);
+  // Within one poll (15 s) the new text is the newest line on the card, with no reload.
+  await expect(focused(page).locator(".cx-bub-hero")).toContainText("also are you free saturday", { timeout: 25_000 });
+  await expect(focused(page).locator(".cx-ctx")).toContainText("ok that meme you sent at 2am was way too accurate");
 });

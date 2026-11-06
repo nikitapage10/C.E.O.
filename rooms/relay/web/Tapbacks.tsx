@@ -4,15 +4,16 @@ import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
 import { readTapback, REASON_WORDS, TAPBACKS_HINT, type ShownText } from "../../../api/_relay/texts.ts";
 import { useTexts } from "../data/texts.ts";
 import { lastRequest } from "../data/thread.ts";
-import { EMOJI, insertAt, reactable, TAPBACK_FACE, TAPBACKS, tapbackTarget, type Tapback } from "../data/react.ts";
+import { EMOJI, insertAt, reactable, stepLine, TAPBACK_FACE, TAPBACKS, tapbackTarget, type Tapback } from "../data/react.ts";
 
 /**
  * Tapbacks on the Relay card (#888): iMessage's six, small, under their words, on their latest line unless Nikita picks
- * another by tapping it (#950), and Reply beside them for an inline reply to that line. Each tap is one send request (the unlock, single-use, 10 minutes) that the Mac turns into a tapback
+ * another by tapping it (#950) or stepping to it with ‹ › (#980, Nikita: "reply or heart one of the older messages, not
+ * just the latest"; the stepper is back beside the tapping), and Reply beside them for an inline reply to that line. Each tap is one send request (the unlock, single-use, 10 minutes) that the Mac turns into a tapback
  * through BlueBubbles; nothing goes without the tap, and the thread stays where it is. With the Mac's Private API off,
  * one quiet line says so instead of the buttons.
  */
-export function Tapbacks({ thread, messages, hidden, picked = null, onReply }: { thread: string; messages: readonly ShownText[] | undefined; hidden: boolean; picked?: string | null; onReply?: (m: ShownText) => void }) {
+export function Tapbacks({ thread, messages, hidden, picked = null, onPick, onReply }: { thread: string; messages: readonly ShownText[] | undefined; hidden: boolean; picked?: string | null; onPick?: (ref: string | null) => void; onReply?: (m: ShownText) => void }) {
   const view = useTexts((s) => s.view);
   const busy = useTexts((s) => s.busy);
   const lines = reactable(messages);
@@ -27,6 +28,12 @@ export function Tapbacks({ thread, messages, hidden, picked = null, onReply }: {
   const target = tapbackTarget(messages, picked);
   if (!target?.ref) return null;
   const latest = target === lines.at(-1);
+  const steps = !!onPick && lines.length > 1;
+  // Stepping onto their latest lets the pick go, as a second tap on it would.
+  const step = (by: -1 | 1) => {
+    const ref = stepLine(messages, target.ref!, by);
+    onPick?.(ref === lines.at(-1)?.ref ? null : ref);
+  };
   const unlocked = !!view.unlockedUntil && view.unlockedUntil > Date.now();
   const req = lastRequest(
     view.requests.filter((r) => r.kind === "react"),
@@ -42,13 +49,23 @@ export function Tapbacks({ thread, messages, hidden, picked = null, onReply }: {
   return (
     <div className="cx-tb" role="group" aria-label="Tapback">
       <span className="cx-tbon">
-        <span className="cx-tbwhich" title={lines.length > 1 ? "Tap any of their messages to pick it" : undefined}>
+        {steps && (
+          <button type="button" className="cx-tbstep" onClick={() => step(-1)} disabled={target === lines[0]} aria-label="Pick an earlier message of theirs" title="An earlier message of theirs (or tap one)">
+            ‹
+          </button>
+        )}
+        <span className="cx-tbwhich" title={lines.length > 1 ? "Tap any of their messages, or step with ‹ ›, to pick it" : undefined}>
           {latest ? "on their latest" : (
             <>
               on <Private className="cx-tbline">{target.text}</Private>
             </>
           )}
         </span>
+        {steps && (
+          <button type="button" className="cx-tbstep" onClick={() => step(1)} disabled={latest} aria-label="Pick a later message of theirs" title="A later message of theirs">
+            ›
+          </button>
+        )}
       </span>
       <span className="cx-tbset">
         {TAPBACKS.map((t) => (

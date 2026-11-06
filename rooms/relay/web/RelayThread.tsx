@@ -493,7 +493,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
               </p>
             )}
             {/* Tapbacks (#888): small, under their words, on the card in focus. */}
-            {focus && x.line === "text" && x.messages?.length ? <Tapbacks thread={x.id} messages={x.messages} hidden={hidden} picked={picked} onReply={pickable ? (m) => setReply({ ref: m.ref!, text: m.text }) : undefined} /> : null}
+            {focus && x.line === "text" && x.messages?.length ? <Tapbacks thread={x.id} messages={x.messages} hidden={hidden} picked={picked} onPick={pickable ? setPicked : undefined} onReply={pickable ? (m) => setReply({ ref: m.ref!, text: m.text }) : undefined} /> : null}
             {x.line === "email" && x.advice && (
               <p className="cx-adv">
                 <span className="cx-lab">Blasto</span> <Private>{x.advice}</Private>

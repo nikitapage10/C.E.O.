@@ -1545,12 +1545,14 @@
 /* Depth of field (#950, Nikita: the dotted dissolve looked "too low fidelity"): each older line sits a step further
    back, a smooth Gaussian blur and a fade that grow with its distance from the newest, and its far edge feathers out
    into the page. No dot screen: the white sigil nanites drifting off that edge are drawn crisp on the Thread's own
-   canvas (RelayThread.tsx, the field's "ctx nanites"). Composited (filter, opacity, transform), so scrolling stays smooth. */
+   canvas (RelayThread.tsx, the field's "ctx nanites"). Composited (filter, opacity, transform), so scrolling stays smooth.
+   #980 (Nikita: "Why did you remove the dark blurriness?"): dark and blurred again, a touch past #923's, from the
+   line right above the newest (--d 1, set on each line by Said.tsx) back. */
 .cx-ctx > .cx-bub {
   position: relative;
-  opacity: calc(0.78 - var(--d) * 0.12);
-  filter: blur(calc(0.35px + var(--d) * 0.65px)) saturate(0.7) brightness(0.8);
-  transform: scale(calc(1 - var(--d) * 0.014));
+  opacity: calc(0.6 - var(--d, 1) * 0.08);
+  filter: blur(calc(1.5px + var(--d, 1) * 0.55px)) brightness(0.55) saturate(0.6);
+  transform: scale(calc(1 - var(--d, 1) * 0.014));
   transform-origin: left center;
   will-change: filter, opacity, transform;
   transition:
@@ -1840,6 +1842,51 @@
 .cx-bub[data-pick]:focus-visible {
   outline: 1px solid var(--cx-hi);
   outline-offset: 3px;
+}
+/* #980: the pickable lines say so on hover or keyboard focus, a ring and a small heart and reply mark on the corner */
+.cx-bub[data-pick]:hover:not([data-picked]) {
+  box-shadow: inset 0 0 0 1px rgba(134, 182, 255, 0.4);
+}
+.cx-bub[data-pick] {
+  position: relative;
+}
+.cx-bub[data-pick]::after {
+  content: "\2661  \21A9";
+  position: absolute;
+  right: 10px;
+  top: -9px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #16223a;
+  box-shadow: inset 0 0 0 1px rgba(134, 182, 255, 0.35);
+  font: 400 11px/1 var(--cx-sans);
+  color: var(--cx-hi);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--cx-e);
+}
+.cx-bub[data-pick]:hover::after,
+.cx-bub[data-pick]:focus-visible::after,
+.cx-bub[data-picked]::after {
+  opacity: 0.8;
+}
+.cx .cx-tbstep {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: var(--cx-soft);
+  font-size: 16px;
+  line-height: 1;
+}
+.cx .cx-tbstep:hover:not(:disabled),
+.cx .cx-tbstep:focus-visible {
+  color: var(--cx-hi);
+  background: rgba(134, 182, 255, 0.12);
+}
+.cx .cx-tbstep:disabled {
+  opacity: 0.3;
 }
 /* the picked one reads, even among the faded older lines */
 .cx-ctx > .cx-bub[data-picked] {

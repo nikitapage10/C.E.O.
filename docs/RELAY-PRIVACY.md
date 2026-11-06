@@ -537,6 +537,12 @@ changes is which chats it reads one by one, how it judges them, and three new ma
   unread."), never its text, and never reaches a model; once read it is set aside as before. An unread group is
   listed as waiting and summarised as before (a group is never drafted for); once read it goes back to summary-only
   unless Nikita was asked or named.
+- **#980: the texts before the gist.** Every listed owed thread carries its own recent lines (the shown texts above,
+  same caps, same rules over the whole run) from the moment it is listed, read from BlueBubbles on the Mac before each
+  report, newest first, without waiting for Dialtone; a newer text reads them again. Nothing new leaves the Mac: the
+  same lines `sortAndDraft` would send once sorted, sealed for Nikita. A listed thread whose lines a rule matches shows
+  none of them, only the hub's own line ("Kept off the Desk by a rule: read it in Messages.", or the code, short-code or
+  promo line above).
 - **One verdict for the scan and `relay why`.** The full scan reads each chat's own newest messages
   (`/api/v1/chat/<guid>/message`, sorted by date, 25 at most, 800 chats at most, newest first: every chat active
   within 120 days, and every chat whose last item is theirs and unread) and judges them with the same function

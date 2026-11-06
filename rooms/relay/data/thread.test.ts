@@ -318,12 +318,13 @@ describe("the Codex (#642)", () => {
 });
 
 describe("why a text has no name or no gist (#861)", () => {
-  it("says the hub's real reason instead of 'hasn't read this one'", () => {
+  it("says their texts haven't come through, never 'waiting in line for Dialtone' (#980: a card needs no gist)", () => {
     const x = fromText(text({ gist: "", wait: "cap" }));
-    expect(noGistLine(x)).toBe("No gist yet: the texts line's monthly model cap is reached.");
-    expect(noGistLine(fromText(text({ gist: "", wait: "queued" })))).toBe("No gist yet: waiting in line for Dialtone.");
+    expect(noGistLine(x)).toBe("Their texts haven't come through from the Mac yet. Messages has them.");
+    expect(noGistLine(fromText(text({ gist: "", wait: "queued" })))).not.toMatch(/gist|Dialtone/);
+    expect(noGistLine(fromText(text({ gist: "", wait: "messages" })))).toBe("Their texts aren't here yet: the Mac couldn't read this thread from BlueBubbles. Relay tries again shortly.");
     // An older hub sends no reason; a gist clears it.
-    expect(noGistLine(fromText(text({ gist: "" })))).toBe("The Mac hasn't read this one yet.");
+    expect(noGistLine(fromText(text({ gist: "" })))).toBe("Their texts haven't come through from the Mac yet. Messages has them.");
     expect(fromText(text({ wait: "model" })).wait).toBeUndefined();
   });
 

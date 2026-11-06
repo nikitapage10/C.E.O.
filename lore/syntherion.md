@@ -849,6 +849,11 @@ a work and a film-maker is not, and Arc and Hedge now argue about time). **Dot**
 should see a Syntherion as they are. It tries every analogy on Brogu first. The **Director**, the tenth piece of Skippy,
 in tally-light red, yells cut, asks for one more take, and calls every forty-second explainer a masterpiece.
 
+On the Desk the room opens from the editor's chair (#828): the **edit suite** in front, its walnut desk, jog wheel and
+three monitors (the tall preview, the timeline, the bin), and past them the stage, its fresnels hanging from the truss
+over the tall **9:16 light frame** on the riser, where the haze is full of gold sigils. Arc calls the chair his; the
+Director has had the frame's lights re-hung three times and calls each version a masterpiece.
+
 For now the Studio is simulated: its crew makes made-up shorts, and nothing is rendered or posted. When the line is real,
 the art comes from OpenAI images in saved style presets (and from vector art Claude draws in code once the month's cap is
 hit, plus hero art Nikita makes by hand), each character speaks in its own fixed ElevenLabs voice, the scenes are code,
@@ -863,6 +868,15 @@ a pop-up is done it goes on the **Shelf**, packed but kept, nothing running, and
 The **Stagehand**, a piece of Skippy who wears a headset and no costume, sets the pop-ups up and strikes them; he gives
 cues, not speeches, and thinks the main rooms are a bit precious. The first pop-up was **Election night**, the 2026
 midterms read live from civicAPI's public results, with the races Nikita follows pinned to the top.
+
+Since #829 the Annex is the **Glasshouse**: a round crystal nursery under Ilyr's dusk, gold-ribbed glass on a bronze
+sill, its edges coming undone into gold wire and sigils like the Senate's. Running pop-ups grow in four beds on a slow
+carousel, each under its own lamp and cloche; Election night's bed grows one crystal for every race called, in the
+winner's colour, and a followed race stakes the bed in gold. The Shelf is the **seed vault** under the glass floor: a
+shelved pop-up pulls back to a seed and sinks into its drawer, and a re-spin brings the same seed up into the same bed.
+Graduation carries the crop out of the door, down the lantern path, to a **plot** of its own. Ferns crowd the wall and
+the night garden outside; fireflies keep to the grass. The Stagehand calls the beds "the wings" and the door "stage left",
+and will not water anything that isn't on the running order.
 
 ## The Haven
 

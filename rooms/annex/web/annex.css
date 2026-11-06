@@ -1,10 +1,11 @@
 /*
- * The Annex (#618): a plain staging room, function-first (docs: desk-identities, "Annex"). The shared Desk type
- * (IBM Plex Sans, Plex Mono for the small labels), neutrals, and one accent: a highlighter yellow for what is live
- * and followed. Each pop-up below it lays itself out for its own job.
+ * The Annex (#618), the Glasshouse since #829: the 3D nursery up top, plain staging controls under it, function-first.
+ * The shared Desk type (IBM Plex Sans, Plex Mono for the small labels), neutrals, and a soft gold accent (the Senate's,
+ * #856); the highlighter yellow is kept for what Nikita follows. Each pop-up below lays itself out for its own job.
  */
 .an {
-  --an-accent: #f2dd5c;
+  --an-accent: #e3c27a;
+  --an-stake: #f2dd5c;
   max-width: 1216px;
   margin: 0 auto;
   padding: 8px 32px 72px;
@@ -92,6 +93,16 @@
 .an-btn--go {
   border-color: var(--an-accent);
 }
+.an-row.is-lit {
+  border-color: var(--an-accent);
+  box-shadow: 0 0 0 1px var(--an-accent) inset;
+}
+.an-beds {
+  margin-top: 22px;
+}
+.an-h2--out {
+  margin-top: 18px;
+}
 .an-shelf {
   margin-top: 40px;
   padding-top: 16px;
@@ -102,7 +113,159 @@
   color: var(--faint);
   font-size: 12.5px;
 }
+/* ---- the Glasshouse stage ---- */
+.an-gh {
+  position: relative;
+  height: clamp(420px, 64vh, 620px);
+  margin: 0 0 6px;
+  border: 1px solid rgba(201, 168, 92, 0.22);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #05060c;
+  isolation: isolate;
+}
+.an-gh-host,
+.an-gh-flat {
+  position: absolute;
+  inset: 0;
+}
+.an-gh-gl {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.an-gh[data-gl="on"] .an-gh-gl {
+  opacity: 1;
+}
+.an-gh[data-gl="on"] .an-gh-flat {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+/* The flat stand-in: Ilyr's dusk, the dome's outline and its floor, drawn in CSS. */
+.an-gh-flat i {
+  position: absolute;
+  display: block;
+}
+.an-gh-sky {
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 30% at 70% 58%, rgba(219, 128, 92, 0.32), transparent 70%),
+    linear-gradient(180deg, #05071a 0%, #13102a 45%, #3a2238 62%, #0c130f 64%, #070a08 100%);
+}
+.an-gh-dome {
+  left: 18%;
+  right: 12%;
+  top: 14%;
+  height: 58%;
+  border: 2px solid rgba(201, 168, 92, 0.55);
+  border-bottom: 0;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background: repeating-linear-gradient(90deg, transparent 0 46px, rgba(201, 168, 92, 0.12) 46px 47px), rgba(184, 208, 255, 0.04);
+}
+.an-gh-floor {
+  left: 12%;
+  right: 6%;
+  top: 60%;
+  height: 34%;
+  border: 1px solid rgba(201, 168, 92, 0.5);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(201, 168, 92, 0.1), transparent 70%);
+}
+.an-gh-tags {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.an-tag {
+  position: absolute;
+  left: var(--fx, 50%);
+  top: var(--fy, 50%);
+  display: grid;
+  gap: 1px;
+  max-width: 320px;
+  padding: 5px 10px 6px;
+  border: 1px solid rgba(201, 168, 92, 0.45);
+  border-radius: 8px;
+  background: rgba(8, 8, 14, 0.72);
+  backdrop-filter: blur(6px);
+  color: #f3ead6;
+  font: 600 12.5px/1.25 var(--sans);
+  text-align: left;
+  white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 8px));
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+.an-gh[data-gl="on"] .an-tag {
+  left: var(--gx, -999px);
+  top: var(--gy, -999px);
+}
+.an-tag small {
+  color: rgba(243, 234, 214, 0.68);
+  font: 500 11px var(--mono);
+  letter-spacing: 0.02em;
+}
+button.an-tag {
+  cursor: pointer;
+}
+button.an-tag:hover,
+button.an-tag:focus-visible {
+  border-color: var(--an-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(227, 194, 122, 0.35);
+}
+.an-tag.is-staked {
+  border-color: var(--an-stake);
+}
+.an-tag.is-staked small {
+  color: var(--an-stake);
+}
+.an-tag.is-free,
+.an-tag.is-place {
+  border-color: rgba(201, 168, 92, 0.2);
+  background: rgba(8, 8, 14, 0.5);
+  color: rgba(243, 234, 214, 0.62);
+  font-weight: 500;
+  font-size: 11.5px;
+  pointer-events: none;
+}
+.an-tag.is-place small {
+  display: block;
+}
+.an-tag.is-below {
+  transform: translate(-50%, 8px);
+}
+.an-tag.is-away {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .an-gh-gl,
+  .an-tag {
+    transition: none;
+  }
+}
 @media (max-width: 640px) {
+  .an-gh {
+    height: 400px;
+    margin: 0 -4px 6px;
+  }
+  .an-tag {
+    width: max-content;
+    max-width: 170px;
+    font-size: 12px;
+    white-space: normal;
+  }
+  .an-tag.is-free,
+  .an-tag.is-empty {
+    display: none;
+  }
   .an {
     padding: 4px 16px 56px;
   }

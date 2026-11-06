@@ -161,6 +161,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
    | `paypal-client-id`, `paypal-client-secret` (the Spire's invoices, #279; Azure only, see [PAYPAL.md](PAYPAL.md)) | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
    | `builder-read-key` (the Builder's read-only key, #800; Azure only, added by hand, see [The Builder's read key](#the-builders-read-key)) | `BUILDER_READ_KEY` |
+   | `skippy-probe-token` (the upkeep run's Skippy probe, #955; Azure only, added by hand, see [The Skippy probe's key](#the-skippy-probes-key)) | `SKIPPY_PROBE_TOKEN` |
 | `submind-log-token`, `submind-feed-token` (the subminds' room keys, #281, #312; Azure only, at least 32 random characters; see [The subminds' room keys](#the-subminds-room-keys)) | `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
@@ -378,6 +379,32 @@ as in step 2.
    per host) and add a header: `x-ceo-builder-key`, value the same key. Save, then start a new session.
 5. Check, from a new Builder session: `GET https://ceo.nikita.page/api/haven-plan` answers 200 with the plan. Never paste the
    key into a thread, an issue or a file. To change it, repeat steps 1 to 4 with a new version.
+
+### The Skippy probe's key
+
+> **What this does.** Service: Azure (the Key Vault and the Function App). Adds one key so the upkeep run can test
+> live Skippy at the start of every tick (#955, [FOUNDRY.md](FOUNDRY.md), "The Skippy probe"). It opens **POST
+> `/api/skippy-probe`** and nothing else: a dry run where no device moves, nothing is kept, and only verdicts come back,
+> never Skippy's words ([SECURITY.md](SECURITY.md), "The Skippy probe's key"). The probe workflow reads it from the
+> vault at run time (the GitHub sign-in already reads secrets there), so GitHub keeps no copy and nobody needs one.
+> What you'll see: the **Skippy probe** run's summary lists its cases instead of "the probe is off". Cost: a few
+> cents a tick from Skippy's own $60 month (the free rules asks plus two model asks), and nothing past his warn line.
+
+1. In Chrome, open any page, F12 > **Console** (type `allow pasting` if Chrome asks), paste this and press Enter:
+
+   ```js
+   console.log("SKIPPY_PROBE_TOKEN",btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""));
+   ```
+
+   Copy the value it prints. Close the console.
+2. In the [Azure portal](https://portal.azure.com): **Key vaults** > **kv-ceo-besgu7fnckib2** > **Objects > Secrets** >
+   **Generate/Import**: name `skippy-probe-token`, value the one you copied > **Create**.
+3. Restart the Function App (**Function App** > **Overview** > **Restart**) so it reads the new secret. The next
+   deploy from `main` adds the `SKIPPY_PROBE_TOKEN` setting that points at it (infra/resources.bicep); until then the
+   probe says it is off.
+4. Check: GitHub > **Actions** > **Skippy probe** > **Run workflow** on `main`. Its summary lists each case with
+   pass, fail or skipped. Never paste the key into a thread, an issue or a file. To change it, add a new version of
+   the secret and restart the Function App.
 
 ### The site lock on Azure
 

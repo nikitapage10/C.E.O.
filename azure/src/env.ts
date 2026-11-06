@@ -57,6 +57,9 @@ export const SECRET_SETTINGS = [
   "SUBMIND_FEED_TOKEN",
   // The Builder's read-only key (#800, api/_site/builderkey.ts): GETs of the Haven plan, meals and photos only.
   "BUILDER_READ_KEY",
+  // The Skippy probe's key (#955, api/_skippy/probe.ts): POST /api/skippy-probe only, a dry run; the probe workflow
+  // reads `skippy-probe-token` from the vault at run time.
+  "SKIPPY_PROBE_TOKEN",
   // The home devices (#632, docs/HOME-DEVICES.md): the key that seals their logins, and the Petlibro and Whisker
   // accounts, typed into the vault by Nikita. Never settable from the Desk.
   "HOME_TOKEN_KEY",

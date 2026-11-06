@@ -204,6 +204,20 @@ export function murmurFor(kind: RiteKind | "idle", a: number, b: number): string
   return pool[Math.floor(b * pool.length)]!;
 }
 
+/**
+ * A written murmur not heard yet (#910: nothing loops): the kind's moods first (in a random order), then any mood; null
+ * once every written one has been said, when the gallery takes only the live arguments' new murmurs, or keeps quiet.
+ */
+export function freshMurmur(kind: RiteKind | "idle", heard: (text: string) => boolean, rnd: () => number = Math.random): string | null {
+  const bag = [...MOOD[kind]].sort(() => rnd() - 0.5);
+  const order = [...new Set<Mood>([...bag, ...(Object.keys(MURMURS) as Mood[])])];
+  for (const mood of order) {
+    const left = (MURMURS[mood] as readonly string[]).filter((t) => !heard(t));
+    if (left.length) return left[Math.floor(rnd() * left.length)]!;
+  }
+  return null;
+}
+
 /*
  * The pace (#755). Nikita, 2026-11-05: "things are kind of moving pretty quickly right now." With the sound on, a line
  * holds the floor for as long as it is spoken, then a short beat; with it off (or when a line can't be spoken), for its

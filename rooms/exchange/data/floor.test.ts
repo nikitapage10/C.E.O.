@@ -1,19 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { biggestMove, floorWord, marketLine, MINT, positionLine, returnPct, ROSE, tapeItems, tapeSeconds, waterline } from "./floor.ts";
+import { biggestMove, floorWord, positionLine, returnPct, tapeItems, tapeSeconds, waterline } from "./floor.ts";
 import type { PmMarket, PmWorld } from "./polymarket.ts";
 
 const M = (id: string, prob: number, change24h: number | null, volume24h = 1e6): PmMarket => ({ id, question: `Will thing ${id} happen by December 31, 2026?`, outcome: "Yes", prob, change24h, volume24h, volume: volume24h * 10, endDate: null, url: null, closed: false, spark: [] });
 
 describe("the Exchange's floor (#430)", () => {
-  it("gives a busier market a denser line and a bigger move a faster one, coloured by its way", () => {
-    const big = marketLine(M("1", 0.5, 0.08, 4e6), 4e6);
-    const small = marketLine(M("2", 0.5, -0.01, 1e5), 4e6);
-    expect(big.density).toBeGreaterThan(small.density);
-    expect(big.rate).toBeGreaterThan(small.rate);
-    expect(big.rgb).toBe(MINT);
-    expect(small.rgb).toBe(ROSE);
-  });
-
   it("runs the marquee over the world's markets first, then the busiest, each once, with no closed market", () => {
     const w: PmWorld = { ...M("7", 0.62, 0.07), kind: "geopolitics" };
     const items = tapeItems({ world: [w], top: [M("7", 0.62, 0.07), M("8", 0.3, -0.03), { ...M("9", 0.1, 0), closed: true }] });

@@ -1,10 +1,11 @@
 import { shortName } from "./asides.ts";
-import { moveTone, pct, type PmBoard, type PmMarket } from "./polymarket.ts";
+import { moveTone, pct, type PmBoard } from "./polymarket.ts";
 
 /**
- * The Exchange on the flow kit (#430): what its particle lines and its marquee are made of, worked out from the real
- * reads with no DOM and no canvas, so it is unit tested (floor.test.ts). Public odds give the floor's lines and the
- * marquee; Nikita's own positions give the book's lines, which carry shapes and rates only, never a dollar figure.
+ * The Exchange (#430; the trade floor since #823): what its marquee, its headline and the book's particle lines are made
+ * of, worked out from the real reads with no DOM and no canvas, so it is unit tested (floor.test.ts). Public odds give
+ * the marquee and the floor's word; Nikita's own positions give the book's lines, which carry shapes and rates only,
+ * never a dollar figure. The 3D floor's own shape is in hall.ts.
  */
 
 export const MINT = "124,205,172";
@@ -16,14 +17,6 @@ export const toneRgb = (t: "up" | "down" | "flat") => (t === "up" ? MINT : t ===
 
 /** Whole points moved on the day, sign kept; null when Polymarket didn't say. */
 export const movePts = (c: number | null) => (c === null ? null : Math.round(c * 100));
-
-/** A market's line on the floor: density is its share of the day's money, pace is the day's move, colour its way. */
-export function marketLine(m: Pick<PmMarket, "volume24h" | "change24h">, maxVol: number): { density: number; rate: number; rgb: string; bright: number } {
-  const share = maxVol > 0 ? Math.min(1, Math.max(0, m.volume24h / maxVol)) : 0;
-  const pts = Math.min(12, Math.abs(m.change24h ?? 0) * 100);
-  const t = moveTone(m.change24h);
-  return { density: 0.12 + 0.6 * Math.sqrt(share), rate: 18 + pts * 9, rgb: toneRgb(t), bright: t === "flat" ? 0.5 : 0.6 + Math.min(0.35, pts / 25) };
-}
 
 /* ── the book ── */
 

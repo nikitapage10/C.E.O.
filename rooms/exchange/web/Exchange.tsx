@@ -1,8 +1,11 @@
 import { Waits, type Wait } from "@ceo/desk/rooms/parts.tsx";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import { SetupAsks } from "@ceo/desk/skippy/SetupAsks.tsx";
-import { RC } from "@ceo/desk/flow/index.ts";
-import { Floor } from "./Floor.tsx";
+import { Keeper } from "@ceo/desk/rooms/parts.tsx";
+import { UndoneField } from "@ceo/engine/sigils/UndoneField.tsx";
+import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
+import type { HallSoon } from "../data/hall.ts";
+import { Hall, HALL_ACCENT } from "./Hall.tsx";
 import { Watchlist } from "./Markets.tsx";
 import { Movers } from "./Movers.tsx";
 import { PositionsBoard } from "./PositionsBoard.tsx";
@@ -12,14 +15,14 @@ import "@ceo/desk/rooms/rooms.css";
 import "./exchange.css";
 
 /**
- * The Exchange (#225, redrawn #367, #387; on the flow kit since #430): Today's language in the Bookie's mint. The floor
- * leads (Floor): a marquee of Polymarket's live odds along the top, then the day's money as particle lines fanning
- * from the ledger into the busiest markets, each landing on its odds bar. Then Nikita's own Polymarket US positions
- * (#253, PositionsBoard), each a line from what was paid to where it stands; read-only, signed-in Desk only, every
- * figure marked private for Hide mode, and signed out only where the book is. Then what's moving the world (#345,
- * Movers) and the watchlist. Below, what's still to come and what the room waits on, folded away. The data blocks sit
- * in one measured column (--xc-max), so nothing stretches thin across a wide screen. The Lattice only ever shows the
- * public odds, never a position.
+ * The Exchange (#225, redrawn #367, #387, #430; the trade floor since #823). The floor leads (Hall): the whole screen
+ * under the bar is a futuristic exchange floor in 3D, gold on black, the busiest Polymarket markets on its trading
+ * posts, the live tape on the marquee over the back wall, the busiest markets listed over its right side, and the
+ * posts still being assembled at its edges are what's still to come. Below it, on the same gold wire grid with nanites
+ * rising out of it (UndoneField): Nikita's own Polymarket US positions (#253, PositionsBoard), read-only, signed-in
+ * Desk only, every figure marked private for Hide mode, and signed out only where the book is; what's moving the world
+ * (#345, Movers); the watchlist; and, folded away, what's still to come and what the room waits on. The data blocks
+ * sit in one measured column (--xc-max). The Lattice only ever shows the public odds, never a position.
  */
 
 /** The room's gauges; POSITIONS reads the book's state (never a figure), MARKET DATA and WATCHLIST read Polymarket live (#240). */
@@ -62,6 +65,9 @@ const LATER = [
   },
 ] as const;
 
+/** The posts still being assembled at the floor's edges: what's still to come, each with what it waits on. */
+const SOON: readonly HallSoon[] = LATER.map((l, i) => ({ id: `soon-${i}`, name: l.k.split(" · ")[0]!, on: l.on }));
+
 export function Exchange() {
   const pmStatus = usePolymarket((s) => s.status);
   useRoomReady(pmStatus !== "idle");
@@ -75,11 +81,17 @@ export function Exchange() {
   ]);
   const waits = posStatus === "live" ? WAITS.slice(1) : WAITS;
   return (
-    <div className="wv-page fl-page xc" data-room="exchange" style={{ "--fl-accent": RC.exchange } as React.CSSProperties}>
-      <Floor />
+    <div className="wv-page fl-page xc" data-room="exchange" style={HALL_ACCENT}>
+      <Hall soon={SOON} onBook={() => document.getElementById("xc-book")?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" })} />
 
+      <div className="xc-deck">
+        <UndoneField className="xc-deck-sig" />
       <div className="fl-below xc-wrap">
-        <PositionsBoard />
+        <Keeper page="exchange" className="xc-keeper" />
+
+        <div id="xc-book" className="xc-book-at">
+          <PositionsBoard />
+        </div>
 
         <Movers />
 
@@ -121,6 +133,7 @@ export function Exchange() {
           </div>
         ))}
       </dl>
+      </div>
       </div>
     </div>
   );

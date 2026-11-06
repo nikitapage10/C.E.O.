@@ -6,7 +6,7 @@ import { systemsPageOf } from "../../../rooms/boiler/web/SystemsNav.tsx";
 /** The Desk's bar and page loaders, read from the room manifests (#617, step 3): the same bar as before. */
 describe("the Desk's pages from the manifests", () => {
   it("names every page in the bar as it always has, in the bar's order", () => {
-    expect(NAV_ORDER.map(pageName)).toEqual(["Senate", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
+    expect(NAV_ORDER.map(pageName)).toEqual(["Senate", "Haven", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Foundry", "Boiler Room"]);
   });
 
   it("loads every page but Today lazily, from its manifest", () => {

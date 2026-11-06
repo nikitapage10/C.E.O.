@@ -7,7 +7,7 @@ export default defineRoom({
   id: "green",
   ...nav,
   path: "/green",
-  navKey: "5",
+  navKey: "4",
   accent: "--room-green",
   submind: "turf",
   live: true,

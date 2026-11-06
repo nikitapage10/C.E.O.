@@ -6,6 +6,7 @@ export default defineRoom({
   id: "studio",
   ...nav,
   path: "/studio",
+  navKey: "0",
   accent: "--room-studio",
   submind: "tally",
   live: false,

@@ -22,6 +22,7 @@ import { agoShort, askLine, codexOf, contactsHint, initialOf, lastRequest, noGis
 import { errorText, useThread, type Notice } from "../data/useThread.ts";
 import { useRoomMic } from "@ceo/desk/roomvoice/roomVoice.ts";
 import { useHoldSpace } from "./holdSpace.ts";
+import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
 import "./thread.css";
 
 /**
@@ -643,18 +644,21 @@ export function RelayThread({ now }: { now: number }) {
   fx.current.listening = micPhase === "listening";
   fx.current.loud = micPhase === "listening" ? 1 : 0;
 
-  // One listener (#638): the room voice hands what's said on /relay to this Thread (rooms/relay/voice.ts).
-  useEffect(
-    () =>
-      setRelayHandler(async (text) => {
-        const r = tRef.current.line(text);
-        if (!r.cmd) return null;
-        if (r.cmd === "words" && !r.ok) return null;
-        const say = (await r.said) || (r.ok ? "" : "That doesn't apply right now.");
-        return say ? { say } : null;
-      }),
-    [],
-  );
+  // Kept mounted out of sight (#934, apps/desk/src/keptRooms.ts), the Thread's keys and ear stay quiet.
+  const onScreen = useRoomShown();
+
+  // One listener (#638): the room voice hands what's said on /relay to this Thread (rooms/relay/voice.ts), while it is
+  // on screen.
+  useEffect(() => {
+    if (!onScreen) return;
+    return setRelayHandler(async (text) => {
+      const r = tRef.current.line(text);
+      if (!r.cmd) return null;
+      if (r.cmd === "words" && !r.ok) return null;
+      const say = (await r.said) || (r.ok ? "" : "That doesn't apply right now.");
+      return say ? { say } : null;
+    });
+  }, [onScreen]);
 
   // The engine, and the spine's field: the lit stretch beside the entry in focus, a slow fall of sigils, the ear's wick.
   // A layout effect, so entries are blanked before their first paint.
@@ -939,8 +943,9 @@ export function RelayThread({ now }: { now: number }) {
 
   // Keys (#904, Nikita: WASD): W and S the person before and after, A later, D done; R or Enter into the reply box,
   // Enter there sends and Esc leaves it. Y sends a draft on screen, Z undoes; J and K move too; ? the list. Holding
-  // Space talks into the box (./holdSpace.ts). Never while typing in a field.
+  // Space talks into the box (./holdSpace.ts). Never while typing in a field, and only while Relay is on screen (#934).
   useEffect(() => {
+    if (!onScreen) return;
     const down = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (isTyping(el) || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -976,7 +981,7 @@ export function RelayThread({ now }: { now: number }) {
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [t, ex?.key, ex?.line, ex?.sendable, phase, goTo]);
+  }, [onScreen, t, ex?.key, ex?.line, ex?.sendable, phase, goTo]);
 
   const submit = (raw: string) => {
     const r = t.line(raw);

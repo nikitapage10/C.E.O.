@@ -10,7 +10,7 @@ export default defineRoom({
   id: "annex",
   ...nav,
   path: "/annex",
-  navKey: "8",
+  navKey: "7",
   accent: "--room-annex",
   submind: "stagehand",
   live: true,

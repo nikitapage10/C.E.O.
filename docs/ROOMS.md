@@ -54,8 +54,10 @@ A room with a 3D scene holds the cover until that scene's first real frame (Toda
 not its flat stand-in), up to 7 s. Switching is kept warm (#759):
 
 - **Prefetched:** in idle time after first paint, every page's chunk, then the scenes and the shared three.js chunk.
-- **Kept:** Today and the Haven stay mounted after a visit, hidden, inert and paused (`desk/keptRooms.ts`, at most
-  three rooms), so a return is instant and shows no cover. Pages without a scene still unmount.
+- **Kept:** the Senate (Today), the Haven and Relay are always loaded (#934): once the Desk is idle after first paint
+  they mount, hidden, inert and paused, beside the room on screen (`desk/keptRooms.ts`), so opening one is instant and
+  shows no cover. A kept room's window-wide keys and hold-to-talk check `useRoomShown()` (`@ceo/engine/web/roomReady.ts`)
+  and stay quiet out of sight. Other pages unmount when left; on a low-memory machine nothing is kept.
 - **Warmed:** on a desktop the Desk builds Today's chamber once off screen during idle (`rotunda/warm.ts`), so its
   model, textures and compiled programs are cached before the first visit.
 - **First frame:** the chamber compiles its programs before its first frame (`compileAsync`).
@@ -228,7 +230,7 @@ relative path into `apps/desk`; lint holds that (below). The Lattice stays lazy 
 
 | Field | What it is |
 | --- | --- |
-| `id`, `name`, `path`, `navKey` | The room's id, its label in the Desk's bar, its address, and the number key that opens it (1 to 9, then 0; a page past the tenth, like the Annex, has none). |
+| `id`, `name`, `path`, `navKey` | The room's id, its label in the Desk's bar, its address, and the number key that opens it (1 to 9, then 0; a page past the tenth, like the Foundry, has none). |
 | `accent` | The colour token from `desk.css`, e.g. `--room-green`. |
 | `submind`, `live` | Its lead (a `SUBMINDS` id, `skippy` for Today, or a `DESK_SUBMINDS` id for a Desk-only room such as the Annex, #618) and whether its agents are real work, not the demo. |
 | `auth` | Each of its endpoints (an `azure/src/index.ts` name) and the ways in: `public`, `site`, `passkey`, `token`. |

@@ -79,10 +79,10 @@ export const LORE: Record<string, Lore> = {
     chronicle: [
       "Rebuilt the Foundry's conveyor in one shift with no plan, no manual and five hands. It still runs. Rusty is still checking it.",
       "Learned his first idiom from Rivet, before she went up to the Spire. 'Hold your horses.' Spent a day looking for the horses. Skippy says he is still looking.",
-      "In the Deep Furnace, crosses the deck by coming apart into gold nanites at his drafting table and reforming at the anvil. Says walking is slower. Says it three times. Musty steps aside a little late.",
-      "Took the shipping record, 41 to 40. Reported it as 105 to 104, in base six. Nobody else could work out how.",
+      "In the Deep Furnace, crosses the deck as gold nanites, drafting table to anvil. Says walking is slower. Says it three times.",
       "Became the Foundry's master builder: the first responder takes the first look (Rivet, Skippy, Rivet again), Rocky the hard ones and the approved builds. 'Good good good.'",
-      "Sleeps through the night shift wherever he stands; Rivet keeps the watch and Skippy hums from the Kernel. Eridian custom. Once watched Kevin sleep through a pickup game: best afternoon of his life.",
+      "Watched Kevin sleep through an entire pickup game. Calls it the best afternoon of his life.",
+      "Sleeps through most of the night shift, without warning, wherever he stands. Rivet keeps the watch now, quietly, and Skippy hums down from the Kernel. Eridian custom.",
       "Pins the biggest idea coming to his drafting table. No eyes, so he reads the plan by the pencil grooves, and draws so hard the table needs a new top every month.",
       "Fist bumps Rusty's dock crew, 'the small brothers', asleep or not. Favourite: Musty, the slow green one. 'Thinks before welding. Strange. Good.'",
     ],

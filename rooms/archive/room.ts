@@ -6,7 +6,7 @@ export default defineRoom({
   id: "archive",
   ...nav,
   path: "/archive",
-  navKey: "7",
+  navKey: "6",
   accent: "--room-archive",
   submind: "vellum",
   live: false,

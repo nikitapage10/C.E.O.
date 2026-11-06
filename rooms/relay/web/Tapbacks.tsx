@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Private } from "@ceo/engine/web/Private.tsx";
+import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
 import { readTapback, REASON_WORDS, TAPBACKS_HINT, type ShownText } from "../../../api/_relay/texts.ts";
 import { useTexts } from "../data/texts.ts";
 import { lastRequest } from "../data/thread.ts";
@@ -92,8 +93,9 @@ export function Tapbacks({ thread, messages, hidden }: { thread: string; message
 export function EmojiPicker({ box, value, set }: { box: { current: HTMLTextAreaElement | null }; value: string; set: (text: string) => void }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
+  const shown = useRoomShown();
   useEffect(() => {
-    if (!open) return;
+    if (!open || !shown) return;
     const away = (e: Event) => {
       if (!wrap.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -109,7 +111,7 @@ export function EmojiPicker({ box, value, set }: { box: { current: HTMLTextAreaE
       document.removeEventListener("pointerdown", away);
       document.removeEventListener("keydown", esc);
     };
-  }, [open, box]);
+  }, [open, box, shown]);
   const pick = (e: string) => {
     const el = box.current;
     const got = insertAt(value, el?.selectionStart, el?.selectionEnd, e);

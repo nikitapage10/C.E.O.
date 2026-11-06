@@ -24,6 +24,7 @@ import { installHoldToTalk } from "./holdToTalk.ts";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
 import { keptAfter, SCENE_ROOMS } from "./keptRooms.ts";
+import { focusPage } from "./pageFocus.ts";
 import { RoomGuard } from "./RoomGuard.tsx";
 import { canWarm, warmRotunda } from "./rotunda/warm.ts";
 import "./desk.css";
@@ -148,9 +149,21 @@ export function Desk({ route }: { route: DeskPage }) {
     document.title = titleOf(route, pathname);
   }, [route, pathname]);
 
-  // The rooms kept mounted (#759, keptRooms.ts): the one on screen and the last scene rooms visited, hidden and paused.
+  // The rooms kept mounted (#759, #934, keptRooms.ts): the one on screen, and the Senate, the Haven and Relay hidden and
+  // paused, all three once the Desk is idle after its first paint.
+  const [warm, setWarm] = useState(false);
+  useEffect(() => idle(() => setWarm(true), 5000), []);
   const [kept, setKept] = useState<DeskPage[]>([route]);
-  if (kept[0] !== route) setKept(keptAfter(kept, route, keepLattice()));
+  const want = keptAfter(kept, route, keepLattice(), warm);
+  if (want.join() !== kept.join()) setKept(want);
+
+  // A change of page moves focus to it (#934, pageFocus.ts): a held Space then talks, not presses the bar's link.
+  const shownPath = useRef(pathname);
+  useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
+    focusPage();
+  }, [pathname, route]);
 
   // Today, warmed while the Desk is idle on another room (rotunda/warm.ts): the likeliest next room opens quickly.
   const todayKept = kept.includes("today");
@@ -182,7 +195,7 @@ export function Desk({ route }: { route: DeskPage }) {
           mounted, hidden and inert, with no cover, until it is back on screen. */}
       {[...kept].sort((a, b) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(b)).map((r) => (
         <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} cap={SCENE_ROOMS.has(r) ? SCENE_CAP_MS : undefined}>
-          <main className="desk__main" hidden={r !== route} inert={r !== route} data-room={r === "today" ? undefined : r}>
+          <main className="desk__main" tabIndex={-1} hidden={r !== route} inert={r !== route} data-room={r === "today" ? undefined : r}>
             <RoomGuard name={pageName(r)}>
               <Suspense fallback={null}>
                 {page(r)}

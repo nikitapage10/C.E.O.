@@ -609,3 +609,110 @@
     display: none;
   }
 }
+
+/*
+ * Under the Glasshouse (#932): the results keep their results-page layout and their party colours, which mean the
+ * party and nothing else, but the chrome is the Glasshouse's: panes of glass leaded in gold for the races and the
+ * map's frame, the tabs and fields cut square in the same leading, and the map's tiles set like panes. Only inside the
+ * Annex's console.
+ */
+.an-deck .el {
+  --el-line: rgba(201, 168, 92, 0.22);
+  --el-card: rgba(18, 17, 30, 0.72);
+  --el-wait: #22233a;
+  --el-none: #11121e;
+  --el-ink: #f3ead6;
+  --el-sub: rgba(243, 234, 214, 0.62);
+  margin: 0;
+}
+.an-deck .el-head {
+  border-bottom-color: rgba(201, 168, 92, 0.22);
+}
+.an-deck .el-title {
+  font-size: 24px;
+  letter-spacing: -0.015em;
+}
+.an-deck .el-sub {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+.an-deck .el-tab {
+  border-radius: 2px;
+  border-color: rgba(201, 168, 92, 0.3);
+  background: rgba(16, 15, 26, 0.6);
+  color: rgba(243, 234, 214, 0.66);
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.an-deck .el-tab[aria-selected="true"] {
+  border-color: var(--an-gold, #e3c98d);
+  background: linear-gradient(180deg, rgba(201, 168, 92, 0.24), rgba(201, 168, 92, 0.06));
+  color: #fff3d6;
+  box-shadow: 0 0 16px rgba(227, 194, 122, 0.18);
+}
+.an-deck .el-bar {
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(201, 168, 92, 0.25);
+}
+.an-deck .el-map svg {
+  padding: 8px;
+  border: 1px solid rgba(201, 168, 92, 0.28);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(30, 28, 48, 0.4), rgba(8, 9, 16, 0.6));
+  box-shadow: inset 0 1px 0 rgba(236, 214, 160, 0.14);
+}
+.an-deck .el-tile rect {
+  stroke: rgba(201, 168, 92, 0.16);
+  rx: 2px;
+}
+.an-deck .el-search,
+.an-deck .el-select {
+  border-radius: 2px;
+  border-color: rgba(201, 168, 92, 0.3);
+  background: rgba(10, 10, 18, 0.75);
+}
+.an-deck .el-search:focus,
+.an-deck .el-select:focus {
+  outline: none;
+  border-color: var(--an-gold, #e3c98d);
+  box-shadow: 0 0 0 1px rgba(227, 194, 122, 0.25), 0 0 16px rgba(227, 194, 122, 0.12);
+}
+.an-deck .el-chip {
+  border-radius: 2px;
+  border-color: rgba(201, 168, 92, 0.26);
+  font-size: 12.5px;
+}
+.an-deck .el-chip[aria-pressed="true"] {
+  border-color: var(--an-gold, #e3c98d);
+  background: rgba(201, 168, 92, 0.1);
+}
+/* Each race a pane: leaded in gold, a glint along its top, the followed ones in the highlighter. */
+.an-deck .el-race {
+  position: relative;
+  border-radius: 3px;
+  border-color: rgba(201, 168, 92, 0.24);
+  background: linear-gradient(180deg, rgba(34, 31, 54, 0.6), rgba(12, 12, 20, 0.78));
+  box-shadow: inset 0 1px 0 rgba(236, 214, 160, 0.12);
+}
+.an-deck .el-race[data-called] {
+  border-color: rgba(201, 168, 92, 0.45);
+}
+.an-deck .el-race[data-followed] {
+  border-color: rgba(242, 221, 92, 0.55);
+}
+.an-deck .el-called {
+  border-radius: 2px;
+}
+/* On a wide screen the races scroll in their own pane beside the map, so the console stays about a screen tall. */
+@media (min-width: 900px) {
+  .an-deck .el-side {
+    max-height: max(520px, calc(100svh - 300px));
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(201, 168, 92, 0.35) transparent;
+  }
+}

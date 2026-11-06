@@ -1,126 +1,26 @@
 /*
- * The Annex (#618), the Glasshouse since #829: the 3D nursery up top, plain staging controls under it, function-first.
- * The shared Desk type (IBM Plex Sans, Plex Mono for the small labels), neutrals, and a soft gold accent (the Senate's,
- * #856); the highlighter yellow is kept for what Nikita follows. Each pop-up below lays itself out for its own job.
+ * The Annex (#618), the Glasshouse since #829, filling the screen since #932: the 3D nursery is the whole screen under
+ * the bar with the head laid over it, and under it one console behind glass, a tab for each running pop-up's own
+ * section and one for the beds and the Shelf. The Desk's sans and mono, the Senate's soft gold for the glass's leading,
+ * a dusk violet in the panes, and the highlighter yellow kept for what Nikita follows.
  */
 .an {
   --an-accent: #e3c27a;
+  --an-gold: #e3c98d;
+  --an-brass: #c9a85c;
   --an-stake: #f2dd5c;
-  max-width: 1216px;
-  margin: 0 auto;
-  padding: 8px 32px 72px;
-}
-.an-head {
-  max-width: 760px;
-  margin-bottom: 18px;
-}
-.an-eyb {
-  margin: 0 0 6px;
-  color: var(--faint);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.an-h1 {
+  --an-lead: rgba(201, 168, 92, 0.32);
+  --an-glass: linear-gradient(180deg, rgba(30, 28, 48, 0.55), rgba(10, 11, 20, 0.72));
+  --an-dusk: #08091a;
   margin: 0;
-  font: 600 34px/1.1 var(--sans);
-  letter-spacing: -0.015em;
-}
-.an-sub {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-}
-.an-h2 {
-  margin: 0 0 10px;
-  font: 600 15px var(--sans);
-}
-.an-list {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 18px;
   padding: 0;
-  list-style: none;
 }
-.an-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 6px 16px;
-  padding: 10px 14px;
-  border: 1px solid var(--hair);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.an-status {
-  padding: 3px 8px;
-  border-radius: 4px;
-  font: 600 11px var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--faint);
-  border: 1px solid var(--hair-strong);
-}
-.an-row[data-status="live"] .an-status {
-  border-color: var(--an-accent);
-  color: var(--an-accent);
-}
-.an-row-text {
-  display: grid;
-  min-width: 0;
-}
-.an-row-text b {
-  font-weight: 600;
-}
-.an-row-text span,
-.an-until {
-  color: var(--muted);
-  font-size: 12.5px;
-}
-.an-btn {
-  min-height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--hair-strong);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  font: 500 13px var(--sans);
-  cursor: pointer;
-}
-.an-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.an-btn--go {
-  border-color: var(--an-accent);
-}
-.an-row.is-lit {
-  border-color: var(--an-accent);
-  box-shadow: 0 0 0 1px var(--an-accent) inset;
-}
-.an-beds {
-  margin-top: 22px;
-}
-.an-h2--out {
-  margin-top: 18px;
-}
-.an-shelf {
-  margin-top: 40px;
-  padding-top: 16px;
-  border-top: 1px solid var(--hair);
-}
-.an-note {
-  margin: 4px 0 8px;
-  color: var(--faint);
-  font-size: 12.5px;
-}
-/* ---- the Glasshouse stage ---- */
+
+/* ---- the Glasshouse: the whole screen under the bar ---- */
 .an-gh {
   position: relative;
-  height: clamp(420px, 64vh, 620px);
-  margin: 0 0 6px;
-  border: 1px solid rgba(201, 168, 92, 0.22);
-  border-radius: 14px;
-  overflow: hidden;
+  height: max(640px, calc(100svh - 64px));
+  overflow: clip;
   background: #05060c;
   isolation: isolate;
 }
@@ -144,6 +44,17 @@
   opacity: 0;
   transition: opacity 0.6s ease;
 }
+/* A veil under the head, so its words read over the dome. */
+.an-gh::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(100deg, rgba(5, 6, 14, 0.8) 0, rgba(5, 6, 14, 0.3) 30%, rgba(5, 6, 14, 0) 48%),
+    linear-gradient(0deg, rgba(5, 6, 14, 0.8) 0, rgba(5, 6, 14, 0) 90px);
+}
 /* The flat stand-in: Ilyr's dusk, the dome's outline and its floor, drawn in CSS. */
 .an-gh-flat i {
   position: absolute;
@@ -156,27 +67,117 @@
     linear-gradient(180deg, #05071a 0%, #13102a 45%, #3a2238 62%, #0c130f 64%, #070a08 100%);
 }
 .an-gh-dome {
-  left: 18%;
-  right: 12%;
-  top: 14%;
-  height: 58%;
+  left: 26%;
+  right: 10%;
+  top: 22%;
+  height: 52%;
   border: 2px solid rgba(201, 168, 92, 0.55);
   border-bottom: 0;
   border-radius: 50% 50% 0 0 / 100% 100% 0 0;
   background: repeating-linear-gradient(90deg, transparent 0 46px, rgba(201, 168, 92, 0.12) 46px 47px), rgba(184, 208, 255, 0.04);
 }
 .an-gh-floor {
-  left: 12%;
-  right: 6%;
-  top: 60%;
-  height: 34%;
+  left: 20%;
+  right: 4%;
+  top: 64%;
+  height: 30%;
   border: 1px solid rgba(201, 168, 92, 0.5);
   border-radius: 50%;
   background: radial-gradient(ellipse at 50% 50%, rgba(201, 168, 92, 0.1), transparent 70%);
 }
+
+/* ---- the head, over the dome ---- */
+.an-head {
+  position: absolute;
+  z-index: 3;
+  left: clamp(16px, 3.4vw, 52px);
+  right: clamp(16px, 3.4vw, 52px);
+  top: clamp(20px, 4vh, 44px);
+  pointer-events: none;
+}
+.an-head > * {
+  pointer-events: auto;
+}
+.an-head > :not(.an-stats) {
+  max-width: min(540px, 40%);
+}
+.an-eyb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--an-gold);
+  font: 500 11px var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.an-eyb i {
+  width: 28px;
+  height: 1px;
+  background: var(--an-brass);
+  opacity: 0.6;
+}
+.an-h1 {
+  margin: 10px 0 0;
+  font: 600 clamp(34px, 3.4vw, 52px) / 1.02 var(--sans);
+  letter-spacing: -0.02em;
+  color: #f3ead6;
+  text-wrap: balance;
+}
+.an-h1 em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--an-gold);
+  text-shadow: 0 0 34px rgba(227, 194, 122, 0.35);
+}
+.an-sub {
+  margin: 12px 0 0;
+  max-width: 48ch;
+  color: rgba(243, 234, 214, 0.74);
+  font-size: 14px;
+  line-height: 1.5;
+  text-shadow: 0 1px 10px #000;
+}
+.an-head > .an-stats {
+  position: absolute;
+  right: 0;
+  top: 4px;
+  display: flex;
+  margin: 0;
+}
+.an-stats > div {
+  display: grid;
+  gap: 4px;
+  padding: 0 18px;
+  border-left: 1px solid var(--an-lead);
+  text-align: right;
+}
+.an-stats > div:first-child {
+  border-left: 0;
+}
+.an-stats dt {
+  color: rgba(243, 234, 214, 0.5);
+  font: 500 9.5px var(--mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.an-stats dd {
+  margin: 0;
+  color: #f3ead6;
+  font: 500 32px/1 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+.an-stats > div:first-child dd {
+  color: var(--an-gold);
+  text-shadow: 0 0 18px rgba(227, 194, 122, 0.4);
+}
+
+/* ---- the tags, riding the beds, the vault and the plot ---- */
 .an-gh-tags {
   position: absolute;
   inset: 0;
+  z-index: 2;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -189,10 +190,11 @@
   display: grid;
   gap: 1px;
   max-width: 320px;
-  padding: 5px 10px 6px;
-  border: 1px solid rgba(201, 168, 92, 0.45);
-  border-radius: 8px;
-  background: rgba(8, 8, 14, 0.72);
+  padding: 6px 11px 7px;
+  border: 1px solid rgba(201, 168, 92, 0.5);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(34, 30, 52, 0.82), rgba(10, 10, 18, 0.86));
+  box-shadow: inset 0 1px 0 rgba(236, 214, 160, 0.18), 0 8px 22px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
   color: #f3ead6;
   font: 600 12.5px/1.25 var(--sans);
@@ -218,7 +220,7 @@ button.an-tag:hover,
 button.an-tag:focus-visible {
   border-color: var(--an-accent);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(227, 194, 122, 0.35);
+  box-shadow: 0 0 0 2px rgba(227, 194, 122, 0.35), 0 8px 22px rgba(0, 0, 0, 0.45);
 }
 .an-tag.is-staked {
   border-color: var(--an-stake);
@@ -228,8 +230,9 @@ button.an-tag:focus-visible {
 }
 .an-tag.is-free,
 .an-tag.is-place {
-  border-color: rgba(201, 168, 92, 0.2);
-  background: rgba(8, 8, 14, 0.5);
+  border-color: rgba(201, 168, 92, 0.22);
+  background: rgba(8, 8, 14, 0.55);
+  box-shadow: none;
   color: rgba(243, 234, 214, 0.62);
   font-weight: 500;
   font-size: 11.5px;
@@ -245,16 +248,293 @@ button.an-tag:focus-visible {
   opacity: 0;
   pointer-events: none;
 }
+
+/* ---- under the glass: one console ---- */
+.an-deck {
+  position: relative;
+  isolation: isolate;
+  padding: 0 clamp(16px, 3.4vw, 52px) 96px;
+  background: linear-gradient(180deg, #05060c 0, var(--an-dusk) 160px, #07080f 100%);
+  border-top: 1px solid rgba(201, 168, 92, 0.35);
+}
+.an-deck::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  z-index: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(236, 214, 160, 0.9) 50%, transparent);
+  box-shadow: 0 0 18px rgba(219, 128, 92, 0.4);
+}
+.an-deck-sig {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent);
+  mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent);
+}
+.an-deck > :not(.an-deck-sig) {
+  position: relative;
+  z-index: 1;
+}
+.an-deck-tabs {
+  display: flex;
+  margin: 0 0 22px -22px;
+  border-bottom: 1px solid rgba(201, 168, 92, 0.22);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.an-deck-tabs::-webkit-scrollbar {
+  display: none;
+}
+.an-deck-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: none;
+  padding: 20px 22px 15px;
+  border: 0;
+  background: none;
+  color: rgba(243, 234, 214, 0.5);
+  font: 600 11px var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.an-deck-tab b {
+  font: 500 18px var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgba(243, 234, 214, 0.72);
+}
+.an-deck-tab + .an-deck-tab::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 30%;
+  bottom: 30%;
+  width: 1px;
+  background: rgba(201, 168, 92, 0.22);
+}
+.an-deck-tab::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: -1px;
+  height: 2px;
+  transition: background 0.25s;
+}
+.an-deck-tab:hover,
+.an-deck-tab[aria-selected="true"] {
+  color: var(--an-gold);
+}
+.an-deck-tab[aria-selected="true"] b {
+  color: #fff3d6;
+  text-shadow: 0 0 18px rgba(227, 194, 122, 0.45);
+}
+.an-deck-tab[aria-selected="true"]::after {
+  background: linear-gradient(90deg, transparent, var(--an-gold), transparent);
+  box-shadow: 0 0 12px rgba(227, 194, 122, 0.6);
+}
+.an-deck-tab:focus-visible {
+  outline: 1px solid var(--an-gold);
+  outline-offset: -4px;
+}
+/* The open panel: a pane of the dome's glass, leaded in gold, a glint along its top. */
+.an-deck-p {
+  position: relative;
+  padding: clamp(18px, 2.2vw, 30px);
+  border: 1px solid var(--an-lead);
+  border-radius: 4px;
+  background: var(--an-glass);
+  box-shadow: inset 0 1px 0 rgba(236, 214, 160, 0.16), inset 0 0 60px rgba(120, 110, 200, 0.06), 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(3px);
+}
+.an-deck-p[hidden] {
+  display: none;
+}
+.an-deck-p::before {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 40%;
+  top: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 244, 214, 0.85), transparent);
+}
+.an-h2 {
+  margin: 0 0 10px;
+  color: var(--an-gold);
+  font: 600 11px var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.an-beds {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 32px;
+}
+.an-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+/* A row: a planter's label, leaded glass with its state in a small stake. */
+.an-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--an-lead);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(40, 36, 60, 0.45), rgba(12, 12, 20, 0.6));
+  box-shadow: inset 0 1px 0 rgba(236, 214, 160, 0.12);
+}
+.an-status {
+  padding: 3px 8px;
+  border-radius: 2px;
+  font: 600 10.5px var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(243, 234, 214, 0.5);
+  border: 1px solid rgba(243, 234, 214, 0.2);
+}
+.an-row[data-status="live"] .an-status {
+  border-color: var(--an-accent);
+  color: var(--an-accent);
+  box-shadow: 0 0 10px rgba(227, 194, 122, 0.25);
+}
+.an-row-text {
+  display: grid;
+  min-width: 0;
+}
+.an-row-text b {
+  font-weight: 600;
+  color: #f3ead6;
+}
+.an-row-text span,
+.an-until {
+  color: rgba(243, 234, 214, 0.6);
+  font-size: 12.5px;
+}
+.an-until {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.an-btn {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(201, 168, 92, 0.45);
+  border-radius: 2px;
+  background: rgba(20, 18, 30, 0.7);
+  color: var(--an-gold);
+  font: 500 12px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.an-btn:hover {
+  border-color: var(--an-gold);
+  color: #fff3d6;
+}
+.an-btn:focus-visible {
+  outline: 1px solid var(--an-gold);
+  outline-offset: 2px;
+}
+.an-btn--go {
+  border-color: var(--an-gold);
+  background: linear-gradient(180deg, rgba(201, 168, 92, 0.22), rgba(201, 168, 92, 0.06));
+}
+.an-row.is-lit {
+  border-color: var(--an-accent);
+  box-shadow: 0 0 0 1px var(--an-accent) inset, 0 0 24px rgba(227, 194, 122, 0.2);
+}
+.an-h2--out {
+  margin-top: 18px;
+}
+.an-shelf {
+  padding-left: 28px;
+  border-left: 1px solid rgba(201, 168, 92, 0.18);
+}
+.an-note {
+  margin: 4px 0 8px;
+  color: rgba(243, 234, 214, 0.5);
+  font-size: 12.5px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .an-gh-gl,
   .an-tag {
     transition: none;
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 1100px) {
+  .an-head > :not(.an-stats) {
+    max-width: min(460px, 52%);
+  }
+  .an-stats > div {
+    padding: 0 10px;
+  }
+  .an-stats dd {
+    font-size: 26px;
+  }
+}
+@media (max-width: 760px) {
   .an-gh {
-    height: 400px;
-    margin: 0 -4px 6px;
+    height: max(660px, calc(100svh - 88px));
+  }
+  .an-gh::after {
+    background:
+      linear-gradient(180deg, rgba(5, 6, 14, 0.95) 0, rgba(5, 6, 14, 0.6) 200px, rgba(5, 6, 14, 0) 280px),
+      linear-gradient(0deg, rgba(5, 6, 14, 0.85) 0, rgba(5, 6, 14, 0) 100px);
+  }
+  .an-head {
+    left: 16px;
+    right: 16px;
+    top: 16px;
+  }
+  .an-head > :not(.an-stats) {
+    max-width: none;
+  }
+  .an-eyb {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+  }
+  .an-h1 {
+    font-size: clamp(28px, 8vw, 34px);
+  }
+  .an-sub {
+    display: none;
+  }
+  .an-head > .an-stats {
+    position: static;
+    margin-top: 12px;
+    justify-content: flex-start;
+    gap: 28px;
+  }
+  .an-stats > div {
+    padding: 0;
+    border-left: 0;
+    text-align: left;
+  }
+  .an-stats dt {
+    font-size: 8.5px;
+    letter-spacing: 0.12em;
+  }
+  .an-stats dd {
+    font-size: 22px;
   }
   .an-tag {
     width: max-content;
@@ -266,16 +546,36 @@ button.an-tag:focus-visible {
   .an-tag.is-empty {
     display: none;
   }
-  .an {
-    padding: 4px 16px 56px;
+  .an-deck {
+    padding: 0 16px 88px;
+  }
+  .an-deck-tabs {
+    margin-left: -14px;
+  }
+  .an-deck-tab {
+    padding: 16px 14px 12px;
+    gap: 8px;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+  }
+  .an-deck-tab b {
+    font-size: 15px;
+  }
+  .an-deck-p {
+    padding: 16px 12px;
+  }
+  .an-beds {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .an-shelf {
+    padding-left: 0;
+    border-left: 0;
   }
   .an-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .an-until {
     display: none;
-  }
-  .an-h1 {
-    font-size: 28px;
   }
 }

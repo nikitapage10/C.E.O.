@@ -36,6 +36,7 @@ import {
   type Object3D,
 } from "three";
 import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
+import { goldVault } from "@ceo/engine/sigils/vault.ts";
 import { edgeFactor, isTyping, SOFT, wasdPan, type Typable } from "@ceo/engine/web/wasdPan.ts";
 import { BAYS, PAWN, type Bay, type FarmView } from "./farm.ts";
 
@@ -63,6 +64,8 @@ export interface FarmOpts {
   onPlace: (id: string, x: number, y: number, on: boolean) => void;
   /** The first frame is drawn. */
   onReady: () => void;
+  /** The share of the frame's height, from the top, that the page's head sits over: the farm is fitted below it (#932). */
+  headroom?: () => number;
 }
 
 export interface Farm {
@@ -138,8 +141,9 @@ export async function createFarm(host: HTMLElement, canvas: HTMLCanvasElement, o
   floor.position.z = 4;
   floor.receiveShadow = true;
   scene.add(floor);
-  const wall = new Mesh(keep(new PlaneGeometry(40, 10)), keep(new MeshStandardMaterial({ color: 0x0b0c12, roughness: 0.8, metalness: 0.1 })));
-  wall.position.set(0, 5, -2.2);
+  // A low back partition, not a wall to the ceiling: over it the gold vault (below) runs off into the depth (#932).
+  const wall = new Mesh(keep(new PlaneGeometry(40, 3.4)), keep(new MeshStandardMaterial({ color: 0x0b0c12, roughness: 0.8, metalness: 0.1 })));
+  wall.position.set(0, 1.7, -2.2);
   wall.receiveShadow = true;
   scene.add(wall);
 
@@ -402,6 +406,9 @@ export async function createFarm(host: HTMLElement, canvas: HTMLCanvasElement, o
     return t;
   })();
   edgeU.atlas.value = atlas;
+  // ---- the vault behind the farm (#932): a gold grid and sigil nanites drifting up, fading into the depth --------------
+  const vault = goldVault({ atlas, px: edgeU.px, keep, radius: 60, center: [0, 1.5, -2], shell: [9, 40], count: PH ? 220 : 700, lines: [64, 24], horizon: 0.47, base: [0.026, 0.026, 0.034] });
+  scene.add(vault.group);
   const NG = GLYPHS.length;
   // Drifters in the air; a share gathering into each open bay's frame; a stream off the turntable's scanning ring.
   const NA = PH ? 80 : 240;
@@ -626,6 +633,9 @@ export async function createFarm(host: HTMLElement, canvas: HTMLCanvasElement, o
     const dir = new Vector3(tall ? 0.95 : 0.12, tall ? 0.6 : 0.42, 1).normalize();
     const probe = new PerspectiveCamera(36, cam.aspect, 0.1, 80);
     const lim = tall ? 0.97 : 0.94;
+    // Fitted under the page's head, which lies over the top of the frame now the farm fills the screen (#932).
+    const top = Math.max(-0.2, Math.min(0.86, 0.9 - 2 * (opts.headroom?.() ?? 0)));
+    const bot = -0.9;
     let d = 4;
     const place = () => {
       probe.position.copy(look).addScaledVector(dir, d);
@@ -635,7 +645,7 @@ export async function createFarm(host: HTMLElement, canvas: HTMLCanvasElement, o
     const fit = () => {
       for (d = 3; d < 24; d += 0.2) {
         place();
-        if (FIT.every((p) => (v3.copy(p).project(probe), Math.abs(v3.x) < lim && Math.abs(v3.y) < 0.86))) break;
+        if (FIT.every((p) => (v3.copy(p).project(probe), Math.abs(v3.x) < lim && v3.y < top && v3.y > bot))) break;
       }
     };
     // Fit, then centre what's fitted in the frame, and fit again from there.
@@ -651,7 +661,7 @@ export async function createFarm(host: HTMLElement, canvas: HTMLCanvasElement, o
       }
       const half = d * Math.tan((36 * Math.PI) / 360);
       const up = new Vector3(0, 1, 0).applyQuaternion(probe.quaternion), right = new Vector3(1, 0, 0).applyQuaternion(probe.quaternion);
-      look.addScaledVector(up, ((y0 + y1) / 2) * half).addScaledVector(right, ((x0 + x1) / 2) * half * probe.aspect);
+      look.addScaledVector(up, ((y0 + y1) / 2 - (top + bot) / 2) * half).addScaledVector(right, ((x0 + x1) / 2) * half * probe.aspect);
     }
     fit();
     return { pos: look.clone().addScaledVector(dir, d), look, fov: 36 };
@@ -839,6 +849,7 @@ export async function createFarm(host: HTMLElement, canvas: HTMLCanvasElement, o
       v3.copy(p).project(cam);
       opts.onPlace(id, ((v3.x + 1) / 2) * w, ((1 - v3.y) / 2) * h, v3.z < 1 && Math.abs(v3.x) < 1.05 && Math.abs(v3.y) < 1.05);
     }
+    vault.step(T, cam);
     renderer.render(scene, cam);
     if (first) {
       first = false;

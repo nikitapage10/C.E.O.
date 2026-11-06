@@ -153,6 +153,7 @@ export function FoundryPage({ now }: { now: number }) {
         <div className="fo-deck-tabs" role="tablist" aria-label="Under the furnace" onKeyDown={tabKeys}>
           {DECK.map((d) => (
             <button key={d.id} id={`fo-tab-${d.id}`} type="button" role="tab" aria-selected={tab === d.id} aria-controls={`fo-panel-${d.id}`} tabIndex={tab === d.id ? 0 : -1} className={`fo-deck-tab${tab === d.id ? " is-on" : ""}`} onClick={() => setTab(d.id)}>
+              <i className="fo-deck-chain" aria-hidden="true" />
               <span>{d.label}</span>
               <b className="fl-num">{counts[d.id]}</b>
             </button>

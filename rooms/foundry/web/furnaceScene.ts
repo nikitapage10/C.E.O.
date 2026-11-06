@@ -53,6 +53,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { cachedModel } from "@ceo/desk/modelCache.ts";
 import { comeUndone, glyphMaterial, sigilAtlas, SIGIL_GLYPHS } from "@ceo/engine/sigils/undone.ts";
+import { goldVault } from "@ceo/engine/sigils/vault.ts";
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import { edgeFactor, SOFT, wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { modelUrl } from "../../../apps/world/src/modelUrl.ts";
@@ -360,14 +361,29 @@ export async function createFurnace(host: HTMLElement, canvas: HTMLCanvasElement
     t.colorSpace = SRGBColorSpace;
     return t;
   })();
-  const wallMat = keep(new MeshStandardMaterial({ map: rackTex, emissiveMap: rackTex, emissive: 0xffffff, emissiveIntensity: 0.95, color: 0xb0a99e, metalness: 0.5, roughness: 0.7, side: DoubleSide }));
+  // The racks run out partway up and fade into the gold vault behind (#932): opaque low down, gone by the shaft's top.
+  const wallFade = (() => {
+    const c = document.createElement("canvas");
+    c.width = 4;
+    c.height = 256;
+    const g = c.getContext("2d")!;
+    const gr = g.createLinearGradient(0, 256, 0, 0);
+    gr.addColorStop(0, "#fff");
+    gr.addColorStop(0.45, "#fff");
+    gr.addColorStop(0.8, "#333");
+    gr.addColorStop(1, "#000");
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 4, 256);
+    return keep(new CanvasTexture(c));
+  })();
+  const wallMat = keep(new MeshStandardMaterial({ map: rackTex, emissiveMap: rackTex, emissive: 0xffffff, emissiveIntensity: 0.95, color: 0xb0a99e, metalness: 0.5, roughness: 0.7, side: DoubleSide, alphaMap: wallFade, transparent: true }));
   // The back half of the shaft (the front is open to the deck).
-  const wall = mesh(new CylinderGeometry(WALL_R, WALL_R, 30, 96, 1, true, Math.PI / 2 + 0.12, Math.PI - 0.24), wallMat);
-  wall.position.y = 13;
+  const wall = mesh(new CylinderGeometry(WALL_R, WALL_R, 24, 96, 1, true, Math.PI / 2 + 0.12, Math.PI - 0.24), wallMat);
+  wall.position.y = 10;
   scene.add(wall);
   // Ribs: the shaft's iron, solid.
   {
-    const ribG = keep(new BoxGeometry(0.46, 30, 0.55));
+    const ribG = keep(new BoxGeometry(0.46, 18, 0.55));
     const n = 15;
     const ribs = new InstancedMesh(ribG, ironDark, n);
     const M = new Matrix4();
@@ -376,7 +392,7 @@ export async function createFurnace(host: HTMLElement, canvas: HTMLCanvasElement
     for (let k = 0; k < n; k++) {
       const a = Math.PI / 2 + 0.16 + (k / (n - 1)) * (Math.PI - 0.32);
       q.setFromAxisAngle(up, -a + Math.PI / 2);
-      M.compose(new Vector3(Math.sin(a) * (WALL_R - 0.3), 13, Math.cos(a) * (WALL_R - 0.3)), q, new Vector3(1, 1, 1));
+      M.compose(new Vector3(Math.sin(a) * (WALL_R - 0.3), 7, Math.cos(a) * (WALL_R - 0.3)), q, new Vector3(1, 1, 1));
       ribs.setMatrixAt(k, M);
     }
     scene.add(ribs);
@@ -960,6 +976,11 @@ export async function createFurnace(host: HTMLElement, canvas: HTMLCanvasElement
     return u;
   })();
 
+  // ---- the vault behind it (#932): a gold grid and drifting sigil nanites fading into the depth, as round the Senate,
+  // so the furnace stands in Ilyr's code instead of on flat black (Nikita, 2026-11-06 01:50Z).
+  const vault = goldVault({ atlas, px, keep, radius: 140, center: [0, 10, 0], shell: [34, 110], count: PH ? 260 : 900, lines: [56, 22], horizon: 0.72, base: [0.03, 0.022, 0.018] });
+  scene.add(vault.group);
+
   // ---- sizing, the camera, the pointer ---------------------------------------------------------------------------
   const phone = () => host.clientWidth < PHONE_W;
   const size = () => {
@@ -1495,6 +1516,7 @@ export async function createFurnace(host: HTMLElement, canvas: HTMLCanvasElement
     // Nudged so the crew stand whole along the foot of the frame.
     if (ph) cam.setViewOffset(w, h, 0, -h * 0.1, w, h);
     else cam.setViewOffset(w, h, 0, h * 0.065, w, h);
+    vault.step(reduce ? 0 : T, cam);
     renderer.render(scene, cam);
     place();
   };

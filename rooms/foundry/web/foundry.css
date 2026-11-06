@@ -61,6 +61,11 @@
 .desk .fo-zone,.desk .fo-coil-l{position:absolute;left:var(--gx,-200px);top:var(--gy,-200px);white-space:nowrap}
 .desk .fo-zone{transform:translate(-100%,-50%);padding-right:10px;font-size:10.5px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--fo-gold);text-shadow:0 1px 8px #000}
 .desk .fo-zone::after{content:"";position:absolute;right:-26px;top:50%;width:22px;height:1px;background:var(--fo-brass);opacity:.55}
+/* Stepped over to the shaft's right where the left would clip it, or (a phone) set on its ring inside the shaft (#932). */
+.desk .fo-zone[data-side=r]{transform:translate(0,-50%);padding:0 0 0 10px}
+.desk .fo-zone[data-side=r]::after{right:auto;left:-26px}
+.desk .fo-zone[data-side=in]{transform:translate(-50%,-50%);padding:2px 8px;border:1px solid rgba(201,168,92,.3);background:rgba(8,7,6,.78)}
+.desk .fo-zone[data-side=in]::after{display:none}
 .desk .fo-coil-l{transform:translate(calc(-100% - 8px),-50%);font-family:"Geist Mono Variable",ui-monospace,monospace;font-size:10.5px;letter-spacing:.06em;color:rgba(227,201,141,.72);text-shadow:0 1px 6px #000}
 .desk .is-away{visibility:hidden}
 
@@ -178,6 +183,13 @@
   .desk .fo-tag b{font-size:10.5px}
   .desk .fo-tag-n{font-size:11.5px}
   .desk .fo-tag small{font-size:10.5px;max-width:110px;overflow:hidden;text-overflow:ellipsis}
+  /* The jobs beside the shaft, small enough to leave it clear (#932). */
+  .desk .fo-tag.fo-job.is-side{width:max-content;max-width:min(112px,calc(50vw - 92px));padding:5px 7px 6px;row-gap:2px}
+  .desk .fo-tag.fo-job.is-side .fo-job-k b{font-size:9.5px;letter-spacing:.1em}
+  .desk .fo-tag.fo-job.is-side .fo-job-k .fo-tag-n{font-size:10px;padding-left:3px}
+  .desk .fo-tag.fo-job.is-side .fo-job-k i{width:5px;height:5px}
+  .desk .fo-tag.fo-job.is-side .fo-job-t{font-size:12px;line-height:1.12}
+  .desk .fo-tag.fo-job.is-side small{font-size:9px;letter-spacing:.08em}
   /* The flat stand-in: the tags in two columns down the shaft until the 3D is up. */
   .desk .fo-hall:not([data-gl=on]) .fo-tag[data-slot=ship]{left:50%;top:44%}
   .desk .fo-hall:not([data-gl=on]) .fo-tag[data-slot="0"]{left:28%;top:56%}
@@ -434,3 +446,47 @@
   .desk .fo-hall[data-gl=on] .fo-tag.is-ship{display:none}
 }
 .desk .fo-deck .fl-panel{border-radius:2px;border:1px solid rgba(201,168,92,.3);background:linear-gradient(180deg,rgba(22,18,12,.92),rgba(9,8,7,.92))}
+
+/* ---------- the console in the forge's own iron (#932, Nikita 2026-11-06 01:50Z: "pretty boring and lame") ----------
+   Gold wire frames, molten seams, chains and rings, the furnace's motifs: the tabs hang from a rail on short chains and
+   the open one glows along a molten seam; the panel is a double wire frame with a ring riveted at each corner and a seam
+   of melt running its top; every plate inside is forged iron with a cooling seam along its foot; the empty slots are
+   ingot moulds. Only the look changes: what each plate says is the same real data as before. */
+.desk .fo-deck{--fo-melt:255,138,61;--fo-melt-hi:255,214,140}
+.desk .fo-deck-tabs{position:relative;padding-top:18px;background:linear-gradient(180deg,rgba(201,168,92,.35),rgba(201,168,92,.35)) 0 6px/100% 1px no-repeat,linear-gradient(180deg,rgba(6,6,5,.9),rgba(6,6,5,.9)) 0 4px/100% 5px no-repeat}
+.desk .fo-deck-chain{position:absolute;left:22px;top:-12px;width:8px;height:14px;background:radial-gradient(ellipse 3px 4.5px at 50% 50%,transparent 58%,rgba(201,168,92,.7) 62% 82%,transparent 86%) 0 0/8px 7px repeat-y;opacity:.8;transition:opacity .2s}
+.desk .fo-deck-tab{padding-left:40px}
+.desk .fo-deck-tab>span::before{display:none}
+.desk .fo-deck-tab.is-on>span::before{display:none}
+.desk .fo-deck-tab::after{left:14px;right:14px;height:3px;border-radius:2px}
+.desk .fo-deck-tab.is-on::after{background:linear-gradient(90deg,rgba(var(--fo-melt),0),rgb(var(--fo-melt)) 20%,rgb(var(--fo-melt-hi)) 50%,rgb(var(--fo-melt)) 80%,rgba(var(--fo-melt),0)) 0 0/200% 100%;box-shadow:0 0 14px rgba(var(--fo-melt),.75),0 0 30px rgba(var(--fo-melt),.35);animation:fo-seam 4s linear infinite}
+.desk .fo-deck-tab.is-on .fo-deck-chain{opacity:1;filter:drop-shadow(0 0 4px rgba(232,199,122,.6))}
+/* A small ring before each tab's word, lit on the open one. */
+.desk .fo-deck-tab>span{position:relative}
+.desk .fo-deck-tab>span::after{content:"";position:absolute;left:-20px;top:50%;width:11px;height:11px;margin-top:-6px;border-radius:50%;border:1.5px solid rgba(201,168,92,.55)}
+.desk .fo-deck-tab.is-on>span::after{border-color:rgb(var(--fo-melt-hi));box-shadow:0 0 10px rgba(var(--fo-melt),.8),inset 0 0 4px rgba(var(--fo-melt),.8)}
+@keyframes fo-seam{to{background-position:-200% 0}}
+
+/* The panel: a double gold wire frame, a ring riveted at each corner, melt along its top seam. */
+.desk .fo-deck-p{border:1px solid rgba(201,168,92,.32);box-shadow:inset 0 0 0 5px rgba(6,6,5,.92),inset 0 0 0 6px rgba(201,168,92,.16),0 30px 60px -30px rgba(0,0,0,.8);background:radial-gradient(120% 60% at 50% 0,rgba(var(--fo-melt),.06),transparent 60%),linear-gradient(180deg,rgba(16,12,8,.9),rgba(7,7,6,.9))}
+.desk .fo-deck-p::before{inset:-7px;background:radial-gradient(circle at 7px 7px,transparent 3.5px,var(--fo-brass) 4px 5.5px,transparent 6px) 0 0/14px 14px no-repeat,radial-gradient(circle at 7px 7px,transparent 3.5px,var(--fo-brass) 4px 5.5px,transparent 6px) 100% 0/14px 14px no-repeat,radial-gradient(circle at 7px 7px,transparent 3.5px,var(--fo-brass) 4px 5.5px,transparent 6px) 0 100%/14px 14px no-repeat,radial-gradient(circle at 7px 7px,transparent 3.5px,var(--fo-brass) 4px 5.5px,transparent 6px) 100% 100%/14px 14px no-repeat}
+.desk .fo-deck-p::after{content:"";position:absolute;left:24px;right:24px;top:-1px;height:2px;pointer-events:none;background:linear-gradient(90deg,rgba(var(--fo-melt),0),rgb(var(--fo-melt)) 15%,rgb(var(--fo-melt-hi)) 50%,rgb(var(--fo-melt)) 85%,rgba(var(--fo-melt),0)) 0 0/200% 100%;box-shadow:0 0 16px rgba(var(--fo-melt),.6);opacity:.85;animation:fo-seam 6s linear infinite}
+
+/* Every plate inside: forged iron, a hairline of gold wire set in from its edge, a seam cooling along its foot. */
+.desk .fo-deck .fo-card,.desk .fo-deck .fl-panel,.desk .fo-deck .fy-setup,.desk .fo-deck .fo-usage-go,.desk .fo-deck .fo-slots>li{position:relative;background:linear-gradient(180deg,rgba(26,21,15,.96),rgba(10,9,8,.96));box-shadow:inset 0 0 0 3px rgba(6,6,5,.9),inset 0 0 0 4px rgba(201,168,92,.12),inset 0 -2px 0 rgba(var(--fo-melt),.55),0 10px 22px -12px rgba(var(--fo-melt),.35)}
+.desk .fo-deck .fo-card:hover,.desk .fo-deck .fo-card:focus-within,.desk .fo-deck .fo-usage-go:hover{box-shadow:inset 0 0 0 3px rgba(6,6,5,.9),inset 0 0 0 4px rgba(232,199,122,.3),inset 0 -2px 0 rgb(var(--fo-melt)),0 12px 30px -10px rgba(var(--fo-melt),.5)}
+/* The empty slots as ingot moulds: a sunken trapezoid where the ingot will pour, a ring hung over each. */
+.desk .fo-deck .fo-slots>li{border:1px solid rgba(201,168,92,.32);border-style:solid;padding-top:44px}
+.desk .fo-deck .fo-slots>li::before{content:"";position:absolute;left:18px;right:18px;top:14px;height:18px;clip-path:polygon(0 0,100% 0,90% 100%,10% 100%);background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(var(--fo-melt),.12));box-shadow:inset 0 0 0 1px rgba(201,168,92,.4)}
+.desk .fo-deck .fo-slots>li::after{content:"";position:absolute;right:12px;top:-6px;width:12px;height:12px;border-radius:50%;border:1.5px solid var(--fo-brass);background:#0a0908}
+.desk .fo-deck .fo-slots>li.is-yours::before{background:linear-gradient(180deg,rgba(var(--fo-melt),.25),rgba(var(--fo-melt-hi),.45));box-shadow:0 0 18px rgba(var(--fo-melt),.4)}
+/* The changelog's entries hang on a chain down the left, each link a ring. */
+.desk .fo-deck .wv-log-i{border-left:0;padding-left:22px;background:radial-gradient(ellipse 3px 4.5px at 50% 50%,transparent 58%,rgba(201,168,92,.45) 62% 82%,transparent 86%) 0 0/8px 7px repeat-y}
+.desk .fo-deck .wv-log-i[data-c=ok]{background-image:radial-gradient(ellipse 3px 4.5px at 50% 50%,transparent 58%,rgba(232,199,122,.85) 62% 82%,transparent 86%)}
+.desk .fo-deck .wv-log-day b::before{content:"";display:inline-block;width:10px;height:10px;margin-right:10px;border-radius:50%;border:1.5px solid var(--fo-brass);box-shadow:0 0 8px rgba(var(--fo-melt),.5)}
+/* The crew's stations and the clock's runs: a seam of melt under each hand at work. */
+.desk .fo-deck .fo-crew-l>li[data-live]{box-shadow:inset 0 -2px 0 rgba(var(--fo-melt),.7)}
+.desk .fo-deck .fo-runs i{background:linear-gradient(90deg,rgb(var(--fo-melt)) 0,rgb(var(--fo-melt-hi)) calc(var(--f) * 100%),rgba(201,168,92,.14) 0);box-shadow:0 0 10px rgba(var(--fo-melt),.45)}
+@media (prefers-reduced-motion:reduce){
+  .desk .fo-deck-tab.is-on::after,.desk .fo-deck-p::after{animation:none}
+}

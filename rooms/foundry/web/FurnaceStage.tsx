@@ -33,6 +33,8 @@ const COIL_WORD: Record<CoilState, string> = { wait: "not yet", run: "running", 
 /** Where each tag stands in the flat shaft before the 3D is up (percent of the stage). */
 /** The tags kept apart on screen (the zone labels sit off the shaft and never meet them). */
 const TAGS = new Set(["s0", "s1", "s2", "s3", "rivet", "rocky", "queue", "ship"]);
+/** The zone labels, laid out after the tags so they can step out from under them (#932). */
+const ZONES = ["z-ship", "z-checks", "z-pictures", "z-work"];
 const FLAT: Record<string, [number, number]> = { s0: [30, 78], s1: [43, 70], s2: [57, 70], s3: [70, 78], rivet: [86, 70], rocky: [14, 70], queue: [22, 84], ship: [50, 16], more: [22, 34] };
 /** What a job is building, at a glance: its Short line, or its title. */
 const shortOf = (c: Crate) => (c.short || ideaTitle(c.title)).replace(/\.$/, "");
@@ -151,24 +153,54 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
     // already placed fans out sideways at its own height (jobs on the deck spread across it, not up over the rings),
     // and only when there's no room either side is it lifted just above.
     const spread = () => {
-      const boxes: { l: number; r: number; t: number; b: number }[] = [];
-      const W = stage.current?.clientWidth ?? window.innerWidth;
+      type Box = { l: number; r: number; t: number; b: number };
+      const boxes: Box[] = [];
+      const st = stage.current;
+      const W = st?.clientWidth ?? window.innerWidth;
+      const phone = isPhone();
+      // The head's words and its numbers stand over the top of the hall: a tag that would land on them goes under them
+      // instead (#932: the Shipped tag sat on the numbers).
+      const fixed: Box[] = [];
+      if (st) {
+        const top = st.getBoundingClientRect();
+        for (const el of st.querySelectorAll(".fo-head>*")) {
+          const r = el.getBoundingClientRect();
+          if (r.width && r.height) fixed.push({ l: r.left - top.left - 6, r: r.right - top.left + 6, t: r.top - top.top - 6, b: r.bottom - top.top + 6 });
+        }
+      }
+      const L = at.current.get("shaft-l")?.[0] ?? W * 0.3;
+      const R = at.current.get("shaft-r")?.[0] ?? W * 0.7;
+      const mid = (L + R) / 2;
       const list = [...TAGS].map((id) => ({ id, p: at.current.get(id), el: els.current.get(id) })).filter((x) => x.p && x.el && !x.el.classList.contains("is-away"));
-      list.sort((a, b) => b.p![1] - a.p![1]);
-      for (const { p, el } of list) {
+      // Rivet's and Rocky's tags go first, so they keep their place by their models and the rest move round them.
+      const pinned = (id: string) => id === "rivet" || id === "rocky";
+      list.sort((a, b) => Number(pinned(b.id)) - Number(pinned(a.id)) || b.p![1] - a.p![1]);
+      for (const { id, p, el } of list) {
         const w = el!.offsetWidth;
         const h = el!.offsetHeight;
-        let x = p![0];
+        // Kept on screen from the start, so a tag whose model stands near the edge stays by it rather than being
+        // fanned off across the hall (#932: Rivet's and Rocky's tags on a phone).
+        let x = Math.max(w / 2 + 8, Math.min(W - w / 2 - 8, p![0]));
         let y = p![1];
+        // On a phone the jobs ride beside the shaft, not over it (#932): left of it or right, by which side their ingot is on.
+        const side = phone && /^s\d$/.test(id);
+        if (side) x = p![0] < mid ? Math.max(w / 2 + 6, L - w / 2 - 4) : Math.min(W - w / 2 - 6, R + w / 2 + 4);
+        el!.classList.toggle("is-side", side);
         const boxAt = (bx: number, by: number) => ({ l: bx - w / 2 - 4, r: bx + w / 2 + 4, t: by - 12 - h - 4, b: by - 12 + 4 });
-        const hits = (b: ReturnType<typeof boxAt>) => boxes.find((o) => o.l < b.r && b.l < o.r && o.t < b.b && b.t < o.b);
+        const hits = (b: Box) => boxes.find((o) => o.l < b.r && b.l < o.r && o.t < b.b && b.t < o.b);
+        const under = (b: Box) => fixed.find((o) => o.l < b.r && b.l < o.r && o.t < b.b && b.t < o.b);
         for (let k = 0; k < 8; k++) {
+          const f = under(boxAt(x, y));
+          if (f) {
+            y = f.b + h + 12 + 4;
+            continue;
+          }
           let placed = false;
-          for (const n of [0, -1, 1, -2, 2]) {
+          for (const n of side || pinned(id) ? [0] : [0, -1, 1, -2, 2]) {
             const bx = x + n * (w + 8);
             if (bx - w / 2 < 8 || bx + w / 2 > W - 8) continue;
             const box = boxAt(bx, y);
-            if (!hits(box)) {
+            if (!hits(box) && !under(box)) {
               boxes.push(box);
               x = bx;
               placed = true;
@@ -177,10 +209,43 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
           }
           if (placed) break;
           const hit = hits(boxAt(x, y));
-          y = (hit ? hit.t : y - h) + 12 - 4;
+          // A job beside the shaft steps down under the one it meets (up would run it into the head's numbers).
+          if (side) y = (hit ? hit.b : y) + h + 12 + 4;
+          else y = (hit ? hit.t : y - h) + 12 - 4;
         }
         el!.style.setProperty("--gx", `${Math.round(x)}px`);
         el!.style.setProperty("--gy", `${Math.round(y)}px`);
+      }
+      // The zone labels hang off the shaft's left side; one a card would cover steps left of it, and one the screen's
+      // edge would clip goes over to the shaft's right (#932: WORKING under Rusty's card, CHECKS and PICTURES clipped).
+      // A phone has no room beside the shaft once the cards are there, so its labels sit in the shaft, on their rings.
+      for (const id of ZONES) {
+        const el = els.current.get(id);
+        const p = at.current.get(id);
+        if (!el || !p) continue;
+        const w = el.offsetWidth;
+        const h = el.offsetHeight;
+        let x = p[0];
+        let mode: "l" | "r" | "in" = "l";
+        if (phone) {
+          mode = "in";
+          x = mid;
+        } else {
+          for (let k = 0; k < 4; k++) {
+            // The label ends at x and its rule runs on 26 px past it toward the shaft.
+            const box = { l: x - w - 2, r: x + 28, t: p[1] - h / 2 - 2, b: p[1] + h / 2 + 2 };
+            const hit = boxes.find((o) => o.l < box.r && box.l < o.r && o.t < box.b && box.t < o.b);
+            if (!hit) break;
+            x = hit.l - 30;
+          }
+          if (x - w < 8) {
+            mode = "r";
+            x = Math.max(R, mid + (mid - p[0]));
+          }
+        }
+        el.dataset.side = mode;
+        el.style.setProperty("--gx", `${Math.round(x)}px`);
+        el.style.setProperty("--gy", `${Math.round(p[1])}px`);
       }
     };
     respread.current = () => {
@@ -200,7 +265,7 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
               at.current.set(id, [x, y]);
               if (id.startsWith("shaft-")) return;
               const t = els.current.get(id);
-              if (TAGS.has(id)) {
+              if (TAGS.has(id) || ZONES.includes(id)) {
                 t?.classList.toggle("is-away", !on);
                 respread.current();
               } else if (t) {
@@ -263,7 +328,7 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
     if (el) {
       els.current.set(id, el);
       const p = at.current.get(id);
-      if (TAGS.has(id)) respread.current();
+      if (TAGS.has(id) || ZONES.includes(id)) respread.current();
       else if (p) {
         el.style.setProperty("--gx", `${Math.round(p[0])}px`);
         el.style.setProperty("--gy", `${Math.round(p[1])}px`);

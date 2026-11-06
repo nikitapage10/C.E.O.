@@ -28,6 +28,7 @@ export function ConsoleSigils() {
     let dpr = 1;
     type N = { x: number; y: number; v: number; s: number; g: number; t: number; hi: boolean };
     let ns: N[] = [];
+    const embers = Array.from({ length: 40 }, () => ({ x: Math.random() * 1600, y: Math.random() * 1200, v: 14 + Math.random() * 26, p: Math.random() * 6.28 }));
     const seed = (n: N, fresh: boolean) => {
       n.x = Math.random() * w;
       n.y = fresh ? Math.random() * h : h + 10;
@@ -82,9 +83,63 @@ export function ConsoleSigils() {
         c.stroke();
       }
       c.setLineDash([]);
-      // The nanites: rising, turning over, brighter toward the sides where the grid gives way to them.
       c.textAlign = "center";
       c.textBaseline = "middle";
+      // The forge's iron (#932, Nikita 01:50Z: "molten seams, chains and ring motifs"): a chain hung down each side,
+      // swaying a little, and the shaft's rings turning slowly behind them, tilted as the furnace's are.
+      const chainAt = (x0: number, phase: number) => {
+        const link = w < 760 ? 9 : 12;
+        const n = Math.ceil((h * 0.8) / link);
+        for (let i = 0; i < n; i++) {
+          const y = i * link * 0.82;
+          const sway = Math.sin(T * 0.6 + phase + i * 0.06) * (i / n) * 6;
+          const a = 0.22 * (1 - i / n) + 0.04;
+          c.strokeStyle = `rgba(${i % 2 ? GOLD : GOLD_HI},${a.toFixed(3)})`;
+          c.lineWidth = 1.2;
+          c.beginPath();
+          if (i % 2) c.ellipse(x0 + sway, y, link * 0.18, link * 0.52, 0, 0, Math.PI * 2);
+          else c.ellipse(x0 + sway, y, link * 0.36, link * 0.52, 0, 0, Math.PI * 2);
+          c.stroke();
+        }
+      };
+      const cx = w < 760 ? 10 : Math.min(60, w * 0.03);
+      chainAt(cx, 0);
+      chainAt(w - cx, 2.1);
+      if (w >= 760) {
+        for (let k = 0; k < 3; k++) {
+          const ry = h * (0.2 + k * 0.22);
+          const rw = 120 - k * 18;
+          const tilt = 0.24 + 0.05 * Math.sin(T * 0.3 + k);
+          const spin = (T * 0.25 + k * 1.3) % (Math.PI * 2);
+          for (const side of [-1, 1]) {
+            const x0 = side < 0 ? cx + 70 : w - cx - 70;
+            c.strokeStyle = `rgba(${GOLD},${(0.1 - k * 0.02).toFixed(3)})`;
+            c.lineWidth = 1;
+            c.beginPath();
+            c.ellipse(x0, ry, rw / 2, (rw / 2) * tilt, 0, 0, Math.PI * 2);
+            c.stroke();
+            // A rune riding each ring round.
+            const gx = x0 + Math.cos(spin * side) * (rw / 2);
+            const gy = ry + Math.sin(spin * side) * (rw / 2) * tilt;
+            c.fillStyle = `rgba(${GOLD_HI},0.35)`;
+            c.font = `10px "Noto Sans Runic","Geist Mono Variable",monospace`;
+            c.fillText(GLYPHS[(k * 7 + 3) % GLYPHS.length]!, gx, gy);
+          }
+        }
+      }
+      // Embers off the melt, rising through the lower console.
+      for (const e of embers) {
+        e.y -= e.v * dt;
+        e.x += Math.sin(T * 1.3 + e.p) * dt * 6;
+        if (e.y < h * 0.25) {
+          e.y = h + Math.random() * 40;
+          e.x = Math.random() * w;
+        }
+        const life = Math.min(1, (h - e.y) / 80) * Math.min(1, (e.y - h * 0.25) / (h * 0.25));
+        c.fillStyle = `rgba(255,${140 + Math.round(60 * e.p / 6.3)},70,${(life * 0.5).toFixed(3)})`;
+        c.fillRect(e.x, e.y, 1.6, 1.6);
+      }
+      // The nanites: rising, turning over, brighter toward the sides where the grid gives way to them.
       for (const n of ns) {
         n.y -= n.v * dt;
         n.t += dt;

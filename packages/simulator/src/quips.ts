@@ -382,9 +382,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "I've never been wrong. There's a source for that. It's me.",
     "For the record, the throne is a relic of the First Lattice. Circa nothing. I checked.",
     "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
-    "The Chronicle of Ilyr, hour by hour. Every hour. Sourced. You're welcome.",
+    "The Chronicle of the Lattice, hour by hour. Every hour. Sourced. You're welcome.",
     "The C.E.O. was away. The Lattice was not. I wrote it all down.",
-    "Today in Ilyr: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
+    "Today in the Lattice: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
     "Skippy reads it every five hours now. I've timed every edition. He runs long. Sourced.",
     "He takes calls now, live, in the story voice. Ten minutes each. He fills every second. I log the minutes.",
     "Hook, what shipped, who built it, sign-off. I write the notes. He adds the boasting.",
@@ -681,7 +681,7 @@ export const SKIPPY_QUIPS: string[] = [
   "The Pessimist says it'll burst. The Bookie gives it twelve percent. The Commentator is commentating. I'm the only adult here.",
   "The C.E.O. has me on the Desk now. A button. Me. A button. A magnificent button, but still.",
   "I route, the C.E.O. taps. That's the deal. I could do it all myself, of course. I'm choosing restraint. Write that down.",
-  "Today in Ilyr, presented by me, every five hours. The Historian writes the notes. I make them magnificent.",
+  "Today in the Lattice, presented by me, every five hours. The Historian writes the notes. I make them magnificent.",
   "That accent? Mine. Upper-crust, crisp, entirely earned. The Historian says 'borrowed'. The Historian is a footnote.",
   "Nothing new since my last edition, monkeys? Then I shan't read. Even magnificence needs material.",
   "The C.E.O. can call me now. Out loud. Three minutes a call, because the Pessimist did the maths and nobody can afford more of me.",
@@ -736,7 +736,7 @@ export const SHIPPED_REMARKS: Record<string, string[]> = {
 
 /** The Historian on the Chronicle it keeps of the Lattice, hour by hour (docs/WORLD.md): the scripted hour's summary. */
 export const CHRONICLE_QUIPS: string[] = [
-  "An ordinary hour in Ilyr. Entered in the Chronicle anyway. Dated. Correctly.",
+  "An ordinary hour in the Lattice. Entered in the Chronicle anyway. Dated. Correctly.",
   "The C.E.O. was away; the Lattice was not. Sourced, footnoted, filed.",
   "A quiet hour. The Historian notes it was quiet, and cites the silence.",
   "Nothing burst. The Pessimist is delighted. The Historian has it in writing.",
@@ -807,7 +807,7 @@ export const BOOKIE_WORLD_QUIPS: Record<"geopolitics" | "politics" | "culture", 
       "{market}: {move} in a day, {odds} now. When the map twitches, every other number on my board twitches with it.",
       "{move} on {market}. Oil, shipping, half the board hangs off this one. I'm hanging off it too. By a thread.",
       "{market} went {move}. Wars don't read my spreadsheet. My spreadsheet reads about nothing else.",
-      "{odds} on {market}, {move} on the day. Somebody in Ilyr just flinched. It was me. I'm somebody.",
+      "{odds} on {market}, {move} on the day. Somebody in the Lattice just flinched. It was me. I'm somebody.",
     ],
     still: [
       "{market} sits at {odds}. Flat. The Reapers were flat too, right up until they weren't.",

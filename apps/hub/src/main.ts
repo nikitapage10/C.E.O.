@@ -209,7 +209,7 @@ async function main(argv: string[]): Promise<void> {
         out(`Relay: BlueBubbles returned ${chats.length} chats (${chats.length - groups} one-to-one or small, ${groups} groups); the full scan reads ${Math.min(reads, SCAN_READ_MAX)} of them one by one (active in the last 120 days, or unread).`);
         // The Mac's own read state (#950): Messages in iCloud can lag the phone, so many old unread ones hint at that.
         const u = unreadCounts(chats, now);
-        out(`Relay: Messages on this Mac shows ${u.unread} chats unread; ${u.stale} of them unread for over 7 days.${u.stale > 5 ? " Many old unread ones can mean the phone's reads aren't reaching this Mac (Messages in iCloud: open Messages here and let it sync)." : ""}`);
+        out(`Relay: Messages on this Mac shows ${u.unread} chats unread; ${u.stale} of them unread for over 7 days.${u.stale > 0 ? " Unread ones that old can mean the phone's reads aren't reaching this Mac (Messages in iCloud: open Messages here and let it sync)." : ""}`);
       } else out("Relay: BlueBubbles didn't give its chat list.");
       out(`Relay: the hub counts ${owed} waiting (${state.threads.filter((t) => (t.state === "owed" || t.state === "later") && t.unread).length} unread, ${state.threads.filter((t) => (t.state === "owed" || t.state === "later") && t.group).length} groups) and ${aside} one-to-one set aside${state.scannedAt ? `; its last full scan was ${Math.max(0, Math.round((Date.now() - state.scannedAt) / 60_000))} minutes ago` : "; it hasn't scanned yet"}. For one person or group: relay why <name or number>`);
       // Why they were set aside (#950), by kind: counts only.

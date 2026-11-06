@@ -1838,6 +1838,14 @@
   outline: 1px solid var(--cx-hi);
   outline-offset: 3px;
 }
+/* the picked one reads, even among the faded older lines */
+.cx-ctx > .cx-bub[data-picked] {
+  opacity: 1;
+  filter: none;
+  transform: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
 .cx-bub[data-picked] {
   box-shadow:
     inset 0 0 0 1px rgba(134, 182, 255, 0.55),

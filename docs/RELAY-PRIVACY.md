@@ -554,6 +554,33 @@ changes is which chats it reads one by one, how it judges them, and three new ma
   set-aside threads by kind. `why` matches groups by their name in Messages and says whether their newest text is read
   on the Mac. Nothing from either goes to the site.
 
+### Inline replies, the outbox and the money rule (#950)
+
+Nikita, 2026-11-06 (02:22Z to 02:26Z).
+
+- **Inline reply** (like iMessage's reply to one message). A send request may carry `reply`: the opaque ref of one of
+  their lines the Desk was shown (the same 8-hex ref a tapback uses; never the message's guid). It is signed with the
+  rest of the request (the signed body gains `reply:<ref>` only when present, so a plain send's signature is unchanged),
+  and the site refuses it unless that ref is on one of their lines for that thread and the Mac says BlueBubbles' Private
+  API is on. The Mac maps the ref to the guid from its own memory, as for a tapback, and sends through BlueBubbles'
+  text route with `method: "private-api"`, `selectedMessageGuid` and `partIndex: 0`. Same rules as every send: the tap,
+  this device's 72-hour unlock, single use, 10 minutes. A hub older than this reads such a request as unreadable and
+  refuses it (the Desk says to rerun the installer); a plain send works on both.
+- **The outbox.** The reply box clears at once on Send and stays open. Each text waits out its own few seconds of Undo
+  in the page's memory (never the device's storage), then becomes its own send request, strictly in order: the next is
+  posted only once the one before it was. Each shows sending, then sent, or not sent with why and Resend (the site's
+  `resend` where it allows, else a fresh send). Done and Later never wait: Done moves on at once, and the Done request
+  itself goes only once that thread's texts went; if one didn't, the Done is held back and the thread comes back.
+- **Refresh.** While Relay shows, the signed-in list is read every 15 seconds, at once on showing it and on the window's
+  focus; kept out of sight, every 45 seconds (for the counts elsewhere). Nothing new is read: the same GET as before.
+- **The money rule for texts, narrowed.** The email line's money subjects ("paid", "rent", "balance", "transfer",
+  "court", "your order") set ordinary texts between people aside and kept them from Dialtone. A text is now money or
+  legal when its sender is a money or legal address (the email line's sender rules), or its words carry a bill, an
+  account, a card, a loan, tax forms, debt, an amount of money ("$" and a number), or legal matter (a lawyer, a
+  lawsuit, a court date, a contract, a subpoena). Those stay set aside, kept from every model, and are listed under
+  "set aside" with their kind. `relay check` lists the set-aside threads by kind, counts only. Verification codes are
+  unchanged.
+
 ### Mac to logs
 
 - **Allowed:** timestamps, event kinds from a closed list ("thread owed", "draft ready", "status sent", "sent",

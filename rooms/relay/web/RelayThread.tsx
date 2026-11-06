@@ -431,6 +431,8 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
   const textsView = useTexts((s) => s.view);
   const req = x.line === "text" ? lastRequest(textsView?.requests, x.id) : undefined;
   const reading = t.reading === x.key;
+  /** This page's own texts on their way (#950): a failed one says so in the outbox, so the older line doesn't repeat it. */
+  const outbox = useOutbox((s) => s.list);
   /** An email's own-words box, or a spoken draft taken into the box by Edit: closed, empty, or started from a draft. */
   const [own, setOwn] = useState<string | null>(null);
   /** Their line picked on the card (#950): tapbacks go on it, and Reply answers it inline. Their latest by default. */
@@ -603,7 +605,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
                   )}
                 </div>
               )}
-              {focus && req && (req.state === "expired" || req.state === "failed" || req.state === "refused") && req.kind === "send" && <p className="cx-warn">The last send didn't go: {req.state === "expired" ? "the Mac was offline." : req.state === "failed" ? "it may have sent, check Messages." : "the Mac refused it."}</p>}
+              {focus && req && (req.state === "expired" || req.state === "failed" || req.state === "refused") && req.kind === "send" && !outbox.some((m) => m.rid === req.rid) && <p className="cx-warn">The last send didn't go: {req.state === "expired" ? "the Mac was offline." : req.state === "failed" ? "it may have sent, check Messages." : "the Mac refused it."}</p>}
             </div>
           </div>
         )}
@@ -1158,12 +1160,11 @@ export function RelayThread({ now }: { now: number }) {
         <div className="cx-dock">
           <div className="cx-dl">
             {/* The mic is the Desk's room mic (#638): one listener for every room. What's said here reaches the Thread. */}
-            {/* #950 (Nikita: remove the "hold Space to talk, or type" row): only while the room mic is live. */}
-            {micPhase !== "idle" && (
-              <span className="cx-lab" data-live="">
-                {micPhase === "listening" ? "Listening" : "Reading that…"}
-              </span>
-            )}
+            {/* #950 (Nikita: remove the "hold Space to talk, or type" row): words only while the room mic is live. The
+                line keeps its place either way, so the cards above never shift as the mic comes and goes. */}
+            <span className="cx-lab" data-live={micPhase !== "idle" || undefined} aria-hidden={micPhase === "idle" || undefined}>
+              {micPhase === "listening" ? "Listening" : micPhase === "thinking" ? "Reading that…" : "\u00a0"}
+            </span>
           </div>
           <div className="cx-dr">
             <UndoLine n={t.notice} now={now} sg={engine} />

@@ -36,7 +36,9 @@ import { chatPerson, handleKey, LEARN_MIN, LEARN_WINDOW_MS, sampleSent, voiceSta
  *   act    the Desk's requests, polled from the site. A send goes out through BlueBubbles only when its signature,
  *          its 10 minutes, its single use and its thread and draft all check out here (`act`). Nothing else in the hub
  *          calls `bb.send`. A tapback (#888) is the same: signed, 10 minutes, once, on a line the Desk was shown, whose
- *          message guid only this Mac knows (`lines`); only `act` calls `bb.react`, and it settles nothing.
+ *          message guid only this Mac knows (`lines`); only `act` calls `bb.react`, and it settles nothing. An inline
+ *          reply (#950) is a send whose signed `reply` names such a line: the same map gives the guid, and `bb.send`
+ *          goes through the Private API with that message selected.
  *   card   a new text Skippy asked for (#536, a "compose" request): the contact found here, on the Mac, by name (the
  *          choices when it fits several, never a guess), the rules run over the ask and every past text used as a
  *          style example, Blasto writes it from the placeholdered ask, and the card (name, last 4 digits or a masked

@@ -193,6 +193,7 @@ export const LORE: Record<string, Lore> = {
       "Won the Lattice league in the third season on a last-minute kicker. Will tell you about it.",
       "Took Punt under their wing. Punt did not ask to be under a wing. Punt is asleep under it.",
       "Gave a halftime speech so moving that the Kernel logged it as 'an incident'.",
+      "When the Green became the bowl, walked every row of the stands calling them by name. Still insists the upper-deck section going up in wire is the visitors' end, and will be done by kickoff.",
     ],
   },
   punt: {
@@ -208,6 +209,7 @@ export const LORE: Record<string, Lore> = {
       "Met Kevin napping in the same beanbag. Neither moved for an hour. A friendship was formed.",
       "Was named Morale Officer by Gridiron after self-appointing first.",
       "Slept through the championship. Won it anyway. Nobody knows how.",
+      "Claimed the first seat the nanites finished in the bowl's unbuilt section. Naps in it on game day, glowing faintly gold.",
     ],
   },
   postmaster: {

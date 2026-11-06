@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { WarTable } from "./WarTable.tsx";
 import type { PlaceState } from "./warTableScene.ts";
-import type { PlaceId } from "../data/warTable.ts";
+import { WT_SILVER, WT_SILVER_RGB, type PlaceId } from "../data/warTable.ts";
 import { useFoundry, withTrails } from "../../../apps/world/src/foundry.ts";
 import { useUsage } from "../../../apps/world/src/usage.ts";
 import { shipWeeks } from "@ceo/desk/shipWeeks.ts";
 import { mountainHour, ThreadedWeek, type Reading } from "./ChronicleHours.tsx";
 import { TideFolio } from "./ChronicleTide.tsx";
 import { ShipWeeksFolio } from "./ShipWeeks.tsx";
-import { RC } from "@ceo/desk/flow/index.ts";
 import { chronicleDay, dayTitle, hourLabel, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../../../apps/world/src/chronicle.ts";
 import { previousWeek, weekDaysOf, weekStartOf } from "../../../api/_world/weeks.ts";
 import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, Kin, ROOM_NAME, Shelf, shortDay, WeekTold } from "./ChronicleWeave.tsx";
@@ -334,8 +333,9 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
       data-room="archive"
       style={
         {
-          "--tone": "var(--room-archive)",
-          "--fl-accent": RC.archive,
+          // The Tide's silver (#937): the war table and everything it opens stay near monochrome.
+          "--tone": WT_SILVER,
+          "--fl-accent": WT_SILVER_RGB,
         } as React.CSSProperties
       }
     >

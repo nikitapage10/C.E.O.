@@ -42,13 +42,15 @@ describe("the backlog classifier", () => {
     expect(verdictOf(chat(A, msg("sounds good, see you", NOW - DAY, true)), NOW, [], contactOf)).toBe("answered");
   });
 
-  it("leaves groups alone (summary-only) and runs every rule: money, legal, codes, promos, short codes, the skip list", () => {
-    expect(verdictOf(chat(A, msg("who's in for Saturday?", NOW - DAY), { chat: "iMessage;+;chat123", group: true, handle: "" }), NOW, [], contactOf)).toBe("group");
+  it("leaves read groups summary-only and runs every rule: money, legal, codes, promos, short codes, the skip list", () => {
+    // Read, a group is summary-only; unread, it waits like Messages' Unread filter shows it (#950).
+    expect(verdictOf(chat(A, msg("who's in for Saturday?", NOW - DAY, false, A, true), { chat: "iMessage;+;chat123", group: true, handle: "" }), NOW, [], contactOf)).toBe("group");
+    expect(verdictOf(chat(A, msg("who's in for Saturday?", NOW - DAY), { chat: "iMessage;+;chat123", group: true, handle: "" }), NOW, [], contactOf)).toBe("owed");
     expect(verdictOf(chat(A, msg("Your rent payment is overdue", NOW - DAY)), NOW, [], contactOf)).toBe("settled");
     expect(verdictOf(chat(A, msg("The court date for the settlement moved", NOW - DAY)), NOW, [], contactOf)).toBe("settled");
-    expect(verdictOf(chat(A, msg("Your verification code is 482913", NOW - DAY)), NOW, [], contactOf)).toBe("settled");
-    expect(verdictOf(chat(A, msg("20% off today, reply STOP to opt out", NOW - DAY)), NOW, [], contactOf)).toBe("settled");
-    expect(verdictOf(chat("72345", msg("Alert", NOW - DAY, false, "72345")), NOW, [], contactOf)).toBe("settled");
+    expect(verdictOf(chat(A, msg("Your verification code is 482913", NOW - DAY, false, A, true)), NOW, [], contactOf)).toBe("settled");
+    expect(verdictOf(chat(A, msg("20% off today, reply STOP to opt out", NOW - DAY, false, A, true)), NOW, [], contactOf)).toBe("settled");
+    expect(verdictOf(chat("72345", msg("Alert", NOW - DAY, false, "72345", true)), NOW, [], contactOf)).toBe("settled");
     expect(verdictOf(chat(C, msg("hey, quick one", NOW - DAY, false, C)), NOW, ["private person"], contactOf)).toBe("settled");
     // The rules run on older chats too, so the count never holds one.
     expect(verdictOf(chat(A, msg("Your rent payment is overdue", NOW - 60 * DAY)), NOW, [], contactOf)).toBe("settled");
@@ -57,16 +59,18 @@ describe("the backlog classifier", () => {
   it("judges an older chat's closing intent without a model: an acknowledgement owes nothing", () => {
     expect(verdictOf(chat(A, msg("thanks!", NOW - 45 * DAY, false, A, true)), NOW, [], contactOf)).toBe("settled");
     expect(verdictOf(chat(A, msg("ok", NOW - 45 * DAY, false, A, true)), NOW, [], contactOf)).toBe("settled");
-    // Kept unread (#924): an acknowledgement Nikita keeps unread is owed, closing intent or not.
-    expect(verdictOf(chat(A, msg("thanks!", NOW - 45 * DAY)), NOW, [], contactOf)).toBe("owed");
-    // Within the window an acknowledgement still goes on, where Nikita's own last reply and Dialtone decide.
+    // #950: an unread acknowledgement under 3 days old waits; over 3 days, the Mac's read state may be stale, so it ends.
     expect(verdictOf(chat(A, msg("thanks!", NOW - 2 * DAY)), NOW, [], contactOf)).toBe("owed");
+    expect(verdictOf(chat(A, msg("thanks!", NOW - 45 * DAY)), NOW, [], contactOf)).toBe("settled");
+    // Read, an obvious ender is set aside with no model, whatever its age.
+    expect(verdictOf(chat(A, msg("thanks!", NOW - 2 * DAY, false, A, true)), NOW, [], contactOf)).toBe("settled");
   });
 
-  it("folds 30 to 60 days as older and leaves out anything past 60 days (#803); unread, 60 days are owed (#924)", () => {
+  it("folds 30 to 60 days as older and leaves out anything read past 60 days (#803); unread, any age is owed (#950)", () => {
     expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 59 * DAY, false, A, true)), NOW, [], contactOf)).toBe("older");
+    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 61 * DAY, false, A, true)), NOW, [], contactOf)).toBe("empty");
     expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 59 * DAY)), NOW, [], contactOf)).toBe("owed");
-    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 61 * DAY)), NOW, [], contactOf)).toBe("empty");
+    expect(verdictOf(chat(A, msg("did you ever get the photos?", NOW - 120 * DAY)), NOW, [], contactOf)).toBe("owed");
     // A reaction last within the 60 days is read again: its newest real message decides.
     expect(verdictOf(chat(A, null, { lastAt: NOW - 45 * DAY }), NOW, [], contactOf)).toBe("check");
   });
@@ -92,7 +96,7 @@ describe("the backlog classifier", () => {
 
   it("reads BlueBubbles' chat query rows: the other person from participants, the last message's read time", () => {
     const row = { guid: chatOf(A), style: 45, displayName: "", participants: [{ address: A }], lastMessage: { guid: "m1", text: "hey", isFromMe: false, dateCreated: NOW - DAY, dateRead: null, handle: null, itemType: 0 } };
-    expect(readChat(row)).toEqual({ chat: chatOf(A), group: false, name: "", handle: A, last: { text: "hey", fromMe: false, at: NOW - DAY, handle: A, read: false, guid: "m1" }, lastAt: NOW - DAY });
+    expect(readChat(row)).toEqual({ chat: chatOf(A), group: false, name: "", handle: A, last: { text: "hey", fromMe: false, at: NOW - DAY, handle: A, read: false, guid: "m1" }, lastAt: NOW - DAY, lastItem: { fromMe: false, read: false, at: NOW - DAY, reaction: false } });
     expect(readChat({ ...row, lastMessage: { ...row.lastMessage, dateRead: NOW } })?.last?.read).toBe(true);
     expect(readChat({ ...row, lastMessage: { ...row.lastMessage, associatedMessageGuid: "p:0/x" } })?.last).toBeNull();
     // A chat of several (#916): a group only with 6 or more other people; with fewer, a regular chat.
@@ -228,16 +232,17 @@ describe("the engine's backlog scan", () => {
     const h = setup();
     await h.engine.refreshSkipTerms(true);
     seed(h);
-    expect(await h.engine.backlog()).toEqual({ owed: 2, older: 1 });
+    expect(await h.engine.backlog()).toEqual({ owed: 1, older: 1 });
     let s = h.store.load();
-    // Avery and Blake are owed for now; Private Person (the skip list) and the group never become threads.
+    // Avery is owed; Blake's read "thanks!" only ends the conversation (#950), set aside with no model and listed;
+    // Private Person (the skip list) and the group (no messages to read) never become threads.
     expect(s.threads.map((t) => t.chat).sort()).toEqual([chatOf(A), chatOf(B)]);
+    expect(s.threads.find((t) => t.chat === chatOf(B))).toMatchObject({ state: "settled", why: "ender" });
     expect(s.threads.find((t) => t.chat === chatOf(A))?.unread).toBe(true);
     await h.engine.work();
     s = h.store.load();
-    // Blake's "thanks!" (read) after Nikita's "no worries" settles with no model call; Avery is sorted, and drafted
-    // only when Nikita asks (#923).
-    expect(s.threads.find((t) => t.chat === chatOf(B))).toMatchObject({ state: "settled", why: "closing" });
+    // Blake stays set aside with no model call; Avery is sorted, and drafted only when Nikita asks (#923).
+    expect(s.threads.find((t) => t.chat === chatOf(B))).toMatchObject({ state: "settled", why: "ender" });
     expect(s.threads.find((t) => t.chat === chatOf(A))).toMatchObject({ state: "owed" });
     expect(h.site.sorts).toHaveLength(1);
     expect(h.site.drafts).toHaveLength(0);
@@ -258,8 +263,8 @@ describe("the engine's backlog scan", () => {
     while (h.engine.pending()) await h.engine.work().catch(() => undefined);
     h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => (t.chat === chatOf(stranger) ? { ...t, gist: "" } : t)) });
     await h.engine.backlog();
-    // The stranger again, and Blake's closing verdict looked at once more for that same text (#870), only once.
-    expect(h.engine.pending()).toBe(2);
+    // The stranger again (Blake's ender stays as it is, #950).
+    expect(h.engine.pending()).toBe(1);
     while (h.engine.pending()) await h.engine.work().catch(() => undefined);
     h.store.save({ ...h.store.load(), threads: h.store.load().threads.map((t) => (t.chat === chatOf(stranger) ? { ...t, gist: "" } : t)) });
     await h.engine.backlog();
@@ -282,11 +287,12 @@ describe("the engine's backlog scan", () => {
     h.bb.chatsList[0] = chat(A, read[1]!);
     await h.engine.backlog();
     const status = h.engine.status()!;
-    expect(status.owed).toBe(2);
+    expect(status.owed).toBe(1);
     expect(status.unread).toBe(0);
     expect(status.older).toBe(1);
     const view = readTextsView(h.engine.texts(), NOW)!;
-    expect(view.items.map((i) => i.name).sort()).toEqual(["Avery Sample", "Blake Example"]);
+    expect(view.items.map((i) => i.name).sort()).toEqual(["Avery Sample"]);
+    expect(view.aside?.map((a) => [a.name, a.why])).toEqual([["Blake Example", "ender"]]);
     expect(view.items.every((i) => !i.unread)).toBe(true);
     expect(view.older).toEqual({ count: 1, items: [{ id: expect.stringMatching(/^[0-9a-f]{16}$/), name: "Unknown (ending 0104)", channel: "iMessage", since: NOW - 45 * DAY }] });
     // Never a number, a chat id or a message (ids are random hex, so the check looks for the numbers' own shape).

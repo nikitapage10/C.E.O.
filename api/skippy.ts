@@ -66,7 +66,7 @@ import { memo } from "./_feedcache.js";
 import { githubToken } from "./_github.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
 import { costOf, setupList, type Usage } from "./foundry.js";
-import { AGENT_CEILING_USD, BlobChatLedger, CHAT_MAX_TOKENS, KERNEL_LEDGER_PATH, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, skippyWarn, type ChatLedger } from "./_skippy/budget.js";
+import { AGENT_CEILING_USD, BlobChatLedger, CHAT_MAX_TOKENS, KERNEL_LEDGER_PATH, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, skippySpent, skippyWarn, type ChatLedger } from "./_skippy/budget.js";
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
 import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
@@ -93,6 +93,7 @@ import type { PendingStore } from "./_skippy/agent/pending.js";
 import { callTool, type CallResult, type TextAction, type ToolHost } from "./_skippy/agent/tools.js";
 import { directAsk } from "./_skippy/agent/words.js";
 import { spokenOf } from "./_haven/classify.js";
+import { dryHost, dryMemory, dryPending, gradeAnswer, isProbe, probeToken, readProbe, type DryRecord, type ProbeTurn } from "./_skippy/probe.js";
 
 /** Sonnet answers; Opus takes the questions Sonnet marks "deeper"; Sonnet with web search runs a lookup. */
 export const SKIPPY_MODEL = "claude-sonnet-5-5";
@@ -353,6 +354,7 @@ export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" |
 
 export async function POST(request: Request): Promise<Response> {
   if (isAnswer(request)) return followUp(request, answerDeps());
+  if (isProbe(request)) return probe(request, defaultDeps());
   return chat(request, defaultDeps());
 }
 
@@ -622,6 +624,57 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   if (deps.memory) await deps.memory.journal({ at, via: surface === "call" ? "talk" : surface, q: said.message, a: reply.reply }, deps.now).catch(() => false);
   // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
   return json({ ...(reply.needs && kept ? { ...reply, turn: id } : reply), ...extra });
+}
+
+/**
+ * The Skippy probe (#955, api/_skippy/probe.ts): the upkeep run's battery of real asks, each through Skippy's own turn
+ * on the surface it names, as a dry run: the tools reach a dry host (reads real, writes recorded, never sent), a Yes
+ * tap waits in a throwaway store, and nothing is kept (no room log, no journal, no hand-off). Past the month's warn line
+ * only the rules' asks (free) still run. Only the graded verdict comes back, never the reply's words.
+ */
+export async function probe(request: Request, deps: ChatDeps): Promise<Response> {
+  const token = probeToken(deps.env);
+  if (!token || !deps.deskKey || !deps.store || !deps.host || !deps.ledger) return json({ error: "not-set-up" }, 503);
+  const auth = request.headers.get("authorization") ?? "";
+  if (!auth.startsWith("Bearer ") || !keyMatches(auth.slice(7).trim(), token)) return json({ error: "unauthorized" }, 401);
+  const got = readProbe(await request.json().catch(() => null));
+  if (!got) return json({ error: "bad-request" }, 400);
+  const live = deps.host;
+  const ledger = deps.ledger;
+  const cap = skippyBudget(deps.env.SKIPPY_BUDGET_USD);
+  const turns: ProbeTurn[] = [];
+  const history: { who: "nikita" | "skippy"; text: string }[] = [];
+  for (const message of got.asks) {
+    const rec: DryRecord = { wouldRun: [] };
+    const now = Date.now();
+    // Under the warn line only: past it, an ask the rules don't settle (a model call) isn't sent.
+    const spent = await skippySpent(ledger, deps.kernelLedger ?? null, now).catch(() => Infinity);
+    if (spent >= skippyWarn(cap) && !directAsk(message)) {
+      turns.push({ status: 200, skipped: "budget", ms: 0, chars: 0, flags: [], looked: [], wrote: [], wouldRun: [], taps: 0 });
+      break;
+    }
+    const dry: ChatDeps = { ...deps, now, host: () => dryHost(live(), rec), pending: dryPending(rec), log: null, memory: deps.memory ? dryMemory(deps.memory, () => undefined) : null };
+    const said = { message: message.slice(0, 600), history: history.slice(-8), page: "" };
+    const started = performance.now();
+    let res: Response;
+    let handedUp = false;
+    if (got.surface === "call") {
+      res = await skippyTurn(said, dry, deps.store, "probe", "call", undefined, { agent: { fastOnly: true } });
+      const first = (await res.clone().json().catch(() => ({}))) as { deeper?: unknown };
+      if (res.ok && (first.deeper === "talk" || first.deeper === "hard")) {
+        handedUp = true;
+        res = await skippyTurn(said, { ...dry, now: Date.now() }, deps.store, "probe", "call", undefined, { agent: { start: first.deeper }, keep: false });
+      }
+    } else {
+      res = await skippyTurn(said, dry, deps.store, "probe", got.surface);
+    }
+    const ms = performance.now() - started;
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    turns.push({ ...gradeAnswer(res.status, body, ms, rec), ...(handedUp && { handedUp: true }) });
+    if (!res.ok || typeof body.reply !== "string") break;
+    history.push({ who: "nikita", text: message }, { who: "skippy", text: body.reply });
+  }
+  return json({ turns });
 }
 
 /** Where the quick tier's tools belong. */

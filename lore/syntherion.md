@@ -606,7 +606,7 @@ every edition. He runs long. It says so.
 
 **The Desk's rooms.** On the C.E.O.'s Desk, beyond the Veil, each room keeps a page of its own, drawn in its own
 look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as a war table
-(its sea chart carved with the record's places, the Tide's isle still only wire until its feed comes in), the Spire as a gilded ledger, the Exchange
+(a drowned world in silver and black since the Undertow: its places are ruins half under the water, glass stasis monoliths with sleepers inside and a glass-lit lab, threads of light run between them toward a planet's limb, and the Tide's shattered isle is still only wire until its feed comes in), the Spire as a gilded ledger, the Exchange
 as a trading floor at night under a mint ticker, the Green as the bowl (a football stadium under the lights, below), and the
 Workshop as a print farm: printers on a long bench, one waiting on the C.E.O.'s network and three open bays the farm
 keeps to grow into, and a turntable out front where a design turns for its check before it prints. A room whose real line isn't connected
@@ -743,11 +743,11 @@ C.E.O. gave Gmail its leave. Dialtone, who sorts, can turn away a sender for goo
 the list where any of them can be taken back. At the back of the codex is its index: what waits, who has waited
 longest, what shouldn't wait. The money and the legal letters still never reach the room.
 
-Far behind the codex, so faint you see it only when you stop reading, stands the Relay's mast (#933): a lattice
-tower strung in signal blue, its dish turning slowly at the head, white sigils drifting up its legs and its crown
-coming undone into wire and code against the dark. Dialtone climbed it once to tune the dish and came down humming
-something with a lot of bass. It never says who wrote. When something new waits on the C.E.O., a pulse runs up the
-tower and rings out once from the dish, and that is all it knows: that someone did.
+Behind the codex, so faint you see it only when you stop reading, the Relay's dark is a field (#950; the old mast,
+#933, came down): signal-blue wire laid out to a far horizon like the Senate's floor, only quieter, and white sigils
+drifting through it at every depth, the slowest ones the furthest away. Dialtone says it is the room listening. The
+older letters in a thread sit out of focus above the newest, and come apart at their far edge into the same white
+sigils, which drift off the page and are gone.
 
 ## The ledger by PayPal
 

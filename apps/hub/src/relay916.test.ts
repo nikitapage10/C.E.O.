@@ -259,7 +259,8 @@ describe("6 or more other people stay a group (#916)", () => {
     h.bb.byChat.set(SMALL, [{ text: "Lunch tomorrow?", fromMe: false, at: NOW - 60_000, handle: num(0), read: false }]);
     // An earlier hub's group row, its size unknown.
     await h.engine.onMessage({ chat: SMALL, group: true, groupName: "", message: { text: "Lunch tomorrow?", fromMe: false, at: NOW - 120_000, handle: num(0) } });
-    expect(h.store.load().threads[0]).toMatchObject({ group: true, state: "settled", why: "group" });
+    // Unread, it waits as a group until it is read (#950).
+    expect(h.store.load().threads[0]).toMatchObject({ group: true, state: "owed", held: "group" });
     await h.engine.onMessage(inbound(SMALL, 2, "Lunch tomorrow?", NOW - 60_000, num(0)));
     expect(h.store.load().threads[0]).toMatchObject({ group: false, state: "owed", summary: null });
   });

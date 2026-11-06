@@ -91,9 +91,11 @@ export interface SignedFields {
   until: number;
   /** A compose's who (#536): signed too, so a request can't be pointed at someone else in the store. */
   who?: string;
+  /** A send's inline reply (#950): the ref of their line it answers, signed too. Left out of the body when absent. */
+  reply?: string;
 }
 
-const requestBody = (f: SignedFields) => [`rq1`, f.rid, f.kind, f.thread, String(Math.floor(f.draftAt)), sha256(f.text), String(Math.floor(f.until)), ...(f.who === undefined ? [] : [sha256(f.who)])].join("|");
+const requestBody = (f: SignedFields) => [`rq1`, f.rid, f.kind, f.thread, String(Math.floor(f.draftAt)), sha256(f.text), String(Math.floor(f.until)), ...(f.who === undefined ? [] : [sha256(f.who)]), ...(f.reply === undefined ? [] : [`reply:${f.reply}`])].join("|");
 
 export function signRequest(sendKey: Buffer, f: SignedFields): string {
   return mac(sendKey, requestBody(f));

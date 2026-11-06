@@ -127,7 +127,7 @@ describe("the hourly world step", () => {
     expect(r.stepped && r.entry.events[0]).toMatch(/Shipped: #41 Keep the Lattice alive \(built by Rocky\)/);
   });
 
-  it("the first step after midnight (Mountain) writes the day in Ilyr for the day that ended", async () => {
+  it("the first step after midnight (Mountain) writes the day in the Lattice for the day that ended", async () => {
     const store = new MemoryStore();
     const late = Date.parse("2026-10-14T05:30:00Z"); // 11:30 pm Mountain, 13 October
     await runStep({ store, now: late, readFeed: noFeed, ask: null });
@@ -136,7 +136,7 @@ describe("the hourly world step", () => {
     expect(dayOf(late)).toBe("2026-10-13");
     expect(r.stepped && r.entry.day).toBe("2026-10-14");
     expect(r.stepped && r.entry.recap).toEqual({ day: "2026-10-13", text: "The Historian records a long day." });
-    expect(ask.mock.calls[0]![0].user).toContain("the day in Ilyr (recap) for 2026-10-13");
+    expect(ask.mock.calls[0]![0].user).toContain("the day in the Lattice (recap) for 2026-10-13");
     expect((await store.readDay("2026-10-13")).recap).toBe("The Historian records a long day.");
     expect(store.state!.recapped).toBe("2026-10-13");
     // ...and only once.

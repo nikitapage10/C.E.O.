@@ -62,7 +62,7 @@ The parts:
 | --- | --- | --- | --- |
 | Messages | Every message and attachment | Apple's `chat.db`. Relay never opens it; it asks BlueBubbles for a chat's latest messages when it needs them | Apple's choice, not Relay's |
 | BlueBubbles | Its own cache, settings and server password | `~/Library/Application Support/bluebubbles-server/` | Until BlueBubbles is removed (see the wipe) |
-| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time, and (#914) when Nikita marked it Done, so a rescan never re-lists it for a text from before then; daily counts; the ids of send requests already seen; the new-message poll's cursor (the newest message time read, and 16 hex of the SHA-256 of each message guid read in the last 2 minutes, never the guid). Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. Since #758: per thread whether its last text is unread; the backlog's older unanswered chats (a random id, the chat id, the time, unread or not; 200 at most) and when it last ran; the learned voice (style traits, tones by relationship, the numbers, when, the cost) and, per learned contact, 16 hex of a SHA-256 of their handle with its relationship (family, friends, work, other). **Never a copy of a message body** |
+| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time, and (#914) when Nikita marked it Done, so a rescan never re-lists it for a text from before then; daily counts; the ids of send requests already seen; the new-message poll's cursor (the newest message time read, and 16 hex of the SHA-256 of each message guid read in the last 2 minutes, never the guid). Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. Since #758: per thread whether its last text is unread (and since #924 a set-aside held off while it is: `no-reply` or `closing`); the backlog's older unanswered chats (a random id, the chat id, the time, unread or not; 200 at most) and when it last ran; the learned voice (style traits, tones by relationship, the numbers, when, the cost) and, per learned contact, 16 hex of a SHA-256 of their handle with its relationship (family, friends, work, other). **Never a copy of a message body** |
 | Shown texts (#758) | An owed thread's last 5 texts (1,000 characters in all; since #870 its recent turns from both sides), a group's since Nikita's last reply, with each sender's name | The hub's memory only, never the state file | Until the thread closes or the hub restarts |
 | Tapback line ids (#888) | Each of their shown lines' message guid in Messages, under an opaque 8-hex ref; the site gets only the ref | The hub's memory only, never the state file, the site or a log | With the shown texts: until the thread closes or the hub restarts |
 | The learn pass (#758) | A year of Nikita's messages, read once from BlueBubbles to make the numbers and the sample | Memory, for one run | The run | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
@@ -73,7 +73,7 @@ The parts:
 | Logs | Event kinds, counts, error classes | `~/Library/Logs/CEO Relay/`, mode 0600 | 14 days, one file a day |
 | Mac secrets | The BlueBubbles password, the hub token, the send key, the local key (the `relay` command's key to the hub) | The login Keychain, service "CEO Relay" | Until the wipe |
 | The site's public status | The latest `RelayStatus`: counts, states, times | Azure blob `relay/status.json` (private container, served by a function) | The latest only |
-| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries; since #758 the shown texts, unread marks, the older unanswered names and the learned voice: traits, tones and numbers, never a quote), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask, and for each one the Mac refused or failed a reason code from a closed list (#767, `REASONS` in `api/_relay/texts.ts`) | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push; owed items 30 days from their latest text (#895), settled ones 7, each shown text 30 days at most (#803; was 7). Requests: a day after they end |
+| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries; since #758 the shown texts, unread marks, the older unanswered names and the learned voice: traits, tones and numbers, never a quote), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask, and for each one the Mac refused or failed a reason code from a closed list (#767, `REASONS` in `api/_relay/texts.ts`) | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push; owed items 30 days from their latest text (#895), 60 while it is unread (#924), settled ones 7, each shown text 30 days at most (#803; was 7), 60 on an unread item (#924). Requests: a day after they end |
 | The pairing | The pairing's id and the SHA-256 of the hub's token; an open pair code's SHA-256 | Azure blobs `relay/hub.json`, `relay/pair.json` | Until Unpair; a code 10 minutes |
 | The spend ledger | Per month: calls, tokens, dollars | Azure blob `relay/spend.json` | A year |
 | Anthropic's copy | What one call sent and got back | Anthropic | Anthropic's API retention (below); never used for training |
@@ -457,7 +457,7 @@ sealed list holds. The public site still gets counts only.
   is printed and nothing is sent to the site (the skip list lives on the site, so the state file's verdict shows it).
 - **Unread.** BlueBubbles serialises each message's `dateRead` (from `chat.db`, no Private API needed). The hub keeps
   only "unread or not" for an owed thread, the Desk marks the row, and the public status counts it. Read state never
-  hides or settles anything.
+  hides or settles anything. Since #924 it also makes a chat owed: see "Unread is owed" below.
 - **The full text on the Desk.** For an owed one-to-one thread the hub sends the **last 5 texts of its recent turns
   (since #870 from both sides: the unanswered run and up to 4 turns before it, Nikita's own marked `me: true`, the
   same window every rule has just passed over), 1,000 characters in all, as written** (no placeholders: those are only for model calls), with
@@ -467,6 +467,34 @@ sealed list holds. The public site still gets counts only.
   (money, legal, codes, short codes, promos, the skip list): the hub clears them the moment a rule matches, and the
   site never sees them. They are never logged, never in the state file and never sent to a model beyond the
   placeholdered snippets above. The gist stays as a small line under them.
+### Unread is owed, drafts on request, groups by their people (#924, #923)
+
+Nikita asked for these on 2026-11-06: his phone's Unread filter is his real to-reply list, he usually doesn't like the
+drafts, and two group chips that both read "Group chat" told him nothing. What crosses to the site is the same kinds of
+data as before; what changes is how long an unread item stays, one new request kind, and an unnamed group's name.
+
+- **Unread is owed (#924).** "Unread" is the newest text from them having no `dateRead` in Messages. BlueBubbles 1.9 has
+  no chat-level unread flag: its chat query serialises no unread state (`chat.db`'s `last_read_message_timestamp` is
+  mapped but never sent), so a chat Nikita marks unread on the iPhone counts only through that read time, as iCloud
+  brings it to the Mac. A one-to-one chat (or a chat of fewer than 6 others) whose newest text is unread is owed for
+  **60 days** (`UNREAD_WINDOW_MS`, the older fold's reach) instead of 30: the backlog owes it instead of folding it as
+  older or settling it as an acknowledgement, and Dialtone's "no reply needed" or closing intent is held off (the
+  thread's `held`, kept in the state file, a word from a closed list) until the text is read; then it lands with no
+  second model call. A thread Relay set aside that way comes back when it is unread again (the read check every 5
+  minutes, 40 local reads at most, and the daily scan). A chat Nikita has read but not answered keeps the 30 days and
+  Dialtone's verdict, as before. Every rule still settles an unread chat (money and legal, codes, short codes, promos,
+  the skip list), a Done on the Desk still holds until they text again, and a group (6 or more) stays summary-only. On
+  the site an unread owed item, and its shown texts, are kept 60 days from their latest text (`itemLive`,
+  `freshItems`); a read one 30.
+- **Drafts only on request (#923).** The hub no longer has Blasto draft on its own. "Write for me" beside Send on the
+  Desk makes a `draft` request: signed, single-use, 10 minutes, session only (no unlock, it can't send), no text,
+  bound to no draft, one waiting per thread, refused for a group or a thread that isn't owed. The hub drafts once for
+  it, and the draft lands in the reply box for Nikita to edit; it goes only if he taps Send, through the unchanged send
+  path. Dictation (`restyle`) still drafts from his words.
+- **Unnamed groups (#923).** A group with no name in Messages is shown by its first two people's first names and how
+  many more ("Alex, Sam +5"), the same first names (or masks for strangers) a small chat of several already showed;
+  "Group chat" only while its people aren't known. The shelf's count reads "5 new".
+
 - **Groups.** A group (6 or more other people, #916) has its summary in a Groups section on the Texts page; a smaller
   chat of several is on the line with the one-to-one threads, named by its name in Messages or its people's first
   names, each of its lines with its sender. A group becomes owed when Dialtone says
@@ -510,7 +538,7 @@ sealed list holds. The public site still gets counts only.
 
 | What | Kept for | How it ends |
 | --- | --- | --- |
-| A thread's row on the Mac | While owed or later, within 30 days of its oldest unanswered text (then it counts as older); a settled or answered one-to-one row 30 days after the last message or reply (#870: the Desk lists recent set-aside ones), a group's 7 | Hourly sweep |
+| A thread's row on the Mac | While owed or later, within 30 days of its oldest unanswered text, 60 while their latest is unread (#924) (then it counts as older); a settled or answered one-to-one row 30 days after the last message or reply (#870: the Desk lists recent set-aside ones), a group's 7 | Hourly sweep |
 | Shown texts (#758), on the Mac | The hub's memory, until the thread closes or a rule matches | Never written down |
 | Shown texts (#758), on the site | Until the thread closes (the next push), a week after each came at most | The next push; `readTextsView` and every Desk read; Unpair, the wipe |
 | Older unanswered snapshot (#758) | Until the next scan; 7 days at most | Hourly sweep; Rescan |
@@ -524,7 +552,7 @@ sealed list holds. The public site still gets counts only.
 | Daily counts | 7 days | Hourly sweep |
 | Logs on the Mac | 14 days; `launchd.log` a day | Daily |
 | The site's public status | The latest only | Replaced on each push; reset by Unpair and the wipe |
-| The site's sealed list | Replaced on each push (on every change, and at least every 5 minutes); owed items 30 days, settled ones 7 | The next push, `readTextsView`, Unpair, the wipe |
+| The site's sealed list | Replaced on each push (on every change, and at least every 5 minutes); owed items 30 days (60 while unread, #924), settled ones 7 | The next push, `readTextsView`, Unpair, the wipe |
 | Requests on the site | A day after their 10 minutes end | Dropped on each read and write |
 | New-text cards (#536), on the Mac and the site | A day; a sent card loses its text at once | The hourly sweep; `readTextsView`; Unpair, the wipe |
 | Contact photos (#642), on the site | While the Mac still has them; checked hourly, a changed one re-sent (#907) | `?view=photos` drops the rest; Unpair, a new pairing, the wipe |
@@ -596,7 +624,7 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
 | Logs | When Relay was busy | No content by rule and by test |
 | The Keychain items | With the hub token and send key: the right to push a list, poll requests and spend on the model calls up to the cap (not to make send requests); with the local key: the `relay` command's pause, resume and report; with the BlueBubbles password: BlueBubbles itself | The hub token never expires on its own: it works until Unpair or `relay wipe`. The $10 cap; send requests are made only on the Desk |
 | BlueBubbles | Everything in Messages, and sending as Nikita | Local only, no tunnel, its own password |
-| The site's sealed list | Names, gists, drafts and the requests' text, and (#758) the last few unanswered texts of each owed thread from the last 30 days (#803) and the learned style traits, for whoever holds both the Azure store and `GMAIL_TOKEN_KEY` | Sealed; shown texts 30 days, 5 per thread, never from a thread a rule matches (no money, legal, codes or skip list); no numbers outside what someone typed in a shown text |
+| The site's sealed list | Names, gists, drafts and the requests' text, and (#758) the last few unanswered texts of each owed thread from the last 30 days (#803; 60 while it is unread, #924) and the learned style traits, for whoever holds both the Azure store and `GMAIL_TOKEN_KEY` | Sealed; shown texts 30 days, 5 per thread, never from a thread a rule matches (no money, legal, codes or skip list); no numbers outside what someone typed in a shown text |
 | A Desk session | The list, and with this device's unlock, send requests for drafts already on it, for 72 hours | Passkey sign-in; the unlock is per device and per passkey; one thread, one draft, 10 minutes; Lock and Unpair |
 | Anthropic's copy | The trimmed, placeholdered text of recent calls | No known names or numbers; not used for training |
 | The site's public status | Counts: how many replies are owed, how fast Nikita answers | Public by design; nothing more to take |

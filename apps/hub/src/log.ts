@@ -24,6 +24,8 @@ export const LOG_KINDS = [
   "sorted",
   "draft ready",
   "draft refused",
+  // "Write for me" on the Desk (#923): Blasto drafts only when asked.
+  "draft asked",
   "sent",
   "send failed",
   // A tapback (#888): sent, failed (with the reason's number), or the Private API's state changed (on: 1 or 0).

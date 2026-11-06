@@ -29,7 +29,7 @@ const PEOPLE: Contact[] = [
   { names: ["Blake Example"], handles: [B] },
 ];
 const chatOf = (h: string) => `iMessage;-;${h}`;
-const msg = (text: string, at: number, fromMe = false, handle = A, extra: Partial<Message> = {}): Message => ({ text, fromMe, at, handle: fromMe ? "" : handle, read: false, ...extra });
+const msg = (text: string, at: number, fromMe = false, handle = A, extra: Partial<Message> = {}): Message => ({ text, fromMe, at, handle: fromMe ? "" : handle, read: true, ...extra });
 const photo = (at: number, handle = A): Message => msg("", at, false, handle, { media: true });
 const chat = (h: string, last: Message | null): ChatInfo => ({ chat: chatOf(h), group: false, name: "", handle: h, last, lastAt: last?.at ?? 0 });
 
@@ -261,7 +261,8 @@ describe("a thread an earlier verdict set aside (#870)", () => {
     expect(h.site.reported.at(-1)).toEqual({ rid: "d".repeat(24), result: "done" });
     await drain(h);
     expect(h.store.load().threads[0]).toMatchObject({ state: "owed", kept: true, gist: "Just saying hi" });
-    expect(h.site.drafts).toHaveLength(1);
+    // Blasto drafts only on "Write for me" (#923).
+    expect(h.site.drafts).toHaveLength(0);
     await h.engine.onMessage({ chat: chatOf(A), group: false, groupName: "", message: msg("hey", NOW + DAY, true) });
     expect(h.store.load().threads[0]?.state).toBe("replied");
     expect(h.store.load().threads[0]?.kept).toBeUndefined();

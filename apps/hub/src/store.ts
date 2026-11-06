@@ -60,6 +60,11 @@ export interface Thread {
   /** The time of their text a scan last reopened this thread for (#870): a model's or closing verdict is revisited once per text. */
   rechecked?: number;
   /**
+   * Dialtone's "no reply needed" or closing intent, held off while Nikita keeps the chat unread in Messages (#924): the
+   * thread stays owed, and the set-aside lands only once their latest text is read. Their next text clears it.
+   */
+  held?: "no-reply" | "closing";
+  /**
    * When Nikita last sent from the Desk in this thread (#870, multi-send, Nikita 2026-11-05): the thread stays in the
    * queue after a send, and only Done (or a rule) settles it; his own message read back from Messages doesn't close it.
    */
@@ -214,6 +219,7 @@ function readThread(v: unknown): Thread | null {
     ...(typeof o.media === "number" && Number.isInteger(o.media) && o.media > 0 && { media: Math.min(999, o.media) }),
     ...(o.kept === true && { kept: true as const }),
     ...(n(o.rechecked) !== null && { rechecked: o.rechecked as number }),
+    ...((o.held === "no-reply" || o.held === "closing") && { held: o.held }),
     ...(n(o.sentHere) !== null && { sentHere: o.sentHere as number }),
     ...(n(o.doneAt) !== null && { doneAt: o.doneAt as number }),
   };

@@ -3,7 +3,7 @@ import { useHide } from "@ceo/engine/web/hide.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { startEmail, useEmail } from "./email.ts";
 import { startTexts, useTexts } from "./texts.ts";
-import { allowed, commandOf, doneHere, isOrder, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Order, type Phase } from "./thread.ts";
+import { allowed, commandOf, doneHere, isOrder, keyCommand, lastRequest, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Order, type Phase } from "./thread.ts";
 
 /**
  * The order (#803), remembered on this device only. Longest waiting first by default since #904 (Nikita: "default
@@ -171,7 +171,10 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const [gone, setGone] = useState<string[]>([]);
   /** Drafts Nikita said no to (by key and the draft's text): the exchange goes back to incoming. */
   const [declined, setDeclined] = useState<Record<string, string>>({});
-  const [drafting, setDrafting] = useState<{ key: string; since: number; was: string } | null>(null);
+  /** A draft on its way; `fill` (#923, "Write for me"): it goes into the reply box when it lands. */
+  const [drafting, setDrafting] = useState<{ key: string; since: number; was: string; fill?: true } | null>(null);
+  /** Blasto's draft for the reply box (#923): put in on "Write for me", never before; Nikita edits it and taps Send. */
+  const [fill, setFill] = useState<{ key: string; text: string; at: number } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [sentHere, setSentHere] = useState(0);
@@ -208,12 +211,21 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   useEffect(() => {
     if (!drafting) return;
     const x = all?.find((q) => q.key === drafting.key);
-    if (x?.draft && x.draft !== drafting.was) setDrafting(null);
-    else if (now - drafting.since > DRAFT_WAIT_MS) {
+    if (x?.draft && x.draft !== drafting.was) {
+      if (drafting.fill) setFill({ key: x.key, text: x.draft, at: Date.now() });
+      setDrafting(null);
+      return;
+    }
+    // "Write for me" the Mac turned down (#923): a hub from before it reads the ask as unknown until reinstalled.
+    const r = drafting.fill && x ? lastRequest(textsView?.requests, x.id) : undefined;
+    if (r?.kind === "draft" && r.created >= drafting.since - 60_000 && (r.state === "refused" || r.state === "failed" || r.state === "expired")) {
+      setDrafting(null);
+      setNotice({ kind: "warn", text: r.reason === "unreadable" ? "The Mac can't write drafts on request yet: rerun the Relay installer on it." : "Blasto couldn't write one from the Mac.", at: now });
+    } else if (now - drafting.since > DRAFT_WAIT_MS) {
       setDrafting(null);
       setNotice({ kind: "warn", text: "Blasto didn't answer from the Mac. Is it awake?", at: now });
     }
-  }, [all, drafting, now]);
+  }, [all, drafting, now, textsView]);
   // While a text is being drafted, read every few seconds.
   useEffect(() => {
     if (!drafting?.key.startsWith("t:")) return;
@@ -337,13 +349,24 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
           next();
           return true;
         case "draft": {
-          // Draft on request (#642): an email goes to Blasto (Sonnet) from his advice; a text's ready draft unfolds.
+          // Draft on request (#642): an email goes to Blasto (Sonnet) from his advice. A text (#923, "Write for me"):
+          // a draft the Mac already has goes into the reply box; else Blasto is asked for one, and it goes in when it
+          // lands. Never sent from here: Nikita edits it and taps Send, the same send as his own words.
           if (ex.line === "text") {
-            if (ex.ready) {
-              setRevealed((r) => [...r, ex.key]);
+            const ready = ex.hint ?? ex.draft;
+            if (ready) {
+              setFill({ key: ex.key, text: ready, at });
               return true;
             }
-            setNotice({ kind: "say", text: "Say what to tell them, and Blasto puts it in your voice.", at });
+            setDrafting({ key: ex.key, since: at, was: "", fill: true });
+            void useTexts
+              .getState()
+              .ask({ action: "draft", thread: ex.id })
+              .then((ok) => {
+                if (ok) return;
+                setDrafting(null);
+                setNotice({ kind: "warn", text: useTexts.getState().error ?? "That didn't go through.", at: Date.now() });
+              });
             return true;
           }
           setDrafting({ key: ex.key, since: at, was: ex.draft ?? "" });
@@ -530,5 +553,6 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   }, []);
 
   const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere);
-  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick: setCurrent, drafting, pending, sentList, reading };
+  const clearFill = useCallback(() => setFill(null), []);
+  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick: setCurrent, drafting, pending, sentList, reading, fill, clearFill };
 }

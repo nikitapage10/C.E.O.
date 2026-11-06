@@ -40,10 +40,12 @@ function Words({ m }: { m: Shown }) {
  * Their own texts (#758). In a group, or a small chat of several (#916, Nikita's own lines marked "you"), each line
  * with its sender's face and name, oldest first. In a one-to-one thread
  * the card is the conversation (#904, Nikita: "like iMessage"): their lines on the left, his own (`me: true`) on the
- * right, the older ones dimmer above, and the newest at the bottom, large. Nothing is blurred: the context stays
- * readable, and brightens on hover or keyboard focus.
+ * right, and the newest at the bottom, large, standing alone. The older ones (#923, Nikita: "the earlier messages
+ * take away from the current message") sit darkened and blurred above it, dissolving into Relay's white nanites, and
+ * come clear on hover, on keyboard focus, or on a tap (a phone has no hover; a second tap lets them fade again).
  */
 export function Said({ messages, hidden }: { messages: NonNullable<Exchange["messages"]>; hidden: boolean }) {
+  const [clear, setClear] = useState(false);
   const group = messages.some((m) => m.from !== undefined && m.from !== "me");
   if (group) {
     return (
@@ -69,7 +71,13 @@ export function Said({ messages, hidden }: { messages: NonNullable<Exchange["mes
   return (
     <div className="cx-conv">
       {before.length > 0 && (
-        <ol className="cx-ctx" tabIndex={0} aria-label="Earlier in the conversation">
+        <ol
+          className="cx-ctx"
+          tabIndex={0}
+          aria-label={clear ? "Earlier in the conversation" : "Earlier in the conversation, faded: hover, focus or tap to read"}
+          data-clear={clear || undefined}
+          onClick={() => setClear((c) => !c)}
+        >
           {before.map((m, i) => (
             <li key={`${m.at}-${i}`} className="cx-bub" data-me={mine(m) || undefined} style={{ ["--d" as string]: Math.min(4, before.length - i) }}>
               <span className="cx-sr">{mine(m) ? "You: " : "Them: "}</span>

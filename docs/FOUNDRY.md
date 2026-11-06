@@ -452,6 +452,20 @@ by default. **Opus 5.5** only when the job needs it (a security fix whose cause 
 judgement); Haiku for the trivial ones; design always on Opus. Extra-high effort or Fable still needs Nikita's OK
 first. The issue's `**Builder:**` line names the model she really used, e.g. `**Builder:** Rivet (Sonnet)`.
 
+**Every tick starts with the Skippy probe** (Nikita, 2026-11-06, #955: "test Skippy on the site at the start of every
+maintenance to find efficiency and quality fixes"). Before picking anything, run it and wait for it (about two
+minutes):
+
+```
+gh workflow run skippy-probe.yml --ref main
+sleep 5; gh run watch "$(gh run list -w skippy-probe.yml -L 1 --json databaseId -q '.[0].databaseId')" --exit-status
+```
+
+It sends live Skippy a short battery of real asks as a dry run (see "The Skippy probe" below). A red probe has already
+opened, or commented on, the `foundry:fix` issue **Skippy probe: answers failing**, which comes first in the queue, so
+this tick's change is that fix (or, when it is too big for one tick, a card saying why). A probe that says it is off
+(no `skippy-probe-token` in the vault yet) changes nothing; go on with the list.
+
 **Every tick ends one of two ways** (no silent ticks):
 
 1. **It ships one change.** Open a `foundry:upkeep` issue (`**Builder:** Rivet (<model>)`), do the work on a
@@ -507,6 +521,38 @@ is already there: a bug, a design detail, a broken phone layout, an unclear empt
 a feature, a page or a room, never changes a page's design direction (that's a redesign: mockups first, Nikita
 picks), and never changes how the agents behave; those become idea cards. Nothing on the "Auto-approval" never-list
 is upkeep's either.
+
+### The Skippy probe (#955)
+
+`.github/workflows/skippy-probe.yml` runs `scripts/skippy-probe.mjs` against the live site's `POST /api/skippy-probe`
+(`api/_skippy/probe.ts`), with the probe's own key read from the Key Vault at run time (`skippy-probe-token`; GitHub
+keeps no copy). The battery is in `scripts/skippy-probe-lib.mjs`:
+
+- **Home questions that must only read**, with spoken fillers ("yeah um when's the vacuum's next schedule", "um so
+  when is the next wet food cycle", "what's the temperature in my apartment", "can you tell me what the vacuum
+  cleaner's next schedule is gonna be?"): answered by the rules tier, nothing written, nothing waiting for a tap.
+- **An order** ("okay feed the cat one portion", on the phone and typed): it must be understood as that very device
+  action, and it never goes: the probe's turn is a dry run, whose tools reach a dry host where every read is real and
+  every write (a device, the lights, the lists, the meal planner, the cart, an issue, a memory) is recorded by its
+  action name and never sent. A Yes button waits in a throwaway store, so it never reaches the Desk.
+- **The model's asks**, two a run in turn: a web news ask (must search), a follow-up (the second ask with the first
+  turn as its history), odd phrasings, the lights, the Foundry, a call's weather ask.
+
+Each ask is graded by fixed rules: no banned phrase (`rephrase`, `behind your sign-in`, `hiccup`, a false `I can't`,
+a pondering line instead of an answer, `didn't answer just now`, an empty reply), no device action from a question,
+the rules tier for the home asks it should answer, no hand-off of a home ask, a time budget per tier (8 s for the
+rules, 15 s fast, 35 s talk, 45 s with the web) and a length budget (420 characters spoken, 900 typed). The server
+grades the reply and sends back only the verdict (flags, length, tier, which tools read or would have written,
+timings), never Skippy's words, a reading or anything from memory, so the run's public log, its summary and the
+issue it files hold none. Nothing is kept: no room log, no journal, no hand-off.
+
+Results: the run's summary (one row per case), a 14-day artifact of the verdicts, and on any failure the `foundry:fix`
+issue **Skippy probe: answers failing** (opened once, then commented on) listing each failed case, its public ask and
+the rules it broke. To read what Skippy actually said, ask the same words on the Desk.
+
+Spend: the rules' asks need no model, so they are free; two model asks a run cost a few cents, inside Skippy's month
+cap, and once the month passes its warn line ($50 of $60) the server skips the model asks itself. Skippy's pace (eight
+asks a minute) holds too: the probe leaves eight seconds between cases.
 
 ## The trail on every issue
 

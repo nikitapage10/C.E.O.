@@ -361,6 +361,18 @@ Skippy, who works out from the context whether the ask is about this page, anoth
 - **Tests.** `api/_skippy/brain.test.ts` runs each surface's real ask through its real route with synthetic devices
   and a scripted model, with each tier's latency.
 
+## The Skippy probe (#955)
+
+Every upkeep tick starts by testing live Skippy (Nikita, 2026-11-06): `.github/workflows/skippy-probe.yml` sends a short
+battery of real asks (`scripts/skippy-probe-lib.mjs`) to `POST /api/skippy-probe` (`api/_skippy/probe.ts`), with its own
+key, `SKIPPY_PROBE_TOKEN`, read from the vault. Each ask is an ordinary `skippyTurn` on the Desk, phone or call path
+(same rules tier, agent loop, prompt, pace and month), run dry: the tools reach a dry host (reads real, writes recorded
+by name and never sent, a Yes button kept in a throwaway store), nothing is kept (no room log, no journal, no
+hand-off), and past the month's warn line only the free rules asks run. The server grades the reply against fixed
+rules (`REPLY_RULES`: no "rephrase", no "behind your sign-in", no hiccup line, no false "I can't", no pondering line
+instead of an answer) and sends back only the verdict, never the words. Failures open the `foundry:fix` issue
+**Skippy probe: answers failing**. The details are in [FOUNDRY.md](FOUNDRY.md), "The Skippy probe".
+
 ## Hand-offs: what Desk Skippy can't settle
 
 When Desk Skippy can't settle an ask from the Desk, the stack sheet and a lookup, or the ask is a build, a fix or work

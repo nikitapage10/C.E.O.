@@ -178,6 +178,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["skippy-log", skippy],
   // A hand-off's answer coming back from Skippy's or a submind's thread (#312): SUBMIND_FEED_TOKEN only.
   ["skippy-answer", skippy],
+  // The upkeep run's Skippy probe (#955, api/_skippy/probe.ts): SKIPPY_PROBE_TOKEN only, a dry run (no device moves,
+  // nothing kept), answering with verdicts only.
+  ["skippy-probe", skippy],
   // The mic on each Desk room's page (#638): Nikita's words to the room's submind, the answer in Skippy's voice.
   // Passkey session only; the chat's own pace and caps, and ElevenLabs' one cap (api/_skippy/roomroute.ts).
   ["skippy-room", skippyroom.route, { settleMs: 2_500 }],

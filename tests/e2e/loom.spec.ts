@@ -6,10 +6,10 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * The forge shows every job in flight (#337, #432): with the Foundry feed stubbed to six jobs working, the Desk's
- * Foundry stage gives four of them a lane each (the crew's cap), named for whoever has hands on it, and counts the rest
- * on "+2 more in hand". A lane opened from the canvas's labels shows its stage and its pull request; no two lanes'
- * labels overlap.
+ * The Deep Furnace shows every job in flight (#337, #432, #813): with the Foundry feed stubbed to six jobs working, the
+ * Desk's Foundry stage gives four of them a slot each (the crew's cap), named for whoever has hands on it, puts Rivet's
+ * upkeep on her own hoist outside the four, and counts the rest on "+1 more in hand". A slot's tag opens its card with
+ * the job's Trail, its five checks and its pull request; no two tags overlap.
  */
 
 const PORT = Number(process.env.E2E_LOOM_PORT ?? 5184);
@@ -71,7 +71,7 @@ for (const [name, size] of [
   ["wide", { width: 1440, height: 1000 }],
   ["phone", { width: 390, height: 900 }],
 ] as const) {
-  test(`the forge gives every job in flight a lane (${name})`, async ({ page }) => {
+  test(`the furnace gives every job in flight a slot (${name})`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.setViewportSize(size);
@@ -79,34 +79,38 @@ for (const [name, size] of [
     await page.goto(BASE + "/foundry");
     const stage = page.locator(".fo-stage");
     await expect(stage).toBeVisible();
-    // Four lanes, the cap, and the rest on one row.
-    const lanes = stage.locator(".fo-lane[data-stage]");
-    await expect(lanes).toHaveCount(4);
-    await expect(stage.locator(".fo-more")).toContainText("+2 more in hand");
-    // The ideas wait on the bench, each with a thread.
-    await expect(stage.locator("[data-fo-idea]")).toHaveCount(2);
+    // Four slots, the cap, every one busy; Rivet on her own hoist; and the rest on one chip.
+    const slots = stage.locator(".fo-tag[data-slot][data-stage]:not(.is-rivet)");
+    await expect(slots).toHaveCount(4);
+    await expect(stage.locator(".fo-tag.is-rivet")).toContainText("#64");
+    await expect(stage.locator(".fo-more")).toContainText("+1 more in hand");
     // The job with a pull request open and checks running says so.
-    await expect(stage.locator(".fo-lane", { hasText: "The loom shows every job in flight" }).locator(".fo-pill")).toHaveText("checks running");
-    await page.waitForTimeout(800);
+    await expect(stage.locator(".fo-tag", { hasText: "#61" }).locator(".fo-tag-s")).toHaveText("checks running");
+    // The 3D comes up (or its flat stand-in, without WebGL) and the tags settle.
+    await expect(stage).toHaveAttribute("data-gl", /on|off/, { timeout: 20_000 });
+    await page.waitForTimeout(1200);
 
-    const labels = await lanes.locator(".fo-lane-h").evaluateAll((els) =>
+    const tags = stage.locator(".fo-tag[data-slot]");
+    const labels = await tags.evaluateAll((els) =>
       els.map((e) => {
         const r = e.getBoundingClientRect();
-        return { x: r.x, y: r.y + 4, width: r.width, height: r.height - 8, text: e.textContent ?? "" };
+        return { x: r.x + 2, y: r.y + 2, width: r.width - 4, height: r.height - 4, text: e.textContent ?? "" };
       }),
     );
-    if (SHOTS) await stage.screenshot({ path: `${SHOTS}/forge-${name}.png` });
+    if (SHOTS) await stage.screenshot({ path: `${SHOTS}/furnace-${name}.png` });
     for (let i = 0; i < labels.length; i++)
       for (let j = i + 1; j < labels.length; j++) expect(meets(labels[i]!, labels[j]!), `"${labels[i]!.text}" overlaps "${labels[j]!.text}"`).toBe(false);
 
-    // A lane opens to its stage and its pull request, and closes again.
-    const loom = stage.locator(".fo-lane", { hasText: "The loom shows every job in flight" });
-    await loom.locator(".fo-lane-h").click();
-    await expect(loom.locator(".fo-steps .is-now")).toHaveText("Checks");
-    await expect(loom.getByRole("link", { name: "Pull request #90" })).toBeVisible();
-    if (SHOTS) await stage.screenshot({ path: `${SHOTS}/forge-${name}-open.png` });
-    await loom.locator(".fo-lane-h").click();
-    await expect(loom.locator(".fo-lane-x")).toHaveCount(0);
+    // A slot's tag opens its card: the Trail at Checks, the five checks running, its pull request; and closes again.
+    const tag = stage.locator(".fo-tag", { hasText: "#61" });
+    await tag.click();
+    const card = stage.locator(".fo-pop");
+    await expect(card.locator(".fo-steps .is-now")).toHaveText("Checks");
+    await expect(card.locator(".fo-checks5 li[data-s=run]")).toHaveCount(5);
+    await expect(card.getByRole("link", { name: "Pull request #90" })).toBeVisible();
+    if (SHOTS) await stage.screenshot({ path: `${SHOTS}/furnace-${name}-open.png` });
+    await card.getByRole("button", { name: "Close" }).click();
+    await expect(stage.locator(".fo-pop.is-pinned")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(errors).toEqual([]);
   });

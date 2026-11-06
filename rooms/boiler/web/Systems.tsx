@@ -34,6 +34,7 @@ import { roomSections } from "../data/rooms.ts";
 import { jobRows } from "@ceo/desk/jobs.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
+import { UndoneField } from "@ceo/engine/sigils/UndoneField.tsx";
 import "@ceo/desk/rooms/rooms.css";
 import "./boiler.css";
 import { describeRun, useVisualQa } from "@ceo/desk/visualqa/feed.ts";
@@ -44,7 +45,9 @@ import { describeRun, useVisualQa } from "@ceo/desk/visualqa/feed.ts";
  * the feeds below (boiler/pipes.ts), with the fault panel walking whatever is broken, one Fix at a time. The tabs open
  * Controls, Security and Compliance. A line's "whole line" opens its flow under the map (SystemsGraph.tsx, or
  * RoomDetail for a room with no flow drawn yet). Under that, the instruments (the world clock, Gmail, the scheduled
- * jobs), the load timings, what's still to build and the house. Counts and states only, signed in or out.
+ * jobs), the load timings, what's still to build and the house. Counts and states only, signed in or out. Since #936
+ * the map fills the screen and everything under it sits on the deck: solid cards with gold hairlines over a gold wire
+ * grid that comes undone into sigil nanites toward the sides, the 3D map's edges carried down the page.
  */
 
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
@@ -235,83 +238,86 @@ export function Systems({ now }: { now: number }) {
     <div className={`systems-page wv-page fl-page bx-page${row ? " is-open" : ""}`} data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
       <PipeBoard sections={sections} model={model} now={now} signedIn={signedIn} tabs={<SystemsNav scores={scores} className="bp-tabs" />} onOpenRoom={openLine} />
 
-      {row && (
-        <div className="bx-detail fl-below" key={row.id} ref={detail}>
-          {isFlow(row.id) ? <SystemsGraph nodes={model.nodes} flows={model.flows} mode={row.id} setMode={(m) => setOpen(m === "overview" ? null : m)} /> : <RoomDetail r={row} onClose={() => setOpen(null)} />}
-        </div>
-      )}
+      <div className="bx-deck">
+        <UndoneField className="bx-deck-sig" />
+        {row && (
+          <div className="bx-detail fl-below" key={row.id} ref={detail}>
+            {isFlow(row.id) ? <SystemsGraph nodes={model.nodes} flows={model.flows} mode={row.id} setMode={(m) => setOpen(m === "overview" ? null : m)} /> : <RoomDetail r={row} onClose={() => setOpen(null)} />}
+          </div>
+        )}
 
-      <div className="bx-cards fl-below">
-        <section className={`bx-card is-${ctone}`} data-room="boiler" aria-label="World clock">
-          <p className="bx-eyb">
-            <i className={`bx-lampdot is-${ctone}`} aria-hidden="true" /> World clock · Ilyr's hourly step
-          </p>
-          <h2 className="bx-h2">{hour !== null && cstate !== "off" ? `Hour ${hour}, ${headline.toLowerCase()}` : headline}</h2>
-          <dl className="bx-readout">
-            <div>
-              <dt>Today</dt>
-              <dd>{world ? today : "–"}</dd>
-            </div>
-            <div>
-              <dt>Next</dt>
-              <dd className="is-sm">{nextLine(reading, now).replace(/^Next step\s*/i, "")}</dd>
-            </div>
-            <div>
-              <dt>This month</dt>
-              <dd className="is-sm">{world ? <Private>{formatUsd(world.spend.usd)}</Private> : "–"}</dd>
-            </div>
-          </dl>
-          <details className="bx-fold">
-            <summary>More on this line</summary>
-            <p className="bx-note">
-              The hourly step that moves Ilyr forward. Written by Claude, kept in Azure Blob, read by the Lattice and this Desk.{world ? <> Budget <Private>{formatUsd(world.spend.budget)}</Private> a month.</> : null}
+        <div className="bx-cards fl-below">
+          <section className={`bx-card is-${ctone}`} data-room="boiler" aria-label="World clock">
+            <p className="bx-eyb">
+              <i className={`bx-lampdot is-${ctone}`} aria-hidden="true" /> World clock · Ilyr's hourly step
             </p>
-          </details>
-          <button className="bx-go" type="button" onClick={() => openLine("boiler")}>
-            Its whole flow
-            <Arrow />
-          </button>
-        </section>
-        <EmailCard load={emailLoad} status={emailStatus} now={now} onFlow={() => openLine("relay")} />
-        <JobBoard now={now} />
-      </div>
+            <h2 className="bx-h2">{hour !== null && cstate !== "off" ? `Hour ${hour}, ${headline.toLowerCase()}` : headline}</h2>
+            <dl className="bx-readout">
+              <div>
+                <dt>Today</dt>
+                <dd>{world ? today : "–"}</dd>
+              </div>
+              <div>
+                <dt>Next</dt>
+                <dd className="is-sm">{nextLine(reading, now).replace(/^Next step\s*/i, "")}</dd>
+              </div>
+              <div>
+                <dt>This month</dt>
+                <dd className="is-sm">{world ? <Private>{formatUsd(world.spend.usd)}</Private> : "–"}</dd>
+              </div>
+            </dl>
+            <details className="bx-fold">
+              <summary>More on this line</summary>
+              <p className="bx-note">
+                The hourly step that moves Ilyr forward. Written by Claude, kept in Azure Blob, read by the Lattice and this Desk.{world ? <> Budget <Private>{formatUsd(world.spend.budget)}</Private> a month.</> : null}
+              </p>
+            </details>
+            <button className="bx-go" type="button" onClick={() => openLine("boiler")}>
+              Its whole flow
+              <Arrow />
+            </button>
+          </section>
+          <EmailCard load={emailLoad} status={emailStatus} now={now} onFlow={() => openLine("relay")} />
+          <JobBoard now={now} />
+        </div>
 
-      <div className="bx-folds fl-below">
-        <LatticeTimings />
-        <DeskTimings />
-        <TalkTimings />
+        <div className="bx-folds fl-below">
+          <LatticeTimings />
+          <DeskTimings />
+          <TalkTimings />
 
-        <details className="bx-more">
-          <summary>
-            <span className="bx-eyb">Still to build</span>
-            <b>{PLANNED.length} lines not yet laid</b>
-          </summary>
-          <ul className="bx-tb">
-            {PLANNED.map((x) => (
-              <li key={x.name} data-room={x.room}>
-                <i className="bx-stub" aria-hidden="true" />
-                {x.href ? (
-                  <a href={x.href} onClick={roomLink(x.href)}>
+          <details className="bx-more">
+            <summary>
+              <span className="bx-eyb">Still to build</span>
+              <b>{PLANNED.length} lines not yet laid</b>
+            </summary>
+            <ul className="bx-tb">
+              {PLANNED.map((x) => (
+                <li key={x.name} data-room={x.room}>
+                  <i className="bx-stub" aria-hidden="true" />
+                  {x.href ? (
+                    <a href={x.href} onClick={roomLink(x.href)}>
+                      <b>{x.name}</b>
+                    </a>
+                  ) : (
                     <b>{x.name}</b>
-                  </a>
-                ) : (
-                  <b>{x.name}</b>
-                )}
-                <span>{x.what}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
+                  )}
+                  <span>{x.what}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
 
-        <details className="bx-more">
-          <summary>
-            <span className="bx-eyb">The house · comes later</span>
-            <b>Heating that follows you, waiting on Google Nest</b>
-          </summary>
-          <Home />
-        </details>
+          <details className="bx-more">
+            <summary>
+              <span className="bx-eyb">The house · comes later</span>
+              <b>Heating that follows you, waiting on Google Nest</b>
+            </summary>
+            <Home />
+          </details>
 
-        <SetupAsks room="boiler" />
+          <SetupAsks room="boiler" />
+        </div>
       </div>
     </div>
   );

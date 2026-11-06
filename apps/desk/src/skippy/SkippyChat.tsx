@@ -21,7 +21,6 @@ export function useChatGate(): { ready: boolean; hint: string; canSignIn: boolea
  */
 export function SkippyComposer({ autoFocus = false, compact = false, onSent, placeholder = "Ask Skippy anything…" }: { autoFocus?: boolean; compact?: boolean; onSent?: () => void; placeholder?: string }) {
   const gate = useChatGate();
-  const busy = useSkippy((s) => s.busy);
   const send = useSkippy((s) => s.send);
   const signIn = useDeskAuth((s) => s.signIn);
   const [text, setText] = useState("");
@@ -42,7 +41,8 @@ export function SkippyComposer({ autoFocus = false, compact = false, onSent, pla
   };
   const submit = () => {
     const words = text.trim();
-    if (!words || busy || !gate.ready) return;
+    // Never locked while an answer is out (#952): the box clears at once and the message queues.
+    if (!words || !gate.ready) return;
     dictation.stop();
     setText("");
     onSent?.();
@@ -85,8 +85,8 @@ export function SkippyComposer({ autoFocus = false, compact = false, onSent, pla
         />
       )}
       {gate.ready ? (
-        <button type="submit" className="btn btn--go btn--sm skp-compose__send" disabled={!text.trim() || busy}>
-          {busy ? "…" : "Send"}
+        <button type="submit" className="btn btn--go btn--sm skp-compose__send" disabled={!text.trim()}>
+          Send
         </button>
       ) : gate.canSignIn ? (
         <button type="button" className="btn btn--sm skp-compose__send" onClick={() => void signIn()}>

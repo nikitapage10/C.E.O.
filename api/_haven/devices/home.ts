@@ -13,6 +13,7 @@
 import type { BlobBackend } from "../../_blob.js";
 import type { RoomLog } from "../../_skippy/log.js";
 import { clockAt, clockWords, closeAtFor, CLOSE_GIVE_UP_MS, FeedLedger, litterBlock, mealInWindow, PLATES, portionsOf, PORTIONS_MAX, rotateSteps, TrayLog, traySummary, trayWarning, THERMO_MAX_F, THERMO_MIN_F, thermostatPlan, WetCloseNote } from "./rails.js";
+import { wetNextWords } from "./schedule.js";
 import { VendorError } from "./http.js";
 import { keepLines } from "./homeread.js";
 import { joinRooms } from "./roborock.js";
@@ -504,7 +505,8 @@ export class Home {
     const tray = kind === "wet-feeder" && this.deps.blob ? new TrayLog(this.deps.blob) : null;
     if (action === "wet.status") {
       const t = tray ? await tray.read(this.deps.now()).catch(() => null) : null;
-      return { ok: true, say: traySummary(r, t ?? { day: "", front: null, served: [] }, this.deps.now()) };
+      // The next meal first (#952: "when is the next wet food cycle?"), then the tray.
+      return { ok: true, say: `${wetNextWords(r)} ${traySummary(r, t ?? { day: "", front: null, served: [] }, this.deps.now(), false)}`.trim() };
     }
     if (action === "wet.rotate" && r.state === "lid open") return refuse("lid-open", { vendor });
     // The auto-close (#713): asked to open while an opening from here is still open, the two hours start again; no

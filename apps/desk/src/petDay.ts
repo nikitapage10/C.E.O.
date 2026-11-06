@@ -133,6 +133,6 @@ export function noPlanSay(d: Pick<DeviceReading, "planOn" | "nextFeed">): string
 
 /** The wet plan read's shape in one line, for the signed-in card: counts and key names only. */
 export function shapeSay(s: NonNullable<DeviceReading["wetPlanShape"]>): string {
-  if (s.read === "failed") return "Plan read failed (the call didn't go through).";
+  if (s.read === "failed") return s.code !== undefined ? `Plan read refused by Petlibro (code ${s.code}).` : "Plan read failed (the call didn't go through).";
   return `template ${s.template ? "yes" : "no"} · ${s.entries} entr${s.entries === 1 ? "y" : "ies"} · ${s.disabled} off · ${s.badTime} unreadable time${s.keys.length ? ` · keys: ${s.keys.join(", ")}` : ""}${s.top.length ? ` · answer: ${s.top.join(", ")}` : ""}`;
 }

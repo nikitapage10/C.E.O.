@@ -28,7 +28,7 @@ import { PRIVATE_LABEL, privateParts } from "../../_privacy.js";
 import { cleanGist, cleanWho } from "../../_relay/compose.js";
 import { plainLine } from "../../foundry.js";
 import type { ReadName } from "../voicereads.js";
-import { climateOf } from "../../_haven/devices/homeread.js";
+import { climateOf, deviceOf } from "../../_haven/devices/homeread.js";
 import type { Lights } from "../../_haven/lights/lights.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
@@ -427,13 +427,16 @@ const EXECUTORS: Record<string, Executor> = {
   meals_next_week: { run: async (_i, host) => mealEdit(host, { op: "next-week" }) },
   home_status: {
     run: async (i, host) => {
-      // What's in the wet tray is the rails' own summary (the bowls, today's serves, the schedule): a read, no vendor call.
+      // What's in the wet tray is the rails' own summary (the next meal first, the bowls, today's serves, the schedule).
       if (i.about === "wet-feeder" && host.homeAct) {
         const r = await host.homeAct({ action: "wet.status" });
-        return { ok: r.ok, text: r.say };
+        if (r.ok) return { ok: true, text: r.say };
       }
       const text = (await host.read("haven").catch(() => "")) || "The home devices didn't answer just now.";
-      return { ok: true, text: i.about === "climate" ? climateOf(text) : text };
+      if (i.about === "climate") return { ok: true, text: climateOf(text) };
+      // One device's line (#952: its next meal or clean leads), from the same instant read.
+      if (i.about === "wet-feeder" || i.about === "dry-feeder" || i.about === "vacuum" || i.about === "feeders") return { ok: true, text: deviceOf(text, i.about) };
+      return { ok: true, text };
     },
   },
   home_device: {

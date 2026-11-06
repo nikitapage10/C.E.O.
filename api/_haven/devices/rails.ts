@@ -209,7 +209,7 @@ export function noPlanWords(r: Pick<DeviceReading, "nextFeed" | "planOn">): stri
 }
 
 /** "What's in the wet feeder": the tray and the plan in plain words, naming each bowl's meal when the app does. */
-export function traySummary(r: Pick<DeviceReading, "plate" | "meals" | "state" | "online" | "nextFeed" | "planOn">, tray: TrayState, now: number): string {
+export function traySummary(r: Pick<DeviceReading, "plate" | "meals" | "state" | "online" | "nextFeed" | "planOn">, tray: TrayState, now: number, noPlanLine = true): string {
   if (!r.online) return "The wet food feeder is offline.";
   const front = r.plate ?? tray.front;
   const lines = [front ? `Bowl ${front} is in front${r.state === "lid open" ? " and the lid is open" : ", lid closed"}.` : `I can't tell which bowl is in front${r.state === "lid open" ? "; the lid is open" : ""}.`];
@@ -218,7 +218,7 @@ export function traySummary(r: Pick<DeviceReading, "plate" | "meals" | "state" |
   if (meals.length) {
     lines.push(`Scheduled: ${meals.map((m) => `${clockWords(m.time)}${m.plate ? ` (bowl ${m.plate}${m.label ? `, ${m.label}` : ""})` : m.label ? ` (${m.label})` : ""}`).join(", ")}.`);
     lines.push(trayWarning(front ?? null, tray, meals, now).trim());
-  } else lines.push(noPlanWords(r));
+  } else if (noPlanLine) lines.push(noPlanWords(r));
   return lines.filter(Boolean).join(" ");
 }
 

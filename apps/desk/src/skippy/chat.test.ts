@@ -108,6 +108,29 @@ describe("the shared store", () => {
     ]);
     expect(useSkippy.getState().busy).toBe(false);
   });
+  it("never locks: messages sent while one is out queue, and each is answered in turn under its own question (#952)", async () => {
+    const seen: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow = (async (_u: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { message: string; history: { text: string }[] };
+      seen.push(`${body.message}|${body.history.map((h) => h.text).join(",")}`);
+      if (body.message === "first") await gate;
+      return new Response(JSON.stringify({ reply: `re ${body.message}`, actions: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const a = useSkippy.getState().send("first", slow);
+    const b = useSkippy.getState().send("second", slow);
+    // Both show at once, while the first is still out.
+    expect(useSkippy.getState().turns.map((t) => t.text)).toEqual(["first", "second"]);
+    expect(useSkippy.getState().busy).toBe(true);
+    release();
+    expect((await a)?.text).toBe("re first");
+    expect((await b)?.text).toBe("re second");
+    expect(useSkippy.getState().turns.map((t) => t.text)).toEqual(["first", "re first", "second", "re second"]);
+    // In order, each with only what came before it.
+    expect(seen).toEqual(["first|", "second|first,re first"]);
+    expect(useSkippy.getState().busy).toBe(false);
+  });
   it("ignores an empty message", async () => {
     expect(await useSkippy.getState().send("   ", reply(200, { reply: "x" }))).toBeNull();
     expect(useSkippy.getState().turns).toEqual([]);

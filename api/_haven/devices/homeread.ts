@@ -15,6 +15,7 @@
 
 import type { BlobBackend } from "../../_blob.js";
 import { clockWords } from "./rails.js";
+import { dryNextWords, vacScheduleWords, wetNextWords } from "./schedule.js";
 import type { DeviceReading } from "./types.js";
 
 /** Where the last good lines are kept. */
@@ -51,22 +52,23 @@ export function climateLine(d: DeviceReading): string {
   return `${inside}${set ? `; ${set}${now}` : ""}.`;
 }
 
-/** One device in a short line. */
-function deviceLine(d: DeviceReading): string {
+/** One device in a short line, with when it runs next where it has a schedule (#952). */
+function deviceLine(d: DeviceReading, now: number): string {
   if (d.kind === "thermostat") return climateLine(d);
   const off = !d.online;
   const alerts = d.alerts.length ? ` (${d.alerts.slice(0, 2).join(", ")})` : "";
   switch (d.kind) {
     case "vacuum":
-      return off ? "The vacuum is offline." : `The vacuum is ${d.state}${typeof d.battery === "number" ? `, battery ${d.battery}%` : ""}${alerts}.`;
+      return `${off ? "The vacuum is offline." : `The vacuum is ${d.state}${typeof d.battery === "number" ? `, battery ${d.battery}%` : ""}${alerts}.`}${d.schedule ? ` ${vacScheduleWords(d, now)}` : ""}`;
     case "dry-feeder":
-      return off ? "The dry food feeder is offline." : `The dry food feeder is ${d.state}${typeof d.fedPortions === "number" ? `, ${d.fedPortions} portions out today` : ""}${d.foodLow ? ", food low" : ""}${alerts}.`;
+      return off ? "The dry food feeder is offline." : `The dry food feeder is ${d.state}${typeof d.fedPortions === "number" ? `, ${d.fedPortions} portions out today` : ""}${d.foodLow ? ", food low" : ""}${alerts}.${d.plan ? ` ${dryNextWords(d)}` : ""}`;
     case "wet-feeder": {
       if (off) return "The wet food feeder is offline.";
       const closes = d.closesAt ? mountainClock(d.closesAt) : "";
       const lid = d.state === "lid open" ? `the lid is open${closes ? `, closing itself at ${clockWords(closes)}` : ""}` : `the lid is ${d.state}`;
-      const next = d.meals?.find((m) => m.status === "next") ?? (d.nextFeed ? { time: d.nextFeed.time } : null);
-      return `The wet food feeder: ${lid}${d.plate ? `, bowl ${d.plate} in front` : ""}${next ? `, next meal at ${clockWords(next.time)}` : ""}${alerts}.`;
+      // When the next meal is (#952): the plan, the device list's own next meal, or plainly why there's none.
+      const next = wetNextWords(d);
+      return `The wet food feeder: ${lid}${d.plate ? `, bowl ${d.plate} in front` : ""}${alerts}.${next ? ` ${next}` : ""}`;
     }
     case "fountain":
       return off ? "The fountain is offline." : `The fountain is ${d.state}${typeof d.water === "number" ? `, water ${d.water}%` : ""}${typeof d.filter === "number" ? `, filter ${d.filter}%` : ""}${alerts}.`;
@@ -85,14 +87,31 @@ function mountainClock(iso: string): string {
 const VENDOR: Record<string, string> = { roborock: "the vacuum's cloud (Roborock)", petlibro: "the feeders' cloud (Petlibro)", whisker: "the Litter-Robot's cloud (Whisker)", nest: "the thermostat's cloud (Google Nest)" };
 
 /** The home in lines: the thermostat first, then each device; a vendor that's down or not connected says so. */
-export function homeText(view: HomeLook): string {
-  const lines = view.devices.map(deviceLine);
+export function homeText(view: HomeLook, now = Date.now()): string {
+  const lines = view.devices.map((d) => deviceLine(d, now));
   if (!view.devices.some((d) => d.kind === "thermostat")) {
     const nest = view.vendors.nest;
     lines.unshift(nest === "down" ? "The thermostat's cloud (Google Nest) isn't answering, so there's no temperature right now." : "The thermostat isn't connected yet (Connect Nest in the Boiler Room's Controls), so there's no temperature.");
   }
   for (const [v, s] of Object.entries(view.vendors)) if (s === "down" && v !== "nest") lines.push(`${VENDOR[v] ?? v} isn't answering right now.`);
   return lines.join("\n");
+}
+
+/** The lines that start each device's, for picking one out (#952). */
+const LEADS: Record<"wet-feeder" | "dry-feeder" | "vacuum", RegExp> = { "wet-feeder": /^The wet food feeder/, "dry-feeder": /^The dry food feeder/, vacuum: /^The vacuum/ };
+
+/**
+ * One device's line out of the home's lines, or both feeders' (#952), with any "As of" note kept; when the device
+ * isn't in them, the vendor's own line (down, not connected) or a plain word that it isn't answering.
+ */
+export function deviceOf(text: string, about: "wet-feeder" | "dry-feeder" | "vacuum" | "feeders"): string {
+  const lines = text.split("\n");
+  const asOf = lines[0]?.startsWith("As of ") ? `${lines[0]} ` : "";
+  const want = about === "feeders" ? [LEADS["wet-feeder"], LEADS["dry-feeder"]] : [LEADS[about]];
+  const got = lines.filter((l) => want.some((w) => w.test(l)));
+  if (got.length) return `${asOf}${got.join(" ")}`;
+  const cloud = about === "vacuum" ? /Roborock/ : /Petlibro/;
+  return lines.find((l) => cloud.test(l)) ?? (about === "vacuum" ? "The vacuum didn't answer just now." : "The feeders didn't answer just now.");
 }
 
 /** The thermostat's line out of the home's lines (the first one, by construction). */

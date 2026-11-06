@@ -142,8 +142,8 @@ export const TOOLS: readonly RoomTool[] = [
     room: "haven",
     title: "Read the home",
     description:
-      "The home right now: the thermostat's inside temperature, humidity, mode and set point (the apartment's temperature), then the vacuum, the dry and wet food feeders (the lid, the bowl in front, the next meal), the fountain and the Litter-Robot. about \"climate\" for the temperature alone, \"wet-feeder\" for what's in the wet food feeder and its schedule. Instant: the last good reading answers when the devices' clouds are slow.",
-    input: { type: "object", properties: { about: { type: "string", enum: ["all", "climate", "wet-feeder"] } }, required: [], additionalProperties: false },
+      "The home right now: the thermostat's inside temperature, humidity, mode and set point (the apartment's temperature), then the vacuum (and its next scheduled clean), the dry and wet food feeders (the lid, the bowl in front, the next meal), the fountain and the Litter-Robot. about \"climate\" for the temperature alone; \"wet-feeder\" for the next wet meal, the bowls and the wet schedule; \"dry-feeder\" for the next dry meal; \"feeders\" for both; \"vacuum\" for the vacuum and its schedule from the Roborock app. Any question about when a feeder or the vacuum runs next: call this, never ask Nikita to rephrase. Instant: the last good reading answers when the devices' clouds are slow.",
+    input: { type: "object", properties: { about: { type: "string", enum: ["all", "climate", "wet-feeder", "dry-feeder", "feeders", "vacuum"] } }, required: [], additionalProperties: false },
     effect: "read",
   },
   {

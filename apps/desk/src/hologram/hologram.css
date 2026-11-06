@@ -425,10 +425,10 @@
   text-shadow:
     0 2px 14px #000,
     0 0 2px #000;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /* Two lines in view; a longer line scrolls with the speech (#952, captions.ts), never cut with an ellipsis. */
+  max-height: calc(2 * 1.22em + 10px);
   overflow: hidden;
+  scroll-behavior: smooth;
 }
 /* Hold music (#546): a small note and "On hold", or his rare aside, while the loop plays under the call. */
 .holo__hold {

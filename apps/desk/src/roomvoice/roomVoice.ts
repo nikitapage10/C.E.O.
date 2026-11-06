@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { duckable } from "@ceo/engine/web/siteSound.ts";
 import { ponderLine } from "../../../../api/_skippy/ponder.ts";
 import type { ToolOutcome } from "@ceo/engine/tools";
 import type { RoomIntent, RoomIntentAction, RoomMic, RoomUtterance } from "@ceo/engine/voice";
@@ -637,7 +638,7 @@ export function runAction(a: RoomIntentAction): void {
 
 /** Plays a moment of silence inside a tap, so a phone lets the answer play later without one. */
 function unlockAudio(): void {
-  player ??= new Audio();
+  player ??= duckable(new Audio());
   player.src = silentWav();
   player.play().catch(() => undefined);
 }

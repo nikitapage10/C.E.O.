@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FLOOR_MAX, floorBlocked, floorChair, floorRoom, routeFloor, speakersOf } from "./senateFloor.ts";
+import { FLOOR_MAX, asksToDo, floorBlocked, floorChair, floorRoom, routeFloor, speakersOf } from "./senateFloor.ts";
 
 /** Nikita has the floor (#905): who the chair hands his words to, and when he can't have the floor. */
 
@@ -55,6 +55,18 @@ describe("joining the argument (#925)", () => {
     expect(speakersOf(null)).toEqual([]);
     // The one he cut off answers first.
     expect(floorChair(speakersOf({ motion: "m", lines }))).toBe("The chair recognizes the Director, then the Historian.");
+  });
+});
+
+describe("requests never join the debate (#925)", () => {
+  it("tells a request or a question for Skippy from a remark for the argument", () => {
+    for (const t of ["Can you dispense one portion of dry food?", "Please turn off the lights", "Turn the vacuum on", "Is the feeder full?", "What's on my calendar today?", "Hey Skippy, remind me to call the vet"])
+      expect(asksToDo(t)).toBe(true);
+    for (const t of ["Why not just fly the eagles to the mountain?", "I think the gardener is overrated", "What about the eagles?", "Honestly the sequel was better"]) expect(asksToDo(t)).toBe(false);
+  });
+
+  it("sends the food to the Steward's room", () => {
+    expect(routeFloor("can you dispense one portion of dry food", SEATED)).toEqual(["haven"]);
   });
 });
 

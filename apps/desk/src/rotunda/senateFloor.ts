@@ -44,8 +44,22 @@ export const FLOOR_WORDS: Readonly<Record<string, readonly string[]>> = {
   workshop: ["workshop", "artiste", "design", "art", "picture", "pictures", "image", "images"],
   studio: ["studio", "director", "video", "film", "movie"],
   annex: ["annex", "stagehand", "election", "elections", "vote", "voting", "ballot"],
-  haven: ["haven", "steward", "home", "house", "lights", "vacuum", "litter", "cat", "cats", "pet", "pets", "feeder", "kitchen", "shopping", "groceries", "grocery", "gym", "chores"],
+  haven: ["haven", "steward", "home", "house", "lights", "vacuum", "litter", "cat", "cats", "pet", "pets", "feeder", "feed", "food", "dispense", "portion", "kibble", "kitchen", "shopping", "groceries", "grocery", "gym", "chores"],
 };
+
+/**
+ * Words that ask Skippy to do something, or ask after something he looks after, rather than add to the argument
+ * (Nikita, 2026-11-06: holding Space and asking the Senate to "dispense one portion of dry food" got a confused debate).
+ * A minimal check of the Senate's own until the shared entry point with its intent check (#926) hands the floor only
+ * debate remarks: these go to Skippy's voice route (the member whose room it is, or Skippy himself), never the debate.
+ */
+const ASK = /^(?:hey skippy\b[ ,]*)?(?:(?:can|could|would|will) you|please|turn|switch|set|start|stop|pause|resume|dispense|feed|give|add|remove|remind|schedule|book|send|reply|order|buy|open|close|lock|unlock|run|play|call|text|email|cancel|check|show|tell me|what(?:'s| is) (?:on|my|the)|how(?:'s| is) (?:my|the)|is (?:my|the)|are (?:my|the)|did (?:i|my|the|you)|when(?:'s| is) (?:my|the))\b/;
+
+/** True when his words are a request or a question for Skippy to act on (see ASK), not a remark for the debate. */
+export function asksToDo(text: string): boolean {
+  const t = text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+  return ASK.test(t) || /\bplease\b/.test(t);
+}
 
 /** The most members brought in on one question. */
 export const FLOOR_MAX = 2;
@@ -220,7 +234,9 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
   const text = "text" in got ? got.text : "";
   // An argument on the floor: his words join it (#925). The members who were speaking answer him in the chamber and it
   // goes on from there; his line stays up as his until they have.
-  const topic = text ? (scene?.topic?.() ?? null) : null;
+  // A request or a question about his home, devices or work goes to Skippy's voice route instead, never the debate.
+  const command = !!text && (asksToDo(text) || routeFloor(text, scene?.seated() ?? [])[0] !== "kernel");
+  const topic = text && !command ? (scene?.topic?.() ?? null) : null;
   if (text && topic && scene?.join) {
     const speaking = speakersOf(topic);
     set({ phase: "asking", question: text, chair: floorChair(speaking.length ? speaking : ["kernel"]) });
@@ -235,7 +251,8 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
       return;
     }
   }
-  const tried = !!topic;
+  // Tried to join, or a request: the members' in-kind banter isn't asked for; Skippy's own route answers.
+  const tried = !!topic || command;
   // Without the words in hand (a clip, Firefox), the chair takes it: the function writes the words and Skippy answers.
   const ids = text ? routeFloor(text, scene?.seated() ?? []) : ["kernel"];
   set({ phase: "asking", question: text || useFloor.getState().question, chair: floorChair(ids) });

@@ -67,6 +67,9 @@ export const REACTION_GIST = "Reacted to your message.";
 const UNREAD_HELD: readonly Held[] = ["no-reply", "closing", "ender", "group", "code", "short-code", "promo"];
 /** The hub's own line for an unread chat a rule keeps from the models (#950): listed, never read by one. */
 export const RULE_GIST: Record<"code" | "short-code" | "promo", string> = { code: "A code or verification text, unread.", "short-code": "An automated sender, unread.", promo: "Marketing, unread." };
+/** The hub's line for a listed thread another rule (money or legal words, the skip list) keeps off the Desk (#980). */
+export const RULE_HELD = "Kept off the Desk by a rule: read it in Messages.";
+type Ruled = NonNullable<ReturnType<typeof settleByRule>>;
 /** Why a one-to-one thread is set aside, as the Desk may see it (#870). The skip list and groups never show. */
 const ASIDE_OF: Partial<Record<string, AsideWhy>> = { "no-reply": "no-reply", closing: "closing", done: "done", money: "money", code: "code", "short-code": "short-code", promo: "promo", ender: "ender" };
 /**
@@ -279,6 +282,16 @@ export class Engine {
    * ref; the guid never leaves the Mac, and is never stored or logged.
    */
   private lines = new Map<string, Map<string, string>>();
+  /**
+   * Up to which of their texts (the thread's `lastIn`) each thread's shown lines were read (#980): a newer text reads
+   * them again before the next report, so the Desk has it without waiting on Dialtone. Memory only.
+   */
+  private shownFor = new Map<string, number>();
+  /**
+   * A listed thread a rule kept off the Desk when its lines were read (#980), by which rule: the card says the hub's own
+   * line for it (RULE_GIST, or RULE_HELD), never "waiting in line", and none of its words. Memory only.
+   */
+  private ruledShown = new Map<string, Ruled>();
   /** Whether BlueBubbles' Private API (with its helper) is on, for tapbacks (#888); null until checked. */
   private tapbackState: TapbackState | null = null;
   private learning = false;
@@ -638,7 +651,7 @@ export class Engine {
       CAPS.groupChars,
     );
     // The messages themselves, for Nikita's own eyes on the Desk (#758): real text, each with its sender's name and photo.
-    this.shown.set(t.id, this.shownOf(since.filter((m) => !m.fromMe), true, t.id));
+    this.setShown(t, this.shownOf(since.filter((m) => !m.fromMe), true, t.id), since[since.length - 1]!.at);
     const got = await this.d.site.sort({ group: true, lines });
     if ("paused" in got) return this.budgetStop();
     const answer = readSort(got.answer, true);
@@ -766,7 +779,7 @@ export class Engine {
     }
     // Clean of every rule: the recent turns, both sides (#870: Nikita's own lines marked `me`), go to Nikita's sealed
     // list for the Desk (#758). Display only; the same window the rules just passed.
-    this.shown.set(t.id, this.shownOf(seen, false, t.id, multi));
+    this.setShown(t, this.shownOf(seen, false, t.id, multi), newestIn.at);
     // Only photos and files, no words (#870): owed, with no model call (there is nothing for one to read). The gist is
     // the hub's own words, so the thread isn't queued again every round.
     if (unanswered.every(mediaOnly)) {
@@ -956,6 +969,15 @@ export class Engine {
   private forget(id: string) {
     this.shown.delete(id);
     this.lines.delete(id);
+    this.shownFor.delete(id);
+    this.ruledShown.delete(id);
+  }
+
+  /** A thread's shown lines, read up to their text at `upTo` (#980), every rule passed. */
+  private setShown(t: Thread, lines: Shown[], upTo: number) {
+    this.shown.set(t.id, lines);
+    this.shownFor.set(t.id, Math.max(t.lastIn, upTo));
+    this.ruledShown.delete(t.id);
   }
 
   /**
@@ -974,25 +996,58 @@ export class Engine {
   }
 
   /**
-   * After a restart the Desk's copies are gone (memory only): read them again for a few listed threads at a time,
-   * through every rule, as `sortAndDraft` and `summarise` would. A thread a rule matches shows nothing.
+   * Every listed thread's own lines for the Desk, read from BlueBubbles through every rule, as `sortAndDraft` and
+   * `summarise` would (#758: after a restart the Desk's copies are gone, memory only). #980: the threads are the ones
+   * `texts()` lists, in its order (the first 100 of the state file's owed ones were often old ones off the list, so a
+   * new chat, an unknown number most of all, reached the Desk with no texts until Dialtone got to it); a thread with a
+   * text newer than its lines is read again (the newest text showed only once Dialtone had sorted it); and one chat
+   * BlueBubbles can't read no longer stops the rest. A thread a rule matches shows none of its words.
    */
   private async fillShown(): Promise<void> {
     const s = this.d.store.load();
-    const want = s.threads.filter((t) => !this.shown.has(t.id) && (t.state === "owed" || t.state === "later" || (t.group && t.summary)));
-    // Every listed thread at once (#803: 10 a report left most of a 50-chat backlog without its texts for the better
-    // part of an hour after each restart). Local BlueBubbles reads, no model.
-    for (const t of want.slice(0, MAX_ITEMS)) {
+    const want = this.listed(s, this.d.now()).filter((t) => (t.state === "owed" || t.state === "later" || (t.group && t.summary)) && (!this.shown.has(t.id) || (this.shownFor.get(t.id) ?? -Infinity) < t.lastIn));
+    // Local BlueBubbles reads, no model. Three failed reads in a row: BlueBubbles is down, the next report tries again.
+    let failed = 0;
+    for (const t of want) {
       const msgs = await this.recent(t.chat, 25);
-      if (!msgs) return;
+      if (!msgs) {
+        if (++failed >= 3) return;
+        continue;
+      }
+      failed = 0;
       const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
       // A group's texts since Nikita's last reply; a one-to-one thread's recent turns, both sides, as `sortAndDraft` shows them (#870).
       const run = t.group ? msgs.slice(lastMine + 1).filter((m) => !m.fromMe) : msgs.slice(Math.max(0, lastMine - (CAPS.draftEarlier - 1)));
       const multi = isGroupChat(t.chat);
       const handle = multi ? "" : (t.chat.split(";").pop() ?? "");
-      const ruled = run.some((m) => settleByRule({ handle: multi ? m.handle : m.handle || handle, names: this.contactOf(multi ? m.handle : m.handle || handle)?.names ?? [], text: m.text }, this.skipTerms) !== null);
-      this.shown.set(t.id, ruled ? [] : this.shownOf(run, t.group, t.id, multi));
+      const ruled = run.map((m) => settleByRule({ handle: multi ? m.handle : m.handle || handle, names: this.contactOf(multi ? m.handle : m.handle || handle)?.names ?? [], text: m.text }, this.skipTerms)).find((w) => w !== null);
+      if (ruled) {
+        this.shown.set(t.id, []);
+        this.lines.delete(t.id);
+        this.shownFor.set(t.id, t.lastIn);
+        this.ruledShown.set(t.id, ruled);
+      } else this.setShown(t, this.shownOf(run, t.group, t.id, multi), t.lastIn);
     }
+  }
+
+  /**
+   * The threads the Desk lists, in its order (#758, #803, #861, #924): owed ones while their latest text is inside the
+   * window (#861: by `since`, the first unanswered one, a thread they kept writing in for over 30 days was counted owed
+   * and never shown; #924: one kept unread in Messages stays longer), newest first; then the groups' summaries from the
+   * last week. MAX_ITEMS at most.
+   */
+  private listed(s: RelayState, now: number): Thread[] {
+    const owedState = (t: Thread) => t.state === "owed" || t.state === "later";
+    return s.threads
+      .filter((t) => t.state !== "replied" && (t.state !== "settled" || (t.group && t.summary)) && (owedState(t) ? now - t.lastIn < owedWindow(t.unread) : now - t.since < THREAD_KEEP_MS))
+      .sort((a, b) => Number(owedState(b)) - Number(owedState(a)) || b.lastIn - a.lastIn)
+      .slice(0, MAX_ITEMS);
+  }
+
+  /** The hub's own line for a listed one-to-one thread a rule keeps off the Desk (#980); "" otherwise. */
+  private heldLine(t: Thread): string {
+    const r = t.group ? undefined : this.ruledShown.get(t.id);
+    return !r ? "" : r === "code" || r === "short-code" || r === "promo" ? RULE_GIST[r] : RULE_HELD;
   }
 
   /** What a Blasto call carries of the learned voice (#758) for this contact: null before a learn. */
@@ -1711,13 +1766,7 @@ export class Engine {
     const shownNow = (t: Thread) => (this.shown.get(t.id) ?? []).filter((m) => now - m.at < Math.max(SHOWN_KEEP_MS, owedState(t) ? owedWindow(t.unread) : 0));
     // Owed ones within the 30-day window (#758), newest first (#803: oldest first, the cap cut the newest ones off the
     // list); then the groups' summaries from the last week. The Desk orders them itself.
-    const items: TextItem[] = s.threads
-      // An owed thread is listed while their latest text is inside the window (#861: by `since`, the first unanswered
-      // one, a thread they kept writing in for over 30 days was counted owed and never shown).
-      // #924: one Nikita keeps unread in Messages stays 60 days.
-      .filter((t) => t.state !== "replied" && (t.state !== "settled" || (t.group && t.summary)) && (owedState(t) ? now - t.lastIn < owedWindow(t.unread) : now - t.since < THREAD_KEEP_MS))
-      .sort((a, b) => Number(owedState(b)) - Number(owedState(a)) || b.lastIn - a.lastIn)
-      .slice(0, MAX_ITEMS)
+    const items: TextItem[] = this.listed(s, now)
       .map((t) => {
         const { name, photo } = this.whoOf(t.chat);
         return {
@@ -1731,7 +1780,8 @@ export class Engine {
           // Their latest text (#895): the site keeps an owed item by it, as this list and `relay check` do.
           ...(owedState(t) && { last: Math.max(Date.UTC(2026, 0, 1), Math.floor(t.since), Math.floor(t.lastIn)) }),
           laterUntil: t.laterUntil === null ? null : Math.floor(t.laterUntil),
-          gist: t.gist.slice(0, 160),
+          // A thread a rule keeps off the Desk says the hub's own line (#980), never "waiting in line".
+          gist: (t.gist || this.heldLine(t)).slice(0, 160),
           draft: t.draft ? { text: t.draft.text.slice(0, 600), at: Math.floor(t.draft.at) } : null,
           summary: t.summary ? { text: t.summary.text.slice(0, 300), asked: t.summary.asked } : null,
           ...(photo && s.photos[photo] && { photo }),
@@ -1739,7 +1789,7 @@ export class Engine {
           // Their own texts (#758): an owed one-to-one thread's unanswered ones, a group's since Nikita's last reply.
           ...((owedState(t) || t.group) && shownNow(t).length && { messages: shownNow(t) }),
           // Why there's no gist yet (#861), from a closed list.
-          ...(this.waitFor(t) && { wait: this.waitFor(t) }),
+          ...(!this.heldLine(t) && this.waitFor(t) && { wait: this.waitFor(t) }),
           // How many of their unanswered texts are only a photo or file (#870): a count, never the attachment.
           ...(owedState(t) && !t.group && t.media && { media: Math.min(999, t.media) }),
           // Muted in Messages (#950): a mark only.

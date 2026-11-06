@@ -1,5 +1,5 @@
 import { Private } from "@ceo/engine/web/Private.tsx";
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { initialOf, type Exchange } from "../data/thread.ts";
 
 /** A group member's face beside their line (#758): their contact photo by its opaque id, else their initial. */
@@ -48,15 +48,18 @@ export function Said({ messages, hidden, picked = null, onPick }: { messages: No
   const [clear, setClear] = useState(false);
   /**
    * Any of their lines can be picked (#950, Nikita: tapbacks on any earlier message, and an inline reply like iMessage's):
-   * a tap (or Enter) on the bubble picks it for the tapbacks and Reply under the card; a second tap lets it go. Picking an
-   * older line brings the older lines clear, so the one picked reads.
+   * a tap (or Enter) on the bubble picks it for the tapbacks and Reply under the card; a second tap lets it go. #980: the
+   * picked line alone comes clear (its own ring, thread.css); the other older lines keep their fade, and the card lets
+   * the older lines fade again when it leaves focus (a tap had left them clear for good).
    */
+  useEffect(() => {
+    if (!onPick) setClear(false);
+  }, [onPick]);
   const pickProps = (m: Shown) => {
     const ref = (m as Shown & { ref?: string }).ref;
     if (!onPick || !ref || mine(m)) return {};
     const go = (e: { stopPropagation: () => void }) => {
       e.stopPropagation();
-      setClear(true);
       onPick(ref);
     };
     return {
@@ -65,7 +68,7 @@ export function Said({ messages, hidden, picked = null, onPick }: { messages: No
       "aria-pressed": picked === ref,
       "data-pick": "",
       "data-picked": picked === ref || undefined,
-      title: "Pick this message: a tapback, or Reply to it",
+      title: picked === ref ? "Picked: a tapback or Reply goes to this message. Tap again to let it go" : "Pick this message: a tapback, or Reply to it",
       onClick: go,
       onKeyDown: (e: KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") {

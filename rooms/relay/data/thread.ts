@@ -75,10 +75,15 @@ export interface Exchange {
   wait?: GistWait;
 }
 
-/** What a text with no gist says (#861): the hub's real reason, else (an older hub) that the Mac hasn't read it. */
+/**
+ * What a card says with neither their texts nor a gist (#861). #980 (Nikita: "Why does it need a gist? Just show the
+ * exact message."): a text's card shows their own messages whenever the hub sent them, and never needs a gist for it;
+ * this line is only for a text whose messages haven't come through from the Mac, so it says that, not "waiting in line
+ * for Dialtone".
+ */
 export function noGistLine(x: Pick<Exchange, "line" | "wait">): string {
   if (x.line !== "text") return "No gist yet: Dialtone hasn't read this one.";
-  return x.wait ? `No gist yet: ${GIST_WAIT_WORDS[x.wait]}` : "The Mac hasn't read this one yet.";
+  return x.wait === "messages" ? `Their texts aren't here yet: ${GIST_WAIT_WORDS.messages}` : "Their texts haven't come through from the Mac yet. Messages has them.";
 }
 
 /** The Contacts hint (#861), when the hub reports it can read no contacts; null otherwise (and for an older hub). */

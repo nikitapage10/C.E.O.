@@ -594,8 +594,8 @@ every edition. He runs long. It says so.
 
 
 **The Desk's rooms.** On the C.E.O.'s Desk, beyond the Veil, each room keeps a page of its own, drawn in its own
-look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as an illuminated codex
-(with a blank sea chart kept for the Tide, the C.E.O.'s own campaign), the Spire as a gilded ledger, the Exchange
+look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as a war table
+(its sea chart carved with the record's places, the Tide's isle still only wire until its feed comes in), the Spire as a gilded ledger, the Exchange
 as a trading floor at night under a mint ticker, the Green as a floodlit pitch with a dark scoreboard, and the
 Workshop as a maker's bench on blueprint paper with an empty turntable. A room whose real line isn't connected
 yet says so plainly and shows nothing made up. Each room's keeper stands at the top of its page and says what they

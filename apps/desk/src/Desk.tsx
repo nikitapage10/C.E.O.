@@ -42,8 +42,8 @@ const loaders = {
 const PAGES: Partial<Record<DeskPage, ComponentType<PageProps>>> = Object.fromEntries(Object.entries(PAGE_LOADERS).map(([id, load]) => [id, lazy(load)]));
 const SkippyChat = lazy(() => loaders.skippy().then((m) => ({ default: m.SkippyChat })));
 
-// The rooms' 3D scenes (#759): Today's Rotunda and the Haven's house, with the shared three.js chunk they pull in.
-const scenes = [() => import("./rotunda/rotundaScene.ts"), () => import("../../../rooms/haven/web/house.ts")];
+// The rooms' 3D scenes (#759): Today's Rotunda, the Haven's house and the Archive's war table (#826), with the shared three.js chunk they pull in.
+const scenes = [() => import("./rotunda/rotundaScene.ts"), () => import("../../../rooms/haven/web/house.ts"), () => import("../../../rooms/archive/web/warTableScene.ts")];
 
 const idle = (run: () => void, timeout: number) => {
   const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };

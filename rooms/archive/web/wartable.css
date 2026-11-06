@@ -1,0 +1,603 @@
+/*
+ * The war table (#826): the Archive's page as a campaign table filling the screen. The 3D is warTableScene.ts; this
+ * is its chrome: the head over the table's far edge, the pins over the miniatures, the legend along the bottom, and the
+ * panel each place opens in (a sheet on a phone). Clean and modern over a physical table: hairlines, Jost, one gold.
+ * Everything is scoped to .wt.
+ */
+.desk .ax.wt {
+  --wt-gold: 226, 191, 114;
+  --wt-ink: #f1eadb;
+  --wt-soft: rgba(241, 234, 219, 0.72);
+  --wt-mute: rgba(241, 234, 219, 0.5);
+  --wt-glass: rgba(10, 9, 14, 0.78);
+  --wt-h: max(600px, calc(100svh - 64px));
+  position: relative;
+  padding: 0;
+  background: #060508;
+}
+.desk .ax.wt > .wt-hall {
+  position: relative;
+  height: var(--wt-h);
+  max-height: 1200px;
+  padding: 0;
+  overflow: clip;
+  isolation: isolate;
+}
+.desk .wt-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.desk .wt-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.desk .wt-gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.desk .wt-view[data-gl="on"] .wt-gl {
+  opacity: 1;
+}
+
+/* The flat chart, while the 3D loads or without WebGL: a carved board in CSS. */
+.desk .wt-flat {
+  position: absolute;
+  inset: 12% 5% 8%;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 calc(12.5% - 1px),
+      rgba(var(--wt-gold), 0.12) calc(12.5% - 1px) 12.5%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 calc(20% - 1px),
+      rgba(var(--wt-gold), 0.12) calc(20% - 1px) 20%
+    ),
+    radial-gradient(40% 50% at 30% 50%, #b9a174 0 40%, transparent 41%),
+    radial-gradient(30% 40% at 62% 58%, #c1a97c 0 45%, transparent 46%), #1e2f37;
+  box-shadow:
+    0 0 0 18px #3a2416,
+    0 0 0 19px rgba(var(--wt-gold), 0.5),
+    0 40px 80px -20px #000;
+  transform: perspective(1200px) rotateX(38deg);
+  transform-origin: 50% 70%;
+  transition: opacity 0.6s ease;
+}
+.desk .wt-flat i {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(var(--wt-gold), 0.5);
+  border-radius: inherit;
+}
+.desk .wt-view[data-gl="on"] .wt-flat {
+  opacity: 0;
+}
+
+/* The head, over the table's far edge. */
+.desk .wt-head {
+  position: absolute;
+  z-index: 4;
+  left: clamp(20px, 3vw, 48px);
+  right: clamp(20px, 3vw, 48px);
+  top: clamp(18px, 3vh, 34px);
+  display: grid;
+  grid-template-columns: minmax(0, 560px) auto;
+  justify-content: space-between;
+  align-items: start;
+  pointer-events: none;
+}
+.desk .wt-head > :not(.wt-ledger) {
+  grid-column: 1;
+}
+.desk .wt-head > .wt-ledger {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  margin: 4px 0 0;
+}
+.desk .wt-head > * {
+  pointer-events: auto;
+}
+.desk .wt-head .fl-eyb {
+  margin: 0 0 6px;
+}
+.desk .wt-head .fl-h1 {
+  margin: 0;
+  font-size: clamp(38px, 4.2vw, 64px);
+  line-height: 0.96;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.8);
+}
+.desk .wt-head .fl-h1 em {
+  color: rgb(var(--wt-gold));
+}
+.desk .wt-head .fl-say {
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: var(--wt-soft);
+  max-width: 420px;
+  text-shadow: 0 1px 12px #000;
+}
+.desk .wt-ledger {
+  display: flex;
+  gap: 0;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.desk .wt-ledger > div {
+  padding: 0 16px;
+  border-left: 1px solid rgba(var(--wt-gold), 0.28);
+}
+.desk .wt-ledger > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.desk .wt-ledger dt {
+  font: 500 10px/1.3 var(--fl-text);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--wt-mute);
+}
+.desk .wt-ledger dd {
+  margin: 4px 0 0;
+  font: 400 22px/1 var(--fl-disp);
+  color: var(--wt-ink);
+  white-space: nowrap;
+}
+.desk .wt-ledger dd small {
+  font: 400 12px/1 var(--fl-text);
+  color: var(--wt-mute);
+}
+.desk .wt-ledger .is-hot dd {
+  color: rgb(var(--wt-gold));
+}
+.desk .wt-hint {
+  position: absolute;
+  z-index: 3;
+  right: clamp(20px, 3vw, 48px);
+  top: calc(clamp(18px, 3vh, 34px) + 78px);
+  margin: 0;
+  font: 500 10px/1 var(--fl-text);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--wt-mute);
+  pointer-events: none;
+}
+
+/* The pins: a label over each miniature, a hairline down to it. */
+.desk .wt-pin {
+  position: absolute;
+  z-index: 3;
+  left: var(--gx, var(--fx));
+  top: var(--gy, var(--fy));
+  transform: translate(-50%, calc(-100% - 14px));
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 11px 7px;
+  border: 1px solid rgba(var(--wt-gold), 0.32);
+  border-radius: 7px;
+  background: rgba(8, 7, 11, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--wt-ink);
+  font: inherit;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    opacity 0.3s,
+    box-shadow 0.2s;
+}
+.desk .wt-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 14px;
+  background: linear-gradient(
+    rgba(var(--wt-gold), 0.7),
+    rgba(var(--wt-gold), 0)
+  );
+}
+.desk .wt-pin b {
+  font: 500 13px/1.15 var(--fl-text);
+  letter-spacing: 0.02em;
+}
+.desk .wt-pin small {
+  font: 400 10.5px/1.2 var(--fl-text);
+  letter-spacing: 0.04em;
+  color: var(--wt-mute);
+}
+.desk .wt-pin:hover,
+.desk .wt-pin.is-hot,
+.desk .wt-pin:focus-visible {
+  border-color: rgba(var(--wt-gold), 0.9);
+  background: rgba(14, 12, 18, 0.86);
+  box-shadow: 0 0 24px -6px rgba(var(--wt-gold), 0.6);
+  outline: none;
+}
+.desk .wt-pin.is-on {
+  border-color: rgb(var(--wt-gold));
+  background: rgba(var(--wt-gold), 0.16);
+}
+.desk .wt-pin.is-on small,
+.desk .wt-pin.is-hot small {
+  color: rgba(var(--wt-gold), 0.95);
+}
+.desk .wt-pin.is-wire {
+  border-style: dashed;
+}
+.desk .wt-pin.is-away {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* The legend: every place, numbered, along the table's near edge. */
+.desk .wt-legend {
+  position: absolute;
+  z-index: 4;
+  left: clamp(16px, 2.4vw, 40px);
+  right: 300px;
+  bottom: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.desk .wt-legend button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid rgba(var(--wt-gold), 0.2);
+  border-radius: 999px;
+  background: var(--wt-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--wt-soft);
+  font: 500 12.5px/1 var(--fl-text);
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    color 0.2s,
+    background 0.2s;
+}
+.desk .wt-legend button small {
+  display: none;
+}
+.desk .wt-legend .wt-n {
+  font: 400 11px/1 var(--fl-disp);
+  color: rgba(var(--wt-gold), 0.75);
+}
+.desk .wt-legend button:hover,
+.desk .wt-legend button.is-hot,
+.desk .wt-legend button:focus-visible {
+  border-color: rgba(var(--wt-gold), 0.7);
+  color: var(--wt-ink);
+  outline: none;
+}
+.desk .wt-legend button.is-on {
+  border-color: rgb(var(--wt-gold));
+  background: rgba(var(--wt-gold), 0.16);
+  color: var(--wt-ink);
+}
+
+/* The panel a place opens in: beside the table on a wide screen. */
+.desk .wt-sheet {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  right: 0;
+  width: min(720px, 50%);
+  height: var(--wt-h);
+  max-height: 1200px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 0 110px;
+  background: linear-gradient(
+    90deg,
+    rgba(9, 8, 12, 0.94),
+    rgba(9, 8, 12, 0.985) 30%
+  );
+  border-left: 1px solid rgba(var(--wt-gold), 0.35);
+  box-shadow: -40px 0 80px -30px #000;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transform: translateX(102%);
+  visibility: hidden;
+  transition:
+    transform 0.42s var(--fl-ease),
+    visibility 0s 0.42s;
+}
+.desk .wt-sheet.is-open {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.42s var(--fl-ease);
+}
+.desk .wt-sheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 26px 28px 18px;
+  background: rgba(9, 8, 12, 0.96);
+  border-bottom: 1px solid rgba(var(--wt-gold), 0.18);
+}
+.desk .wt-k {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font: 500 10.5px/1.2 var(--fl-text);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--wt-gold), 0.85);
+}
+.desk .wt-k i {
+  width: 18px;
+  height: 1px;
+  background: rgba(var(--wt-gold), 0.5);
+}
+.desk .wt-sheet-head h2 {
+  margin: 0;
+  font: 400 clamp(30px, 2.6vw, 40px)/1.02 var(--fl-disp);
+  color: var(--wt-ink);
+}
+.desk .wt-what {
+  margin: 8px 0 0;
+  font-size: 14.5px;
+  color: var(--wt-soft);
+}
+.desk .wt-sheet-nav {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.desk .wt-sheet-nav button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(var(--wt-gold), 0.28);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wt-soft);
+  cursor: pointer;
+}
+.desk .wt-sheet-nav button:hover,
+.desk .wt-sheet-nav button:focus-visible {
+  border-color: rgb(var(--wt-gold));
+  color: var(--wt-ink);
+  outline: none;
+}
+.desk .wt-sheet-nav svg {
+  width: 15px;
+  height: 15px;
+}
+.desk .wt-sheet-nav .wt-x {
+  margin-left: 6px;
+}
+.desk .wt-sheet-body {
+  padding: 22px 28px 0;
+  animation: wt-in 0.35s var(--fl-ease) both;
+}
+/* The features keep their own look inside; the page-level spacing they had comes off. */
+.desk .wt-sheet-body > * {
+  margin-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+.desk .wt-sheet .fl-stage {
+  min-height: 0;
+  padding: 0;
+  background: none;
+}
+.desk .wt-sheet .fl-stage::after,
+.desk .wt-sheet .fl-stage::before {
+  display: none;
+}
+.desk .wt-sheet .ax-head:empty {
+  display: none;
+}
+.desk .wt-sheet .ax-tide {
+  grid-template-columns: minmax(0, 1fr);
+}
+.desk .wt-sheet .ax-ships,
+.desk .wt-sheet .ax-tide,
+.desk .wt-sheet .ax-day,
+.desk .wt-sheet .ax-ed {
+  max-width: none;
+  margin: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+.desk .wt-sheet .ax-how-p {
+  font-size: 16px;
+  line-height: 1.6;
+}
+/* The panel is narrower than the page the features were drawn for: their narrow layouts, at any width. */
+.desk .wt .wt-sheet .ax-week-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.desk .wt .wt-sheet .ax-tally {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.desk .wt .wt-sheet .ax-week-nav {
+  grid-column: 2;
+  grid-row: 1;
+}
+.desk .wt .wt-sheet .ax-week-k {
+  display: none;
+}
+.desk .wt .wt-sheet .ax-week-h {
+  font-size: 30px;
+}
+.desk .wt .wt-sheet .ax-recto,
+.desk .wt .wt-sheet .ax-tide-open,
+.desk .wt .wt-sheet .ax-tide-leaves {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* The panel opens in view: its lines are there at once, not waiting to be scrolled to. */
+.desk .wt .wt-sheet .ax-kin .ax-w {
+  opacity: 1;
+  transform: none;
+}
+.desk .wt-hall.is-open .wt-head .fl-say,
+.desk .wt-hall.is-open .wt-hint {
+  opacity: 0;
+}
+.desk .wt-head .fl-say {
+  transition: opacity 0.3s;
+}
+.desk .wt-hall.is-open .wt-legend {
+  right: calc(min(720px, 50%) + 16px);
+}
+@keyframes wt-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (max-width: 1080px) {
+  .desk .wt-hint {
+    display: none;
+  }
+  .desk .wt-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .desk .wt-head > .wt-ledger {
+    grid-column: 1;
+    grid-row: auto;
+    margin-top: 12px;
+  }
+}
+
+/* A phone: the table first, the places listed under it, and a place opens as a full sheet. */
+@media (max-width: 760px) {
+  .desk .ax.wt {
+    --wt-h: auto;
+  }
+  .desk .ax.wt > .wt-hall {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  .desk .wt-stage {
+    position: relative;
+    inset: auto;
+  }
+  .desk .wt-view {
+    position: relative;
+    inset: auto;
+    height: min(132vw, calc(100svh - 230px));
+    min-height: 440px;
+  }
+  .desk .wt-head {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    padding: 20px 16px 0;
+  }
+  .desk .wt-head .fl-h1 {
+    font-size: 40px;
+  }
+  .desk .wt-head .fl-say {
+    display: none;
+  }
+  .desk .wt-ledger dd {
+    font-size: 18px;
+  }
+  .desk .wt-ledger > div {
+    padding: 0 10px;
+  }
+  .desk .wt-pin {
+    padding: 4px 8px 5px;
+  }
+  .desk .wt-pin b {
+    font-size: 11.5px;
+  }
+  .desk .wt-pin small {
+    display: none;
+  }
+  .desk .wt-legend {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 14px 16px 120px;
+  }
+  .desk .wt-legend button {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 2px 8px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    text-align: left;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .desk .wt-legend button b {
+    font-weight: 500;
+    color: var(--wt-ink);
+  }
+  .desk .wt-legend button small {
+    display: block;
+    grid-column: 2;
+    font: 400 11.5px/1.3 var(--fl-text);
+    color: var(--wt-mute);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .desk .wt-sheet {
+    position: fixed;
+    inset: var(--wt-top, 0px) 0 0;
+    background: #09080c;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border-left: 0;
+    transform: translateY(102%);
+    padding-bottom: 120px;
+  }
+  .desk .wt-sheet-head {
+    padding: max(18px, env(safe-area-inset-top)) 16px 14px;
+  }
+  .desk .wt-sheet-body {
+    padding: 18px 16px 0;
+  }
+  .desk .wt-sheet-nav button {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk .wt-sheet,
+  .desk .wt-sheet.is-open,
+  .desk .wt-gl,
+  .desk .wt-flat {
+    transition: none;
+  }
+  .desk .wt-sheet-body {
+    animation: none;
+  }
+}

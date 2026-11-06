@@ -2,22 +2,24 @@
  * Talking to the rooms (#638): the mic on every Desk room's page. Azure only: azure/src/index.ts registers it behind the
  * site gate like every function. The voices and the ElevenLabs calls are in api/_skippy/roomvoice.ts.
  *
- *   POST /api/skippy-room  { room, text, history?, last? }   passkey session only (requireSession), checked before the
+ *   POST /api/skippy-room  { room, text, history?, last?, page? }   passkey session only (requireSession), checked before the
  *                          body is read. `room` is a Desk page with a lead (ROOM_VOICES: Today is Skippy himself), `text` what Nikita said (at
  *                          most 300 characters, the browser's own speech recognition), `history` the room's last few turns
  *                          the browser kept ({ who, text }, never stored here) and `last` which way the room's last ask
- *                          went (a shopping follow-on, "and milk too").
+ *                          went (a shopping follow-on, "and milk too"), and `page` what the Desk page shows (#926: a hint for "this", never a
+ *                          limit; the chat's own `page` check).
  *   POST /api/skippy-room?room=<room>  with an audio body (Content-Type audio/webm, ogg or mp4, at most 512 kB): the same,
  *                          for a browser without speech recognition; ElevenLabs Scribe writes the words first, and the
  *                          clip is never kept.
- *     → 200 { say, kind, audio? }: in the Haven, rules sort the words first with no model call, as Hey Skippy does
- *       (api/_haven/classify.ts): a home-device ask through the devices' own rails (api/_haven/devices/home.ts, which
- *       keeps it in the Council), shopping onto the Kitchen list, a to-do into the to-dos. Anything else, and every
- *       word in the other rooms, goes to Desk Skippy's chat as the room's submind (`roomAnswer` in api/skippy.ts: the same
- *       prompt plus the room's rules, the same router, budget caps, pace, room log and hand-offs; the turn is kept for
- *       the Council marked `via: "room"`). `say` is cut to one or two spoken sentences; `audio` is `say` in Skippy's
- *       voice with the submind's bend (MP3, base64), left out past ElevenLabs' cap or when it doesn't answer, so the
- *       answer still shows.
+ *     → 200 { say, kind, audio? }: in the Haven, the Kitchen list and the to-dos' own rules sort shopping and a
+ *       to-do first with no model call, as Hey Skippy does (api/_haven/classify.ts). Everything else, on every page,
+ *       goes to Skippy's one brain as the room's submind (#926, `roomAnswer` in api/skippy.ts: the rules tier for the
+ *       thermostat and the home devices, then the fast tier and deeper, with every room's tools, the same prompt plus
+ *       the room's rules, the same budget caps, pace, room log and hand-offs; the turn is kept for the Council marked
+ *       `via: "room"`). So "open the wet food feeder" works from the Green as from the Haven. `say` is cut to one or
+ *       two spoken sentences; `audio` is `say` in Skippy's voice with the submind's bend (MP3, base64), on every
+ *       answer, a refusal or a failure too, left out only past ElevenLabs' cap or when it doesn't answer, so the
+ *       answer still shows as a caption.
  *   POST /api/skippy-room  { room, speak }   a room's own intent handler answered in the browser (@ceo/engine/voice):
  *                          only that line (at most 300 characters) read aloud, no model call → 200 { say, kind: "spoken", audio? }.
  *   POST /api/skippy-room  { room: "today", speak, as }   Today's Senate Rotunda (#755): a caption read aloud in Skippy's
@@ -26,9 +28,14 @@
  *   POST /api/skippy-room  { room: "today", senate: "debate" | "reply" | "join", … }   the Senate's live talk (#910,
  *                          api/_skippy/senatetalk.ts): a new recess argument, the members' answers to Nikita on the
  *                          floor, or his words joined to the argument on the floor (#925), on Claude Haiku under the
- *                          Senate's $10 inside Skippy's month → 200 { debate } | { lines } | { join } | { quiet }.
+ *                          Senate's $10 inside Skippy's month → 200 { debate } | { lines } | { join } | { quiet }. Words on
+ *                          the floor ("reply" or "join") go to Skippy's one brain first (#926), with the argument as the
+ *                          page: what he can act on or answer ("can you dispense one portion of dry food?") comes back as
+ *                          the chair's line → 200 { lines: [{ by: "kernel", text }], skippy: true, audio?, wrote? }; his
+ *                          fast tier judges a remark on the debate itself and gives it back to the members' live talk.
  *     → 401 signed-out, 403 cross-site, 400 { say } nothing heard or too long, 413 too big, 415 not JSON or audio,
- *       422 { say } held by the privacy check, 429 { say } the chat's pace, 502 { say }, 503 not-set-up.
+ *       422 { say, audio? } held by the privacy check, 429 { say, audio? } the chat's pace, 502 { say, audio? }, 503
+ *       not-set-up.
  *
  * Nothing Nikita says is logged: a log line says only which room and which way an ask went.
  */
@@ -38,8 +45,6 @@ import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { privateParts } from "../_privacy.js";
 import { classify, sayAdded, sayTodo, type Capture } from "../_haven/classify.js";
-import type { Home } from "../_haven/devices/home.js";
-import { homeFromEnv } from "../_haven/devices/live.js";
 import { listOf } from "../_haven/list.js";
 import { PhoneTodos, type TodoSink } from "../_haven/todos.js";
 import { elevenFromEnv, pickStoryStore, type ElevenConfig, type StoryStore } from "../_world/story.js";
@@ -63,8 +68,10 @@ import {
 
 /** The longest words taken (the phone's own cap). */
 export const ROOM_TEXT_MAX = 300;
-/** The most a JSON body may be (bytes). */
+/** The most a JSON body may be (bytes): the words, the history and the page's lines. */
 const BODY_MAX = 8 * 1024;
+/** The most of the page's lines taken (the chat's own `page` cap, api/_skippy/prompt.ts readPage, applies after). */
+const PAGE_MAX = 1_600;
 /** The turns the browser may send back, at most. */
 const HISTORY_MAX = 6;
 
@@ -78,8 +85,6 @@ export interface RoomRouteDeps {
   /** Desk Skippy's chat, as the room's submind (api/skippy.ts). */
   skippy: (text: string, history: { who: "nikita" | "skippy"; text: string }[], passkey: string, room: RoomTurn) => Promise<PhoneTurn>;
   todos: (blob: BlobBackend) => TodoSink;
-  /** The home devices (#632), or null when they aren't set up here. */
-  devices: () => Home | null;
   fetcher: typeof fetch;
   log: (line: string) => void;
   /** The Senate's live talk (#910), or null when it isn't set up here. */
@@ -98,7 +103,6 @@ export function liveDeps(env: Env = process.env): RoomRouteDeps {
     ledger: pickStoryStore(env),
     skippy: (text, history, passkey, room) => roomAnswer(text, history, passkey, room),
     todos: (blob) => new PhoneTodos(blob),
-    devices: () => homeFromEnv(env),
     fetcher: (input, init) => fetch(input, init),
     log: (line) => console.log(line),
     senate: () => {
@@ -192,6 +196,8 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
   let text: string;
   let history: { who: "nikita" | "skippy"; text: string }[] = [];
   let last: Capture["kind"] | null = null;
+  // What the page shows (#926): a hint for "this" and "that one", never a filter on what he can do.
+  let page = "";
   if (audio) {
     voice = roomVoiceOf(new URL(request.url).searchParams.get("room"));
     if (!voice) return json({ error: "bad-request" }, 400);
@@ -215,6 +221,14 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     if (body.speak !== undefined && body.text === undefined && body.as !== undefined && voice.room === "today") return speakAs(body.as, tidyText(body.speak), deps);
     // The Senate's live talk (#910): a new argument, or the members answering Nikita on the floor.
     if (voice.room === "today" && (body.senate === "debate" || body.senate === "reply" || body.senate === "join")) {
+      // Words on the floor (#926): Skippy's one brain hears them first, with the argument as the page, and judges
+      // (its fast tier, not word lists): a request or a question is his, answered as the chair's line; only a remark on
+      // the debate itself goes on to the members' live talk, joined to the argument (#925) or answered in kind (#910).
+      const said = body.senate !== "debate" ? tidyText(body.said).slice(0, ROOM_TEXT_MAX) : "";
+      if (said) {
+        const chair = await chairAnswers(said, body, deps, passkey);
+        if (chair) return chair;
+      }
       const sd = deps.senate?.();
       if (!sd) return json({ quiet: "off" });
       return json(body.senate === "debate" ? await newDebate(body, sd) : body.senate === "join" ? await joinDebate(body, sd) : await floorReply(body, sd));
@@ -222,36 +236,26 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     if (body.speak !== undefined && body.text === undefined) return speakOnly(voice, tidyText(body.speak), deps);
     text = tidyText(body.text);
     history = readHistory(body.history);
+    page = typeof body.page === "string" ? body.page.slice(0, PAGE_MAX) : "";
     last = readLast(body.last);
   }
   if (!text) return json({ say: "I didn't catch anything. Try again." }, 400);
   if (text.length > ROOM_TEXT_MAX) return json({ say: "That's too long for me. Keep it to a sentence or two." }, 400);
 
-  // The Haven's rules first, with no model call (Hey Skippy's own, api/_haven/classify.ts). Only in the Haven: in the
-  // Green "add Tre Tucker" is a waiver claim, not shopping.
-  const sorted: Capture = voice.room === "haven" ? classify(text, last) : { kind: "skippy", text };
+  // The Haven's list and to-do rules first, with no model call (Hey Skippy's own, api/_haven/classify.ts). Only in the
+  // Haven: in the Green "add Tre Tucker" is a waiver claim, not shopping. A device ask is the brain's, on every page.
+  const ruled: Capture = voice.room === "haven" ? classify(text, last) : { kind: "skippy", text };
+  const sorted: Capture = ruled.kind === "shopping" || ruled.kind === "todo" ? ruled : { kind: "skippy", text };
   let say: string;
   let status = 200;
   // The tools that changed something on the submind's turn (#698): the page reads itself again.
   let wrote: { wrote: string[]; did: string[] } | null = null;
+  let deviceTurn = false;
   if (sorted.kind === "shopping" && deps.blob) {
     // Things to buy (#735) when the words said so; the Kitchen list otherwise.
     const { added, already } = await listOf(deps.blob, sorted.list ?? "kitchen").add(sorted.items, now);
     say = sayAdded(added, already, sorted.list);
     if (added.length) wrote = { wrote: [sorted.list === "buy" ? "buy_add" : "kitchen_add"], did: [] };
-  } else if (sorted.kind === "device") {
-    // The same rails as the Desk's buttons; the devices keep the words in the Council themselves.
-    const home = deps.devices();
-    say = home
-      ? (
-          await home.act({
-            action: sorted.action,
-            rooms: sorted.rooms,
-            via: "desk",
-            said: text,
-          })
-        ).say
-      : "The home devices aren't set up here yet.";
   } else if (sorted.kind === "todo" && deps.blob) {
     const todo = await deps.todos(deps.blob).addTodo(sorted.text, now);
     say = sayTodo(todo.text, todo.due, now);
@@ -261,22 +265,54 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
       rules: roomRules(voice),
       log: voice.log,
       by: sub && isNeeds(sub.id) ? sub.id : null,
+      ...(page && { page }),
     });
     say = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);
     status = turn.error ? STATUS[turn.error] : 200;
     if (!turn.error && turn.wrote?.length) wrote = { wrote: turn.wrote, did: turn.did ?? [] };
+    // The rules tier ran a device (#926): said as a device ask, as before.
+    if (!turn.error && turn.tier === "rules" && turn.wrote?.includes("home_device")) deviceTurn = true;
   }
-  const kind = sorted.kind === "shopping" || sorted.kind === "todo" ? (deps.blob ? sorted.kind : "skippy") : sorted.kind;
+  const kind = sorted.kind === "shopping" || sorted.kind === "todo" ? (deps.blob ? sorted.kind : "skippy") : deviceTurn ? "device" : sorted.kind;
   // Which room and which way, never what was said.
   deps.log(`room voice: ${voice.room} ${kind}${audio ? " (clip)" : ""}`);
-  if (status !== 200) return json({ say, kind }, status);
+  // Every answer in his voice when the sound is on (#926): a refusal or a failure too, with its status.
   const spoken = await speakRoom(say, voice.sound, deps.eleven, deps.ledger, now, deps.fetcher);
+  const voiced = spoken ? { audio: Buffer.from(spoken).toString("base64") } : {};
+  if (status !== 200) return json({ say, kind, ...voiced }, status);
   return json({
     say,
     kind,
     ...wrote,
-    ...(spoken && { audio: Buffer.from(spoken).toString("base64") }),
+    ...voiced,
   });
+}
+
+/** The Senate as the page Skippy hears the floor's words on: in session, and the argument's motion and last lines. */
+export function senatePage(body: Record<string, unknown>): string {
+  const motion = tidyText(body.motion).slice(0, 200);
+  const lines = (Array.isArray(body.lines) ? body.lines : [])
+    .slice(-4)
+    .map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}))
+    .map((l) => `${tidyText(l.by).slice(0, 20)}: ${tidyText(l.text).slice(0, 200)}`)
+    .filter((l) => !privateParts(l).length);
+  return ["The Senate is in session: the subminds argue a motion on the floor, and Nikita holds Space to speak.", motion && !privateParts(motion).length ? `The argument on: ${motion}` : "", ...lines].filter(Boolean).join("\n");
+}
+
+/**
+ * The chair takes words from the Senate's floor himself (#926): Skippy's one brain as Today, the same tools, caps and
+ * privacy check as any room's mic, answered in the shape the floor already voices (`{ lines }`, the chair's line).
+ */
+async function chairAnswers(said: string, body: Record<string, unknown>, deps: RoomRouteDeps, passkey: string): Promise<Response | null> {
+  const today = ROOM_VOICES.today!;
+  const turn = await deps.skippy(said, [], passkey, { rules: roomRules(today), log: today.log, by: null, page: senatePage(body), floor: true });
+  // A remark on the argument: the members answer it.
+  if (turn.floor) return null;
+  const text = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);
+  deps.log(`room voice: today senate-skippy${turn.error ? ` ${turn.error}` : ""}`);
+  // Said in his own voice, as any answer is (#926); past the cap, read.
+  const spoken = privateParts(text).length ? null : await speakRoom(text, today.sound, deps.eleven, deps.ledger, deps.desk.now, deps.fetcher);
+  return json({ lines: [{ by: "kernel", text }], skippy: true, ...(spoken && { audio: Buffer.from(spoken).toString("base64") }), ...(!turn.error && turn.wrote?.length && { wrote: turn.wrote, did: turn.did ?? [] }) });
 }
 
 /**

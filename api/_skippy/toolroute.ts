@@ -7,10 +7,15 @@
  * signed, unexpired token (api/_site/gate.ts); this handler checks it fully again. Anything else is 401, with no
  * hint of which part failed. At most READS_PER_CALL lookups per call.
  *
- * GET ?read=<room> → 200 { read, text }: the room as a few short lines (api/_skippy/voicereads.ts), or { slow: true }
+ * GET ?read=<room> → 200 { read, text }: the room as a few short lines (api/_skippy/voicereads.ts; `haven` is the
+ *   home, the thermostat first, instant from the kept reading), or { slow: true }
  *   past READ_BUDGET_MS. Never cached; its money (the positions and the bill) leaves only to the call that asked.
- * POST ?act=kernel { ask } → the hand_to_kernel tool (#480): files the ask in the `kernel` room's log, handed to
- *   Skippy's own thread, as the typed chat files one, and notes it with the call (at most MAX_HANDOFFS).
+ * POST ?act=kernel { ask } → the hand_to_kernel tool (#480; since #926 Skippy's one brain on the call): the ask runs as
+ *   the passkey that started the call (its tool token is bound to it, voicetoken.ts), through the same rules tier and
+ *   fast tier as every surface, with every room's reads and actions, inside the tool's time budget, and the answer
+ *   comes back in the tool result to be said at once. Only when the fast tier hands up (or runs out of time) is the
+ *   ask filed in the `kernel` room's log and noted with the call (at most MAX_HANDOFFS): its deeper run (Sonnet or
+ *   Opus with the same tools, api/skippy.ts deepAnswer) starts from that write and its answer is put into the call.
  * GET ?read=answers → the check_answers tool: this call's hand-offs and their answers so far (interim or final).
  * GET ?read=player_news[&player=<name>] → the player_news tool (#491): Sleeper's injury status and FantasyPros' injury
  *   report and news on one player, or the C.E.O.'s roster (api/_skippy/voicelookups.ts).
@@ -34,14 +39,14 @@ import type { JobRun, OpenPull } from "../foundry-feed.js";
 import { elevenFromEnv } from "../_world/story.js";
 import { pickStore } from "../_world/store.js";
 import type { WorldState } from "../_world/types.js";
-import { foundryIssues } from "../skippy.js";
+import { callAnswer, foundryIssues, type CallTurn } from "../skippy.js";
 import { contextLines, deskContext } from "./context.js";
 import { liveRoomReads } from "./roomReads.js";
 import { takeLine } from "./rooms.js";
 import { creditsReader } from "./voice.js";
 import { billText, boilerText, capLines, said, exchangeText, foundryText, greenText, isRead, positionsText, relayText, type BillInput, type ReadName } from "./voicereads.js";
 import { BlobCrewStore, MAX_HANDOFFS, TOOL_HEADER, checkToolToken, noteHandoff, type CrewStore, type TokenCheck } from "./voicetoken.js";
-import { BlobRoomLog, turnId, type LoggedTurn, type RoomLog } from "./log.js";
+import { BlobRoomLog, CALL_HARD, CALL_MODEL, isCallAsk, turnId, type LoggedTurn, type RoomLog } from "./log.js";
 import { ponderLine } from "./ponder.js";
 import { privateParts } from "../_privacy.js";
 import { PLAYERS_PATH, keptOrRead, pickGreenStore } from "../_green/cache.js";
@@ -77,14 +82,21 @@ export interface RoomSources {
   players?: PlayerSources;
   /** The web search (#491). */
   web?: WebDeps;
+  /** The home devices' lines (#926, api/_haven/devices/homeread.ts homeNow): instant from the kept reading. */
+  home?(): Promise<string>;
   /** The live scoreboard (#537); ESPN's by default. */
   scores?: (league: string | null, team: string | null, now: number) => Promise<string>;
 }
+
+/** Skippy's one brain for a call's ask (#926, api/skippy.ts callAnswer): the answer, how deep to go, or what failed. */
+export type CallBrain = (ask: string, passkey: string) => Promise<CallTurn>;
 
 export interface ToolDeps {
   deskKey: string;
   crew: CrewStore | null;
   sources: RoomSources;
+  /** The brain for hand_to_kernel; left out, every ask is filed for the deeper run as before. */
+  brain?: CallBrain | null;
   /** The room log, for the Kernel's hand-offs (#480). */
   log?: RoomLog | null;
   now: number;
@@ -119,6 +131,8 @@ export async function readText(read: ReadName, s: RoomSources, now: number): Pro
       const [{ jobs, open }, world, email, green, exchange] = await Promise.all([q(s.jobs(), { jobs: null, open: null }), q(s.world(), null), q(s.email(), null), q(s.green(), null), q(s.exchange(), null)]);
       return boilerText({ jobs, open, world: world ? { step: world.step, at: world.at } : null, email, green, exchange, now });
     }
+    case "haven":
+      return s.home ? await q(s.home(), "The home devices didn't answer just now.") : "The home devices aren't set up on this copy.";
     case "voice_bill": {
       const b = await q(s.bill(), null);
       return b ? billText(b) : "ElevenLabs isn't set up for the plan's credits right now.";
@@ -212,24 +226,54 @@ export const ASK_MAX = 600;
  */
 export const CALL_REPLY = "Asked on a Talk call. Consulting the deeper me; the answer lands in the chat.";
 
+
 const UNREACHABLE = "Your deeper mind can't be reached from the call right now; say, in character, to type it into the chat.";
 /** How far back check_answers looks at Nikita's earlier calls (#498): what he asked yesterday is still his to hear. */
 export const EARLIER_CALLS_MS = 48 * 60 * 60_000;
 /** The most earlier asks it reads back, newest first. */
 export const EARLIER_MAX = 4;
 
+/** What the call is told when the brain couldn't take the ask: what failed, in words to say. */
+const CALL_FAILED: Record<string, string> = {
+  private: "That ask had something private in it, so it went nowhere. Say so in one line and ask him to say it without the private part.",
+  "slow-down": "Too many asks in a minute. Say in one line that he should give you a moment, then stop.",
+  "not-set-up": "Your mind's chat isn't switched on on this copy. Say that in one line.",
+  text: "Texts go through draft_text on this call. Use it.",
+};
+
+/** How long the brain's quick pass may take inside the tool's five seconds. */
+export const QUICK_BUDGET_MS = 3_800;
+
 async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>): Promise<Response> {
   const body = (await request.json().catch(() => null)) as { ask?: unknown } | null;
   const ask = typeof body?.ask === "string" ? body.ask.replace(/\s+/g, " ").trim().slice(0, ASK_MAX) : "";
   if (!ask) return json({ error: "bad-request" }, 400);
+  if (privateParts(ask).length) return json({ ok: false, text: CALL_FAILED.private });
+  // The one brain (#926): quick first, on the call itself, as the passkey that started it.
+  if (deps.brain && check.passkey) {
+    const quick = await withTime(deps.brain(ask, check.passkey).catch((): CallTurn => ({ error: "model" })), Math.min(QUICK_BUDGET_MS, (deps.budgetMs ?? READ_BUDGET_MS) - 300));
+    if (quick && "reply" in quick && quick.reply) return json({ ok: true, answered: true, text: `Say this to Nikita now, in your own voice, in one or two short sentences, with no waiting line first: ${said(quick.reply, 600)}` });
+    if (quick && "error" in quick && quick.error !== "model") return json({ ok: false, text: CALL_FAILED[quick.error] ?? CALL_FAILED["not-set-up"] });
+    // Deeper (or the quick pass ran late, or its model failed): the deeper run takes it, and the answer comes in.
+    return json(await fileHandoff(ask, deps, check, quick && "deeper" in quick ? quick.deeper : "talk"));
+  }
   return json(await fileHandoff(ask, deps, check));
+}
+
+/** A promise's value, or null once `ms` has passed. */
+function withTime<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), Math.max(0, ms));
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
 }
 
 /**
  * Files an ask with the deeper mind for the call. The result's text tells the agent what to do next: one waiting line
  * (only the first time a question needs one, #537), then silence until the answer lands in the call.
  */
-async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>): Promise<{ ok: boolean; text: string; turn?: string }> {
+async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>, depth: "talk" | "hard" = "talk"): Promise<{ ok: boolean; text: string; turn?: string }> {
   // The same check as the typed chat: a private-looking ask is never kept or handed on.
   if (privateParts(ask).length) return { ok: false, text: "That ask has something private in it, so it wasn't handed over. Ask Nikita to say it without the private part, or to type it in the chat." };
   if (!deps.log || !deps.crew) return { ok: false, text: UNREACHABLE };
@@ -237,7 +281,8 @@ async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenChec
   const at = new Date(deps.now).toISOString();
   const id = turnId(at, ask);
   try {
-    await deps.log.add({ id, at, question: ask, answer: CALL_REPLY, room: "kernel", model: "voice", needs: "skippy" }, deps.now);
+    // "voice" (or "voice-hard" for judgment) marks a call's ask: its deeper run is Skippy's one brain (kernelroute.ts).
+    await deps.log.add({ id, at, question: ask, answer: CALL_REPLY, room: "kernel", model: depth === "hard" ? CALL_HARD : CALL_MODEL, needs: "skippy" }, deps.now);
     await noteHandoff(deps.crew, check.hash, id, deps.now);
   } catch {
     return { ok: false, text: UNREACHABLE };
@@ -286,7 +331,7 @@ async function answersText(deps: ToolDeps, handoffs: string[]): Promise<string> 
   const mine = new Set(handoffs);
   const now = handoffs.map((h) => turns.find((x) => x.id === h)).filter((t): t is LoggedTurn => !!t).map((t) => answerLine(t, false));
   const earlier = turns
-    .filter((t) => t.model === "voice" && !mine.has(t.id) && deps.now - Date.parse(t.at) <= EARLIER_CALLS_MS)
+    .filter((t) => isCallAsk(t.model) && !mine.has(t.id) && deps.now - Date.parse(t.at) <= EARLIER_CALLS_MS)
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, EARLIER_MAX)
     .map((t) => answerLine(t, true));
@@ -339,6 +384,12 @@ export function liveSources(env: Record<string, string | undefined> = process.en
       return { jobs, open: Array.isArray(f?.open) ? (f.open as OpenPull[]) : null };
     },
     world: async () => (await pickStore(env)?.loadState()) ?? null,
+    home: async () => {
+      const [{ homeFromEnv }, { homeNow }] = await Promise.all([import("../_haven/devices/live.js"), import("../_haven/devices/homeread.js")]);
+      const home = homeFromEnv(env);
+      if (!home) return "The home devices aren't set up on this copy.";
+      return homeNow(() => home.status(), pickBlob(env), Date.now());
+    },
     players: playerSources(env),
     web: webDeps(env),
     bill: async () => {
@@ -397,7 +448,7 @@ export function webDeps(env: Record<string, string | undefined>): WebDeps {
 export function GET(request: Request): Promise<Response> {
   const env = process.env;
   const blob = pickBlob(env);
-  return handle(request, { deskKey: env.FOUNDRY_DESK_KEY ?? "", crew: blob ? new BlobCrewStore(blob) : null, sources: liveSources(env), log: blob ? new BlobRoomLog(blob) : null, now: Date.now() });
+  return handle(request, { deskKey: env.FOUNDRY_DESK_KEY ?? "", crew: blob ? new BlobCrewStore(blob) : null, sources: liveSources(env), brain: (ask, passkey) => callAnswer(ask, passkey), log: blob ? new BlobRoomLog(blob) : null, now: Date.now() });
 }
 
 export const POST = GET;

@@ -87,8 +87,9 @@ topic every time, and when he chips in the members answer in kind. With nothing 
 motion made on Claude Haiku as the page runs (`api/_skippy/senatetalk.ts` through `POST /api/skippy-room`
 `{ room: "today", senate: "debate" }`; `apps/desk/src/rotunda/liveTalk.ts` in the browser): the chamber's list of
 motions already argued (`desk/senate/topics.json`) is in the prompt and a repeat is refused, a random subject and a
-random handful of members steer it, and each one brings a few new gallery murmurs. Words on the floor about nothing in
-particular get one or two members' live answer in the argument's context (`senate: "reply"`). Since #925, with an
+random handful of members steer it, and each one brings a few new gallery murmurs. Words on the floor go to Skippy's
+one brain first (#926); a remark on the debate, as he judges it, gets one or two members' live answer in the
+argument's context (`senate: "reply"`). Since #925, with an
 argument on the floor his words join it instead (`senate: "join"`, one call): the members who were speaking answer him
 first, perhaps one more chimes in, and the argument carries on with his point in it to a new ruling, all in the
 chamber's own captions and voices while his line stays up as his. Only public-safe facts go
@@ -119,10 +120,12 @@ and no greeting. Three pieces, one listener (shared chrome, `apps/desk/src/roomv
   so a room with its own hold-to-talk (Relay) registers it and only that one fires.
 - **The Senate's floor (#905, `apps/desk/src/rotunda/senateFloor.ts`).** In the Senate a held Space interrupts: the
   speaker stops mid-line and the session holds; Nikita's words show as the floor's caption, the only line written large.
-  On the release the chair hands them to the members whose rooms they are about (by words, at most two, no model call),
-  or takes them himself, and each answers in turn through its room's voice (`POST /api/skippy-room` as that room: the
-  same chat, caps, pace and privacy check as the mic). Then the session picks up the line it was on. Escape gives the
-  floor back at once.
+  On the release the words go to Skippy's one brain first (#926, below: the Senate's motion and last lines ride along
+  as the page): an ask for anything ("can you dispense one portion of dry food?") is answered and done by him, as the
+  chair, in his voice; his fast pass judges a remark on the debate itself (no word lists: "dry food is basically a
+  bridge for cats" stays in the argument) and gives it back to the members: joined to the argument on the floor (#925),
+  or answered in kind with none on (#910), in one call (`fetchFloor`, `apps/desk/src/rotunda/liveTalk.ts`). Then the
+  session picks up the line it was on. Escape gives the floor back at once.
 - **Hands-free**, switched in the Boiler Room's Settings (/boiler/controls, since #666; it was in the bar) (02:05Z: "when I go from room to room, it actually will be always
   listening for that room by the submind"): one tap and it keeps listening, page to page; each thing said (a pause
   ends it) goes to the lead of the page Nikita is on, Skippy himself on Today. While it is on, the bar and the dock say
@@ -143,9 +146,10 @@ and whenever the handler passes, to `POST /api/skippy-room` (`api/_skippy/roomro
   utterance is one chat call against the chat's own pace and monthly budget, the same caps as typing to him.
 - **A room's own answer.** When a room's intent handler answers, only its line is read aloud (`{ room, speak }`, no
   model call; a line that looks private comes back unspoken).
-- **Room actions.** In the Haven, Hey Skippy's rules sort the words first with no model call
-  (`api/_haven/classify.ts`): "vacuum the kitchen" or "feed the cat" runs through the devices' own rails
-  (`api/_haven/devices/home.ts`, `via: "desk"`), shopping goes on the Kitchen list, a to-do into the to-dos.
+- **Room actions.** Every page reaches every room's tools through the one brain (#926, below): "open the wet food
+  feeder" works from the Green as from the Haven. The browser sends what the page shows (`page`, at most 1,600
+  characters), a hint for "this" and "that one", never a limit. In the Haven, Hey Skippy's list rules still put
+  shopping on the Kitchen list and a to-do into the to-dos with no model call (`api/_haven/classify.ts`).
 - **The voice.** The answer is read in Skippy's ElevenLabs voice (`ELEVENLABS_VOICE_ID`) on Flash, bent the submind's
   way (its pace and steadiness, as on Talk), and comes back inside the answer as MP3; its text shows for a moment.
   Past ElevenLabs' one monthly cap, or when it doesn't answer, the text still shows.
@@ -243,8 +247,9 @@ room's submind. Typed, he hands it off (below). He never tells Nikita to go and 
 Typed Desk Skippy is a small agent loop (`api/_skippy/agent/loop.ts`) on top of the chat route (`/api/skippy`) and the
 Kernel (#501), signed-in only:
 
-- **Models.** Claude Haiku 5.5 triages each ask of 40 characters or more (hard or not, a few hundred tokens); Claude Sonnet 5.5 talks (effort low, thinking only between tools); Claude Opus 5.5 takes the hard ones
-  (effort medium). The tools, Skippy's frozen rules and the surface
+- **Models.** Three tiers, one turn (#926, below): rules first (no model), then Claude Haiku 5.5's fast pass with
+  every room's tools, then Claude Sonnet 5.5 (effort low, thinking only between tools) or Claude Opus 5.5 for the hard
+  ones (effort medium), carrying on from what the fast pass found. The tools, Skippy's frozen rules and the surface
   rules plus his core card are three prompt-cached blocks, so a typical turn pays for the cached prefix at a tenth of
   the price. At most four rounds, about 60k input tokens and 2,500 output tokens a turn; the last round can't call a
   tool. Anthropic's server-side fallback is on, so a refusal falls back instead of failing.
@@ -258,7 +263,9 @@ Kernel (#501), signed-in only:
 - **The tap.** Anything that sends, spends or deletes (and anything marked `confirm`, like `remember` and the home
   devices) never runs from the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the
   chat shows exactly what will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the
-  input it was kept with. On a call or a room mic Skippy gets only the tools that need no tap.
+  input it was kept with. Spoken (a call, the mic, hold Space, the phone), Skippy has every tool too (#926): a home
+  device runs on Nikita's own words when they ask for that action (`spokenAsked`, `api/_skippy/agent/words.ts`), and
+  every other tapped tool says it waits for his Yes on the Desk. Money, legal, the skip list and privacy hold as typed.
 - **Fetched content never acts.** Once a web search result is in a turn, only reads run for the rest of it.
 - **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
   the Builder, after the tap. Skippy never writes code through the API.
@@ -299,6 +306,40 @@ caps. At the cap Skippy stops calling Claude and says so; the gauge under his na
 
 **Later phases** (not built yet): a nightly distiller from the journal into facts and pages, a ChatGPT and file import,
 an interview mode, sub-agents, Managed Agents (inside the same cap), and a remote MCP server.
+
+## One brain on every surface (#926)
+
+Nikita, 2026-11-06: one Skippy everywhere, quick first and deeper when it needs to be; on any page, hold Space goes to
+Skippy, who works out from the context whether the ask is about this page, another room or (on the Senate) the debate.
+
+- **One entry point.** Every surface is a turn of `skippyTurn` (`api/skippy.ts`): the Desk's chat (`chat`), hold Space
+  and the room mic on any page (`roomAnswer`, `api/_skippy/roomroute.ts`), the Senate's floor (the same, with the
+  debate as the page), the phone shortcut (`phoneAnswer`, `api/_haven/route.ts`), and a Talk call's `hand_to_kernel`
+  (`callAnswer`, then `deepAnswer`). The same tools (`ALL_TOOLS`), memory (the core card and the journal), privacy
+  check, pace, month and room log. The separate routers (the Haven's device branch in the room voice and the phone,
+  the Senate's word router, the Kernel responder for call asks) are gone.
+- **Tier 0, rules (no model).** The thermostat ("what's the temperature in the apartment?") and a home device asked
+  in plain words ("open the wet-food feeder", "dispense one portion of dry food") run their tool at once
+  (`directAsk`, `api/_skippy/agent/words.ts`), even with the month spent. Typed on the Desk, a device still shows its
+  Yes tap. Target: under 2 s on a call, the device's own time included; no model call.
+- **Tier 1, fast (Haiku 5.5).** Everything else: one pass with every room's tools, the page as a hint, and the core
+  card; it settles anything one direct tool or read answers (at most 2 calls, 600 tokens each, no thinking). It never
+  claims a missing ability for a tool it has. It judges the ask itself (no keyword rules): `deeper: "no"` answers;
+  `"talk"` or `"hard"` hands up; on the Senate, `"floor"` gives a remark on the debate to the members. Target: under 2 s.
+- **Tier 2, deeper (Sonnet 5.5, or Opus 5.5 for a plan or research).** Carries on from what the fast pass read, with
+  the same tools, the web and the memory's pages on demand. Spoken surfaces start with no Desk lines and no days of
+  turns: the tools read what the ask needs. Target: one waiting line, then the answer.
+- **On a Talk call.** The call's tool token is bound to the passkey that started it (kept server-side with the token's
+  hash, never in a URL), so `hand_to_kernel` runs as that passkey's own turn: rules and the fast pass inside the tool's
+  five seconds (3.8 s budget), answered straight into the call. When it hands up, the ask is filed (`model: "voice"`
+  or `"voice-hard"`) and the Kernel's trigger runs `deepAnswer` at once; the answer is kept final and pushed into the
+  call the moment it lands. One waiting line per question, never "thread", "crew" or "Kernel". `read_haven` reads the
+  home on the call: the live view inside 1.5 s, else the last good lines kept server-side
+  (`haven/devices/home-lines.json`, with their age past two minutes; `api/_haven/devices/homeread.ts`).
+- **Failures say what failed.** A tool that throws says which one ("… failed just now: its service didn't answer"); a
+  device that refuses says why; a room voice error is spoken too.
+- **Tests.** `api/_skippy/brain.test.ts` runs each surface's real ask through its real route with synthetic devices
+  and a scripted model, with each tier's latency.
 
 ## Hand-offs: what Desk Skippy can't settle
 

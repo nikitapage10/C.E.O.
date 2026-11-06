@@ -302,8 +302,9 @@ export function mergeStatusNews(listing: string, news: string | null): string {
   ]);
 }
 
-/** How long one question's waiting line holds: a second tool result inside it is told to stay quiet. */
-export const WAIT_LINE_MS = 25_000;
+/** How long one question's waiting line holds: a second tool result inside it is told to stay quiet (#926: a minute, the
+ * deeper run's longest, so a question never gets a second "still waiting"). */
+export const WAIT_LINE_MS = 60_000;
 const lined = new Map<string, number>();
 export const forgetWaitingLines = () => lined.clear();
 

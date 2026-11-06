@@ -3,7 +3,8 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { holdHint } from "../holdToTalk.ts";
 import { askRoom, listen, micSupported, recall, remember, setOwnVoice, silentWav, type Listener, type RoomAnswer } from "../roomvoice/roomVoice.ts";
 import { readMs, SUBMIND_TITLE } from "./rite.ts";
-import { fetchFloorReply, fetchJoin, type FloorTopic, type Joined } from "./liveTalk.ts";
+import { announceWrote, readWrote } from "../skippy/wrote.ts";
+import { fetchFloor, type FloorTopic, type Joined } from "./liveTalk.ts";
 import { fetchLine } from "./voice.ts";
 
 /**
@@ -11,76 +12,26 @@ import { fetchLine } from "./voice.ts";
  * able to hold space to engage them directly and then they can respond to me in turn."
  *
  * Holding Space in the Senate (holdToTalk.ts, the Senate's handler above the page's) holds the session where it is: the
- * speaker stops mid-line and the clock waits (rotundaScene.ts `hold`). His words show as the floor's caption. On the
- * release the presiding Skippy routes them: the members whose rooms they are about (`routeFloor`, at most two, words
- * only, no model call) answer in turn, each through its room's own voice (POST /api/skippy-room as that room: the same
- * chat, caps, pace and privacy check as the room mic, the answer read in that submind's voice); words about nothing in
- * particular go to Skippy himself. Then the session picks up the line it was on.
+ * speaker stops mid-line and the clock waits (rotundaScene.ts `hold`). His words show as the floor's caption.
  *
- * Since #910, words about nothing in particular get the members' live answer instead (liveTalk.ts, `fetchFloorReply`:
- * Claude Haiku under the Senate's $10, after the privacy check): one or two of them answer him in kind, in the context of
- * the argument on the floor, each in Skippy's voice bent its way (the Rotunda's share; past it, read). When that can't
- * come, the chair answers as before.
+ * Since #926, on the release his words go to Skippy's one brain first, with the argument on the floor as the page
+ * (liveTalk.ts `fetchFloor`, one call). Skippy judges them himself, with every room's tools (Nikita, 2026-11-06: hold
+ * Space goes to Skippy, who works out from the context whether it's about this page, another room, or the debate; no
+ * word lists): an ask or a question ("can you dispense one portion of dry food?") is his, done and answered as the chair
+ * in his own voice. Only a remark on the debate goes on to the members:
  *
- * Since #925, with an argument on the floor his words join it rather than start a side conversation (Nikita, 2026-11-06:
- * "those two would be the ones to respond, and then maybe somebody else chimes in"): one live call (liveTalk.ts,
- * `fetchJoin`) brings the answers of the members who were speaking, perhaps one more, and the rest of the argument with
- * his point in it. The chamber takes them at the next line's turn (rotundaScene.ts `join`): the line he cut into
- * finishes, they answer him from where they stand in the chamber's own captions and voices while his line stays up as
- * his, and the argument carries on to a new ruling. When that can't come, the floor answers him as before.
+ * - With an argument on the floor (#925), his words join it (Nikita: "those two would be the ones to respond, and then
+ *   maybe somebody else chimes in"): the members who were speaking answer him, perhaps one more, and the rest of the
+ *   argument follows with his point in it. The chamber takes them at the next line's turn (rotundaScene.ts `join`): the
+ *   line he cut into finishes, they answer him from where they stand while his line stays up as his, and the argument
+ *   carries on to a new ruling.
+ * - With none on (#910), one or two members answer him in kind, each in Skippy's voice bent its way.
+ *
+ * When nothing comes back (or the words are a clip, without the words in hand), the chair answers through Skippy's own
+ * route (POST /api/skippy-room as Today). Then the session picks up the line it was on.
  *
  * Nothing is kept: the turns live in roomVoice.ts's memory for a follow-on, and are forgotten on reload.
  */
-
-/** Rooms that answer on the floor (each has a voice on POST /api/skippy-room) and the words that bring them in. */
-export const FLOOR_WORDS: Readonly<Record<string, readonly string[]>> = {
-  foundry: ["foundry", "builder", "build", "building", "code", "coding", "ship", "shipped", "shipping", "deploy", "pr", "pull request", "issue", "issues", "bug", "bugs", "feature"],
-  spire: ["spire", "executive", "calendar", "meeting", "meetings", "schedule", "strategy"],
-  exchange: ["exchange", "bookie", "market", "markets", "bet", "bets", "odds", "polymarket", "stock", "stocks", "trade", "trades"],
-  green: ["green", "commentator", "fantasy", "football", "lineup", "waiver", "waivers", "player", "players", "league", "matchup", "nfl"],
-  relay: ["relay", "messenger", "email", "emails", "inbox", "mail", "text", "texts", "message", "messages", "reply"],
-  archive: ["archive", "historian", "history", "chronicle", "lore"],
-  boiler: ["boiler", "pessimist", "server", "servers", "security", "checks", "error", "errors", "outage", "pipes", "settings"],
-  workshop: ["workshop", "artiste", "design", "art", "picture", "pictures", "image", "images"],
-  studio: ["studio", "director", "video", "film", "movie"],
-  annex: ["annex", "stagehand", "election", "elections", "vote", "voting", "ballot"],
-  haven: ["haven", "steward", "home", "house", "lights", "vacuum", "litter", "cat", "cats", "pet", "pets", "feeder", "feed", "food", "dispense", "portion", "kibble", "kitchen", "shopping", "groceries", "grocery", "gym", "chores"],
-};
-
-/**
- * Words that ask Skippy to do something, or ask after something he looks after, rather than add to the argument
- * (Nikita, 2026-11-06: holding Space and asking the Senate to "dispense one portion of dry food" got a confused debate).
- * A minimal check of the Senate's own until the shared entry point with its intent check (#926) hands the floor only
- * debate remarks: these go to Skippy's voice route (the member whose room it is, or Skippy himself), never the debate.
- */
-const ASK = /^(?:hey skippy\b[ ,]*)?(?:(?:can|could|would|will) you|please|turn|switch|set|start|stop|pause|resume|dispense|feed|give|add|remove|remind|schedule|book|send|reply|order|buy|open|close|lock|unlock|run|play|call|text|email|cancel|check|show|tell me|what(?:'s| is) (?:on|my|the)|how(?:'s| is) (?:my|the)|is (?:my|the)|are (?:my|the)|did (?:i|my|the|you)|when(?:'s| is) (?:my|the))\b/;
-
-/** True when his words are a request or a question for Skippy to act on (see ASK), not a remark for the debate. */
-export function asksToDo(text: string): boolean {
-  const t = text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
-  return ASK.test(t) || /\bplease\b/.test(t);
-}
-
-/** The most members brought in on one question. */
-export const FLOOR_MAX = 2;
-
-/**
- * Who answers: the seated members whose rooms the words are about, most-mentioned first, at most `max`; Skippy
- * himself ("kernel") when they are about none of them.
- */
-export function routeFloor(text: string, seated: readonly string[], max = FLOOR_MAX): string[] {
-  const words = ` ${text
-    .toLowerCase()
-    .replace(/[^a-z0-9' ]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()} `;
-  const scored = seated
-    .filter((id) => Object.hasOwn(FLOOR_WORDS, id))
-    .map((id, i) => ({ id, i, n: FLOOR_WORDS[id]!.filter((w) => words.includes(` ${w} `)).length }))
-    .filter((r) => r.n > 0)
-    .sort((a, b) => b.n - a.n || a.i - b.i);
-  return scored.length ? scored.slice(0, max).map((r) => r.id) : ["kernel"];
-}
 
 /** The chair hands the floor over, in a word. */
 export const floorChair = (ids: readonly string[]): string => {
@@ -88,9 +39,6 @@ export const floorChair = (ids: readonly string[]): string => {
   const names = ids.map((id) => (SUBMIND_TITLE[id] ?? id).replace(/^The /, "the "));
   return `The chair recognizes ${names.join(", then ")}.`;
 };
-
-/** The room the answer is asked as: the member's own, or Today (Skippy himself) for the chair. */
-export const floorRoom = (id: string) => (id === "kernel" ? "today" : id);
 
 /* ── The floor's state, for the chamber's caption ── */
 
@@ -124,13 +72,6 @@ export interface FloorScene {
   topic?: () => FloorTopic | null;
   /** His words joined to that argument (#925): resolves once the members have answered him; null when none is on. */
   join?: (said: string, j: Joined) => Promise<void> | null;
-}
-
-/** Who was speaking when he cut in: the last two members heard in the argument (not the chair, not him), newest first. */
-export function speakersOf(topic: FloorTopic | null): string[] {
-  const out: string[] = [];
-  for (const l of [...(topic?.lines ?? [])].reverse()) if (l.by !== "kernel" && l.by !== "floor" && !out.includes(l.by) && out.length < 2) out.push(l.by);
-  return out;
 }
 
 /** A beat between turns, and how long the last answer stays once it is said. */
@@ -232,39 +173,36 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
     return holdHint("error" in got ? got.error : "I didn't catch anything. Try again.");
   }
   const text = "text" in got ? got.text : "";
-  // An argument on the floor: his words join it (#925). The members who were speaking answer him in the chamber and it
-  // goes on from there; his line stays up as his until they have.
-  // A request or a question about his home, devices or work goes to Skippy's voice route instead, never the debate.
-  const command = !!text && (asksToDo(text) || routeFloor(text, scene?.seated() ?? [])[0] !== "kernel");
-  const topic = text && !command ? (scene?.topic?.() ?? null) : null;
-  if (text && topic && scene?.join) {
-    const speaking = speakersOf(topic);
-    set({ phase: "asking", question: text, chair: floorChair(speaking.length ? speaking : ["kernel"]) });
-    const j = await fetchJoin(text, scene.seated(), topic, doFetch);
+  if (text) {
+    // Skippy's one brain hears the words first (#926), with the argument on the floor as their context, and judges.
+    const topic = scene?.topic?.() ?? null;
+    set({ phase: "asking", question: text, chair: "" });
+    scene?.talk("kernel", 1.6);
+    const heard = await fetchFloor(text, scene?.seated() ?? [], topic, !!scene?.join, doFetch);
     if (run !== n) return;
-    const heard = j ? (scene?.join?.(text, j) ?? null) : null;
-    if (heard) {
+    // His own answer: the tool ran (or the question was answered), said as the chair.
+    if (heard && "chair" in heard) {
+      announceWrote(readWrote(heard.chair));
+      remember("today", text, heard.chair.say, "skippy");
+      set({ chair: floorChair(["kernel"]), phase: "answering", turn: { by: "kernel", say: heard.chair.say, failed: false } });
+      if (!(await hear("kernel", heard.chair, n))) return;
+      if (!(await wait(AFTER_MS, n))) return;
+      return release();
+    }
+    // A remark joined to the argument (#925): the members who were speaking answer him in the chamber, and on it goes.
+    const joined = heard && "join" in heard ? (scene?.join?.(text, heard.join) ?? null) : null;
+    if (joined) {
       set({ phase: "joined", chair: "", turn: null });
       letGo();
-      await heard;
+      await joined;
       if (run === n) set({ phase: "idle", question: "", chair: "", turn: null });
       return;
     }
-  }
-  // Tried to join, or a request: the members' in-kind banter isn't asked for; Skippy's own route answers.
-  const tried = !!topic || command;
-  // Without the words in hand (a clip, Firefox), the chair takes it: the function writes the words and Skippy answers.
-  const ids = text ? routeFloor(text, scene?.seated() ?? []) : ["kernel"];
-  set({ phase: "asking", question: text || useFloor.getState().question, chair: floorChair(ids) });
-  scene?.talk("kernel", 1.6);
-  // About nothing in particular: the members answer him live, in kind (#910); the chair's own answer when they can't.
-  if (text && !tried && ids.length === 1 && ids[0] === "kernel") {
-    const lines = await fetchFloorReply(text, scene?.seated() ?? [], scene?.topic?.() ?? null, doFetch);
-    if (run !== n) return;
-    if (lines) {
-      const members = lines.map((l) => l.by).filter((b) => b !== "kernel");
+    // A remark with no argument on (#910): the members answer him live, in kind.
+    if (heard && "lines" in heard) {
+      const members = heard.lines.map((l) => l.by).filter((b) => b !== "kernel");
       set({ chair: floorChair(members.length ? [...new Set(members)] : ["kernel"]) });
-      for (const l of lines) {
+      for (const l of heard.lines) {
         const voiced = await fetchLine(l.by, l.text, doFetch);
         if (run !== n) return;
         set({ phase: "answering", turn: { by: l.by, say: l.text, failed: false } });
@@ -278,19 +216,17 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
       return release();
     }
   }
-  for (const id of ids) {
-    const room = floorRoom(id);
-    const { turns, last } = recall(room);
-    const a = "text" in got ? await askRoom(room, { text }, turns, last, doFetch) : await askRoom(room, { clip: got.clip }, turns, last, doFetch);
-    if (run !== n) return;
-    if (a.ok && text) remember(room, text, a.say, a.kind);
-    set({ phase: "answering", turn: { by: id, say: a.say, failed: !a.ok } });
-    scene?.light(id === "kernel" ? null : id);
-    if (!(await hear(id, a, n))) return;
-    // A failure (signed out, the cap, the pace) is said once; nobody else is asked.
-    if (!a.ok) break;
-    if (!(await wait(TURN_GAP_MS, n))) return;
-  }
+  // Nothing came back, or a clip without the words in hand (Firefox): the chair answers through Skippy's own route,
+  // where the function writes the words.
+  set({ phase: "asking", question: text || useFloor.getState().question, chair: floorChair(["kernel"]) });
+  scene?.talk("kernel", 1.6);
+  const { turns, last } = recall("today");
+  const a = "text" in got ? await askRoom("today", { text }, turns, last, doFetch) : await askRoom("today", { clip: got.clip }, turns, last, doFetch);
+  if (run !== n) return;
+  if (a.ok && text) remember("today", text, a.say, a.kind);
+  set({ phase: "answering", turn: { by: "kernel", say: a.say, failed: !a.ok } });
+  scene?.light(null);
+  if (!(await hear("kernel", a, n))) return;
   if (!(await wait(AFTER_MS, n))) return;
   release();
 }

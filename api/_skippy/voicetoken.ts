@@ -82,6 +82,12 @@ export interface KeptToken {
   ended?: boolean;
   /** The hand-offs to the Kernel this call made (#479, turn ids in the `kernel` room's log). */
   handoffs?: string[];
+  /**
+   * The passkey whose signed-in Desk session started the call (#926): the call's grant, held here on the server only,
+   * so its asks run as that session (its pace, its tools, its taps) for the call's life and no longer. Never in the
+   * browser beyond the token itself, never in a URL.
+   */
+  passkey?: string;
 }
 
 /** One agent or tool on ElevenLabs, with the signature of the settings it was last given. */
@@ -100,6 +106,8 @@ export interface CrewState {
 }
 
 const ID = /^[A-Za-z0-9_-]{6,80}$/;
+/** A passkey's id, as the Desk's auth store keeps it (base64url). */
+const PASSKEY = /^[A-Za-z0-9_-]{8,200}$/;
 const HASH = /^[0-9a-f]{64}$/;
 
 function things(raw: unknown): Record<string, KeptThing> {
@@ -120,7 +128,8 @@ export function cleanCrew(raw: unknown, now: number): CrewState {
     .filter((t) => typeof t.hash === "string" && HASH.test(t.hash) && typeof t.until === "number" && Number.isFinite(t.until) && t.until > now)
     .map((t): KeptToken => {
       const handoffs = (Array.isArray(t.handoffs) ? t.handoffs : []).filter((h): h is string => typeof h === "string" && /^[0-9a-f]{16}$/.test(h)).slice(0, MAX_HANDOFFS);
-      return { hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }), ...(handoffs.length && { handoffs }) };
+      const passkey = typeof t.passkey === "string" && PASSKEY.test(t.passkey) ? t.passkey : "";
+      return { hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }), ...(handoffs.length && { handoffs }), ...(passkey && { passkey }) };
     })
     .slice(-KEEP);
   return { tokens, tools: things(r.tools), agents: things(r.agents) };
@@ -165,10 +174,10 @@ export class MemoryCrewStore implements CrewStore {
 }
 
 /** Mint a call's tool token and keep its hash with the call. Null (no lookups this call) when it can't be kept. */
-export async function issueToolToken(store: CrewStore, deskKey: string, conversation: string, until: number, now: number): Promise<string | null> {
+export async function issueToolToken(store: CrewStore, deskKey: string, conversation: string, until: number, now: number, passkey?: string): Promise<string | null> {
   const token = mintToolToken(deskKey, until);
   if (!token) return null;
-  const kept: KeptToken = { hash: tokenHash(token), conversation: ID.test(conversation) ? conversation : "", until };
+  const kept: KeptToken = { hash: tokenHash(token), conversation: ID.test(conversation) ? conversation : "", until, ...(passkey && PASSKEY.test(passkey) && { passkey }) };
   try {
     await store.update(now, (s) => ({ ...s, tokens: [...s.tokens, kept] }));
   } catch {
@@ -183,7 +192,7 @@ export async function endToolToken(store: CrewStore, conversation: string, now: 
   await store.update(now, (s) => ({ ...s, tokens: s.tokens.map((t) => (t.conversation === conversation ? { ...t, ended: true } : t)) })).catch(() => undefined);
 }
 
-export type TokenCheck = { ok: true; conversation: string; hash: string; handoffs: string[] } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
+export type TokenCheck = { ok: true; conversation: string; hash: string; handoffs: string[]; passkey?: string } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
 
 /** The full check the lookups run: signed, unexpired, kept and not ended. */
 export async function checkToolToken(token: string | null | undefined, deskKey: string, store: CrewStore | null, now: number): Promise<TokenCheck> {
@@ -203,7 +212,7 @@ export async function checkToolToken(token: string | null | undefined, deskKey: 
   if (!kept) return { ok: false, why: "unknown" };
   if (kept.ended) return { ok: false, why: "ended" };
   if (kept.until <= now) return { ok: false, why: "expired" };
-  return { ok: true, conversation: kept.conversation, hash: h, handoffs: kept.handoffs ?? [] };
+  return { ok: true, conversation: kept.conversation, hash: h, handoffs: kept.handoffs ?? [], ...(kept.passkey && { passkey: kept.passkey }) };
 }
 
 /** Notes a hand-off this call made, for check_answers and the Desk's chat; false once the call has made its share. */

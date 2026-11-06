@@ -32,7 +32,7 @@ import { ADVISE_MODEL, PRICES, SORT_MODEL, costFor, type EmailModel, type Usage 
 import { privateParts } from "../_privacy.js";
 import { plainLine } from "../foundry.js";
 import { KERNEL_LEDGER_PATH as LEDGER_PATH, SEARCH_USD, SKIPPY_BUDGET_USD, chatMonth, skippyBudget, type ChatLedger } from "./budget.js";
-import { LOG_ROOMS, type LoggedTurn, type RoomLog } from "./log.js";
+import { CALL_HARD, LOG_ROOMS, isCallAsk, type LoggedTurn, type RoomLog } from "./log.js";
 
 /* ── Switches and budget ── */
 
@@ -259,6 +259,11 @@ export interface AgentDeps {
   fileIssue: (title: string, body: string) => Promise<number | null>;
   /** Keeps an answer on the turn (api/skippy.ts keepAnswer); whether it was kept. */
   keep: (a: { id: string; text: string; final: boolean }) => Promise<boolean>;
+  /**
+   * Skippy's one brain, deeper (#926, api/skippy.ts deepAnswer): a Talk call's ask is answered by it, with every room's
+   * tools and a small context, instead of by this responder. Left out, calls' asks run here as before.
+   */
+  deep?: (question: string, depth: "talk" | "hard") => Promise<string>;
 }
 
 export type Outcome =
@@ -321,6 +326,14 @@ export async function respond(id: string, deps: AgentDeps): Promise<Outcome> {
     if (turn.followUp) return idle("taken");
     taken.add(id);
     if (taken.size > 500) taken.delete(taken.values().next().value as string);
+
+    // A Talk call's ask (#926): the one brain's deeper run answers it, final, the moment it has it. A failure says what
+    // failed; nothing is left "pondering" on a live call.
+    if (deps.deep && isCallAsk(turn.model)) {
+      const said = await deps.deep(turn.question, turn.model === CALL_HARD ? "hard" : "talk").catch(() => "My deeper mind's model didn't answer just now; ask again in a minute.");
+      const text = fitAnswer(said) || "That answer had a money figure or something private in it, so it stays on the Desk.";
+      return (await deps.keep({ id, text, final: true })) ? { state: "answered", usd: 0 } : idle("unkept");
+    }
 
     // A plain judgment call: the pondering line, no model, no cost.
     if (judgment(turn.question)) {

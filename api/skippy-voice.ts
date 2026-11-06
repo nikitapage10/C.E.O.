@@ -304,7 +304,8 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
     [tool] = await t.time(
       "keep",
       Promise.all([
-        deps.crew && minted.conversation ? issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_MAX_SECS * 1000 + TOOL_SLACK_MS, deps.now) : Promise.resolve(null),
+        // Bound to this passkey (#926): the call's asks run as the signed-in session that started it.
+        deps.crew && minted.conversation ? issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_MAX_SECS * 1000 + TOOL_SLACK_MS, deps.now, passkey) : Promise.resolve(null),
         p ? voice.update((s) => ({ ...s, pending: [...s.pending.filter((x) => x.id !== p.id), p] })) : Promise.resolve(null),
       ]),
     );

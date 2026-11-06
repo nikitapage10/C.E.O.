@@ -4,8 +4,10 @@ const DAY = { type: "string", enum: ["mon", "tue", "wed", "thu", "fri", "sat", "
 
 /**
  * The Haven's tools for Skippy (#646): the Kitchen list, the meal planner's edits (#678: the same closed set of edits
- * the Kitchen's buttons make, api/_haven/mealShape.ts; Talk to edit drives these), and the home devices through their own rails (the feed cap,
- * the litter gate, named rooms; api/_haven/devices/home.ts). A device acts only after Nikita's Yes tap. Data only.
+ * the Kitchen's buttons make, api/_haven/mealShape.ts; Talk to edit drives these), the home's read (#926: the thermostat
+ * first, api/_haven/devices/homeread.ts) and the home devices through their own rails (the feed cap, the litter gate,
+ * named rooms; api/_haven/devices/home.ts). Typed, a device acts only after Nikita's Yes tap; spoken, when his own words
+ * asked for it (api/_skippy/agent/tools.ts). Data only.
  */
 export const TOOLS: readonly RoomTool[] = [
   {
@@ -136,17 +138,29 @@ export const TOOLS: readonly RoomTool[] = [
     effect: "write",
   },
   {
+    name: "home_status",
+    room: "haven",
+    title: "Read the home",
+    description:
+      "The home right now: the thermostat's inside temperature, humidity, mode and set point (the apartment's temperature), then the vacuum, the dry and wet food feeders (the lid, the bowl in front, the next meal), the fountain and the Litter-Robot. about \"climate\" for the temperature alone, \"wet-feeder\" for what's in the wet food feeder and its schedule. Instant: the last good reading answers when the devices' clouds are slow.",
+    input: { type: "object", properties: { about: { type: "string", enum: ["all", "climate", "wet-feeder"] } }, required: [], additionalProperties: false },
+    effect: "read",
+  },
+  {
     name: "home_device",
     room: "haven",
     title: "Run a home device",
     description:
-      "Ask a home device to do something: vacuum.start, vacuum.rooms (with rooms by name), vacuum.pause, vacuum.dock, feeder.feed (portions, under the daily cap), wet.open ('open the wet food tray': opens the bowl in front for two hours, then it closes itself; asked again while open, the two hours start over; a scheduled meal inside the window takes over the closing), wet.rotate, wet.close (closes it now and cancels the auto-close), litter.clean. It runs only after Nikita taps Yes, through the device's own rails; tell Nikita the time it closes from the reply.",
+      "Ask a home device to do something: vacuum.start, vacuum.rooms (with rooms by name), vacuum.pause, vacuum.dock, feeder.feed (portions, under the daily cap), wet.open ('open the wet food tray': opens the bowl in front for two hours, then it closes itself; asked again while open, the two hours start over; a scheduled meal inside the window takes over the closing), wet.rotate, wet.close (closes it now and cancels the auto-close), litter.clean. Typed on the Desk it runs after Nikita taps Yes; spoken (a room's mic, hold Space, the phone, a call) it runs when his own words asked for that device, as the phone always has. Either way the device's own rails apply (the feed cap, the litter gate). Tell Nikita the time it closes from the reply.",
     input: {
       type: "object",
       properties: {
         action: { type: "string", enum: ["vacuum.start", "vacuum.rooms", "vacuum.pause", "vacuum.dock", "feeder.feed", "wet.open", "wet.rotate", "wet.close", "litter.clean"] },
         rooms: { type: "array", items: { type: "string", maxLength: 40 }, maxItems: 8, description: "For vacuum.rooms: the rooms by name." },
         portions: { type: "integer", minimum: 1, maximum: 4, description: "For feeder.feed: dry portions." },
+        plate: { type: "integer", minimum: 1, maximum: 3, description: "For wet.rotate: the bowl to bring to the front." },
+        suction: { type: "string", enum: ["quiet", "max"], description: "For the vacuum: quiet or max suction, only when he says." },
+        water: { type: "string", enum: ["off", "on"], description: "For the vacuum: mop off (vacuum only) or on, only when he says." },
       },
       required: ["action"],
       additionalProperties: false,

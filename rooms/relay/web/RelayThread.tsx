@@ -1048,6 +1048,23 @@ export function RelayThread({ now }: { now: number }) {
     pagesRef.current.scrollTo({ top: el.offsetTop, behavior: "instant" });
   }, [t.order, steerTo]);
 
+  // Entries arriving or leaving (a line that loads after the other, a refresh, #950) keep the entry in focus on the
+  // page. Scroll snapping otherwise holds on to whichever entry it last sat on: a mail that loaded first stayed on
+  // screen once the texts above it came in, and took the focus from them. Only when the focus is off screen, and
+  // never during a scroll of our own.
+  useLayoutEffect(() => {
+    const root = pagesRef.current;
+    const key = tRef.current.ex?.key;
+    const el = entryOf(key);
+    if (!root || !el) return;
+    const going = steer.current;
+    if (going && performance.now() < going.until) return;
+    if (Math.abs(root.scrollTop - el.offsetTop) < Math.max(el.offsetHeight, root.clientHeight) * 0.5) return;
+    steerTo(key ?? null);
+    root.scrollTo({ top: el.offsetTop, behavior: "instant" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keys, steerTo]);
+
   /** Puts an exchange in focus and scrolls the codex to it. */
   const goTo = useCallback(
     (key: string) => {

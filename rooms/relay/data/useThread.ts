@@ -205,7 +205,21 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
     [all, gone, declined, saidHere, revealed, doneOnSite],
   );
   const ex = useMemo(() => (queue ? (queue.find((x) => x.key === current) ?? queue.find((x) => !x.settled) ?? queue[0] ?? null) : null), [queue, current]);
-  useEffect(() => setCurrent(ex?.key ?? null), [ex?.key]);
+  // The card in focus is kept as the list refreshes (#950: Relay refreshes by itself). It is pinned only once both lines
+  // have answered, so a text that loads a moment after the mail doesn't lose the first place to it.
+  const emailLoad = useEmail((s) => s.load);
+  const textsLoad = useTexts((s) => s.load);
+  const linesIn = emailLoad !== "idle" && (textsLoad === "off" || textsLoad === "failed" || (textsLoad === "live" && (!signedIn || !!textsView)));
+  useEffect(() => {
+    if (linesIn) setCurrent(ex?.key ?? null);
+  }, [ex?.key, linesIn]);
+  // The codex's own picks (its scroll settling on whatever entry shows) wait for the same: before the texts are in, the
+  // mail alone fills the page and would take the focus from the text that belongs first.
+  const linesInRef = useRef(linesIn);
+  linesInRef.current = linesIn;
+  const pick = useCallback((key: string | null) => {
+    if (linesInRef.current) setCurrent(key);
+  }, []);
 
   const unlocked = !!textsView?.unlockedUntil && textsView.unlockedUntil > now;
   const phase: Phase = !ex ? "empty" : pending === ex.key ? "undo" : drafting?.key === ex.key ? "drafting" : ex.draft ? "ask" : "incoming";
@@ -664,5 +678,5 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const groupsWaiting = signedIn && textsView?.paired ? textsView.items.filter((i) => i.group && i.state !== "settled").length : 0;
   const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere, groupsWaiting);
   const clearFill = useCallback(() => setFill(null), []);
-  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick: setCurrent, drafting, pending, sentList, reading, fill, clearFill, takenBack, clearTakenBack: useCallback(() => setTakenBack(null), []) };
+  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick, drafting, pending, sentList, reading, fill, clearFill, takenBack, clearTakenBack: useCallback(() => setTakenBack(null), []) };
 }

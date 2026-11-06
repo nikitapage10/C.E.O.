@@ -199,6 +199,7 @@ export const useTexts = create<TextsStore>((set, get) => ({
   busy: null,
   error: null,
   refresh: async () => {
+    lastRead = Date.now();
     const auth = useDeskAuth.getState().auth.status;
     try {
       if (auth === "in") {
@@ -335,6 +336,8 @@ let started = false;
 /** How many Relay pages are on screen now (#950): the Relay page reads at POLL_MS, the rest of the Desk less often. */
 let active = 0;
 let ticks = 0;
+/** When the last read started, so showing Relay right after one doesn't read twice. */
+let lastRead = 0;
 /** Away from Relay (the Lattice's counts, Today, Systems) the read runs every this many ticks. */
 const IDLE_TICKS = 3;
 
@@ -347,7 +350,7 @@ const IDLE_TICKS = 3;
 export function textsShown(on: boolean): () => void {
   if (on) {
     active++;
-    if (started && document.visibilityState === "visible") void useTexts.getState().refresh();
+    if (started && document.visibilityState === "visible" && Date.now() - lastRead > 3_000) void useTexts.getState().refresh();
   }
   return () => {
     if (on) active = Math.max(0, active - 1);

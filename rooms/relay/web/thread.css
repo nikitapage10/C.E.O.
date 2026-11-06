@@ -126,6 +126,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   scroll-snap-type: y proximity;
+  /* #950: the code steers this scroll itself; the browser keeping an entry in place as a later line loads above it
+     moved the focus to that entry (the mail, when the texts came a moment later). */
+  overflow-anchor: none;
   scrollbar-width: none;
   outline: none;
 }

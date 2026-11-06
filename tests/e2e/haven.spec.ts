@@ -364,6 +364,11 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   await expect(climate.getByRole("status")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Climate" })).toHaveCount(0);
+  // The hold below is timed, so first let the kept rooms behind the Haven finish warming (#934, #958): the Senate's
+  // chamber builds while hidden, and on the software renderer that holds the main thread for seconds, which would land
+  // the three-second send late (#967). Relay is the last one kept.
+  await expect(page.locator('main.desk__main[data-room="relay"]')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.locator(".rt-stage")).toHaveAttribute("data-gl", /^(on|off)$/, { timeout: 60_000 });
   // The arrow keys turn it a degree at a time, and it sends once, through the control's own action.
   await dial.focus();
   await page.keyboard.press("ArrowUp");

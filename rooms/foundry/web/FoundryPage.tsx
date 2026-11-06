@@ -153,6 +153,7 @@ export function FoundryPage({ now }: { now: number }) {
         <div className="fo-deck-tabs" role="tablist" aria-label="Under the furnace" onKeyDown={tabKeys}>
           {DECK.map((d) => (
             <button key={d.id} id={`fo-tab-${d.id}`} type="button" role="tab" aria-selected={tab === d.id} aria-controls={`fo-panel-${d.id}`} tabIndex={tab === d.id ? 0 : -1} className={`fo-deck-tab${tab === d.id ? " is-on" : ""}`} onClick={() => setTab(d.id)}>
+              <i className="fo-deck-chain" aria-hidden="true" />
               <span>{d.label}</span>
               <b className="fl-num">{counts[d.id]}</b>
             </button>
@@ -824,12 +825,12 @@ function Changelog({ changes, now, remarks, setup }: { changes: Change[]; now: n
               <b>{d.label}</b>
               <span>{d.items.length} shipped</span>
             </p>
-            {d.items.map((c) => {
+            {d.items.map((c, k) => {
               const who = c.by ?? crewFor({ kind: c.kind, rung: null });
               // The builder's own word on it, from the living Lattice's hourly step (docs/WORLD.md).
               const said = c.issue ? remarks.get(c.issue.number) : undefined;
               return (
-                <div key={c.key} className={`wv-log-i cl-entry cl-origin--${c.origin}${c.pictures?.length ? " cl-entry--pics" : ""}${c.undo ? ` cl-entry--undo-${c.undo}` : ""}`} data-c={d.label === "Today" ? "ok" : undefined}>
+                <div key={c.key} className={`wv-log-i cl-entry cl-origin--${c.origin}${c.pictures?.length ? " cl-entry--pics" : ""}${c.undo ? ` cl-entry--undo-${c.undo}` : ""}`} data-c={d.label === "Today" ? "ok" : undefined} data-who={who} style={{ "--i": Math.min(k, 12) } as React.CSSProperties}>
                   {c.pictures?.length ? <ChangePictures pictures={c.pictures} title={ideaTitle(c.title)} /> : null}
                   <b>
                     <a className="cl-entry__title" href={c.issue?.url ?? c.landed?.url} target="_blank" rel="noreferrer">

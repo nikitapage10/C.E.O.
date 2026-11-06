@@ -1,82 +1,187 @@
-/* ---------- the Workshop: the print farm (#827), in the Desk's gold ---------- */
-.desk .rm-workshop{--ws-gold:#e3c98d;--ws-brass:#c9a85c;--ws-line:rgba(201,168,92,.22);--ws-bg:#07080d}
-.desk .ws-farm{display:grid;grid-template-columns:minmax(0,1fr) 320px;border:1px solid var(--ws-line);border-radius:6px;overflow:hidden;background:var(--ws-bg)}
-.desk .ws-stage{position:relative;isolation:isolate;scroll-margin-top:150px;min-height:540px;overflow:hidden;background:radial-gradient(ellipse at 50% 55%,#11121a 0%,#07080d 70%)}
-.desk .ws-cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
-.desk .ws-nogl{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);margin:0;text-align:center;font-size:13px;color:var(--wv-mute)}
+/* ---------- the Workshop: the print farm (#827), filling the screen since #932, in the Desk's gold ---------- */
+.desk .rm-workshop{--ws-gold:#e3c98d;--ws-brass:#c9a85c;--ws-hi:#fff0c8;--ws-line:rgba(201,168,92,.24);--ws-bg:#07080d;--ws-panel:linear-gradient(180deg,rgba(20,18,14,.95),rgba(9,9,10,.95))}
+.desk .wv-page.ws-page,.desk .desk__main>.wv-page.ws-page,.desk .desk__main>div>.wv-page.ws-page{max-width:none;margin:0;padding:0}
 
-/* The tags over the printers and the turntable: shown over the farm only. */
-.desk .ws-tags{position:absolute;inset:0;pointer-events:none}
-.desk .ws-tag{position:absolute;left:0;top:0;display:flex;gap:6px;align-items:baseline;padding:4px 9px;border:1px solid var(--ws-line);border-radius:999px;background:rgba(8,9,14,.72);color:var(--wv-soft);font:500 11px/1.2 var(--wv-mono);letter-spacing:.04em;white-space:nowrap;cursor:pointer;pointer-events:auto;opacity:0;transition:opacity .3s ease;will-change:transform}
-.desk .ws-tag b{font-weight:500;color:var(--ws-gold)}
-.desk .ws-tag[data-state=open]{color:var(--wv-mute)}
-.desk .ws-tag[data-state=open] b{color:color-mix(in srgb,var(--ws-gold) 60%,var(--wv-mute))}
-.desk .ws-farm[data-view=farm][data-gl=on] .ws-tag[data-on="1"]{opacity:1}
-.desk .ws-farm:not([data-view=farm]) .ws-tag{pointer-events:none}
-.desk .ws-tag:hover{border-color:var(--ws-brass);color:var(--wv-ink)}
+/* ---------- the hall: the farm, the whole screen under the bar ---------- */
+.desk .ws-hall{position:relative;isolation:isolate;overflow:clip;height:max(640px,calc(100svh - 64px));background:var(--ws-bg);color:var(--wv-ink)}
+.desk .ws-stage{position:absolute;inset:0;z-index:0}
+.desk .ws-cv{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity 1s ease;touch-action:pan-y}
+.desk .ws-hall[data-gl=on] .ws-cv{opacity:1}
+.desk .ws-vig{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(100deg,rgba(7,8,13,.82) 0,rgba(7,8,13,.35) 28%,rgba(7,8,13,0) 46%),linear-gradient(0deg,rgba(7,8,13,.85) 0,rgba(7,8,13,0) 90px)}
+.desk .ws-nogl{position:absolute;z-index:3;left:50%;bottom:76px;transform:translateX(-50%);width:min(560px,calc(100% - 32px));margin:0;text-align:center;font-size:13px;color:var(--wv-mute)}
 
-/* Where to look: the farm, the turntable, and the chamber you're in. */
-.desk .ws-views{position:absolute;left:14px;top:14px;display:flex;flex-wrap:wrap;gap:6px;z-index:2}
-.desk .ws-views button{padding:6px 11px;border:1px solid var(--ws-line);border-radius:999px;background:rgba(8,9,14,.72);color:var(--wv-soft);font:500 11.5px/1.2 var(--wv-mono);letter-spacing:.04em;cursor:pointer}
-.desk .ws-views button[aria-pressed=true]{border-color:var(--ws-brass);color:var(--ws-gold);background:rgba(201,168,92,.1)}
-.desk .ws-views button:focus-visible,.desk .ws-panel button:focus-visible,.desk .ws-tag:focus-visible{outline:1px solid var(--ws-gold);outline-offset:3px}
+/* The flat bench: the farm before the 3D, or without WebGL. */
+.desk .ws-flat{position:absolute;inset:0;z-index:0;transition:opacity 1s ease;background:radial-gradient(50% 36% at 50% 62%,rgba(255,226,176,.08),transparent 70%),repeating-linear-gradient(90deg,rgba(201,168,92,.045) 0 1px,transparent 1px 44px),repeating-linear-gradient(0deg,rgba(201,168,92,.03) 0 1px,transparent 1px 44px),var(--ws-bg)}
+.desk .ws-hall[data-gl=on] .ws-flat{opacity:0}
+.desk .ws-flat i{position:absolute;display:block}
+.desk .ws-flat-bench{left:12%;right:12%;top:62%;height:10px;border-top:1px solid var(--ws-brass);background:linear-gradient(180deg,#2a2016,#120e0a)}
+.desk .ws-flat-bay{top:calc(62% - 120px);width:13%;height:118px;transform:translateX(-50%);border:1px solid rgba(201,168,92,.55);background:linear-gradient(180deg,rgba(20,20,26,.9),rgba(10,10,14,.9))}
+.desk .ws-flat-bay[data-state=open]{border-style:dashed;border-color:rgba(201,168,92,.3);background:transparent}
+.desk .ws-flat-table{left:50%;top:76%;width:120px;height:30px;transform:translateX(-50%);border:1px solid var(--ws-brass);border-radius:50%;background:radial-gradient(closest-side,rgba(201,168,92,.2),transparent)}
 
-/* The panel beside the stage: what's in view, in words. */
-.desk .ws-panel{display:flex;flex-direction:column;gap:10px;padding:22px 20px;border-left:1px solid var(--ws-line);background:linear-gradient(180deg,rgba(201,168,92,.04),transparent 40%)}
-.desk .ws-panel .wv-eyb{margin:0;color:var(--ws-brass)}
-.desk .ws-panel .wv-h3{color:var(--wv-ink)}
+/* The head: where the farm stands, top left; its numbers under it. */
+.desk .ws-head{position:absolute;z-index:3;left:clamp(16px,3.4vw,52px);right:clamp(16px,3.4vw,52px);top:clamp(20px,4vh,44px);pointer-events:none}
+.desk .ws-head>:not(.ws-stats){max-width:min(560px,42%)}
+.desk .ws-head>*{pointer-events:auto}
+.desk .ws-eyb{display:flex;align-items:center;gap:10px;margin:0;font-family:var(--wv-mono);font-size:11px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--ws-gold)}
+.desk .ws-eyb i{width:28px;height:1px;background:var(--ws-brass);opacity:.6}
+.desk .ws-h1.desk__title{margin:10px 0 0;font-family:var(--wv-serif);font-weight:400;font-size:clamp(36px,3.6vw,56px);line-height:1;letter-spacing:-.01em;color:var(--wv-ink);text-wrap:balance}
+.desk .ws-h1 em{font-style:italic;color:var(--ws-gold);text-shadow:0 0 36px rgba(201,168,92,.3)}
+.desk .ws-sub{margin:12px 0 0;max-width:46ch;font-size:14.5px;line-height:1.5;color:var(--wv-soft);text-wrap:pretty;text-shadow:0 1px 10px #000}
+.desk .ws-head>.ws-stats{position:absolute;right:0;top:4px;display:flex;margin:0}
+.desk .ws-stats>div{display:grid;gap:4px;padding:0 18px;border-left:1px solid var(--ws-line);text-align:right}
+.desk .ws-stats>div:first-child{border-left:0}
+.desk .ws-stats dt{font-family:var(--wv-mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--wv-faint);white-space:nowrap}
+.desk .ws-stats dd{margin:0;font-family:var(--wv-serif);font-size:32px;line-height:1;color:var(--wv-ink);font-variant-numeric:lining-nums tabular-nums}
+.desk .ws-stats dd small{font-size:.55em;color:var(--wv-faint)}
+.desk .ws-stats [data-ok="1"] dd{color:var(--ws-gold);text-shadow:0 0 18px rgba(232,199,122,.35)}
+
+/* The job plates: one riding each printer, one on the turntable. Brass-cornered, like the chamber's own badge. */
+.desk .ws-plates{list-style:none;margin:0;padding:0}
+.desk .ws-plate{position:absolute;z-index:4;left:var(--fx);top:var(--fy);transform:translate(-50%,-100%);display:grid;gap:4px;width:max-content;max-width:236px;padding:8px 12px 9px;border:1px solid rgba(201,168,92,.36);border-radius:2px;background:var(--ws-panel);color:var(--wv-ink);font:inherit;text-align:left;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.5);transition:border-color .2s,opacity .3s,box-shadow .2s}
+.desk .ws-plate::before{content:"";position:absolute;inset:-3px;pointer-events:none;background:linear-gradient(var(--ws-brass),var(--ws-brass)) 0 0/8px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 0 0/1px 8px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 0/8px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 0/1px 8px,linear-gradient(var(--ws-brass),var(--ws-brass)) 0 100%/8px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 0 100%/1px 8px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 100%/8px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 100%/1px 8px;background-repeat:no-repeat;opacity:.85}
+.desk .ws-hall[data-gl=on] .ws-plate{left:var(--gx,-400px);top:var(--gy,-400px);transform:translate(-50%,calc(-100% - 14px))}
+.desk .ws-hall[data-gl=on] .ws-plate::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:var(--tether,14px);background:linear-gradient(var(--ws-brass),rgba(201,168,92,0))}
+.desk .ws-hall[data-gl=on] .ws-plate[data-on="0"],.desk .ws-hall:not([data-view=farm]) .ws-plate{opacity:0;pointer-events:none}
+.desk .ws-plate:hover,.desk .ws-plate:focus-visible{border-color:var(--ws-gold);box-shadow:0 0 24px rgba(232,199,122,.16),0 8px 22px rgba(0,0,0,.5);outline:none;z-index:5}
+.desk .ws-plate-k{display:flex;align-items:center;gap:7px;font-family:var(--wv-mono);font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ws-gold);white-space:nowrap}
+.desk .ws-plate-k i{width:7px;height:7px;flex:none;transform:rotate(45deg);background:var(--ws-gold);box-shadow:0 0 8px var(--ws-gold)}
+.desk .ws-plate-k span{margin-left:auto;padding-left:10px;font-weight:500;letter-spacing:.12em;color:var(--wv-mute)}
+.desk .ws-plate[data-state=waiting] .ws-plate-k i{background:transparent;border:1px solid var(--ws-gold);box-shadow:none;animation:ws-blink 2.4s ease-in-out infinite}
+.desk .ws-plate strong{font-family:var(--wv-serif);font-weight:400;font-size:17px;line-height:1.1;color:var(--wv-ink)}
+.desk .ws-plate small{font-size:11.5px;line-height:1.35;color:var(--wv-mute)}
+.desk .ws-plate-job{font-family:var(--wv-mono);font-size:11px;color:var(--wv-soft)}
+.desk .ws-plate-job span{margin-right:4px;color:var(--wv-faint);text-transform:uppercase;letter-spacing:.12em;font-size:9.5px}
+.desk .ws-plate-job span+span{margin-left:10px}
+.desk .ws-plate-bar{display:block;height:3px;border-radius:2px;background:repeating-linear-gradient(90deg,rgba(201,168,92,.22) 0 6px,transparent 6px 8px)}
+.desk .ws-plate-bar i{display:block;height:100%;background:var(--ws-gold)}
+.desk .ws-plate.is-open{gap:2px;padding:5px 10px 6px;border-style:dashed;border-color:rgba(201,168,92,.28);background:rgba(8,9,13,.72);box-shadow:none}
+.desk .ws-plate.is-open::before{opacity:.3}
+.desk .ws-plate.is-open .ws-plate-k{color:color-mix(in srgb,var(--ws-gold) 60%,var(--wv-mute))}
+.desk .ws-plate.is-open .ws-plate-k i{background:transparent;border:1px dashed var(--ws-brass);box-shadow:none}
+.desk .ws-plate.is-open small{max-width:150px}
+.desk .ws-plate-checks{display:flex;align-items:center;gap:5px;font-family:var(--wv-mono);font-size:11px;color:var(--ws-gold)}
+.desk .ws-plate-checks i{width:14px;height:4px;border-radius:1px;background:var(--ws-gold);box-shadow:0 0 6px rgba(232,199,122,.5)}
+.desk .ws-plate-checks i[data-ok="0"]{background:#e0866e;box-shadow:none}
+.desk .ws-plate-checks span{margin-left:6px;white-space:nowrap}
+@keyframes ws-blink{50%{opacity:.35}}
+
+/* Where to look, along the foot of the hall: the farm, the turntable, each bay; and the keys. */
+.desk .ws-views{position:absolute;z-index:4;left:clamp(16px,3.4vw,52px);bottom:22px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;max-width:calc(100% - 200px)}
+.desk .ws-views button{height:32px;padding:0 13px;border:1px solid var(--ws-line);border-radius:2px;background:rgba(8,9,13,.8);color:var(--wv-soft);font:500 11.5px/1 var(--wv-mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;backdrop-filter:blur(6px);transition:border-color .2s,color .2s}
+.desk .ws-views .ws-views-bay{width:32px;padding:0}
+.desk .ws-views button[aria-pressed=true]{border-color:var(--ws-gold);color:var(--ws-hi);background:linear-gradient(180deg,rgba(201,168,92,.22),rgba(201,168,92,.06))}
+.desk .ws-views button:hover{border-color:var(--ws-brass);color:var(--ws-gold)}
+.desk .ws-keys{margin-left:8px;font-family:var(--wv-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .ws-views button:focus-visible,.desk .ws-card button:focus-visible,.desk .ws-deck-tab:focus-visible{outline:1px solid var(--ws-gold);outline-offset:3px}
+
+/* A chamber's or the turntable's card: beside the printer on a wide screen, a sheet at the foot on a phone. */
+.desk .ws-card{position:absolute;z-index:5;right:clamp(16px,3vw,44px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100% - 32px));max-height:calc(100% - 120px);overflow:auto;padding:18px 20px 20px;border:1px solid rgba(201,168,92,.4);border-top:2px solid var(--ws-gold);border-radius:2px;background:linear-gradient(180deg,#141109,#09090a);box-shadow:0 18px 50px rgba(0,0,0,.7);animation:ws-in .25s ease both}
+.desk .ws-card-k{margin:0;font-family:var(--wv-mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ws-brass)}
+.desk .ws-card-h{margin:0;font-family:var(--wv-serif);font-weight:400;font-size:26px;line-height:1.05;color:var(--wv-ink)}
 .desk .ws-note{margin:0;font-size:13px;line-height:1.5;color:var(--wv-soft)}
 .desk .ws-quiet{color:var(--wv-mute);font-size:12.5px}
-.desk .ws-bays,.desk .ws-checks{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
-.desk .ws-bays button{display:grid;grid-template-columns:28px minmax(0,1fr);gap:1px 10px;width:100%;padding:9px 10px;border:1px solid var(--ws-line);border-radius:4px;background:transparent;color:inherit;text-align:left;cursor:pointer}
-.desk .ws-bays button:hover{border-color:var(--ws-brass);background:rgba(201,168,92,.06)}
-.desk .ws-bayn{grid-row:1/3;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1px solid var(--ws-brass);font:500 12px/1 var(--wv-mono);color:var(--ws-gold)}
-.desk .ws-bays li[data-state=open] .ws-bayn{border-style:dashed;color:var(--wv-mute);border-color:var(--ws-line)}
-.desk .ws-bays b{font-weight:500;font-size:13.5px;color:var(--wv-ink)}
-.desk .ws-bays em{font-style:normal;font-size:12px;color:var(--wv-mute)}
-.desk .ws-checks li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:1px 8px;padding:8px 0;border-bottom:1px solid rgba(201,168,92,.12)}
+.desk .ws-checks{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column}
+.desk .ws-checks li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:1px 8px;padding:8px 0;border-bottom:1px solid rgba(201,168,92,.14)}
 .desk .ws-checks li>span{grid-row:1/3;color:var(--ws-gold);font-size:13px}
 .desk .ws-checks li[data-ok="0"]>span{color:#e0866e}
 .desk .ws-checks b{font-weight:500;font-size:13.5px;color:var(--wv-ink)}
 .desk .ws-checks em{font-style:normal;font:12px/1.4 var(--wv-mono);color:var(--wv-mute)}
-.desk .ws-chamber{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:4px 0 0}
-.desk .ws-chamber div{padding:8px 9px;border:1px solid var(--ws-line);border-radius:4px}
-.desk .ws-chamber dt{font:500 10px/1.2 var(--wv-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--wv-mute)}
+.desk .ws-chamber{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:2px 0 0}
+.desk .ws-chamber div{padding:8px 9px;border:1px solid var(--ws-line);border-radius:2px;background:rgba(201,168,92,.04)}
+.desk .ws-chamber dt{font:500 9.5px/1.2 var(--wv-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--wv-faint)}
 .desk .ws-chamber dd{margin:3px 0 0;font-size:12.5px;color:var(--wv-soft)}
-.desk .ws-hop{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:8px}
-.desk .ws-back{align-self:flex-start;padding:6px 11px;border:1px solid var(--ws-line);border-radius:999px;background:transparent;color:var(--wv-soft);font:500 11.5px/1.2 var(--wv-mono);cursor:pointer}
-.desk .ws-back:hover{border-color:var(--ws-brass);color:var(--ws-gold)}
+.desk .ws-back{align-self:flex-start;margin-top:4px;height:32px;padding:0 13px;border:1px solid var(--ws-brass);border-radius:2px;background:rgba(20,16,10,.7);color:var(--ws-gold);font:500 11.5px/1 var(--wv-mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.desk .ws-back:hover{border-color:var(--ws-gold);color:var(--ws-hi)}
+@keyframes ws-in{from{opacity:0}to{opacity:1}}
 
-/* The line: six stations, one thread. */
-.desk .ws-line{margin-top:40px}
-.desk .ws-line ol{position:relative;list-style:none;margin:14px 0 0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
-.desk .ws-line ol::before{content:"";position:absolute;left:19px;right:19px;top:19px;border-top:1px dashed var(--ws-line)}
-.desk .ws-line li{position:relative;display:flex;flex-direction:column;gap:3px;padding:0 4px}
-.desk .ws-node{display:grid;place-items:center;width:38px;height:38px;margin-bottom:10px;border-radius:50%;border:1px dashed rgba(201,168,92,.5);background:var(--wv-bg,#0b0c11);font-family:var(--wv-mono);font-size:12px;color:var(--ws-gold)}
-.desk .ws-line b{font-family:var(--wv-serif);font-weight:400;font-size:20px;color:var(--wv-ink)}
-.desk .ws-line span:not(.ws-node){font-size:12.5px;line-height:1.4;color:var(--wv-soft)}
-.desk .ws-line em{margin-top:4px;font-style:normal;font-family:var(--wv-mono);font-size:11px;color:color-mix(in srgb,var(--ws-brass) 70%,var(--wv-mute))}
-.desk .ws-waits{margin-top:40px}
-.desk .ws-waits li b{font-family:var(--wv-mono);font-weight:500;font-size:13px;letter-spacing:.02em}
-.desk .ws-waits li em{font-family:var(--wv-mono);letter-spacing:.06em}
+/* ---------- under the farm: one console on a build plate ---------- */
+.desk .ws-deck{position:relative;isolation:isolate;padding:0 clamp(16px,3.4vw,52px) 96px;background:linear-gradient(180deg,#07080d 0,#0a0a0c 140px,#08080a 100%);border-top:1px solid rgba(201,168,92,.35)}
+.desk .ws-deck::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;z-index:1;background:linear-gradient(90deg,transparent,rgba(232,199,122,.9) 50%,transparent);box-shadow:0 0 18px rgba(232,199,122,.35)}
+.desk .ws-deck-sig{position:absolute;inset:0;z-index:0;width:100%;height:100%;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 0,#000 75%,transparent);mask-image:linear-gradient(180deg,#000 0,#000 75%,transparent)}
+.desk .ws-deck>:not(.ws-deck-sig){position:relative;z-index:1}
+.desk .ws-deck-top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin:0 0 22px;border-bottom:1px solid rgba(201,168,92,.22)}
+.desk .ws-deck-tabs{display:flex;overflow-x:auto;scrollbar-width:none;margin-left:-22px}
+.desk .ws-deck-tabs::-webkit-scrollbar{display:none}
+.desk .ws-deck-tab{position:relative;display:inline-flex;align-items:baseline;gap:10px;flex:none;padding:20px 22px 15px;border:0;background:none;color:var(--wv-mute);font-family:var(--wv-mono);font-size:11px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:color .2s}
+.desk .ws-deck-tab b{font-family:var(--wv-serif);font-size:21px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--wv-soft)}
+.desk .ws-deck-tab+.ws-deck-tab::before{content:"";position:absolute;left:0;top:30%;bottom:30%;width:1px;background:rgba(201,168,92,.22)}
+.desk .ws-deck-tab::after{content:"";position:absolute;left:18px;right:18px;bottom:-1px;height:2px;background:transparent;transition:background .25s}
+.desk .ws-deck-tab:hover,.desk .ws-deck-tab[aria-selected=true]{color:var(--ws-gold)}
+.desk .ws-deck-tab[aria-selected=true] b{color:var(--ws-hi);text-shadow:0 0 18px rgba(232,199,122,.45)}
+.desk .ws-deck-tab[aria-selected=true]::after{background:linear-gradient(90deg,transparent,var(--ws-gold),transparent);box-shadow:0 0 12px rgba(232,199,122,.6)}
+.desk .ws-keeper{margin:0 0 12px;max-width:380px}
+.desk .ws-deck-p{position:relative;padding:clamp(18px,2.2vw,30px);border:1px solid rgba(201,168,92,.2);background:linear-gradient(180deg,rgba(14,13,10,.85),rgba(7,7,7,.85));animation:ws-in .3s ease both}
+.desk .ws-deck-p::before{content:"";position:absolute;inset:-4px;pointer-events:none;background:linear-gradient(var(--ws-brass),var(--ws-brass)) 0 0/14px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 0 0/1px 14px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 0/14px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 0/1px 14px,linear-gradient(var(--ws-brass),var(--ws-brass)) 0 100%/14px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 0 100%/1px 14px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 100%/14px 1px,linear-gradient(var(--ws-brass),var(--ws-brass)) 100% 100%/1px 14px;background-repeat:no-repeat}
 
-@media (max-width:1060px){
-  .desk .ws-farm{grid-template-columns:minmax(0,1fr)}
-  .desk .ws-panel{border-left:0;border-top:1px solid var(--ws-line)}
-  .desk .ws-line ol{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:24px}
-  .desk .ws-line ol::before{display:none}
+/* The line: six stations as one toolpath, the nozzle's line running through them. */
+.desk .ws-line{position:relative;list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0}
+.desk .ws-line::before{content:"";position:absolute;left:0;right:0;top:15px;height:1px;background:repeating-linear-gradient(90deg,var(--ws-brass) 0 6px,transparent 6px 10px);opacity:.55}
+.desk .ws-line li{position:relative;display:flex;flex-direction:column;gap:4px;padding:0 16px 0 0}
+.desk .ws-gc{position:relative;display:inline-flex;align-items:center;align-self:flex-start;height:30px;margin-bottom:12px;padding:0 10px;border:1px dashed rgba(201,168,92,.5);background:#0a0a0b;font-family:var(--wv-mono);font-size:11px;letter-spacing:.1em;color:var(--wv-mute)}
+.desk .ws-line li[data-ok="1"] .ws-gc{border-style:solid;border-color:var(--ws-gold);color:var(--ws-gold);box-shadow:0 0 14px rgba(232,199,122,.18)}
+.desk .ws-line-t{font-family:var(--wv-serif);font-weight:400;font-size:22px;line-height:1.05;color:var(--wv-ink)}
+.desk .ws-line-s{font-size:12.5px;line-height:1.45;color:var(--wv-soft)}
+.desk .ws-line em,.desk .ws-waits em{margin-top:4px;font-style:normal;font-family:var(--wv-mono);font-size:11px;line-height:1.4;color:color-mix(in srgb,var(--ws-brass) 70%,var(--wv-mute))}
+.desk .ws-line li[data-ok="1"] em{color:var(--ws-gold)}
+
+/* What it waits on: each a pause in the program, M0, until its key or link comes. */
+.desk .ws-waits{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 32px}
+.desk .ws-waits li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 14px;align-items:baseline;padding:12px 0;border-top:1px solid rgba(201,168,92,.16)}
+.desk .ws-waits .ws-gc{grid-row:1/3;margin:0;height:26px}
+.desk .ws-waits b{font-family:var(--wv-mono);font-weight:500;font-size:13px;color:var(--wv-ink)}
+.desk .ws-waits span:not(.ws-gc){grid-column:2/4;font-size:12.5px;line-height:1.45;color:var(--wv-mute)}
+.desk .ws-waits em{grid-column:3;grid-row:1;margin:0;letter-spacing:.14em;text-transform:uppercase;font-size:10px}
+
+@media (max-width:1100px){
+  .desk .ws-head>:not(.ws-stats){max-width:min(460px,50%)}
+  .desk .ws-stats>div{padding:0 10px}
+  .desk .ws-stats dd{font-size:26px}
+  .desk .ws-line{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:26px}
+  .desk .ws-line::before{display:none}
+  .desk .ws-keeper{display:none}
 }
-@media (max-width:640px){
-  .desk .ws-stage{min-height:420px}
-  .desk .ws-views{left:10px;top:10px;right:10px}
-  .desk .ws-views button{padding:5px 9px;font-size:11px}
-  .desk .ws-tag{padding:3px 7px;font-size:10px}
-  .desk .ws-tag span{display:none}
-  .desk .ws-panel{padding:18px 16px}
-  .desk .ws-line ol{grid-template-columns:minmax(0,1fr);row-gap:14px}
-  .desk .ws-line li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:0 12px}
-  .desk .ws-node{grid-row:1/4;margin:0}
+/* Phone: the head over the top, the farm under it, the card a sheet at the foot. */
+@media (max-width:760px){
+  .desk .ws-hall{height:max(660px,calc(100svh - 88px))}
+  .desk .ws-head{left:16px;right:16px;top:16px}
+  .desk .ws-head>:not(.ws-stats){max-width:none}
+  .desk .ws-head>.ws-stats{position:static;margin-top:12px}
+  .desk .ws-plate.is-table strong{display:none}
+  .desk .ws-eyb{font-size:10px;letter-spacing:.16em}
+  .desk .ws-h1.desk__title{font-size:clamp(28px,8vw,34px)}
+  .desk .ws-sub{display:none}
+  .desk .ws-stats{justify-content:space-between;margin-top:12px}
+  .desk .ws-stats>div{padding:0;border-left:0;text-align:left}
+  .desk .ws-stats dt{font-size:8.5px;letter-spacing:.12em}
+  .desk .ws-stats dd{font-size:22px}
+  .desk .ws-vig{background:linear-gradient(180deg,rgba(7,8,13,.95) 0,rgba(7,8,13,.6) 200px,rgba(7,8,13,0) 280px),linear-gradient(0deg,rgba(7,8,13,.9) 0,rgba(7,8,13,0) 110px)}
+  .desk .ws-plate{max-width:168px;padding:6px 9px 7px;gap:3px}
+  .desk .ws-plate strong{font-size:14px}
+  .desk .ws-plate small,.desk .ws-plate-job{display:none}
+  .desk .ws-plate.is-open{padding:4px 8px 5px}
+  .desk .ws-plate.is-open .ws-plate-k span{display:none}
+  .desk .ws-plate-k{font-size:9.5px;letter-spacing:.12em}
+  .desk .ws-views{left:12px;right:12px;bottom:84px;max-width:none}
+  .desk .ws-views button{height:34px;padding:0 10px;font-size:10.5px}
+  .desk .ws-views .ws-views-bay{width:34px}
+  .desk .ws-keys{display:none}
+  .desk .ws-card{left:12px;right:12px;top:auto;bottom:128px;width:auto;max-height:58%;transform:none;padding:14px 16px 16px}
+  .desk .ws-card-h{font-size:22px}
+  .desk .ws-deck{padding:0 16px 88px}
+  .desk .ws-deck-tabs{margin-left:-14px}
+  .desk .ws-deck-tab{padding:16px 14px 12px;gap:8px;font-size:10px;letter-spacing:.16em}
+  .desk .ws-deck-tab b{font-size:17px}
+  .desk .ws-deck-p{padding:16px 14px}
+  .desk .ws-line{grid-template-columns:minmax(0,1fr);row-gap:0}
+  .desk .ws-line li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:2px 12px;padding:10px 0;border-top:1px solid rgba(201,168,92,.12)}
+  .desk .ws-line li:first-child{border-top:0;padding-top:0}
+  .desk .ws-line .ws-gc{grid-row:1/4;margin:0;justify-content:center}
+  .desk .ws-line-t{font-size:19px}
+  .desk .ws-waits{grid-template-columns:minmax(0,1fr);gap:0}
 }
 @media (prefers-reduced-motion:reduce){
-  .desk .ws-tag{transition:none}
+  .desk .ws-plate,.desk .ws-cv,.desk .ws-flat{transition:none}
+  .desk .ws-plate[data-state=waiting] .ws-plate-k i{animation:none}
+  .desk .ws-card,.desk .ws-deck-p{animation:none}
 }

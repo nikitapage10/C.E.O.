@@ -95,6 +95,8 @@ export interface GlassOpts {
   onPlace: (id: string, x: number, y: number, on: boolean) => void;
   /** A bed, seed or plot was tapped: the pop-up's id. */
   onPick: (id: string) => void;
+  /** The share of the frame's height, from the top, that the page's head lies over: the house is dropped below it (#932). */
+  headroom?: () => number;
 }
 
 export interface Glasshouse {
@@ -1320,8 +1322,10 @@ export async function createGlasshouse(host: HTMLElement, canvas: HTMLCanvasElem
     cam.lookAt(look.x, ph ? 1.6 : look.y, look.z);
     const w = host.clientWidth;
     const h = host.clientHeight;
-    if (ph) cam.setViewOffset(w, h, 0, -h * 0.04, w, h);
-    else cam.setViewOffset(w, h, 0, -h * 0.03, w, h);
+    // Dropped under the page's head now the Glasshouse fills the screen (#932).
+    const hr = opts.headroom?.() ?? 0;
+    if (ph) cam.setViewOffset(w, h, 0, -h * (0.04 + hr * 0.42), w, h);
+    else cam.setViewOffset(w, h, 0, -h * (0.03 + hr * 0.3), w, h);
     sky.position.copy(cam.position);
     hills.position.set(cam.position.x, cam.position.y + 9.4, cam.position.z);
     renderer.render(scene, cam);

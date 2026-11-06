@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import type { BedState, GlassPopup, GlassView, Glasshouse as Scene } from "./glasshouse.ts";
@@ -29,9 +29,11 @@ export interface StageProps {
   /** Notes for the tags ("38 of 470 called"), by pop-up. */
   notes: Record<string, string>;
   onPick: (id: string) => void;
+  /** The page's head, laid over the top of the stage (#932). */
+  children?: ReactNode;
 }
 
-export function GlassStage({ view, notes, onPick }: StageProps) {
+export function GlassStage({ view, notes, onPick, children }: StageProps) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const scene = useRef<Scene | null>(null);
@@ -44,12 +46,25 @@ export function GlassStage({ view, notes, onPick }: StageProps) {
   const pick = useRef(onPick);
   pick.current = onPick;
   const settle = useRef(0);
+  const sect = useRef<HTMLElement>(null);
+  /** How much of the stage's height the head lies over, kept fresh on resize (#932). */
+  const headroom = useRef(0);
   // The tags ride their anchors but never cover one another: the pop-ups' own tags first, then the vault and the plot,
   // then the free beds; one that would cover a tag already placed is lifted above it, and dropped if it still can't fit.
   const spread = () => {
     settle.current = 0;
     const order = [...els.current.keys()].sort((a, b) => rank(a) - rank(b));
     const boxes: { l: number; r: number; t: number; b: number }[] = [];
+    // The head's words and numbers: a tag never lands on them; it drops below them instead (#932).
+    const fixed: { l: number; r: number; t: number; b: number }[] = [];
+    const st = sect.current;
+    if (st) {
+      const top = st.getBoundingClientRect();
+      for (const el of st.querySelectorAll(".an-head>*")) {
+        const r = el.getBoundingClientRect();
+        if (r.width && r.height) fixed.push({ l: r.left - top.left - 6, r: r.right - top.left + 6, t: r.top - top.top - 6, b: r.bottom - top.top + 6 });
+      }
+    }
     for (const id of order) {
       const el = els.current.get(id)!;
       const p = at.current.get(id);
@@ -66,6 +81,11 @@ export function GlassStage({ view, notes, onPick }: StageProps) {
       for (let k = 0; k < 6; k++) {
         below = el.classList.contains("is-below");
         const box = below ? { l: x - w / 2 - 4, r: x + w / 2 + 4, t: y + 8 - 4, b: y + 8 + h + 4 } : { l: x - w / 2 - 4, r: x + w / 2 + 4, t: y - 8 - h - 4, b: y - 8 + 4 };
+        const over = fixed.find((o) => o.l < box.r && box.l < o.r && o.t < box.b && box.t < o.b);
+        if (over && !below) {
+          y = over.b + h + 8 + 2;
+          continue;
+        }
         const hit = boxes.find((o) => o.l < box.r && box.l < o.r && o.t < box.b && box.t < o.b);
         if (!hit) {
           boxes.push(box);
@@ -105,6 +125,7 @@ export function GlassStage({ view, notes, onPick }: StageProps) {
               respreadRef.current();
             },
             onPick: (id) => pick.current(id),
+            headroom: () => headroom.current,
           });
         })
         .then((s) => {
@@ -114,11 +135,22 @@ export function GlassStage({ view, notes, onPick }: StageProps) {
         })
         .catch(() => !dead && setGl("off"));
     };
+    const measure = () => {
+      const st = sect.current;
+      const hd = st?.querySelector(".an-head");
+      if (!st || !hd || !st.clientHeight) return;
+      const share = (hd.getBoundingClientRect().bottom - st.getBoundingClientRect().top + 16) / st.clientHeight;
+      headroom.current = Math.max(0, Math.min(0.6, share)) * (isPhone() ? 1 : 0.7);
+    };
+    measure();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
     const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
     const viaIdle = typeof w.requestIdleCallback === "function";
     const idle = viaIdle ? w.requestIdleCallback!(start, { timeout: 600 }) : window.setTimeout(start, 120);
     return () => {
       dead = true;
+      ro?.disconnect();
       cancelAnimationFrame(settle.current);
       if (viaIdle) w.cancelIdleCallback?.(idle);
       else window.clearTimeout(idle);
@@ -148,7 +180,7 @@ export function GlassStage({ view, notes, onPick }: StageProps) {
   const flatOf = (p: GlassPopup, i: number): [number, number] => (p.state === "bed" ? FLAT_BED[bedOf(i)]! : p.state === "vault" ? [30 + i * 6, 76] : FLAT.plot!);
 
   return (
-    <section className="an-gh" data-gl={gl} aria-label="The Glasshouse: running pop-ups in their beds, the Shelf's seed vault under the floor, the plot past the door">
+    <section ref={sect} className="an-gh" data-gl={gl} aria-label="The Glasshouse: running pop-ups in their beds, the Shelf's seed vault under the floor, the plot past the door">
       <div className="an-gh-flat" aria-hidden="true">
         <i className="an-gh-sky" />
         <i className="an-gh-dome" />
@@ -190,6 +222,7 @@ export function GlassStage({ view, notes, onPick }: StageProps) {
           </span>
         </li>
       </ul>
+      {children}
     </section>
   );
 }

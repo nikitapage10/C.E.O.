@@ -569,8 +569,8 @@ export async function confirmTool(id: string, yes: boolean, host: ToolHost, pend
 }
 
 /**
- * One field as strict tool use takes it: the type, enum and description; the limits (lengths, ranges, counts) go into
- * the description, since strict schemas don't take them, and `checkInput` enforces them in code either way.
+ * One field as the Messages API takes it: the type, enum and description; the limits (lengths, ranges, counts) go into
+ * the description, and `checkInput` enforces them in code.
  */
 function apiProp(p: RoomTool["input"]["properties"][string]): Record<string, unknown> {
   const limits: string[] = [];
@@ -587,12 +587,16 @@ function apiProp(p: RoomTool["input"]["properties"][string]): Record<string, unk
   };
 }
 
-/** The tools as the Messages API takes them: strict schemas, in the registry's fixed order. */
+/**
+ * The tools as the Messages API takes them, in the registry's fixed order. Not `strict` (#976): strict tool use allows
+ * at most 20 strict tools and 24 optional parameters in a request, counted with the answer's own JSON schema, and the
+ * registry outgrew both (29 tools, 30 optional fields), so every model call came back 400 before it began. Every call's
+ * input is checked in code instead (`checkInput` in `callTool`), and a bad one goes back to the model as a tool error.
+ */
 export function apiTools(tools: readonly RoomTool[]) {
   return tools.map((t) => ({
     name: t.name,
     description: needsConfirm(t) ? `${t.description} (Waits for Nikita's Yes tap on the Desk.)` : t.description,
     input_schema: { type: "object" as const, properties: Object.fromEntries(Object.entries(t.input.properties).map(([k, p]) => [k, apiProp(p)])), required: [...t.input.required], additionalProperties: false },
-    strict: true,
   }));
 }

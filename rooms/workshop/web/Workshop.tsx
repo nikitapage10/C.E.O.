@@ -1,24 +1,27 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Keeper, Waits, type Wait } from "@ceo/desk/rooms/parts.tsx";
-import { Parts, Poly, TAU, useViz, weave, type VizSpec } from "@ceo/engine/sigils/wvCanvas.ts";
+import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { BAYS, PAWN, preflight, viewKey, type FarmView } from "./farm.ts";
+import type { Farm } from "./farmScene.ts";
 import "@ceo/desk/rooms/rooms.css";
 import "./workshop.css";
 
 /**
- * The Workshop (#225): from a sentence to a thing on the shelf, as a maker's bench on blueprint paper. A style preset
- * and a prompt make a picture from the front and the side, Meshy turns it into a model that spins on the turntable, the
- * Mac slices it, and one tap sends it to the Bambu Lab printer, with its progress and camera. Nothing is connected
- * yet, so the stations wait, the turntable is empty, and nothing ever prints without a tap.
+ * The Workshop (#225, #827): from a sentence to a thing on the shelf, as a print farm. Printers stand on a long bench
+ * in 3D (farmScene.ts), solid in the middle of the frame and coming undone into gold wire and sigil nanites at its
+ * edges, the Senate's look. Pick a printer (or its tag, or its row beside it) and the camera steps inside its chamber;
+ * pick the turntable and it comes round to the pre-print check (farm.ts), where the Workshop's own check piece is
+ * measured against the plate. Nothing is connected yet, so the one printer waits, the open bays stay open, nothing is
+ * printing, and nothing ever prints without a tap. The line and what it waits on stay below, as before.
  */
-
-const TEAL = "98,196,192";
 
 const STATIONS = [
   { k: "01", t: "Style", s: "A preset and your prompt", w: "Ready when the rest is" },
   { k: "02", t: "Picture", s: "Front and side, from OpenAI", w: "Waits on the image model" },
   { k: "03", t: "Model", s: "Meshy turns it into 3D", w: "Waits on a Meshy key" },
-  { k: "04", t: "Slice", s: "Bambu Studio or OrcaSlicer, on the Mac", w: "Waits on the hub" },
-  { k: "05", t: "Print", s: "The Bambu Lab printer, over the LAN", w: "Waits on the printer" },
+  { k: "04", t: "Check", s: "On the turntable, against the plate", w: "Checks the test piece for now" },
+  { k: "05", t: "Slice", s: "Bambu Studio or OrcaSlicer, on the Mac", w: "Waits on the hub" },
+  { k: "06", t: "Print", s: "The Bambu Lab printer, over the LAN", w: "Waits on the printer" },
 ];
 
 const WAITS: Wait[] = [
@@ -28,98 +31,214 @@ const WAITS: Wait[] = [
   { what: "OpenAI for the pictures", why: "One prompt, two views: front and side, in the chosen style." },
 ];
 
-/** The bench: the stations joined by one thread, and an empty turntable turning slowly on the right. */
-function benchSpec(stations: React.RefObject<HTMLOListElement | null>, table: React.RefObject<HTMLDivElement | null>): VizSpec {
-  return {
-    lay(V) {
-      const lis = Array.from(stations.current?.children ?? []) as HTMLElement[];
-      const pts = lis.map((li) => {
-        const r = V.rel(li.querySelector(".ws-node") ?? li);
-        return [r.x + r.w / 2, r.y + r.h / 2] as const;
-      });
-      const xs: number[] = [];
-      const ys: number[] = [];
-      pts.forEach(([x, y], i) => {
-        if (i) {
-          const [px, py] = pts[i - 1]!;
-          for (let k = 1; k <= 12; k++) {
-            const u = k / 12;
-            xs.push(px + (x - px) * u);
-            ys.push(py + (y - py) * u + Math.sin(u * Math.PI) * (i % 2 ? 6 : -6));
-          }
-        } else {
-          xs.push(x);
-          ys.push(y);
-        }
-      });
-      const tr = table.current ? V.rel(table.current) : null;
-      V.s.w = { p: xs.length > 1 ? new Poly().set(xs, ys) : null, P: new Parts(60, 0.1), tr };
-    },
-    draw(V, c, t, dt) {
-      const w = V.s.w as { p: Poly | null; P: Parts; tr: { x: number; y: number; w: number; h: number } | null };
-      if (w.p) weave(c, w.p, w.P, { a: 0.55, sp: 0.9, sz: 0.7, v: 22, rgb: TEAL, rgb2: "236,238,243", line: 0.16, dash: [4, 4] }, t, dt);
-      const tr = w.tr;
-      if (!tr) return;
-      const cx = tr.x + tr.w / 2;
-      const cy = tr.y + tr.h * 0.62;
-      const rx = Math.min(tr.w * 0.36, 150);
-      const ry = rx * 0.32;
-      c.lineWidth = 1;
-      for (let k = 0; k < 3; k++) {
-        c.strokeStyle = `rgba(${TEAL},${0.32 - k * 0.09})`;
-        c.beginPath();
-        c.ellipse(cx, cy + k * 7, rx, ry, 0, 0, TAU);
-        c.stroke();
-      }
-      // Ticks around the rim, turning.
-      const a0 = t * 0.35;
-      for (let i = 0; i < 48; i++) {
-        const a = a0 + (i / 48) * TAU;
-        const x = cx + Math.cos(a) * rx;
-        const y = cy + Math.sin(a) * ry;
-        const front = Math.sin(a) > 0;
-        c.globalAlpha = front ? 0.7 : 0.25;
-        c.fillStyle = `rgb(${TEAL})`;
-        c.fillRect(x - 0.7, y - (i % 4 ? 1.5 : 3), 1.4, i % 4 ? 3 : 6);
-      }
-      c.globalAlpha = 1;
-      // A dimension line over the empty plate.
-      c.strokeStyle = `rgba(${TEAL},.28)`;
-      c.setLineDash([2, 4]);
-      c.beginPath();
-      c.moveTo(cx, cy - ry - 8);
-      c.lineTo(cx, tr.y + 26);
-      c.stroke();
-      c.setLineDash([]);
-    },
-  };
-}
+const FARM: FarmView = { k: "farm" };
+const TABLE: FarmView = { k: "table" };
+const reduced = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function Workshop() {
-  const cv = useRef<HTMLCanvasElement>(null);
-  const stations = useRef<HTMLOListElement>(null);
-  const table = useRef<HTMLDivElement>(null);
-  const spec = useMemo(() => benchSpec(stations, table), []);
-  useViz(cv, spec);
+  const host = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const farm = useRef<Farm | null>(null);
+  const tags = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [view, setView] = useState<FarmView>(FARM);
+  const [gl, setGl] = useState<"wait" | "on" | "none">("wait");
+  const ready = useRoomReady(false);
+  const checks = useMemo(() => preflight(PAWN), []);
+
+  const onPlace = useCallback((id: string, x: number, y: number, on: boolean) => {
+    const el = tags.current[id];
+    if (!el) return;
+    el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+    el.dataset.on = on ? "1" : "0";
+  }, []);
+
+  useEffect(() => {
+    let gone = false;
+    void import("./farmScene.ts")
+      .then(async ({ createFarm, canDraw3D }) => {
+        if (gone || !host.current || !canvas.current) return;
+        if (!canDraw3D()) throw new Error("no webgl");
+        const f = await createFarm(host.current, canvas.current, {
+          phone: window.innerWidth < 760,
+          reduce: reduced(),
+          onPick: (v) => setView(v),
+          onPlace,
+          onReady: () => {
+            setGl("on");
+            ready();
+          },
+        });
+        if (gone) return f.dispose();
+        farm.current = f;
+      })
+      .catch(() => {
+        if (gone) return;
+        setGl("none");
+        ready();
+      });
+    return () => {
+      gone = true;
+      farm.current?.dispose();
+      farm.current = null;
+    };
+  }, [onPlace, ready]);
+
+  useEffect(() => farm.current?.setView(view), [view, gl]);
+
+  // Picked from the panel under the stage (a phone): bring the stage back into sight to watch the camera go.
+  const go = useCallback((v: FarmView) => {
+    setView(v);
+    const el = host.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 120 || r.top > window.innerHeight * 0.6) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+  }, []);
+
+  // Escape steps back out to the farm.
+  useEffect(() => {
+    if (view.k === "farm") return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setView(FARM);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [view]);
+
+  const bay = view.k === "bay" ? BAYS.find((b) => b.n === view.n) : undefined;
+  const allOk = checks.every((c) => c.ok);
+
   return (
     <div className="wv-page rm rm-workshop" data-room="workshop">
       <header className="rm-head">
         <div>
-          <p className="wv-eyb">The Workshop · the maker's bench</p>
+          <p className="wv-eyb">The Workshop · the print farm</p>
           <h1 className="wv-h1 desk__title">
             From a sentence <em>to a thing on the shelf.</em>
           </h1>
           <p className="wv-sub">
-            Describe something; the Workshop draws it from the front and the side, Meshy makes it a model you can turn, the Mac slices it, and the Bambu Lab printer
-            prints it when you tap. Nothing is connected yet.
+            Describe something; the Workshop draws it, Meshy makes it a model, the turntable checks it against the plate, the Mac slices it, and the Bambu Lab printer prints
+            it when you tap. Nothing is connected yet, so nothing is printing.
           </p>
         </div>
         <Keeper page="workshop" />
       </header>
 
-      <section className="ws-bench" aria-label="The pipeline">
-        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-        <ol className="ws-stations" ref={stations}>
+      <section className="ws-farm" aria-label="The print farm" data-view={viewKey(view)} data-gl={gl}>
+        <div className="ws-stage" ref={host}>
+          <canvas ref={canvas} className="ws-cv" aria-hidden="true" />
+          {gl === "none" && <p className="ws-nogl">This browser can't draw the farm in 3D. The bays and the check are listed here all the same.</p>}
+          <div className="ws-tags">
+            {BAYS.map((b) => (
+              <button
+                key={b.n}
+                type="button"
+                tabIndex={-1}
+                aria-hidden="true"
+                className="ws-tag"
+                data-state={b.state}
+                ref={(el) => void (tags.current[`bay-${b.n}`] = el)}
+                onClick={() => setView({ k: "bay", n: b.n })}
+              >
+                <b>Bay {b.n}</b> <span>{b.state === "waiting" ? "waiting" : "open"}</span>
+              </button>
+            ))}
+            <button type="button" tabIndex={-1} aria-hidden="true" className="ws-tag" data-state="table" ref={(el) => void (tags.current.table = el)} onClick={() => setView(TABLE)}>
+              <b>Turntable</b> <span>{allOk ? "checked" : "check"}</span>
+            </button>
+          </div>
+          <nav className="ws-views" aria-label="Where to look">
+            <button type="button" aria-pressed={view.k === "farm"} onClick={() => setView(FARM)}>
+              The farm
+            </button>
+            <button type="button" aria-pressed={view.k === "table"} onClick={() => setView(TABLE)}>
+              The turntable
+            </button>
+            {view.k === "bay" && (
+              <button type="button" aria-pressed="true">
+                Inside bay {view.n}
+              </button>
+            )}
+          </nav>
+        </div>
+
+        <div className="ws-panel" aria-live="polite">
+          {view.k === "farm" && (
+            <>
+              <p className="wv-eyb">The bench</p>
+              <h2 className="wv-h3">One printer, three open bays.</h2>
+              <p className="ws-note">Pick a printer to step inside its chamber, or the turntable to check a design before it prints.</p>
+              <ol className="ws-bays">
+                {BAYS.map((b) => (
+                  <li key={b.n} data-state={b.state}>
+                    <button type="button" onClick={() => go({ k: "bay", n: b.n })}>
+                      <span className="ws-bayn">{b.n}</span>
+                      <b>{b.name}</b>
+                      <em>{b.line}</em>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+          {view.k === "table" && (
+            <>
+              <p className="wv-eyb">The turntable · pre-print check</p>
+              <h2 className="wv-h3">The check piece, a 40 mm pawn.</h2>
+              <p className="ws-note">The Workshop's own test piece turns here until Meshy hands over a real design; each check is measured from its shape.</p>
+              <ul className="ws-checks">
+                {checks.map((c) => (
+                  <li key={c.id} data-ok={c.ok ? "1" : "0"}>
+                    <span aria-hidden="true">{c.ok ? "✓" : "✕"}</span>
+                    <b>{c.label}</b>
+                    <em>{c.detail}</em>
+                  </li>
+                ))}
+              </ul>
+              <p className="ws-note ws-quiet">Ready to slice once the hub is on the Mac. Nothing prints without your tap.</p>
+              <button type="button" className="ws-back" onClick={() => go(FARM)}>
+                Back to the farm
+              </button>
+            </>
+          )}
+          {bay && (
+            <>
+              <p className="wv-eyb">
+                Inside bay {bay.n} · {bay.state === "waiting" ? "waiting" : "open"}
+              </p>
+              <h2 className="wv-h3">{bay.name}</h2>
+              <p className="ws-note">{bay.inside}</p>
+              {bay.state === "waiting" && (
+                <dl className="ws-chamber">
+                  <div>
+                    <dt>Job</dt>
+                    <dd>None</dd>
+                  </div>
+                  <div>
+                    <dt>Layer</dt>
+                    <dd>None</dd>
+                  </div>
+                  <div>
+                    <dt>Camera</dt>
+                    <dd>Waits on the LAN</dd>
+                  </div>
+                </dl>
+              )}
+              <div className="ws-hop">
+                <button type="button" className="ws-back" onClick={() => go(FARM)}>
+                  Back to the farm
+                </button>
+                {BAYS.filter((b) => b.n !== bay.n).map((b) => (
+                  <button key={b.n} type="button" className="ws-back" onClick={() => go({ k: "bay", n: b.n })}>
+                    Bay {b.n}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="ws-line" aria-label="The line">
+        <h2 className="rm-h2">The line</h2>
+        <ol>
           {STATIONS.map((s) => (
             <li key={s.k}>
               <span className="ws-node" aria-hidden="true">
@@ -131,15 +250,6 @@ export function Workshop() {
             </li>
           ))}
         </ol>
-        <div className="ws-table" ref={table}>
-          <p className="wv-eyb">The turntable</p>
-          <p className="ws-table-note">Empty. The model turns here once Meshy is connected.</p>
-        </div>
-        <div className="ws-bed" aria-label="The print bed: empty">
-          <p className="wv-eyb">The print bed</p>
-          <div className="ws-plate" aria-hidden="true" />
-          <p className="ws-table-note">Nothing prints without your tap.</p>
-        </div>
       </section>
 
       <Waits items={WAITS} className="ws-waits" />

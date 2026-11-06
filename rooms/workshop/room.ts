@@ -1,7 +1,7 @@
 import { defineRoom } from "@ceo/engine/manifest";
 import { nav } from "./nav.ts";
 
-/** The Workshop: from a prompt to a print. Not live yet. Data only (docs/ROOMS.md). */
+/** The Workshop: from a prompt to a print, drawn as a print farm (#827). Not live yet. Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "workshop",
   ...nav,
@@ -14,7 +14,7 @@ export default defineRoom({
   keys: [],
   usesClaude: false,
   threat: [],
-  budgetKb: 8,
+  budgetKb: 48,
   purpose: {
     goal: "Will take a prompt to a printable 3D model through image and mesh agents, Nikita's path into generative making once its pipeline is real.",
     agents: [],

@@ -57,6 +57,13 @@ export interface ChatInfo {
   last: Message | null;
   /** When the last item of any kind came (ms); 0 for none. */
   lastAt: number;
+  /**
+   * The last item of any kind, as Messages' Unread filter reads it (#950): whose it is, whether it is a reaction (a
+   * tapback), and whether Messages has a read time for it. Left out when the chat query gave no last item. Memory only.
+   */
+  lastItem?: { fromMe: boolean; read: boolean; at: number; reaction: boolean };
+  /** Messages' "Hide Alerts" for this chat (#950), when BlueBubbles' chat properties carry it. A mark only. */
+  muted?: true;
 }
 
 export interface Contact {
@@ -250,7 +257,18 @@ export function readChat(o: Record<string, unknown> | null | undefined): ChatInf
   const lm = o.lastMessage && typeof o.lastMessage === "object" ? (o.lastMessage as Record<string, unknown>) : null;
   const read = readMessage(lm);
   const last = read ? { ...read, handle: read.fromMe ? "" : read.handle || handle } : null;
-  return { chat, ...sizeOf(multi, o.participants), name: multi ? str(o.displayName, 80) : "", handle, last, lastAt: num(lm?.dateCreated) };
+  const lastItem = lm && num(lm.dateCreated) ? { fromMe: lm.isFromMe === true, read: num(lm.dateRead) > 0, at: num(lm.dateCreated), reaction: !!lm.associatedMessageGuid } : undefined;
+  return { chat, ...sizeOf(multi, o.participants), name: multi ? str(o.displayName, 80).trim() : "", handle, last, lastAt: num(lm?.dateCreated), ...(lastItem && { lastItem }), ...(mutedOf(o.properties) && { muted: true as const }) };
+}
+
+/**
+ * Whether a chat is muted (#950: Messages' "Hide Alerts"). BlueBubbles serialises chat.db's `properties` plist as
+ * it is; macOS keeps the mute there as `ignoreAlertsFlag` on the versions that have it. Anything else reads as not
+ * muted, so a BlueBubbles or macOS that doesn't carry it only loses the mark.
+ */
+export function mutedOf(props: unknown): boolean {
+  const list = Array.isArray(props) ? props : props && typeof props === "object" ? [props] : [];
+  return list.some((p) => !!p && typeof p === "object" && ((p as Record<string, unknown>).ignoreAlertsFlag === true || (p as Record<string, unknown>).ignoreAlertsFlag === 1));
 }
 
 /** One message from `/api/v1/message/query` (with its chats), read: null when it has no guid or time. */

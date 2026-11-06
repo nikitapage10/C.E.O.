@@ -511,13 +511,23 @@ test("Done sticks (#914): a reload inside the Undo window still sends it, and it
   await expect(page.locator(".cx-rows li", { hasText: "Sam Test" })).toHaveCount(0);
 });
 
-test("a rule from a sentence: \"invites can wait\" says what changed, with Undo", async ({ page }) => {
+test("a rule from a sentence, said with Space held (#950: no type box): \"invites can wait\" says what changed, with Undo", async ({ page }) => {
+  await page.addInitScript(FAKE_SPEECH);
   const posts = await stub(page);
   await page.goto(`${BASE}/relay`);
   await page.locator(".cx-rows button", { hasText: "Priya Madeup" }).click();
   await expect(focused(page)).toContainText("Priya Madeup");
-  await page.locator("#cx-words").fill("invites can wait");
-  await page.locator("#cx-words").press("Enter");
+  // The type box, its Go and its "?" are gone; one small hint stays.
+  await expect(page.locator("#cx-words")).toHaveCount(0);
+  await expect(page.getByText(/tell Blasto what to say/)).toHaveCount(0);
+  await expect(page.locator(".cx-dock").getByRole("button", { name: "Keys" })).toHaveCount(0);
+  await expect(page.locator(".cx-dock")).toContainText(/hold Space to reply/i);
+  // Holding Space (outside a field or a button) hands the open email's words to the Thread.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.down("Space");
+  await expect.poll(() => page.evaluate(() => !!(window as unknown as { __rec: unknown }).__rec), { timeout: 8_000 }).toBe(true);
+  expect(await page.evaluate(() => (window as unknown as { __say: (t: string) => boolean }).__say("invites can wait"))).toBe(true);
+  await page.keyboard.up("Space");
   await expect(undoLine(page)).toContainText("From now on, invites can wait.");
   await undoLine(page).getByRole("button", { name: /Undo/ }).click();
   await expect.poll(() => posts.filter((p) => p.action === "unblock")).toEqual([{ line: "email", action: "unblock", rule: "abcdefabcde1" }]);

@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { emptyRelayStatus } from "@ceo/core";
 import { blueBubbles, checkBlueBubbles, CONTACTS_HINT, TAPBACKS_HINT, describeFailure, failure, redact, removeOldWebhooks } from "./bluebubbles.ts";
 import { HOST, KEYCHAIN_ITEMS, pathsFor, PORT, readConfig, SITE } from "./config.ts";
-import { CHAT_PAGE, CHAT_PAGES, Engine, POLL_MS } from "./engine.ts";
-import { allChats, sortBacklog } from "./backlog.ts";
-import { chatsFor, describeWhy, explain, whoMatches } from "./why.ts";
+import { CHAT_PAGE, CHAT_PAGES, Engine, POLL_MS, SCAN_READ_MAX } from "./engine.ts";
+import { allChats, scanWants, unreadCounts } from "./backlog.ts";
+import { asideKinds, chatsFor, describeWhy, explain, groupsFor, whoMatches } from "./why.ts";
 import { chatPerson } from "./learn.ts";
 import { macKeychain } from "./keychain.ts";
 import { errorClass, fileLogger } from "./log.ts";
@@ -203,10 +203,18 @@ async function main(argv: string[]): Promise<void> {
       const owed = state.threads.filter((t) => t.state === "owed" || t.state === "later").length;
       const aside = state.threads.filter((t) => !t.group && t.state === "settled").length;
       if (chats) {
-        const sorted = sortBacklog(chats, Date.now(), [], () => undefined);
-        out(`Relay: BlueBubbles returned ${chats.length} chats (${chats.length - sorted.groups} one-to-one, ${sorted.groups} groups); by their last message ${sorted.owed.length} are waiting on you within 30 days, and ${sorted.check.length} more end on a photo, a reaction or an item the hub reads one by one.`);
+        const now = Date.now();
+        const groups = chats.filter((c) => c.group).length;
+        const reads = chats.filter((c) => scanWants(c, now)).length;
+        out(`Relay: BlueBubbles returned ${chats.length} chats (${chats.length - groups} one-to-one or small, ${groups} groups); the full scan reads ${Math.min(reads, SCAN_READ_MAX)} of them one by one (active in the last 120 days, or unread).`);
+        // The Mac's own read state (#950): Messages in iCloud can lag the phone, so many old unread ones hint at that.
+        const u = unreadCounts(chats, now);
+        out(`Relay: Messages on this Mac shows ${u.unread} chats unread; ${u.stale} of them unread for over 7 days.${u.stale > 5 ? " Many old unread ones can mean the phone's reads aren't reaching this Mac (Messages in iCloud: open Messages here and let it sync)." : ""}`);
       } else out("Relay: BlueBubbles didn't give its chat list.");
-      out(`Relay: the hub counts ${owed} owed and ${aside} one-to-one set aside${state.scannedAt ? `; its last full scan was ${Math.max(0, Math.round((Date.now() - state.scannedAt) / 60_000))} minutes ago` : "; it hasn't scanned yet"}. For one person: relay why <name or number>`);
+      out(`Relay: the hub counts ${owed} waiting (${state.threads.filter((t) => (t.state === "owed" || t.state === "later") && t.unread).length} unread, ${state.threads.filter((t) => (t.state === "owed" || t.state === "later") && t.group).length} groups) and ${aside} one-to-one set aside${state.scannedAt ? `; its last full scan was ${Math.max(0, Math.round((Date.now() - state.scannedAt) / 60_000))} minutes ago` : "; it hasn't scanned yet"}. For one person or group: relay why <name or number>`);
+      // Why they were set aside (#950), by kind: counts only.
+      const kinds = asideKinds(state.threads);
+      if (kinds) out(`Relay: set aside by kind: ${kinds}.`);
       process.exit(0);
     } catch (e) {
       out(redact(`Relay: BlueBubbles check failed: ${describeFailure(e) || "it didn't answer."}`));
@@ -229,7 +237,8 @@ async function main(argv: string[]): Promise<void> {
     // A number that isn't in the contacts still finds its chat.
     const digits = query.replace(/\D/g, "");
     const loose = !who.length && digits.length >= 4 ? chats.filter((c) => !c.group && (c.handle || chatPerson(c.chat)).replace(/\D/g, "").endsWith(digits)) : [];
-    if (!who.length && !loose.length) return out(`Relay: no contact or chat matches "${query.slice(0, 40)}".`);
+    const groups = groupsFor(chats, query);
+    if (!who.length && !loose.length && !groups.length) return out(`Relay: no contact, chat or group matches "${query.slice(0, 40)}".`);
     const lines: string[] = [];
     const show = async (name: string, names: string[], list: typeof chats) => {
       for (const c of list) {
@@ -244,8 +253,9 @@ async function main(argv: string[]): Promise<void> {
       else await show(name, c.names, list);
     }
     if (loose.length) await show("Not in your contacts", [], loose);
+    for (const g of groups) await show(g.name || "A group", [], [g]);
     for (const l of lines) out(l);
-    out("Relay: read on this Mac only; nothing was sent to the site. Groups aren't listed here.");
+    out("Relay: read on this Mac only; nothing was sent to the site. Groups match by their name in Messages.");
     process.exit(0);
   }
   if (cmd === "control") {

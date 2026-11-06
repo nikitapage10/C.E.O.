@@ -327,7 +327,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
         case "no":
         case "change":
           setDeclined((d) => ({ ...d, [ex.key]: ex.draft ?? "" }));
-          setNotice({ kind: "info", text: cmd === "no" ? "Not sending that. Say what to write instead, or skip." : "Say what to change.", at });
+          setNotice({ kind: "info", text: cmd === "no" ? "Not sending that. Hold Space and say what to write instead, or skip." : "Hold Space and say what to change.", at });
           return true;
         case "done":
         case "skip": {
@@ -552,7 +552,9 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
     return cmd ? sayRef.current(cmd) : false;
   }, []);
 
-  const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere);
+  // Groups that wait (#950: unread in Messages, or asking Nikita) sit on their own shelf, off the line, but count.
+  const groupsWaiting = signedIn && textsView?.paired ? textsView.items.filter((i) => i.group && i.state !== "settled").length : 0;
+  const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere, groupsWaiting);
   const clearFill = useCallback(() => setFill(null), []);
   return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, sendOwn, order, setOrder, pick: setCurrent, drafting, pending, sentList, reading, fill, clearFill };
 }

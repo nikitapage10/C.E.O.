@@ -23,7 +23,7 @@ import { errorText, useThread, type Notice } from "../data/useThread.ts";
 import { useRoomMic } from "@ceo/desk/roomvoice/roomVoice.ts";
 import { useHoldSpace } from "./holdSpace.ts";
 import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
-import { RelayMast } from "./RelayMast.tsx";
+import { RelayField } from "./RelayField.tsx";
 import "./thread.css";
 
 /**
@@ -42,7 +42,8 @@ const NANITE = { hi: "#eef2ff", you: "#ffffff", white: "#ffffff", sink: "#8a90a6
  * on the line orders the queue newest, oldest or by priority. A text opens straight on Nikita's own words (#869): the
  * composer, with a mic to dictate into it and Blasto's draft only as a faint suggestion beside it; an email's draft
  * appears when asked for, with Send, Edit and Change. Write and Edit send your own words exactly as typed.
- * What you say shows at the spine's foot while you speak, then fades; the keys hide behind "?".
+ * What you say shows at the spine's foot while you speak, then fades; the keys hide behind "?" (#950: no type box;
+ * holding Space answers whatever is open).
  *
  * The to-do queue is one continuous codex: each exchange a full-height entry, soft-snapped. The entry in focus is the
  * only one voice and keys act on, and a send needs its draft (or your own words) on screen there. The Codex below is
@@ -225,8 +226,6 @@ function More({ x, t }: { x: Exchange; t: ReturnType<typeof useThread> }) {
 /** Opens a text's reply box and puts the cursor in it (#869, #904): a tap on its circle on the line, R or Enter. */
 const WRITE_EVENT = "relay:write";
 const openComposer = (key: string) => window.dispatchEvent(new CustomEvent(WRITE_EVENT, { detail: key }));
-
-const focusWords = () => document.getElementById("cx-words")?.focus();
 
 /**
  * Nikita's own reply (#803), always open under the newest message on a text (#904): what he types here goes exactly
@@ -489,10 +488,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
                       <button
                         type="button"
                         className="cx-opt"
-                        onClick={() => {
-                          t.say("change");
-                          focusWords();
-                        }}
+                        onClick={() => t.say("change")}
                       >
                         Change
                       </button>
@@ -507,10 +503,7 @@ function Entry({ x, focus, now, t, launch }: { x: Exchange; focus: boolean; now:
                       <button
                         type="button"
                         className="cx-opt"
-                        onClick={() => {
-                          t.say("change");
-                          focusWords();
-                        }}
+                        onClick={() => t.say("change")}
                       >
                         Change
                       </button>
@@ -612,7 +605,7 @@ export function RelayThread({ now }: { now: number }) {
   const sg = useRef<SigilStage | null>(null);
   const [engine, setEngine] = useState<SigilStage | null>(null);
   /** The spine's lit stretch (and its alpha, easing to `to`), the rush of its falling sigils, how loud the ear is. */
-  const fx = useRef({ lit: null as Element | null, a: 0, to: 0, rush: 0, loud: 0, listening: false });
+  const fx = useRef({ lit: null as Element | null, entry: null as Element | null, a: 0, to: 0, rush: 0, loud: 0, listening: false });
   const spineX = () => (sg.current && earRef.current ? sg.current.rel(earRef.current).cx : 0);
   /** The queue on the line (#803, #869): its box, and whether it lies flat (a phone). */
   const waveRef = useRef<HTMLElement>(null);
@@ -638,7 +631,6 @@ export function RelayThread({ now }: { now: number }) {
   tRef.current = t;
   // One listener (#638, #642): the Desk's room mic and hands-free hear Nikita; the Thread only lights its ear.
   const micPhase = useRoomMic((s) => (s.room === "relay" ? s.phase : "idle"));
-  const [typed, setTyped] = useState("");
   const [hints, setHints] = useState(false);
   const [back] = useState(() => takeGmailReturn());
   const run = useRef(0);
@@ -672,7 +664,52 @@ export function RelayThread({ now }: { now: number }) {
     (window as unknown as { __relaySigils?: SigilStage }).__relaySigils = s;
     const amb = Array.from({ length: 26 }, () => ({ y: rnd(), v: 0.02 + rnd() * 0.04, g: Math.floor(rnd() * 40), o: (rnd() - 0.5) * 6, s: 6 + rnd() * 3 }));
     let loud = 0;
+    /**
+     * The older lines' nanites (#950): fine white sigils lifting off the far, feathered edge of each out-of-focus
+     * line above the newest, drifting outward and up, and gone. Crisp on this canvas (no CSS dot screens). The lines'
+     * boxes are read a few times a second, not every frame; none while they are clear (hovered, focused or tapped).
+     */
+    const ctxMotes: { x: number; y: number; vx: number; vy: number; age: number; life: number; s: number; g: number; a: number }[] = [];
+    let ctxBoxes: { x: number; y: number; w: number; h: number; me: boolean; d: number }[] = [];
+    let ctxRead = 0;
+    let ctxSpawn = 0;
+    const readCtx = () => {
+      const entry = fx.current.entry;
+      const ctx = entry?.querySelector<HTMLElement>(".cx-ctx");
+      if (!ctx || ctx.dataset.clear || ctx.matches(":hover, :focus-visible") || ghosted(ctx.closest(".cx-entry")?.querySelector(".cx-msg") ?? ctx)) return [];
+      return [...ctx.querySelectorAll<HTMLElement>(":scope > .cx-bub")].map((b) => {
+        const r = s.rel(b);
+        return { x: r.x, y: r.y, w: r.w, h: r.h, me: b.hasAttribute("data-me"), d: Number(b.style.getPropertyValue("--d")) || 1 };
+      });
+    };
     const off = s.field((c, time, dt) => {
+      ctxRead -= dt;
+      if (ctxRead <= 0) {
+        ctxRead = 0.25;
+        ctxBoxes = readCtx().filter((b) => b.w > 0 && b.y + b.h > 0 && b.y < s.h);
+      }
+      // About four a second per line, the further back the fewer, 48 at most on screen.
+      ctxSpawn += dt * ctxBoxes.length * 4;
+      while (ctxSpawn >= 1 && ctxBoxes.length) {
+        ctxSpawn -= 1;
+        if (ctxMotes.length >= 48) continue;
+        const b = ctxBoxes[Math.floor(rnd() * ctxBoxes.length)]!;
+        const edge = b.me ? b.x + rnd() * b.w * 0.28 : b.x + b.w - rnd() * b.w * 0.28;
+        const out = b.me ? -1 : 1;
+        ctxMotes.push({ x: edge, y: b.y + 3 + rnd() * Math.max(1, b.h - 6), vx: out * (5 + rnd() * 12), vy: -(3 + rnd() * 9), age: 0, life: 1.8 + rnd() * 2.2, s: 5 + rnd() * 2.5, g: Math.floor(rnd() * 40), a: 0.3 + 0.3 / b.d });
+      }
+      for (let i = ctxMotes.length - 1; i >= 0; i--) {
+        const m = ctxMotes[i]!;
+        m.age += dt;
+        if (m.age >= m.life) {
+          ctxMotes.splice(i, 1);
+          continue;
+        }
+        m.x += m.vx * dt;
+        m.y += m.vy * dt;
+        const k = m.age / m.life;
+        s.glyph(c, NANITE.white, m.g, m.x, m.y, m.s * (1 - k * 0.3), m.a * Math.min(1, k * 5) * (1 - k));
+      }
       const ear = earRef.current;
       if (!ear) return;
       const E = s.rel(ear);
@@ -772,6 +809,7 @@ export function RelayThread({ now }: { now: number }) {
     const old = entryOf(prev);
     const el = entryOf(key);
     fx.current.lit = el?.querySelector(".cx-them") ?? null;
+    fx.current.entry = el;
     fx.current.to = el ? 1 : 0;
     if (hidden) return;
     const X = spineX();
@@ -984,11 +1022,6 @@ export function RelayThread({ now }: { now: number }) {
     return () => window.removeEventListener("keydown", down);
   }, [onScreen, t, ex?.key, ex?.line, ex?.sendable, phase, goTo]);
 
-  const submit = (raw: string) => {
-    const r = t.line(raw);
-    if (r.ok) setTyped("");
-  };
-
   const waiting = t.metrics.waiting;
   const textsItems = useTexts((s) => s.view?.items);
   const shelf = useMemo(() => (t.signedIn ? groupsOf(textsItems, now, t.order) : []), [t.signedIn, textsItems, now, t.order]);
@@ -1001,9 +1034,9 @@ export function RelayThread({ now }: { now: number }) {
 
   return (
     <div className="cx" data-phase={phase} data-still={engine?.reduced || undefined}>
+      {/* The field (#950): wire and white nanites behind the whole page, very faint. */}
+      <RelayField />
       <section className="cx-stage" ref={stageRef} aria-label="Relay at a glance">
-        {/* The mast (#933): very faint, far behind the cards. */}
-        <RelayMast />
         <header className="cx-top">
           <div className="cx-title">
             <h1 className="cx-mark">
@@ -1030,38 +1063,24 @@ export function RelayThread({ now }: { now: number }) {
           {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} launch={launch} />) : <Waiting signedIn={t.signedIn} waiting={waiting} />}
         </div>
 
+        {/* The dock (#950, Nikita: no type box): hold Space answers whatever text or email is open, into its reply box or
+            to the Thread; one small hint, the notice line, and the ear at the spine's foot. "?" still lists the keys. */}
         <div className="cx-dock">
           <div className="cx-dl">
             {/* The mic is the Desk's room mic (#638): one listener for every room. What's said here reaches the Thread. */}
-            <span className="cx-lab">{micPhase === "listening" ? "Listening" : micPhase === "thinking" ? "Reading that…" : "Hold Space to talk, or type"}</span>
+            <span className="cx-lab" data-live={micPhase !== "idle" || undefined}>
+              {micPhase === "listening" ? "Listening" : micPhase === "thinking" ? "Reading that…" : (
+                <>
+                  hold <kbd>Space</kbd> to reply
+                </>
+              )}
+            </span>
           </div>
           <div className="cx-dr">
             <UndoLine n={t.notice} now={now} sg={engine} />
-            <div className="cx-dockrow">
-              {ex && (phase === "incoming" || phase === "ask") && (
-                <form
-                  className="cx-type"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (typed.trim()) submit(typed);
-                  }}
-                >
-                  <label className="cx-sr" htmlFor="cx-words">
-                    Say what to tell them, or what to do with it
-                  </label>
-                  <input id="cx-words" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={phase === "ask" ? "or say what to change" : ex.line === "email" ? "tell Blasto what to say, or: invites can wait" : "tell Blasto what to say, in your voice"} autoComplete="off" maxLength={300} data-private="" />
-                  <button type="submit" disabled={!typed.trim()}>
-                    Go
-                  </button>
-                </form>
-              )}
-              <button type="button" className="cx-help" aria-expanded={hints} aria-controls="cx-keys" onClick={() => setHints((h) => !h)} title="Keys">
-                ?
-              </button>
-            </div>
             {hints && (
               <p className="cx-keys" id="cx-keys">
-                <b>W S</b> move · <b>A</b> later · <b>D</b> done · <b>Enter</b> reply, send · <b>Esc</b> leave the box · <b>Tab</b> take the draft · hold <b>Space</b> to talk · <b>Z</b> undo
+                <b>W S</b> move · <b>A</b> later · <b>D</b> done · <b>Enter</b> reply, send · <b>Esc</b> leave the box · <b>Tab</b> take the draft · hold <b>Space</b> to talk · <b>Z</b> undo · <b>?</b> these keys
               </p>
             )}
           </div>

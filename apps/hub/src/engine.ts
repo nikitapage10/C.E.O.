@@ -12,11 +12,12 @@ import { photoIdOf } from "../../../api/_relay/photos.ts";
 import { closingReply, onlyAcks } from "../../../api/_email/intentWords.ts";
 import { statusOf, syncPhotos, type Resize } from "./photos.ts";
 import { settleByRule } from "./rules.ts";
+import { isEnder, UNREAD_ENDER_MS } from "./enders.ts";
 import type { Site } from "./site.ts";
-import { MAX_OLDER_ROWS, newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
-import { MAX_ASIDE, MAX_ITEMS, MEDIA_TEXT, MAX_OLDER, OWED_WINDOW_MS, owedWindow, SHOWN_KEEP_MS, UNREAD_WINDOW_MS, type AsideItem, type AsideWhy, type GistWait, type OlderItem } from "../../../api/_relay/texts.ts";
+import { MAX_OLDER_ROWS, newThreadId, type Held, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
+import { MAX_ASIDE, MAX_ITEMS, MEDIA_TEXT, MAX_OLDER, OLDER_WINDOW_MS, OWED_WINDOW_MS, owedWindow, SHOWN_KEEP_MS, UNREAD_WINDOW_MS, type AsideItem, type AsideWhy, type GistWait, type OlderItem } from "../../../api/_relay/texts.ts";
 import { readLearn, type DraftVoice, type Relation, type Voice } from "../../../api/_relay/voice.ts";
-import { allChats, sortBacklog, verdictOf } from "./backlog.ts";
+import { allChats, emptySort, finish, judgeChat, place, scanWants } from "./backlog.ts";
 import { chatPerson, handleKey, LEARN_MIN, LEARN_WINDOW_MS, sampleSent, voiceStats, type Said } from "./learn.ts";
 
 /**
@@ -58,8 +59,14 @@ export const OVERDUE_MS = 24 * 60 * 60_000;
 export const MEDIA_LINE = "[a photo or attachment]";
 /** The gist of a thread that is only photos or files (#870): the hub's own words; no model reads it. */
 export const MEDIA_GIST = "Sent a photo or attachment.";
+/** The hub's own line for an unread tapback on Nikita's message (#950). */
+export const REACTION_GIST = "Reacted to your message.";
+/** The set-asides an unread chat waits out (#950): listed while Messages shows it unread, settled once it is read. */
+const UNREAD_HELD: readonly Held[] = ["no-reply", "closing", "ender", "group", "code", "short-code", "promo"];
+/** The hub's own line for an unread chat a rule keeps from the models (#950): listed, never read by one. */
+export const RULE_GIST: Record<"code" | "short-code" | "promo", string> = { code: "A code or verification text, unread.", "short-code": "An automated sender, unread.", promo: "Marketing, unread." };
 /** Why a one-to-one thread is set aside, as the Desk may see it (#870). The skip list and groups never show. */
-const ASIDE_OF: Partial<Record<string, AsideWhy>> = { "no-reply": "no-reply", closing: "closing", done: "done", money: "money", code: "code", "short-code": "short-code", promo: "promo" };
+const ASIDE_OF: Partial<Record<string, AsideWhy>> = { "no-reply": "no-reply", closing: "closing", done: "done", money: "money", code: "code", "short-code": "short-code", promo: "promo", ender: "ender" };
 /**
  * A chat of several moved across the group line (#916, GROUP_MIN_PEOPLE): one that becomes a group loses its gist,
  * sort and draft (a group is never drafted for); one that becomes a regular chat loses its summary, and a group's
@@ -99,6 +106,8 @@ export const CHAT_PAGES = 10;
 /** The most chats whose newest real message the backlog reads one by one (a reaction or a photo was last). #803: 40 left
  * many recent chats (a tapback last is common) out of the list altogether; each is one local BlueBubbles read. */
 export const CHECK_MAX = 200;
+/** The most chats the full scan reads one by one (#950), newest first: every chat active within SCAN_REACH_MS, and every unread one. */
+export const SCAN_READ_MAX = 800;
 /** The most threads one read check looks at (#924): the owed ones (held first), then the set-aside ones. Local reads only. */
 export const RECHECK_MAX = 40;
 /** The learn pass reads the year 1,000 messages a page, 80 pages at most. */
@@ -415,10 +424,12 @@ export class Engine {
       // A new text is sorted afresh (#924): a set-aside held off for the last one doesn't carry over.
       delete t.held;
       if (t.group) {
-        // A group stays summary-only; it is owed only once Nikita was asked or named (#758, `summarise`).
+        // A group stays summary-only (#758, `summarise`). #950: while Messages shows it unread it waits (held as a
+        // group's set-aside, which lands once it is read), muted or not; once read it is owed only when Nikita was
+        // asked or named.
         if (t.state !== "owed" && t.state !== "later") {
-          t.state = "settled";
-          t.why = "group";
+          if (t.unread) Object.assign(t, { state: "owed", why: null, since: at, held: "group" });
+          else Object.assign(t, { state: "settled", why: "group" });
         }
         this.queue.add(t.id);
         this.d.log.log("thread settled", { group: 1 });
@@ -426,6 +437,15 @@ export class Engine {
       }
       const contact = this.contactOf(m.message.handle);
       const why = settleByRule({ handle: m.message.handle, names: contact?.names ?? [], text: m.message.text }, this.skipTerms);
+      // A code, a short code or a promo still waits while it is unread (#950: Messages' Unread filter shows it), with
+      // the hub's own line, never a model's; it settles once it is read.
+      if ((why === "code" || why === "short-code" || why === "promo") && t.unread && t.kept === undefined) {
+        Object.assign(t, { state: "owed", why: null, since: t.state === "owed" || t.state === "later" ? t.since : at, gist: RULE_GIST[why], sort: null, draft: null, laterUntil: null, sortedAt: this.d.now(), held: why });
+        this.queue.delete(t.id);
+        this.forget(t.id);
+        this.d.log.log("thread owed", { rule: 1 });
+        return;
+      }
       if (why) {
         // Settled whatever it was: a money or legal text, a code or a skip-listed sender never reaches a model, even
         // in a thread that was already owed (its draft goes too; Nikita still sees the thread in Messages).
@@ -604,7 +624,7 @@ export class Engine {
       this.forget(t.id);
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
-        if (x) Object.assign(x, { summary: null, state: "settled", why: "group" });
+        if (x) Object.assign(x, { summary: null, state: "settled", why: "group", held: undefined });
       });
       this.d.log.log("thread settled", { rule: 1, group: 1 });
       return;
@@ -630,6 +650,8 @@ export class Engine {
       if (!x) return;
       x.summary = { text: ph.restore(answer.summary), asked: answer.asked, at: this.d.now() };
       if ((answer.asked || named) && x.state !== "owed" && x.state !== "later") Object.assign(x, { state: "owed", why: null, since: since[0]!.at });
+      // Asked or named (#950): it waits whether or not it is read, so an unread group's wait doesn't end on reading.
+      if ((answer.asked || named) && x.held === "group") delete x.held;
     });
     this.d.log.log("group summarised");
   }
@@ -661,6 +683,14 @@ export class Engine {
     const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
     // Nikita's own message is the newest (#642): he answered, on his phone or here, so the thread closes. No draft.
     if (!unanswered.length) {
+      // Their unread tapback on Nikita's message (#950): it waits while Messages shows it unread, with the hub's own line.
+      if (t.unread && lastMine >= 0 && t.lastIn > msgs[lastMine]!.at) {
+        this.change((s) => {
+          const x = s.threads.find((y) => y.id === t.id);
+          if (x && (x.state === "owed" || x.state === "later")) Object.assign(x, { gist: REACTION_GIST, sortedAt: this.d.now(), held: x.held ?? "no-reply" });
+        });
+        return;
+      }
       // Sent from the Desk (#870): it stays in the queue until Done.
       if (lastMine >= 0 && t.sentHere === undefined) this.closeReplied(t.id, msgs[lastMine]!.at);
       return;
@@ -685,6 +715,19 @@ export class Engine {
     // settled without a model, and Blasto never drafts after it. A photo is never only an acknowledgement (#870). A
     // thread Nikita brought back stays.
     const closing = !t.kept && !media && lastMine >= 0 && closingReply(msgs[lastMine]!.text) && onlyAcks(unanswered.map((m) => m.text));
+    // The ender pre-pass (#950): a read chat whose texts since Nikita's last only end the conversation ("ok cool",
+    // "lol") waits on no one, with no model call. An unread one skips it, unless the text is over UNREAD_ENDER_MS old
+    // (the Mac's read state can lag the phone's). A thread he brought back, or asked a draft for, stays.
+    const newestIn = unanswered[unanswered.length - 1]!;
+    const ended = !t.kept && !asked && !this.restyles.has(t.id) && !media && unanswered.every((m) => isEnder(m.text)) && (!unread || this.d.now() - newestIn.at >= UNREAD_ENDER_MS);
+    if (ended && !closing) {
+      this.change((s) => {
+        const x = s.threads.find((y) => y.id === t.id);
+        if (x) Object.assign(x, { state: "settled", why: "ender", draft: null, gist: "", laterUntil: null, held: undefined });
+      });
+      this.d.log.log("thread settled", { ender: 1 });
+      return;
+    }
     if (closing && !unread) {
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
@@ -700,6 +743,16 @@ export class Engine {
     const earliest = Math.max(0, lastMine - (CAPS.draftEarlier - 1));
     const seen = msgs.slice(earliest);
     const ruled = (memberRuled ? "skip" : null) ?? seen.map(ruleOf).find((w) => w !== null);
+    // Unread, and only a code, a short code or a promo (#950): it waits as Messages shows it, with the hub's own line;
+    // nothing of it reaches a model or the Desk, and it settles once it is read.
+    if (unread && (ruled === "code" || ruled === "short-code" || ruled === "promo")) {
+      this.forget(t.id);
+      this.change((s) => {
+        const x = s.threads.find((y) => y.id === t.id);
+        if (x && (x.state === "owed" || x.state === "later")) Object.assign(x, { gist: RULE_GIST[ruled], sort: null, draft: null, sortedAt: this.d.now(), held: ruled });
+      });
+      return;
+    }
     if (ruled) {
       this.forget(t.id);
       this.change((s) => {
@@ -816,8 +869,9 @@ export class Engine {
     const now = this.d.now();
     const threads = this.d.store.load().threads;
     // A thread sent in from the Desk stays in the queue until Done (#870), so it isn't closed here. Held ones first.
-    const owed = threads.filter((t) => !t.group && (t.state === "owed" || t.state === "later") && t.sentHere === undefined).sort((a, b) => Number(!!b.held) - Number(!!a.held));
-    const aside = threads.filter((t) => !t.group && t.state === "settled" && (t.why === "no-reply" || t.why === "closing") && now - t.lastIn < UNREAD_WINDOW_MS).sort((a, b) => b.lastIn - a.lastIn);
+    // #950: groups too, so an unread group's wait ends once it is read.
+    const owed = threads.filter((t) => (t.state === "owed" || t.state === "later") && t.sentHere === undefined).sort((a, b) => Number(!!b.held) - Number(!!a.held));
+    const aside = threads.filter((t) => !t.group && t.state === "settled" && (t.why === "no-reply" || t.why === "closing" || t.why === "ender") && now - t.lastIn < OLDER_WINDOW_MS).sort((a, b) => b.lastIn - a.lastIn);
     for (const t of [...owed, ...aside].slice(0, RECHECK_MAX)) {
       const latest = await this.d.bb.messages(t.chat, 3).catch(() => null);
       if (!latest) return;
@@ -828,7 +882,7 @@ export class Engine {
         if (theirs && newest === theirs && theirs.read !== true && (t.repliedAt ?? 0) < theirs.at)
           this.change((s) => {
             const x = s.threads.find((y) => y.id === t.id);
-            if (x && x.state === "settled" && (x.why === "no-reply" || x.why === "closing")) Object.assign(x, { state: "owed", held: x.why, why: null, unread: true, lastIn: Math.max(x.lastIn, theirs.at) });
+            if (x && x.state === "settled" && (x.why === "no-reply" || x.why === "closing" || x.why === "ender")) Object.assign(x, { state: "owed", held: x.why, why: null, unread: true, lastIn: Math.max(x.lastIn, theirs.at) });
           });
         continue;
       }
@@ -979,17 +1033,21 @@ export class Engine {
     }
     // Each chat of several's people (#916), so the poll and the Desk know which are groups.
     for (const c of chats) if ((c.multi ?? c.group) && c.members?.length) this.people.set(c.chat, c.members);
-    const sorted = sortBacklog(chats, now, this.skipTerms, contactOf);
-    // A reaction, a system item or a photo was last: the newest real message in that chat decides.
-    for (const c of [...sorted.check].sort((a, b) => b.lastAt - a.lastAt).slice(0, CHECK_MAX)) {
+    // A chat of several's own name in Messages (#950): the Desk's chip shows it, the people's names only without one.
+    for (const c of chats) if ((c.multi ?? c.group) && c.name) this.groupNames.set(c.chat, c.name);
+    const muted = new Set(chats.filter((c) => c.muted).map((c) => c.chat));
+    // Every chat active lately, or whose last item is theirs and unread, judged on its own newest messages (#950):
+    // the same path as `relay why` (./backlog.ts, judgeChat). The chat query's last message is BlueBubbles' MAX(ROWID),
+    // which Messages in iCloud can make an older message, so it only picks which chats to read. Older ones are let go.
+    const sorted = emptySort();
+    const seen = new Set<string>();
+    const wanted = chats.filter((c) => !seen.has(c.chat) && seen.add(c.chat) && scanWants(c, now)).sort((a, b) => b.lastAt - a.lastAt);
+    for (const c of wanted.slice(0, SCAN_READ_MAX)) {
       const msgs = await this.recent(c.chat, 25);
-      if (!msgs?.length) continue;
-      const last = msgs[msgs.length - 1]!;
-      const v = verdictOf({ ...c, last: { ...last, handle: last.fromMe ? "" : last.handle || c.handle, ...(mediaOnly(last) && { media: true as const }) } }, now, this.skipTerms, contactOf);
-      if (v === "owed") sorted.owed.push({ chat: c.chat, handle: last.handle || c.handle, at: last.at, unread: last.read !== true });
-      else if (v === "older") sorted.older.push({ chat: c.chat, handle: last.handle || c.handle, at: last.at, unread: last.read !== true });
-      else if (v === "settled") sorted.settled++;
+      if (msgs === null) continue;
+      place(sorted, c, judgeChat(c, msgs, now, this.skipTerms, contactOf));
     }
+    finish(sorted);
     // Newest first (#803): Dialtone sorts the newest ones first, so the top of the Desk gets its gists soonest.
     sorted.owed.sort((a, b) => b.at - a.at);
     sorted.older.sort((a, b) => b.at - a.at);
@@ -997,10 +1055,17 @@ export class Engine {
     this.change((s) => {
       // A thread whose chat's size is known now (#916): a group from 6 others, a regular chat below.
       for (const t of s.threads) if (isGroupChat(t.chat) && this.people.has(t.chat)) regroup(t, this.groupOf(t.chat));
+      // Muted in Messages (#950): a mark only, from this scan.
+      for (const t of s.threads) {
+        if (muted.has(t.chat)) t.muted = true;
+        else delete t.muted;
+      }
       for (const e of sorted.owed) {
         const t = s.threads.find((x) => x.chat === e.chat);
         if (t && (t.state === "owed" || t.state === "later")) {
           t.unread = e.unread;
+          // Listed only while unread (#950): a group's or a code sender's set-aside lands once it is read.
+          if (e.unread && e.untilRead && !t.held) t.held = e.untilRead;
           // Read now (#924): a set-aside held off while it was unread lands.
           if (!e.unread && t.held && this.release(t)) continue;
           // Their latest text (#895): a text the hub missed while it was off still keeps the thread inside the window.
@@ -1017,8 +1082,11 @@ export class Engine {
         // Kept unread in Messages (#924): a thread Dialtone or closing intent set aside is owed again, its verdict held
         // off until it is read; its gist stays, so no model reads it again. Done and a rule's settle stay as they are.
         // It counts as this text's revisit.
-        if (t && e.unread && t.state === "settled" && (t.why === "no-reply" || t.why === "closing") && (t.repliedAt ?? 0) < e.at && (t.doneAt ?? 0) < e.at) {
-          Object.assign(t, { state: "owed", held: t.why, why: null, lastIn: Math.max(t.lastIn, e.at), unread: true, rechecked: Math.max(t.rechecked ?? 0, e.at) });
+        // #950: so is one a group, a code, a short code, a promo or the ender check set aside: Messages' Unread filter
+        // shows it, so the list does. The skip list, money and legal and Nikita's Done stay as they are.
+        const heldWhy = t && t.state === "settled" ? t.why : null;
+        if (t && e.unread && heldWhy && UNREAD_HELD.includes(heldWhy as Held) && (t.repliedAt ?? 0) < e.at && (t.doneAt ?? 0) < e.at) {
+          Object.assign(t, { state: "owed", held: e.untilRead ?? (heldWhy as Held), why: null, lastIn: Math.max(t.lastIn, e.at), unread: true, rechecked: Math.max(t.rechecked ?? 0, e.at) });
           if (!t.gist) this.queue.add(t.id);
           added++;
           continue;
@@ -1027,9 +1095,23 @@ export class Engine {
         // Nikita's own Done (#914) holds against every text up to when he pressed it.
         if (t && !revisit && Math.max(t.lastIn, t.repliedAt ?? 0, t.sortedAt ?? 0, t.doneAt ?? 0) >= e.at) continue;
         if (t) Object.assign(t, { state: "owed", why: null, since: Math.min(t.since, e.at), lastIn: Math.max(t.lastIn, e.at), sort: null, gist: "", draft: null, laterUntil: null, unread: e.unread, ...(revisit && { rechecked: e.at }) });
-        else s.threads.push({ id: newThreadId(), chat: e.chat, group: this.groupOf(e.chat), state: "owed", why: null, since: e.at, lastIn: e.at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null, unread: e.unread });
+        else s.threads.push({ id: newThreadId(), chat: e.chat, group: this.groupOf(e.chat), state: "owed", why: null, since: e.at, lastIn: e.at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null, unread: e.unread, ...(e.untilRead && e.unread && { held: e.untilRead }), ...(e.muted && { muted: true as const }) });
+        if (t && e.unread && e.untilRead) t.held = e.untilRead;
         this.queue.add(s.threads.find((x) => x.chat === e.chat)!.id);
         added++;
+      }
+      // Set aside by the scan (#950): a rule or the ender check, listed under "set aside" with why instead of vanishing.
+      // A thread Nikita brought back, sent in from the Desk or answered after it stays as it is.
+      for (const e of sorted.aside) {
+        const t = s.threads.find((x) => x.chat === e.chat);
+        if (!t) {
+          s.threads.push({ id: newThreadId(), chat: e.chat, group: false, state: "settled", why: e.why, since: e.at, lastIn: e.at, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null });
+          continue;
+        }
+        if (t.kept || t.sentHere !== undefined || Math.max(t.repliedAt ?? 0, t.doneAt ?? 0) >= e.at) continue;
+        if (t.state === "settled" && t.why === e.why) continue;
+        if (t.state === "settled" && t.why !== null && !["no-reply", "closing", "ender"].includes(t.why)) continue;
+        Object.assign(t, { state: "settled", why: e.why, draft: null, laterUntil: null, held: undefined, lastIn: Math.max(t.lastIn, e.at) });
       }
       const ids = new Map(s.older.map((o) => [o.chat, o.id]));
       const owedChats = new Set(s.threads.filter((t) => t.state === "owed" || t.state === "later").map((t) => t.chat));
@@ -1263,7 +1345,7 @@ export class Engine {
     if (req.kind === "back") {
       // "Bring back" (#870): a thread Dialtone, closing intent or Nikita's own "done" set aside goes back in line and
       // stays owed until he replies. A rule's settle never comes back: its texts never reach a model.
-      if (t.group || t.state !== "settled" || !(t.why === "no-reply" || t.why === "closing" || t.why === "done")) return refuse("not-owed");
+      if (t.group || t.state !== "settled" || !(t.why === "no-reply" || t.why === "closing" || t.why === "done" || t.why === "ender")) return refuse("not-owed");
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
         if (x) Object.assign(x, { state: "owed", why: null, sort: null, gist: "", draft: null, laterUntil: null, kept: true, held: undefined, doneAt: undefined });
@@ -1642,13 +1724,15 @@ export class Engine {
           ...(this.waitFor(t) && { wait: this.waitFor(t) }),
           // How many of their unanswered texts are only a photo or file (#870): a count, never the attachment.
           ...(owedState(t) && !t.group && t.media && { media: Math.min(999, t.media) }),
+          // Muted in Messages (#950): a mark only.
+          ...(t.muted && { muted: true as const }),
         };
       });
     // Every other one-to-one thread with a text from them in the window (#870, Nikita 2026-11-05: every recent
     // conversation on the line, by date): who, when and why it is set aside, from a closed list. No text, no gist.
     // The skip list's never show, nor a thread Nikita answered.
     const aside: AsideItem[] = s.threads
-      .filter((t) => !t.group && t.state === "settled" && t.why !== null && ASIDE_OF[t.why] !== undefined && now - t.lastIn < OWED_WINDOW_MS && t.lastIn >= Date.UTC(2026, 0, 1))
+      .filter((t) => !t.group && t.state === "settled" && t.why !== null && ASIDE_OF[t.why] !== undefined && now - t.lastIn < OLDER_WINDOW_MS && t.lastIn >= Date.UTC(2026, 0, 1))
       .sort((a, b) => b.lastIn - a.lastIn)
       .slice(0, MAX_ASIDE)
       .map((t) => {

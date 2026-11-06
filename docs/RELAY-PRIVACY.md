@@ -518,6 +518,42 @@ data as before; what changes is how long an unread item stays, one new request k
   the run ends. Each later draft carries the traits, the tone for that contact's relationship and the numbers, inside
   a fenced `<voice>` block, as well as that contact's own past replies as before.
 
+### Waiting is Messages' Unread filter, set-asides listed, group names (#950)
+
+Nikita, 2026-11-06 (01:59Z, 02:00Z): his iPhone's Unread filter is the ground truth. What the hub reads from
+BlueBubbles is the same kind of data as before (each chat's latest messages, its people, its name in Messages); what
+changes is which chats it reads one by one, how it judges them, and three new marks on the sealed list.
+
+- **Waiting.** (A) A chat whose newest inbound item (a text, a photo or a tapback) has no `dateRead` on the Mac and
+  nothing of Nikita's after it is owed, whatever its age (`UNREAD_WINDOW_MS` is now a year), its kind (a group of 6
+  or more, muted or not; a chat of a few; one person) or its sender (a short code, an unknown number, an email
+  address). No model judges it. (B) A read chat is owed within 30 days unless an obvious conversation-ender ("ok
+  cool", "lol", "sounds good", a thumbs-up, a tapback: `apps/hub/src/enders.ts`, on the Mac, no model) or a rule sets
+  it aside; Dialtone then judges whether it needs a reply, as before, within the cap. An unread text over 3 days old
+  still goes through the ender check, because the Mac's read state can lag the phone's (Messages in iCloud).
+- **What still sets an unread chat aside.** The skip list (counted, never listed), and money and legal texts (kept
+  from the models and the Desk as before, and now listed under "set aside" with why, never silently dropped). An
+  unread code, short-code or promo sender is listed as waiting with the hub's own line ("An automated sender,
+  unread."), never its text, and never reaches a model; once read it is set aside as before. An unread group is
+  listed as waiting and summarised as before (a group is never drafted for); once read it goes back to summary-only
+  unless Nikita was asked or named.
+- **One verdict for the scan and `relay why`.** The full scan reads each chat's own newest messages
+  (`/api/v1/chat/<guid>/message`, sorted by date, 25 at most, 800 chats at most, newest first: every chat active
+  within 120 days, and every chat whose last item is theirs and unread) and judges them with the same function
+  `relay why` uses (`judgeChat`). The chat query's last message only picks which chats to read: BlueBubbles picks it by
+  `MAX(ROWID)`, not by date, and Messages in iCloud writes late-synced older messages with higher ROWIDs, so a chat
+  whose newest text was theirs could read as answered and never get a row. All local reads on 127.0.0.1.
+- **New marks on the sealed list.** `muted` on an item (Messages' "Hide Alerts", read from the chat's `properties`
+  plist as BlueBubbles serialises it, `ignoreAlertsFlag`; a mark only, and absent where macOS or BlueBubbles doesn't
+  carry it), and the set-aside kind `ender`. A group's own name in Messages (its display name) now comes from the
+  scan as well as the poll, so the Desk's chip shows it, falling back to its people's first names. Names stay in the
+  sealed, passkey-only list; the public status is counts only. An older hub sends none of these, and the Desk falls
+  back as before.
+- **`relay check` and `relay why`.** `check` adds counts only: how many chats Messages on the Mac shows unread, how
+  many of those for over 7 days (many old ones hint that the phone's reads aren't reaching the Mac), and the
+  set-aside threads by kind. `why` matches groups by their name in Messages and says whether their newest text is read
+  on the Mac. Nothing from either goes to the site.
+
 ### Mac to logs
 
 - **Allowed:** timestamps, event kinds from a closed list ("thread owed", "draft ready", "status sent", "sent",

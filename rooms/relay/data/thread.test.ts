@@ -198,6 +198,8 @@ describe("the four numbers", () => {
     expect(metricsOf(email, texts, null, 0)).toEqual({ waiting: 5, drafted: 2, sent: 6, filtered: 39, unread: null });
     const q = queueOf([mail()], [text()]);
     expect(metricsOf(email, texts, q, 0)).toEqual({ waiting: 2, drafted: 1, sent: 6, filtered: 39, unread: 0 });
+    // Groups waiting on the shelf (#950) count too.
+    expect(metricsOf(email, texts, q, 0, 2).waiting).toBe(4);
   });
 
   it("count unread texts (#758) without hiding a read one", () => {

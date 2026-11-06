@@ -1,24 +1,23 @@
 /*
- * The Exchange on the flow kit (#430): Today's language (Bodoni Moda, Jost, the horizon, the ledger, the panels, all
- * from flow.css) in the Bookie's mint, with one idea of its own: the marquee, a slim run of live odds between two lit
- * hairlines, and the day's money fanning from the ledger into the markets. The data blocks sit in one measured column
- * (--xc-max) so nothing stretches thin across a wide screen; the stage's night and its lines still run edge to edge.
- * Mint marks what is live, up or in profit; a muted rose is kept for what is down, and nothing else. Every animation
- * here stops under prefers-reduced-motion (the end).
+ * The Exchange (#430; the trade floor since #823): the floor itself is in hall.css. Below it, the deck: the same gold
+ * wire grid and rising nanites as the floor's edges (UndoneField) behind solid panels with gold hairlines and a tick at
+ * each corner, in Today's type (Bodoni Moda, Jost, from flow.css). Gold is the accent; green marks what is up, live or
+ * in profit, and a muted rose what is down, and nothing else. The data blocks sit in one measured column (--xc-max).
+ * The marquee's flat run (Marquee.tsx) stands in over the floor where there is no WebGL. Every animation here stops
+ * under prefers-reduced-motion (the end).
  */
 
 .desk .xc{
   --xc-max:1240px;
-  --mint:rgb(var(--fl-accent));
-  --mint-l:rgba(var(--fl-accent),.3);
-  --mint-f:rgba(var(--fl-accent),.07);
+  --mint:#6be6ab;
+  --mint-l:rgba(201,168,92,.38);
+  --mint-f:rgba(201,168,92,.08);
   --rose:#e9939f;
 }
 .desk .xc-wrap{width:100%;max-width:var(--xc-max);margin-inline:auto}
 .desk .fl-below.xc-wrap{box-sizing:content-box;width:auto;max-width:var(--xc-max);margin:var(--fl-s6) auto 0;padding:0 var(--fl-pad)}
 
 /* ---------- the marquee ---------- */
-.desk .xc-stage{min-height:0;padding-top:0;padding-bottom:var(--fl-s4)}
 .desk .xc-tape{position:relative;display:flex;align-items:stretch;height:46px;margin:0 calc(-1 * var(--fl-pad)) var(--fl-s6);background:rgba(7,9,11,.78)}
 .desk .xc-tape::before,.desk .xc-tape::after{content:"";position:absolute;left:0;right:0;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(var(--fl-accent),.22) 18%,rgba(var(--fl-accent),.7) 50%,rgba(var(--fl-accent),.22) 82%,transparent);pointer-events:none}
 .desk .xc-tape::before{top:0}
@@ -42,15 +41,7 @@
 .desk .xc-tape-move.is-down{color:var(--rose)}
 .desk .xc-tape-wait{display:flex;align-items:center;margin:0;padding:0 24px;font-family:var(--fl-disp);font-style:italic;font-size:15px;color:var(--wv-mute)}
 
-/* ---------- the floor ---------- */
-.desk .xc-floor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.04fr);column-gap:clamp(88px,9vw,168px);align-items:start}
-.desk .xc-lede .fl-say{max-width:34ch}
-.desk .xc-ledger{max-width:100%}
-.desk .xc-ledger dd{font-size:clamp(28px,2.3vw,38px)}
-.desk .xc-ledger dd>small.xc-dd-word{display:block;padding-top:8px;font-family:var(--fl-disp);font-style:italic;font-size:16px;letter-spacing:0;line-height:1.2;color:var(--wv-mute);white-space:normal}
-.desk .xc-keeper{--rc:var(--mint);margin-top:var(--fl-s5)}
-.desk .xc-board{padding-top:6px}
-.desk .xc-board-h{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px 18px;padding-bottom:var(--fl-s3)}
+/* ---------- the market rows (the floor's panel and the watchlist) ---------- */
 .desk .xc-state{display:inline-flex;align-items:center;gap:8px;margin:0;font-family:var(--fl-text);font-size:12.5px;color:var(--wv-mute)}
 .desk .xc-state i{width:6px;height:6px;border-radius:50%;background:var(--wv-faint)}
 .desk .xc-state[data-state="ready"] i,.desk .xc-state[data-state="live"] i{background:var(--mint);box-shadow:0 0 10px rgba(var(--fl-accent),.7)}
@@ -89,13 +80,19 @@
 .desk .xc-more{margin:var(--fl-s3) 0 0;padding:0;border:0;background:none;font:inherit;font-size:13.5px;color:var(--fl-hi);cursor:pointer;text-decoration:underline;text-decoration-color:var(--mint-l);text-underline-offset:4px}
 .desk .xc-link{font-family:var(--fl-text);font-size:13.5px;color:var(--fl-hi);text-decoration:none}
 .desk .xc-link:hover{text-decoration:underline;text-underline-offset:3px}
-.desk .xc-key{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:var(--fl-s5);margin-bottom:0;font-family:var(--fl-text);font-size:12.5px;color:var(--wv-faint)}
-.desk .xc-key span{display:inline-flex;align-items:center;gap:10px}
-.desk .xc-key-line{width:24px;height:1px;background:linear-gradient(90deg,transparent,var(--mint))}
-.desk .xc-key-bar{width:24px;height:2px;background:linear-gradient(90deg,rgba(var(--fl-accent),.35),rgba(var(--fl-accent),.85))}
 .desk .xc-empty{margin:var(--fl-s3) 0;font-size:18px}
 
-/* ---------- sections below the floor ---------- */
+/* ---------- the deck under the floor ---------- */
+[data-room="exchange"] .xc-deck{position:relative;isolation:isolate;padding:1px 0 var(--fl-s5);background:linear-gradient(180deg,#0b0b0d 0,#09090b 200px,#080808 100%)}
+[data-room="exchange"] .xc-deck>.xc-deck-sig{position:absolute;inset:0;z-index:0;width:100%;height:100%;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent);mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent)}
+[data-room="exchange"] .xc-deck>:not(.xc-deck-sig){position:relative;z-index:1}
+[data-room="exchange"] .xc-keeper{--rc:#e3c98d;margin-bottom:var(--fl-s5)}
+[data-room="exchange"] .xc-deck .xc-sec,[data-room="exchange"] .xc-deck .xc-later{position:relative;padding:clamp(20px,2.4vw,32px);border:1px solid rgba(201,168,92,.26);border-radius:2px;background:linear-gradient(180deg,rgba(20,17,13,.95),rgba(9,9,10,.95));box-shadow:0 40px 80px -40px #000,inset 0 1px 0 rgba(232,199,122,.1)}
+[data-room="exchange"] .xc-deck .xc-sec::before,[data-room="exchange"] .xc-deck .xc-later::before{content:"";position:absolute;inset:-3px;pointer-events:none;background:linear-gradient(#c9a85c,#c9a85c) 0 0/10px 1px,linear-gradient(#c9a85c,#c9a85c) 0 0/1px 10px,linear-gradient(#c9a85c,#c9a85c) 100% 0/10px 1px,linear-gradient(#c9a85c,#c9a85c) 100% 0/1px 10px,linear-gradient(#c9a85c,#c9a85c) 0 100%/10px 1px,linear-gradient(#c9a85c,#c9a85c) 0 100%/1px 10px,linear-gradient(#c9a85c,#c9a85c) 100% 100%/10px 1px,linear-gradient(#c9a85c,#c9a85c) 100% 100%/1px 10px;background-repeat:no-repeat}
+[data-room="exchange"] .xc-deck .xc-sec:hover,[data-room="exchange"] .xc-deck .xc-sec:focus-within{border-color:rgba(232,199,122,.45)}
+[data-room="exchange"] .xc-deck .fl-eyb span,[data-room="exchange"] .xc-deck .fl-k{color:#e3c98d}
+[data-room="exchange"] .xc-deck .fl-panel{border-radius:2px;border-color:rgba(201,168,92,.22);background:rgba(8,8,9,.6)}
+[data-room="exchange"] .xc-book-at{scroll-margin-top:80px}
 .desk .xc-sec{margin-top:var(--fl-s6)}
 .desk .xc-sec:first-child{margin-top:0}
 .desk .xc-sec--slim{margin-top:var(--fl-s5)}
@@ -229,14 +226,10 @@
 
 /* ---------- narrower ---------- */
 @media (max-width:1100px){
-  .desk .xc-floor{column-gap:72px}
   .desk .xc-led-head,.desk .xc-led-line{grid-template-columns:26px minmax(0,1.6fr) minmax(90px,1fr) 56px 92px 104px 12px}
   .desk .xc-led-head span:nth-child(4),.desk .xc-led-head span:nth-child(5),.desk .xc-led-line>.xc-led-f[data-k="Size"],.desk .xc-led-line>.xc-led-f[data-k="Entry"]{display:none}
 }
 @media (max-width:900px){
-  .desk .xc-floor{grid-template-columns:minmax(0,1fr)}
-  .desk .xc-board{margin-top:var(--fl-s5)}
-  .desk .xc-board .xc-mks{padding-left:26px}
   .desk .xc-world-grid{grid-template-columns:minmax(0,1fr)}
   .desk .xc-later-row{grid-template-columns:minmax(0,1fr)}
 }

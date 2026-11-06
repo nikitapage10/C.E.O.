@@ -607,11 +607,22 @@ every edition. He runs long. It says so.
 **The Desk's rooms.** On the C.E.O.'s Desk, beyond the Veil, each room keeps a page of its own, drawn in its own
 look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as a war table
 (a drowned world in silver and black since the Undertow: its places are ruins half under the water, glass stasis monoliths with sleepers inside and a glass-lit lab, threads of light run between them toward a planet's limb, and the Tide's shattered isle is still only wire until its feed comes in), the Spire as a gilded ledger, the Exchange
-as a trading floor at night under a mint ticker, the Green as the bowl (a football stadium under the lights, below), and the
+as a trade floor in black and gold under a curved marquee of live odds, the Green as the bowl (a football stadium under the lights, below), and the
 Workshop as a print farm: printers on a long bench, one waiting on the C.E.O.'s network and three open bays the farm
 keeps to grow into, and a turntable out front where a design turns for its check before it prints. A room whose real line isn't connected
 yet says so plainly and shows nothing made up. Each room's keeper stands at the top of its page and says what they
 are waiting on.
+
+**The trade floor.** Since #823 the Exchange's page is the floor itself, the way the C.E.O. sees it through the Veil:
+polished black stone inlaid with gold, and on it a trading post for each of the busiest markets of the day, a
+lacquered ring counter with a crown of six screens showing that market's odds and its move, green up and rose down.
+Over the back wall a curved marquee runs the live tape. Out front, a small kiosk keeps the C.E.O.'s book and says
+only how many positions are open, never a figure: the Bookie insisted, and Hedge wrote the rule. Round the rim three
+more posts are still being built, gold wire with the solid rising into it and sigil nanites streaming in at the line,
+one for each thing the floor is still waiting on. Toward the edges the stone and the columns come undone into gold
+wire and nanites, the Senate's edges. Noco has challenged the unbuilt posts to a duel twice; they did not show up,
+which Noco counts as a win. Hedge sits facing the marquee, which is new, and checks the unbuilt posts' wire every
+morning for load-bearing optimism.
 
 **The bowl.** Since #824 the Green's page is a stadium: a bowl of solid stands round a lit field at night, floodlight
 towers at the corners, a ribbon board scrolling the score along the fascia and a jumbotron hung over midfield on

@@ -49,7 +49,7 @@ describe("Skippy's lights tools (#931)", () => {
     expect(toolNamed("lights_scene")?.confirm).toBe(true);
     const h = host();
     const list = await callTool("lights_list", {}, h, { pending: null, surface: "spoken" });
-    expect(list).toMatchObject({ ok: true, text: expect.stringMatching(/Study on; Porch off.*All off.*Beamer/) });
+    expect(list).toMatchObject({ ok: true, text: expect.stringMatching(/Study \(SwitchBot Bot\) on; Porch \(SwitchBot Bot\) off.*All off.*Beamer \(Projector\)/) });
     expect(list.ok && "text" in list ? list.text : "").not.toMatch(/aaaa|cccc/);
     // Said out loud, even in Nikita's own words, a switch waits for his Yes on the Desk.
     expect(await callTool("lights_set", { name: "Study", on: false }, h, { pending: new MemoryPending(), surface: "spoken", said: "turn the study light off", via: "phone" })).toMatchObject({ ok: false, text: expect.stringMatching(/Yes tap/) });

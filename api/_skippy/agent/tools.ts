@@ -140,9 +140,9 @@ async function lightsText(host: ToolHost): Promise<string> {
   const v = await host.lights.view();
   const down = (["switchbot", "govee"] as const).filter((x) => v.vendors[x] === "down").map((x) => (x === "govee" ? "Govee" : "SwitchBot"));
   const lines = [
-    v.lights.length ? `Lights: ${v.lights.map((l) => `${l.name || "unnamed"} ${!l.online ? "offline" : l.on === null ? "state unknown" : l.on ? "on" : "off"}`).join("; ")}.` : "No lights found.",
+    v.lights.length ? `Lights: ${v.lights.map((l) => `${l.name || "unnamed"} (${l.vendor === "govee" ? "Govee" : "SwitchBot"} ${l.type || "device"}) ${!l.online ? "offline" : l.on === null ? "state unknown" : l.on ? "on" : "off"}`).join("; ")}.` : "No lights found.",
     v.scenes.length ? `Scenes: ${v.scenes.map((s) => s.name).join("; ")}.` : "",
-    v.remotes.length ? `Remotes (power on or off, no state): ${v.remotes.map((r) => r.name).join("; ")}.` : "",
+    v.remotes.length ? `Remotes (power on or off, no state): ${v.remotes.map((r) => `${r.name} (${r.type || "IR remote"})`).join("; ")}.` : "",
     down.length ? `${down.join(" and ")} didn't answer just now.` : "",
   ];
   return lines.filter(Boolean).join(" ");

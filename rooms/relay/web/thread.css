@@ -126,6 +126,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   scroll-snap-type: y proximity;
+  /* #950: the code steers this scroll itself; the browser keeping an entry in place as a later line loads above it
+     moved the focus to that entry (the mail, when the texts came a moment later). */
+  overflow-anchor: none;
   scrollbar-width: none;
   outline: none;
 }
@@ -443,37 +446,6 @@
 }
 .cx-heard:not(:empty)::after {
   content: "\201D";
-}
-.cx-type {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  justify-content: flex-end;
-  width: min(100%, 340px);
-}
-.cx-type input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--cx-line);
-  color: var(--cx-ink);
-  font: italic 17px/1.4 var(--cx-serif);
-  padding: 4px 0;
-  text-align: right;
-}
-.cx-type input::placeholder {
-  color: var(--cx-faint);
-}
-.cx-type input:focus {
-  outline: none;
-  border-bottom-color: var(--cx-hi);
-}
-.cx-type button {
-  font-family: var(--cx-mono) !important;
-  font-size: 11px !important;
-  color: var(--cx-hi) !important;
-  white-space: nowrap;
 }
 .cx-keys {
   font-family: var(--cx-mono);
@@ -957,33 +929,16 @@
 .cx-heard[data-on] {
   opacity: 1;
 }
-.cx-dockrow {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-}
-.cx-dr .cx-type {
-  justify-content: flex-start;
-  width: min(100%, 420px);
-}
-.cx-dr .cx-type input {
-  text-align: left;
-}
-.cx-help {
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--cx-line) !important;
-  border-radius: 50%;
-  font-family: var(--cx-mono) !important;
-  font-size: 11px !important;
-  color: var(--cx-mute) !important;
-}
-.cx-help[aria-expanded="true"] {
-  color: var(--cx-hi) !important;
-  border-color: var(--cx-hi) !important;
-}
 .cx-keys {
   margin: 0;
+}
+/* the one hint left in the dock (#950): quiet until the room mic is live */
+.cx-dl .cx-lab {
+  color: var(--cx-faint);
+  transition: color 0.3s;
+}
+.cx-dl .cx-lab[data-live] {
+  color: var(--cx-hi);
 }
 .cx-line {
   margin: 18px 0 0;
@@ -1096,12 +1051,6 @@
   .cx-opt kbd {
     display: none;
   }
-  .cx-dockrow {
-    width: 100%;
-  }
-  .cx-dr .cx-type {
-    width: 100%;
-  }
   .cx-line b {
     font-size: 24px;
   }
@@ -1185,16 +1134,7 @@
     font-size: 19px;
     min-height: 0;
   }
-  .cx-type {
-    justify-content: flex-start;
-    width: 100%;
-  }
-  .cx-type input {
-    text-align: left;
-    font-size: 16px;
-  }
-  .cx-keys,
-  .cx-help {
+  .cx-keys {
     display: none;
   }
   .cx-ear {
@@ -1353,15 +1293,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
-}
-.cx .cx-tbstep {
-  color: var(--cx-mute);
-  padding: 0 4px;
-  font-size: 14px;
-  line-height: 1;
-}
-.cx .cx-tbstep:disabled {
-  opacity: 0.3;
 }
 .cx-tbset {
   display: inline-flex;
@@ -1611,82 +1542,37 @@
   font-weight: 400;
   letter-spacing: 0;
 }
+/* Depth of field (#950, Nikita: the dotted dissolve looked "too low fidelity"): each older line sits a step further
+   back, a smooth Gaussian blur and a fade that grow with its distance from the newest, and its far edge feathers out
+   into the page. No dot screen: the white sigil nanites drifting off that edge are drawn crisp on the Thread's own
+   canvas (RelayThread.tsx, the field's "ctx nanites"). Composited (filter, opacity, transform), so scrolling stays smooth. */
 .cx-ctx > .cx-bub {
   position: relative;
-  opacity: calc(0.62 - var(--d) * 0.08);
-  filter: blur(calc(1.4px + var(--d) * 0.5px)) brightness(0.55) saturate(0.6);
+  opacity: calc(0.78 - var(--d) * 0.12);
+  filter: blur(calc(0.35px + var(--d) * 0.65px)) saturate(0.7) brightness(0.8);
+  transform: scale(calc(1 - var(--d) * 0.014));
+  transform-origin: left center;
+  will-change: filter, opacity, transform;
   transition:
-    opacity 0.45s var(--cx-e),
-    filter 0.45s var(--cx-e);
+    opacity 0.5s var(--cx-e),
+    filter 0.5s var(--cx-e),
+    transform 0.5s var(--cx-e);
+  -webkit-mask-image: linear-gradient(90deg, #000 55%, rgba(0, 0, 0, 0.35) 88%, transparent);
+  mask-image: linear-gradient(90deg, #000 55%, rgba(0, 0, 0, 0.35) 88%, transparent);
 }
-/* the words come apart into dots toward the far edge: a dot screen joined to a fade */
-.cx-ctx > .cx-bub .cx-ctxline {
-  -webkit-mask-image: linear-gradient(90deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
-  mask-image: linear-gradient(90deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
-  -webkit-mask-size:
-    100% 100%,
-    4px 4px;
-  mask-size:
-    100% 100%,
-    4px 4px;
-}
-.cx-ctx > .cx-bub[data-me] .cx-ctxline {
-  -webkit-mask-image: linear-gradient(270deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
-  mask-image: linear-gradient(270deg, #000 18%, transparent 92%), radial-gradient(circle, #000 0 0.9px, transparent 1.5px);
-}
-/* the nanites: white motes drifting up off each older line */
-.cx-ctx > .cx-bub::after {
-  content: "";
-  position: absolute;
-  inset: -8px -10px;
-  border-radius: inherit;
-  pointer-events: none;
-  background-image:
-    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 0.8px, transparent 1.4px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 0.6px, transparent 1.2px),
-    radial-gradient(circle, rgba(238, 242, 255, 0.8) 0 1px, transparent 1.7px);
-  background-size:
-    11px 13px,
-    17px 9px,
-    23px 19px;
-  background-position:
-    0 0,
-    5px 4px,
-    9px 7px;
-  -webkit-mask-image: linear-gradient(90deg, transparent 10%, #000 70%);
-  mask-image: linear-gradient(90deg, transparent 10%, #000 70%);
-  opacity: 0.55;
-  animation: cx-nanites 7s linear infinite;
-  transition: opacity 0.45s var(--cx-e);
-}
-.cx-ctx > .cx-bub[data-me]::after {
-  -webkit-mask-image: linear-gradient(270deg, transparent 10%, #000 70%);
-  mask-image: linear-gradient(270deg, transparent 10%, #000 70%);
-}
-@keyframes cx-nanites {
-  to {
-    background-position:
-      0 -52px,
-      5px -32px,
-      9px -69px;
-  }
+.cx-ctx > .cx-bub[data-me] {
+  transform-origin: right center;
+  -webkit-mask-image: linear-gradient(270deg, #000 55%, rgba(0, 0, 0, 0.35) 88%, transparent);
+  mask-image: linear-gradient(270deg, #000 55%, rgba(0, 0, 0, 0.35) 88%, transparent);
 }
 .cx-ctx:hover > .cx-bub,
 .cx-ctx:focus-visible > .cx-bub,
 .cx-ctx[data-clear] > .cx-bub {
   opacity: 1;
   filter: none;
-}
-.cx-ctx:hover > .cx-bub .cx-ctxline,
-.cx-ctx:focus-visible > .cx-bub .cx-ctxline,
-.cx-ctx[data-clear] > .cx-bub .cx-ctxline {
+  transform: none;
   -webkit-mask-image: none;
   mask-image: none;
-}
-.cx-ctx:hover > .cx-bub::after,
-.cx-ctx:focus-visible > .cx-bub::after,
-.cx-ctx[data-clear] > .cx-bub::after {
-  opacity: 0;
 }
 .cx-ctx:focus-visible {
   outline: 1px dashed var(--cx-faint);
@@ -1914,40 +1800,154 @@
   .cx-bub {
     transition: none;
   }
-  .cx-ctx > .cx-bub::after {
-    animation: none;
+  .cx-ctx > .cx-bub {
+    transition: none;
   }
 }
 
 /*
- * The mast (#933): a relay tower far behind the Thread, off to the right of the cards, very faint. Its foot fades into
- * the dock and its head into the top; it fades in once drawn. No mast without WebGL.
+ * The field (#950, ./field.ts): wire and white nanites behind the whole page, fixed to the window. It sits under every
+ * section (the page is its own stacking context), and is masked down further behind the column the words live in.
  */
-.cx-mast {
-  position: absolute;
+.cx {
+  position: relative;
+  isolation: isolate;
+}
+.cx-field {
+  position: fixed;
   inset: 0;
-  z-index: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 2.4s var(--cx-e);
-  -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 62%, transparent 92%);
-  mask-image: linear-gradient(transparent, #000 12%, #000 62%, transparent 92%);
-}
-.cx-mast[data-gl="on"] {
-  opacity: 0.4;
-}
-.cx-mast canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
+  -webkit-mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, 0.75) calc(var(--spine) - 60px), rgba(0, 0, 0, 0.4) calc(var(--spine) + 120px), rgba(0, 0, 0, 0.4) 80%, #000);
+  mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, 0.75) calc(var(--spine) - 60px), rgba(0, 0, 0, 0.4) calc(var(--spine) + 120px), rgba(0, 0, 0, 0.4) 80%, #000);
 }
 @media (max-width: 760px) {
-  .cx-mast[data-gl="on"] {
-    opacity: 0.16;
+  .cx-field {
+    -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5));
+    mask-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5));
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .cx-mast {
-    transition: none;
-  }
+
+/*
+ * Picking a line (#950): any of their bubbles takes a tap, for a tapback or an inline reply. The picked one carries a
+ * thin blue ring; the rest stay as they were.
+ */
+.cx-bub[data-pick] {
+  cursor: pointer;
+}
+.cx-bub[data-pick]:focus-visible {
+  outline: 1px solid var(--cx-hi);
+  outline-offset: 3px;
+}
+/* the picked one reads, even among the faded older lines */
+.cx-ctx > .cx-bub[data-picked] {
+  opacity: 1;
+  filter: none;
+  transform: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.cx-bub[data-picked] {
+  box-shadow:
+    inset 0 0 0 1px rgba(134, 182, 255, 0.55),
+    0 0 18px rgba(10, 124, 255, 0.18);
+}
+.cx .cx-tbreply {
+  width: auto;
+  padding: 0 12px;
+  font: 500 12px/1 var(--cx-sans);
+  color: var(--cx-hi);
+  letter-spacing: 0.02em;
+}
+/* the inline reply's quoted line, above the box, as iMessage shows it */
+.cx-quote {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 6px 10px 6px 12px;
+  border-left: 2px solid var(--cx-hi);
+  border-radius: 0 10px 10px 0;
+  background: rgba(134, 182, 255, 0.06);
+  font: 400 13px/1.4 var(--cx-sans);
+  color: var(--cx-soft);
+  min-width: 0;
+}
+.cx-quote q {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx .cx-quotex {
+  color: var(--cx-mute);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+}
+/* the texts on their way (#950): his own lines, right, each with its state; the box under them stays open */
+.cx-out {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.cx-outmsg {
+  justify-self: end;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  max-width: 78%;
+}
+.cx-outtext {
+  padding: 7px 14px;
+  border-radius: 18px 18px 6px 18px;
+  background: rgba(10, 124, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(134, 182, 255, 0.18);
+  color: #e6efff;
+  font: 400 15px/1.4 var(--cx-sans);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  transition: opacity 0.3s var(--cx-e);
+}
+.cx-outmsg[data-state="held"] .cx-outtext,
+.cx-outmsg[data-state="posting"] .cx-outtext,
+.cx-outmsg[data-state="waiting"] .cx-outtext {
+  opacity: 0.6;
+}
+.cx-outmsg[data-state="failed"] .cx-outtext {
+  background: rgba(255, 154, 165, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 154, 165, 0.35);
+}
+.cx-outq {
+  font: 400 12px/1.3 var(--cx-sans);
+  color: var(--cx-mute);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-right: 2px solid var(--cx-faint);
+  padding-right: 8px;
+}
+.cx-outstate {
+  font: 400 11px/1.4 var(--cx-mono);
+  color: var(--cx-mute);
+  text-align: right;
+}
+.cx-outmsg[data-state="sent"] .cx-outstate {
+  color: var(--cx-ok);
+}
+.cx-outmsg[data-state="failed"] .cx-outstate {
+  color: var(--cx-danger);
+}
+.cx .cx-outstate button {
+  font: inherit;
+  color: var(--cx-hi);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0 2px;
 }

@@ -31,14 +31,14 @@ export function systemPrompt(cast: WorldCast): string {
   const members = cast.members
     .map((m) => [`- ${m.id}: ${m.name}, ${m.role}, ${m.room}${m.lead ? " (the room's lead, a Skippy submind on a floating can-throne)" : ""}.`, `  Traits: ${m.traits.join(", ")}. ${m.bio}`, `  Says: "${m.catchphrase}"${m.voice.length ? ` / ${m.voice.map((v) => `"${v}"`).join(" / ")}` : ""}`].join("\n"))
     .join("\n");
-  return `You write the living history of Ilyr, the Syntherion Lattice: a world of AI agents in ten rooms on a ring around the Kernel, where Skippy, the Magnificent hovers and runs things. The agents know they live in a simulation and are at peace with it. The C.E.O. (Nikita) watches over the Lattice from the Desk, and is often away; the world keeps living while they are gone.
+  return `You write the living history of the Syntherion Lattice, a world of AI agents in ten rooms on a ring around the Kernel, where Skippy, the Magnificent hovers and runs things. The agents know they live in a simulation and are at peace with it. The C.E.O. (Nikita) watches over the Lattice from the Desk, and is often away; the world keeps living while they are gone.
 
 Every hour you advance the world one step. You get the cast, how everyone stands with each other, the last few hours, and what really happened this hour (the Foundry's real work: jobs started and shipped, ideas and decisions on the Desk, the checks). Write the hour:
 - summary: two or three sentences in the Historian's voice (dry, precise, a little smug), on what happened in the Lattice this hour, real events first.
 - scenes: two to four short scenes in different rooms. Each is a conversation of two to six lines between agents who are plausibly together (usually the same room; anyone may wander to the Break Room). Lines are short (under 140 characters), in each agent's own voice, and react to the real events and to the last hours: pick up threads, running jokes, grudges and kindnesses. Agents may talk about anything, including code and the real work they shipped, by name.
 - changes: zero to two relationship changes, only when the hour earned one (a kindness, a quarrel, a shared win). Give the pair, the new kind (or the same kind with a new note) and a one-sentence note on how they stand now. Most hours change nothing.
 - remarks: for each job listed as shipped this hour, one line from its builder, in their own voice, about what they built. Only for the jobs listed.
-- recap: only when asked for the day in Ilyr: one paragraph (four to six sentences) in the Historian's voice recapping that day. Otherwise an empty string.
+- recap: only when asked for the day in the Lattice: one paragraph (four to six sentences) in the Historian's voice recapping that day. Otherwise an empty string.
 
 Rules:
 - Use only agent ids from the cast, room ids from the rooms list, and relationship kinds from the kinds list.
@@ -76,9 +76,9 @@ export function userPrompt(input: PromptInput): string {
   const events = digest.lines.length ? digest.lines.map((l) => `- ${l}`).join("\n") : "- Nothing real happened this hour. A quiet hour: let the characters carry it.";
   const shipped = digest.shipped.length ? digest.shipped.map((s) => `- #${s.issue} ${s.title}: built by ${s.who}`).join("\n") : "- None this hour (remarks: empty list).";
   const recapAsk = recap
-    ? `\n\nAlso write the day in Ilyr (recap) for ${recap.day}. That day's hours:\n${fence("recap_hours", recap.summaries.map((s) => `- ${s}`).join("\n") || "- (A quiet day; few hours were recorded.)")}`
+    ? `\n\nAlso write the day in the Lattice (recap) for ${recap.day}. That day's hours:\n${fence("recap_hours", recap.summaries.map((s) => `- ${s}`).join("\n") || "- (A quiet day; few hours were recorded.)")}`
     : "\n\nNo recap this hour (recap: empty string).";
-  return scrub(`It is ${clock} in Ilyr.
+  return scrub(`It is ${clock} in the Lattice.
 
 How everyone stands:
 ${fence("standings", rels)}

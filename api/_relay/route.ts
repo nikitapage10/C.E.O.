@@ -15,7 +15,9 @@
  *          "unlock-options"   → a passkey request for this session's own passkey (2 minutes)
  *          "unlock", response → the fresh passkey answer: sets this device's send unlock (an HttpOnly cookie, 72 hours)
  *          "lock"             → clears it
- *          "send", thread, draftAt, text   → a send request (needs the unlock; see "The send path" below)
+ *          "send", thread, draftAt, text [, reply]  → a send request (needs the unlock; see "The send path" below).
+ *                                `reply` (#950): the ref of one of their shown lines, for an inline reply like iMessage's;
+ *                                signed with the rest, mapped to the message on the Mac (as a tapback's is)
  *          "resend", rid      → a new send request for one that expired (the Mac was offline) or failed
  *          "react", thread, ref, tapback  → a tapback (#888: heart, thumbs up, thumbs down, haha, !!, ?) on one of their
  *                                shown lines, by its opaque ref. A send like the one above: the unlock, single-use,
@@ -348,11 +350,11 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
     // The unlock first: no send request without this device's fresh-passkey unlock for this very passkey.
     if ((await unlockedUntil(request, deps.desk.deskKey, signed.passkey.id, deps.now)) === null) return json({ error: "locked" }, 401, keep);
     const made = await update(store, (s) => {
-      let fields: { thread: unknown; draftAt: unknown; text: unknown } = { thread: body?.thread, draftAt: body?.draftAt, text: body?.text };
+      let fields: { thread: unknown; draftAt: unknown; text: unknown; reply?: unknown } = { thread: body?.thread, draftAt: body?.draftAt, text: body?.text, ...(body?.reply !== undefined && { reply: body.reply }) };
       if (action === "resend") {
         const old = typeof body?.rid === "string" && RID.test(body.rid) ? s.requests.find((e) => e.req.rid === body!.rid) : undefined;
         if (!old || !resendable(old, deps.now)) return { next: s, result: { error: "no-resend" as const } };
-        fields = { thread: old.req.thread, draftAt: old.req.draftAt, text: old.req.text };
+        fields = { thread: old.req.thread, draftAt: old.req.draftAt, text: old.req.text, ...(old.req.reply !== undefined && { reply: old.req.reply }) };
       }
       return makeRequest(s, sendKey, "send", fields, deps.now);
     });
@@ -436,7 +438,7 @@ function requestAnswer(made: Made | null, keep: string[]): Response {
  * One request, bound to a thread on the hub's latest list and to the draft it was made from, signed, 10 minutes.
  * The checks a send must pass on this side (the hub checks again on its own list).
  */
-export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind, given: { thread: unknown; draftAt: unknown; text: unknown }, now: number): { next: PrivateState; result: Made } {
+export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind, given: { thread: unknown; draftAt: unknown; text: unknown; reply?: unknown }, now: number): { next: PrivateState; result: Made } {
   const no = (error: Exclude<Made, { rid: string }>["error"]) => ({ next: s, result: { error } as Made });
   if (kind === "compose" || kind === "react") return no("no-thread");
   const found: TextItem | undefined = typeof given.thread === "string" ? s.texts?.items.find((i) => i.id === given.thread) : undefined;
@@ -462,10 +464,19 @@ export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind,
     // A card that already went (or one being sent) takes no second send, whatever its state shows.
     if (card && s.requests.some((e) => e.req.thread === card.id && e.req.kind === "send" && shownState(e, now) === "sent")) return no("no-thread");
   }
+  // An inline reply (#950): only a send, to one of their lines the Desk was shown for this thread, by its ref, and only
+  // while the Mac's Private API is on (BlueBubbles sends a reply only through it). Signed with the rest.
+  let reply: string | undefined;
+  if (given.reply !== undefined && given.reply !== null) {
+    if (kind !== "send" || card) return no("no-line");
+    reply = typeof given.reply === "string" && LINE_REF.test(given.reply) ? given.reply : undefined;
+    if (!reply || !found?.messages?.some((m) => m.ref === reply && !m.me)) return no("no-line");
+    if (s.texts?.tapbacks === "off") return no("tapbacks-off");
+  }
   // One of each kind at a time per thread, except a thread's sends (#870, multi-send, Nikita 2026-11-05): each is its
   // own single-use request, so a second may follow the first. A card still takes one.
   if (!(kind === "send" && !card) && s.requests.some((e) => e.req.thread === item.id && e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
-  const fields = { rid: randomBytes(12).toString("hex"), kind, thread: item.id, draftAt: kind === "send" ? draftAt : 0, text: kind === "send" || kind === "restyle" ? text : "", until: now + REQUEST_MS };
+  const fields = { rid: randomBytes(12).toString("hex"), kind, thread: item.id, draftAt: kind === "send" ? draftAt : 0, text: kind === "send" || kind === "restyle" ? text : "", ...(reply && { reply }), until: now + REQUEST_MS };
   const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
   return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };
 }

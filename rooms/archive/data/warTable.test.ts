@@ -18,10 +18,10 @@ describe("the war table (#826)", () => {
     expect(PLACES.filter((p) => p.x > 4 && p.z > 2)).toEqual([]);
   });
 
-  it("stands the miniatures on level land and leaves the Tide's isle and the compass at sea", () => {
+  it("stands the miniatures on level land and leaves the Tide's isle and the lab at sea", () => {
     for (const p of PLACES) {
       const h = heightAt(p.x, p.z);
-      if (p.kind === "ghost" || p.kind === "compass") expect(h).toBeLessThan(0);
+      if (p.kind === "ghost" || p.kind === "lab") expect(h).toBeLessThan(0);
       else {
         expect(h).toBeGreaterThan(0);
         // Level under the model: the same height a little way off in every direction.

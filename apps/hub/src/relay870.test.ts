@@ -372,11 +372,11 @@ describe("relay why (#870)", () => {
     const at = (text: string, t: number, fromMe = false) => msg(text, t, fromMe);
     expect(explain(chat(A, null), [at("Are we on?", NOW - DAY)], undefined, NOW, []).verdict).toBe("owed");
     expect(explain(chat(A, null), [at("Are we on?", NOW - DAY), at("yes", NOW - 1_000, true)], undefined, NOW, []).verdict).toBe("answered");
-    expect(explain(chat(A, null), [at("no worries", NOW - 2 * DAY, true), at("thanks!", NOW - DAY)], undefined, NOW, []).verdict).toBe("closing");
-    expect(explain(chat(A, null), [at("I paid the rent", NOW - DAY)], undefined, NOW, [])).toMatchObject({ verdict: "settled", rule: "money" });
+    expect(explain(chat(A, null), [at("no worries", NOW - 2 * DAY, true), at("thanks!", NOW - DAY)], undefined, NOW, []).verdict).toBe("ender");
+    expect(explain(chat(A, null), [at("Your rent payment of $1,450 is past due", NOW - DAY)], undefined, NOW, [])).toMatchObject({ verdict: "settled", rule: "money" });
     expect(explain(chat(A, null), [at("hello?", NOW - 40 * DAY)], undefined, NOW, []).verdict).toBe("older");
     expect(explain({ ...chat(A, null), group: true }, [], undefined, NOW, []).verdict).toBe("group");
-    const w = explain(chat(A, null), [at("see you", NOW - 3 * DAY, true), photo(NOW - DAY), at("Are we on? I paid", NOW - 1_000)], { id: "aaaaaaaaaaaaaaaa", chat: chatOf(A), group: false, state: "settled", why: "no-reply", since: 0, lastIn: 0, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null }, NOW, ["Avery Sample"]);
+    const w = explain(chat(A, null), [at("see you", NOW - 3 * DAY, true), photo(NOW - DAY), at("Are we on? I paid the invoice", NOW - 1_000)], { id: "aaaaaaaaaaaaaaaa", chat: chatOf(A), group: false, state: "settled", why: "no-reply", since: 0, lastIn: 0, sort: null, gist: "", sortedAt: null, laterUntil: null, laterSet: null, draft: null, summary: null, repliedAt: null }, NOW, ["Avery Sample"]);
     const lines = describeWhy("Avery Sample", w).join("\n");
     expect(lines).toContain("Avery Sample (iMessage, ending 0101)");
     expect(lines).toContain("money or legal");

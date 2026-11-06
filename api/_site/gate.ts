@@ -22,6 +22,9 @@
  *        POST /api/desk-pings + Authorization: Bearer <DESK_PINGS_SECRET>   the pings scan, checked here too
  *        POST /api/skippy-answer + Authorization: Bearer <SUBMIND_FEED_TOKEN>   a hand-off's answer from Skippy's or a
  *                                             submind's thread (#312), checked here too and again in api/skippy.ts
+ *        POST /api/skippy-probe + Authorization: Bearer <SKIPPY_PROBE_TOKEN>   the upkeep run's Skippy probe (#955): a
+ *                                             dry run (no device moves, nothing kept), checked here too and again in
+ *                                             api/skippy.ts
  *        any request + x-ceo-site-bypass: <SITE_BYPASS_TOKEN>   the live watch (it reads site-bypass-token from the
  *                                             Key Vault, #313; Vercel's copy also served the public-mode seed)
  *        GET /api/haven-plan, /api/haven-meals, /api/haven-photos + x-ceo-builder-key: <BUILDER_READ_KEY>   the Builder reading
@@ -73,6 +76,7 @@ import { builderReads } from "./builderkey.js";
 import { TOOL_HEADER, toolTokenSigned } from "../_skippy/voicetoken.js";
 import { hubTokenPair } from "../_relay/tokens.js";
 import { audioIdOf, KEY_SHAPE, phoneKeyOf } from "../_haven/links.js";
+import { PROBE_PATH, probeToken } from "../_skippy/probekey.js";
 import { currentState, siteKeys, type SiteKeys, type SiteState, type SiteStore } from "./state.js";
 
 type Env = Record<string, string | undefined>;
@@ -89,7 +93,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "builder-read" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "phone-key" | "phone-audio" | "greeting" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "probe-token" | "bypass" | "builder-read" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "phone-key" | "phone-audio" | "greeting" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -149,6 +153,17 @@ function isSkippyAnswer(request: Request, pathname: string, env: Env): boolean {
   const want = env.SUBMIND_FEED_TOKEN?.trim();
   const auth = request.headers.get("authorization") ?? "";
   return Boolean(want && want.length >= MIN_BYPASS && auth.startsWith("Bearer ") && secretMatches(auth.slice(7).trim(), want));
+}
+
+/**
+ * The Skippy probe (#955, api/_skippy/probe.ts): the upkeep run's dry-run asks, with SKIPPY_PROBE_TOKEN (at least 32
+ * characters). Only this one path and method, with no query; api/skippy.ts checks the token again.
+ */
+function isSkippyProbe(request: Request, url: URL, env: Env): boolean {
+  if (request.method !== "POST" || url.pathname !== PROBE_PATH || url.search !== "") return false;
+  const want = probeToken(env);
+  const auth = request.headers.get("authorization") ?? "";
+  return Boolean(want && auth.startsWith("Bearer ") && secretMatches(auth.slice(7).trim(), want));
 }
 
 /** A Talk call's tool (#479): GET (a lookup) or POST (a hand-off to the Kernel), this one path, with a tool token this Desk key signed that hasn't expired. */
@@ -225,6 +240,7 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (request.method === "POST" && pathname === "/api/world-step") return { allow: true, why: "world-step" };
   if (isPingsScan(request, pathname, env)) return { allow: true, why: "pings-secret" };
   if (isSkippyAnswer(request, pathname, env)) return { allow: true, why: "submind-token" };
+  if (isSkippyProbe(request, url, env)) return { allow: true, why: "probe-token" };
   if (hasBypass(request, env)) return { allow: true, why: "bypass" };
   if (builderReads(request, env)) return { allow: true, why: "builder-read" };
   if (isVoiceTool(request, pathname, env, ctx.now)) return { allow: true, why: "voice-tool" };

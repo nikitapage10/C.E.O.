@@ -37,9 +37,10 @@ export const SHOWN_KEEP_MS = OWED_WINDOW_MS;
 
 /**
  * How far back a chat Nikita keeps unread in Messages is still owed (#924, Nikita 2026-11-06: his phone's Unread
- * filter is his real to-reply list): 60 days, the older fold's reach. A read chat keeps OWED_WINDOW_MS.
+ * filter is his real to-reply list). #950: Messages' Unread filter has no age limit, so a year (an old unread "ok"
+ * still goes through the hub's ender check, apps/hub/src/enders.ts). A read chat keeps OWED_WINDOW_MS.
  */
-export const UNREAD_WINDOW_MS = 60 * 24 * 60 * 60_000;
+export const UNREAD_WINDOW_MS = 365 * 24 * 60 * 60_000;
 
 /** An owed item's window (#924): UNREAD_WINDOW_MS while their latest text is unread in Messages, else OWED_WINDOW_MS. */
 export const owedWindow = (unread: boolean | undefined) => (unread === true ? UNREAD_WINDOW_MS : OWED_WINDOW_MS);
@@ -58,7 +59,7 @@ export function freshItems(items: readonly TextItem[], now: number): TextItem[] 
  * How far back an "older unanswered" chat still counts (#803, Nikita 2026-11-05): owed within 30 days, the older fold
  * from 30 to 60 days, and past 60 days nothing at all, neither named nor counted: those were let go on purpose.
  */
-export const OLDER_WINDOW_MS = UNREAD_WINDOW_MS;
+export const OLDER_WINDOW_MS = 60 * 24 * 60 * 60_000;
 
 /**
  * The older fold within OLDER_WINDOW_MS (#803). The hub names its newest MAX_OLDER, newest first, so once one named
@@ -128,6 +129,8 @@ export interface TextItem {
    * the attachment, its name or its kind. Left out at 0.
    */
   media?: number;
+  /** A muted chat (#950, Messages' "Hide Alerts"): a mark only. Left out when not muted, and by an older hub. */
+  muted?: true;
 }
 
 /**
@@ -143,11 +146,12 @@ export interface TextItem {
  *   code        a one-time or verification code
  *   short-code  a short-code sender (banks, carriers, alerts)
  *   promo       marketing
+ *   ender       their last text only ended the conversation ("ok cool", "lol", a tapback; #950), read on the Mac
  */
-export const ASIDE_WHYS = ["no-reply", "closing", "done", "money", "code", "short-code", "promo"] as const;
+export const ASIDE_WHYS = ["no-reply", "closing", "done", "money", "code", "short-code", "promo", "ender"] as const;
 export type AsideWhy = (typeof ASIDE_WHYS)[number];
 /** The kinds "Bring back" may undo; a rule's kinds stay set aside. */
-export const BACKABLE: readonly AsideWhy[] = ["no-reply", "closing", "done"];
+export const BACKABLE: readonly AsideWhy[] = ["no-reply", "closing", "done", "ender"];
 export const MAX_ASIDE = 50;
 
 export interface AsideItem {
@@ -383,6 +387,11 @@ export interface TextRequest {
   text: string;
   /** compose only: who, as Nikita said it, or "pick:<8 hex>" for one of a card's choices. */
   who?: string;
+  /**
+   * send only (#950, an inline reply like iMessage's): the ref (LINE_REF) of their shown line this text answers. The Mac
+   * maps it to the message (as for a tapback) and sends through BlueBubbles' Private API with that message selected.
+   */
+  reply?: string;
   created: number;
   until: number;
   /** The send key's signature over the fields above (api/_relay/tokens.ts). */
@@ -395,7 +404,7 @@ const isTime = (v: unknown): v is number => typeof v === "number" && Number.isIn
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")) : null);
 const keysOnly = (o: Record<string, unknown>, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k));
 
-const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "last", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages", "wait", "media"] as const;
+const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "last", "laterUntil", "gist", "draft", "summary", "photo", "unread", "messages", "wait", "media", "muted"] as const;
 
 /** One item, rebuilt from the allowlist; null for anything else (an unknown key, a long string, a bad time). */
 export function readTextItem(v: unknown): TextItem | null {
@@ -433,8 +442,9 @@ export function readTextItem(v: unknown): TextItem | null {
   if (messages && messages.some((m) => (o.group === true && (m.from === undefined || m.me)))) return null;
   if (o.wait !== undefined && !(GIST_WAITS as readonly unknown[]).includes(o.wait)) return null;
   const wait = o.wait as GistWait | undefined;
+  if (o.muted !== undefined && o.muted !== true) return null;
   if (o.media !== undefined && (!Number.isInteger(o.media) || (o.media as number) < 1 || (o.media as number) > 999)) return null;
-  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, ...(typeof o.last === "number" && { last: o.last }), gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }), ...(wait && !gist && { wait }), ...(typeof o.media === "number" && { media: o.media }) };
+  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, ...(typeof o.last === "number" && { last: o.last }), gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }), ...(o.unread === true && { unread: true as const }), ...(messages?.length && { messages }), ...(wait && !gist && { wait }), ...(typeof o.media === "number" && { media: o.media }), ...(o.muted === true && { muted: true as const }) };
 }
 
 /** One set-aside thread (#870), rebuilt from the allowlist; null for anything else. */
@@ -539,14 +549,14 @@ export function readTextsView(v: unknown, now: number): TextsView | null {
     if (!Array.isArray(o.aside) || o.aside.length > MAX_ASIDE) return null;
     const got = o.aside.map(readAsideItem);
     if (got.some((a) => a === null)) return null;
-    aside = (got as AsideItem[]).filter((a) => now - a.since < OWED_WINDOW_MS);
+    aside = (got as AsideItem[]).filter((a) => now - a.since < OLDER_WINDOW_MS);
   }
   if (o.tapbacks !== undefined && o.tapbacks !== "on" && o.tapbacks !== "off") return null;
   const kept = freshItems((items as TextItem[]).filter((i) => itemLive(i, now)), now);
   return { v: 1, at: o.at, items: kept, cards, older, scannedAt: typeof o.scannedAt === "number" ? o.scannedAt : null, voice, aside, ...((o.tapbacks === "on" || o.tapbacks === "off") && { tapbacks: o.tapbacks }) };
 }
 
-const REQ_KEYS = ["rid", "kind", "thread", "draftAt", "text", "who", "created", "until", "sig"] as const;
+const REQ_KEYS = ["rid", "kind", "thread", "draftAt", "text", "who", "reply", "created", "until", "sig"] as const;
 
 /** A request as stored or as the hub receives it; null for anything off the shape. The signature is checked apart. */
 export function readTextRequest(v: unknown): TextRequest | null {
@@ -569,7 +579,9 @@ export function readTextRequest(v: unknown): TextRequest | null {
     return { rid: o.rid, kind: "compose", thread: o.thread, draftAt: 0, text, who, created: o.created, until: o.until, sig: o.sig };
   }
   if (o.who !== undefined) return null;
-  return { rid: o.rid, kind: o.kind as RequestKind, thread: o.thread, draftAt: o.draftAt as number, text, created: o.created, until: o.until, sig: o.sig };
+  // An inline reply (#950): only on a send, one line's ref.
+  if (o.reply !== undefined && (o.kind !== "send" || typeof o.reply !== "string" || !LINE_REF.test(o.reply))) return null;
+  return { rid: o.rid, kind: o.kind as RequestKind, thread: o.thread, draftAt: o.draftAt as number, text, ...(typeof o.reply === "string" && { reply: o.reply }), created: o.created, until: o.until, sig: o.sig };
 }
 
 /** What a hub reports back about a request it took. */

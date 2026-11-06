@@ -156,6 +156,7 @@ export const ENGINE_KEYS: readonly string[] = [
   "SUBMIND_LOG_TOKEN",
   "SUBMIND_FEED_TOKEN",
   "BUILDER_READ_KEY",
+  "SKIPPY_PROBE_TOKEN",
   "CLAUDE_API_KEY",
   "ELEVENLABS_API_KEY",
 ];
@@ -175,6 +176,7 @@ export const ENGINE_ENDPOINTS: readonly string[] = [
   "skippy",
   "skippy-log",
   "skippy-answer",
+  "skippy-probe",
   "skippy-voice",
   "skippy-room",
   "skippy-tools",

@@ -552,6 +552,33 @@ describe("send requests (single-use, 10 minutes, Resend)", () => {
     const made = makeRequest(s, key, "later", { thread: THREAD, draftAt: 0, text: "ignored" }, NOW);
     expect(made.next.requests[0]!.req.text).toBe("");
   });
+  it("an inline reply (#950): a send naming one of their shown lines, signed with it, refused for any other line or with the Private API off", () => {
+    const key = Buffer.alloc(32, 1);
+    const lines = [
+      { text: "Are we on for Saturday?", at: NOW - 2 * HOUR, ref: "1a2b3c4d" },
+      { text: "yes!", at: NOW - HOUR, me: true as const },
+    ];
+    const s = { texts: view([item({ messages: lines })]), requests: [] };
+    const made = makeRequest(s, key, "send", { thread: THREAD, draftAt: DRAFT_AT, text: "9am works", reply: "1a2b3c4d" }, NOW);
+    expect("error" in made.result).toBe(false);
+    const req = made.next.requests[0]!.req;
+    expect(req.reply).toBe("1a2b3c4d");
+    expect(requestSigned(key, req, req.sig)).toBe(true);
+    expect(requestSigned(key, { ...req, reply: undefined }, req.sig)).toBe(false);
+    expect(readTextRequest(JSON.parse(JSON.stringify(req)))).toEqual(req);
+    // Without a reply, the signature is what it always was (an older hub checks the same body).
+    const plain = makeRequest(s, key, "send", { thread: THREAD, draftAt: DRAFT_AT, text: "9am works" }, NOW).next.requests[0]!.req;
+    expect(plain.reply).toBeUndefined();
+    expect(requestSigned(key, { rid: plain.rid, kind: plain.kind, thread: plain.thread, draftAt: plain.draftAt, text: plain.text, until: plain.until }, plain.sig)).toBe(true);
+    // A line it never showed, Nikita's own line, a bad ref, another kind, or the Private API off: refused.
+    expect(makeRequest(s, key, "send", { thread: THREAD, draftAt: DRAFT_AT, text: "x", reply: "ffffffff" }, NOW).result).toEqual({ error: "no-line" });
+    expect(makeRequest(s, key, "send", { thread: THREAD, draftAt: DRAFT_AT, text: "x", reply: "nope" }, NOW).result).toEqual({ error: "no-line" });
+    expect(makeRequest(s, key, "later", { thread: THREAD, draftAt: 0, text: "", reply: "1a2b3c4d" }, NOW).result).toEqual({ error: "no-line" });
+    expect(makeRequest({ ...s, texts: { ...s.texts, tapbacks: "off" } }, key, "send", { thread: THREAD, draftAt: DRAFT_AT, text: "x", reply: "1a2b3c4d" }, NOW).result).toEqual({ error: "tapbacks-off" });
+    // A reply only rides on a send.
+    expect(readTextRequest({ ...JSON.parse(JSON.stringify(req)), kind: "later", text: "" })).toBeNull();
+  });
+
   it("\"Write for me\" (#923): a draft request carries no text and no draft, only for an owed one-to-one thread", () => {
     const key = Buffer.alloc(32, 1);
     const made = makeRequest({ texts: view(), requests: [] }, key, "draft", { thread: THREAD, draftAt: DRAFT_AT, text: "ignored" }, NOW);

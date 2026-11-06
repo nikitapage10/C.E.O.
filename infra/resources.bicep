@@ -118,6 +118,10 @@ var secrets = [
   // The Builder's read-only key (#800, api/_site/builderkey.ts): GET of the Haven plan, meals and photos only. Added by hand
   // (docs/SECURITY.md, "The Builder's read key"); without it the header does nothing.
   { setting: 'BUILDER_READ_KEY', secret: 'builder-read-key' }
+  // The Skippy probe's key (#955, api/_skippy/probe.ts): POST /api/skippy-probe only, a dry run where no device moves
+  // and nothing is kept. Added by hand (docs/AZURE.md, "The Skippy probe's key"); the probe workflow reads it from the
+  // vault at run time. Without it the probe stays off.
+  { setting: 'SKIPPY_PROBE_TOKEN', secret: 'skippy-probe-token' }
   // Nikita's home devices (#632, docs/HOME-DEVICES.md): 32 random bytes that seal the device logins in `ceo-state` and
   // key the devices' opaque ids, and the Petlibro and Whisker accounts' email and password, typed by Nikita into the
   // vault in Cloud Shell. The functions only read these; none is settable from the Desk (api/_keys/allowlist.ts).

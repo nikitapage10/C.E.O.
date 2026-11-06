@@ -4,26 +4,26 @@ import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
 import { readTapback, REASON_WORDS, TAPBACKS_HINT, type ShownText } from "../../../api/_relay/texts.ts";
 import { useTexts } from "../data/texts.ts";
 import { lastRequest } from "../data/thread.ts";
-import { EMOJI, insertAt, reactable, stepLine, TAPBACK_FACE, TAPBACKS, tapbackTarget, type Tapback } from "../data/react.ts";
+import { EMOJI, insertAt, reactable, TAPBACK_FACE, TAPBACKS, tapbackTarget, type Tapback } from "../data/react.ts";
 
 /**
- * Tapbacks on the Relay card (#888): iMessage's six, small, under their words, on their latest line unless Nikita steps
- * to an earlier one. Each tap is one send request (the unlock, single-use, 10 minutes) that the Mac turns into a tapback
+ * Tapbacks on the Relay card (#888): iMessage's six, small, under their words, on their latest line unless Nikita picks
+ * another by tapping it (#950), and Reply beside them for an inline reply to that line. Each tap is one send request (the unlock, single-use, 10 minutes) that the Mac turns into a tapback
  * through BlueBubbles; nothing goes without the tap, and the thread stays where it is. With the Mac's Private API off,
  * one quiet line says so instead of the buttons.
  */
-export function Tapbacks({ thread, messages, hidden }: { thread: string; messages: readonly ShownText[] | undefined; hidden: boolean }) {
+export function Tapbacks({ thread, messages, hidden, picked = null, onReply }: { thread: string; messages: readonly ShownText[] | undefined; hidden: boolean; picked?: string | null; onReply?: (m: ShownText) => void }) {
   const view = useTexts((s) => s.view);
   const busy = useTexts((s) => s.busy);
-  const [picked, setPicked] = useState<string | null>(null);
   const lines = reactable(messages);
   if (!lines.length || !view) return null;
   if (view.tapbacks === "off")
     return (
       <p className="cx-tbnote" title={TAPBACKS_HINT}>
-        Tapbacks need BlueBubbles' Private API turned on, on the Mac.
+        Tapbacks and inline replies need BlueBubbles' Private API turned on, on the Mac.
       </p>
     );
+  // #950: the line picked on the card (a tap on any of their bubbles), else their latest.
   const target = tapbackTarget(messages, picked);
   if (!target?.ref) return null;
   const latest = target === lines.at(-1);
@@ -42,17 +42,13 @@ export function Tapbacks({ thread, messages, hidden }: { thread: string; message
   return (
     <div className="cx-tb" role="group" aria-label="Tapback">
       <span className="cx-tbon">
-        {lines.length > 1 && (
-          <button type="button" className="cx-tbstep" onClick={() => setPicked(stepLine(messages, target.ref!, -1))} disabled={target === lines[0]} aria-label="An earlier message">
-            ‹
-          </button>
-        )}
-        <span className="cx-tbwhich">{latest ? "on their latest" : <Private className="cx-tbline">{target.text}</Private>}</span>
-        {lines.length > 1 && (
-          <button type="button" className="cx-tbstep" onClick={() => setPicked(stepLine(messages, target.ref!, 1))} disabled={latest} aria-label="A later message">
-            ›
-          </button>
-        )}
+        <span className="cx-tbwhich" title={lines.length > 1 ? "Tap any of their messages to pick it" : undefined}>
+          {latest ? "on their latest" : (
+            <>
+              on <Private className="cx-tbline">{target.text}</Private>
+            </>
+          )}
+        </span>
       </span>
       <span className="cx-tbset">
         {TAPBACKS.map((t) => (
@@ -70,6 +66,11 @@ export function Tapbacks({ thread, messages, hidden }: { thread: string; message
             {TAPBACK_FACE[t].icon}
           </button>
         ))}
+        {onReply && (
+          <button type="button" className="cx-tbbtn cx-tbreply" onClick={() => onReply(target)} disabled={hidden} title="Reply to this message inline, as in iMessage" aria-label="Inline reply to this message">
+            Reply
+          </button>
+        )}
       </span>
       {onThis && req && (
         <span className="cx-tbstate" role="status" aria-live="polite">

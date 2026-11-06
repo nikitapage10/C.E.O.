@@ -14,7 +14,11 @@ import { RELATIONS, readVoice, type Relation, type Voice } from "../../../api/_r
 
 export type ThreadState = "owed" | "later" | "settled" | "replied";
 /** Why a thread needs nothing, from a closed list (never words from a message). */
-export type SettledWhy = "group" | "code" | "short-code" | "promo" | "money" | "skip" | "no-reply" | "closing" | "done";
+/** Why a thread is settled. "ender" (#950): their last text only ended the conversation ("ok cool", a tapback). */
+export type SettledWhy = "group" | "code" | "short-code" | "promo" | "money" | "skip" | "no-reply" | "closing" | "done" | "ender";
+/** A set-aside held off while the chat is unread in Messages (#924, #950). */
+export type Held = "no-reply" | "closing" | "ender" | "group" | "code" | "short-code" | "promo";
+const HELDS: readonly Held[] = ["no-reply", "closing", "ender", "group", "code", "short-code", "promo"];
 export type Sort = "sooner" | "normal";
 
 export interface Draft {
@@ -63,7 +67,9 @@ export interface Thread {
    * Dialtone's "no reply needed" or closing intent, held off while Nikita keeps the chat unread in Messages (#924): the
    * thread stays owed, and the set-aside lands only once their latest text is read. Their next text clears it.
    */
-  held?: "no-reply" | "closing";
+  held?: Held;
+  /** A muted chat (Messages' "Hide Alerts", #950), from the last scan. A mark only. */
+  muted?: true;
   /**
    * When Nikita last sent from the Desk in this thread (#870, multi-send, Nikita 2026-11-05): the thread stays in the
    * queue after a send, and only Done (or a rule) settles it; his own message read back from Messages doesn't close it.
@@ -185,7 +191,7 @@ export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [],
 export const newThreadId = () => randomBytes(8).toString("hex");
 
 const STATES: ThreadState[] = ["owed", "later", "settled", "replied"];
-const WHYS: SettledWhy[] = ["group", "code", "short-code", "promo", "money", "skip", "no-reply", "closing", "done"];
+const WHYS: SettledWhy[] = ["group", "code", "short-code", "promo", "money", "skip", "no-reply", "closing", "done", "ender"];
 const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const s = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v : null);
 
@@ -219,7 +225,8 @@ function readThread(v: unknown): Thread | null {
     ...(typeof o.media === "number" && Number.isInteger(o.media) && o.media > 0 && { media: Math.min(999, o.media) }),
     ...(o.kept === true && { kept: true as const }),
     ...(n(o.rechecked) !== null && { rechecked: o.rechecked as number }),
-    ...((o.held === "no-reply" || o.held === "closing") && { held: o.held }),
+    ...(HELDS.includes(o.held as Held) && { held: o.held as Held }),
+    ...(o.muted === true && { muted: true as const }),
     ...(n(o.sentHere) !== null && { sentHere: o.sentHere as number }),
     ...(n(o.doneAt) !== null && { doneAt: o.doneAt as number }),
   };

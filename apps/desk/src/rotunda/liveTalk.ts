@@ -124,6 +124,8 @@ export function createRecess(o: RecessOpts): RecessSource {
   /** Every argument taken this visit, so none is offered twice even if the memory can't be kept. */
   const taken = new Set<string>();
   const murmurs: string[] = [];
+  /** Counts the asks a take starts, so a quiet answer only clears its own. */
+  let asked = 0;
 
   const live = async (): Promise<Debate | null> => {
     if (gone || dead || now() < quietUntil || o.auth?.() === "out") return null;
@@ -139,10 +141,11 @@ export function createRecess(o: RecessOpts): RecessSource {
 
   const src: RecessSource = {
     async peek() {
-      const p = (next ??= resolve());
-      const d = await p;
-      // Nothing to say: asked again next time.
-      if (!d && next === p) next = null;
+      next ??= resolve();
+      const gen = asked;
+      const d = await next;
+      // Nothing to say: asked again next time (unless a take has already asked for the next one).
+      if (!d && gen === asked) next = null;
       return d && !taken.has(d.key) ? d : null;
     },
     take(d) {
@@ -150,6 +153,7 @@ export function createRecess(o: RecessOpts): RecessSource {
       if (!d.key.startsWith("live-")) o.hear(debateMark(d.key));
       for (const m of d.murmurs ?? []) if (!murmurs.includes(m)) murmurs.push(m);
       // The next one is asked for while this one is said.
+      asked++;
       next = dead ? null : resolve();
     },
     murmur: () => murmurs.shift() ?? null,

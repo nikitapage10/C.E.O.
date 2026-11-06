@@ -174,8 +174,9 @@ export interface SkippySpend {
   leftUsd: number;
   /** "ok" under the warning, "warn" past $50, "capped" when one more call wouldn't fit. */
   state: "ok" | "warn" | "capped";
-  /** Dollars by part: the chat's triage, talk, research and web, the Kernel responder, hosted agents (0 until they run). */
-  parts: { triage: number; talk: number; research: number; web: number; kernel: number; agents: number };
+  /** Dollars by part: the chat's triage, talk, research and web, the Kernel responder, hosted agents (0 until they run),
+   * and the Senate's live talk (#910, api/_skippy/senatetalk.ts, its own $10 inside the month). */
+  parts: { triage: number; talk: number; research: number; web: number; kernel: number; agents: number; senate: number };
   calls: number;
   /** The caps Skippy's month doesn't cover, for the meter's footnote. */
   others: { emailCapUsd: number; textsCapUsd: number };
@@ -190,7 +191,7 @@ export async function skippySpend(ledgers: { chat: ChatLedger; kernel?: ChatLedg
   const k = chatMonth(kernel, now);
   const p = c.parts ?? {};
   // A month written before #646 has no parts: all of it was the chat's talk.
-  const named = (p.triage ?? 0) + (p.research ?? 0) + (p.web ?? 0) + (p.talk ?? 0);
+  const named = (p.triage ?? 0) + (p.research ?? 0) + (p.web ?? 0) + (p.talk ?? 0) + (p.senate ?? 0);
   const talk = (p.talk ?? 0) + Math.max(0, c.usd - named);
   const spentUsd = cents(c.usd + k.usd);
   const warnUsd = skippyWarn(budget);
@@ -202,7 +203,7 @@ export async function skippySpend(ledgers: { chat: ChatLedger; kernel?: ChatLedg
     spentUsd,
     leftUsd: cents(Math.max(0, budget - spentUsd)),
     state,
-    parts: { triage: cents(p.triage ?? 0), talk: cents(talk), research: cents(p.research ?? 0), web: cents(p.web ?? 0), kernel: cents(k.usd), agents: 0 },
+    parts: { triage: cents(p.triage ?? 0), talk: cents(talk), research: cents(p.research ?? 0), web: cents(p.web ?? 0), kernel: cents(k.usd), agents: 0, senate: cents(p.senate ?? 0) },
     calls: c.calls + k.calls,
     others,
   };

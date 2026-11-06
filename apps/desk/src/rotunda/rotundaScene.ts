@@ -59,8 +59,8 @@ import {
   FLY_MS,
   ITEM_END_MS,
   ITEM_GAP_MS,
+  freshMurmur,
   MURMUR_MAX,
-  murmurFor,
   murmurVoice,
   readMs,
   spoken,
@@ -73,7 +73,8 @@ import {
 import type { RotundaVoice } from "./voice.ts";
 import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig } from "./senateActor.ts";
 import { senatePoses, senatorOf } from "./senators.ts";
-import { debateAt, debateLines, debateOpen } from "./debates.ts";
+import { debateLines, debateOpen } from "./debates.ts";
+import type { RecessSource } from "./liveTalk.ts";
 import { ambientKey } from "./heard.ts";
 
 /**
@@ -94,6 +95,8 @@ import { ambientKey } from "./heard.ts";
  * Since #878 the gallery is twice as full of them and each reads as Skippy (can, arms and bicorne in a line of light),
  * the gold grid sheds faint nanites as it comes undone, the faces glow back the light they're drawn in, and with nothing
  * on the docket the members argue a topic of their own (debates.ts) until real business takes the floor.
+ * Since #910 those arguments are made live, a new motion every time (liveTalk.ts), the gallery's murmurs are each said
+ * once, and when nothing new is left the chamber keeps quiet rather than say anything again.
  *
  * Every Skippy in it is its own self (#775): its own idle, gestures, faces and reactions, played from senators.ts by
  * senateActor.ts, with a moving face cast over the front of each can's head.
@@ -129,6 +132,8 @@ export interface RotundaOpts {
   voice?: RotundaVoice;
   /** What this viewer has already heard (#900, heard.ts): each item and status line is said once, never looped. */
   memory?: SenateMemoryLink;
+  /** The recess's arguments (#910, liveTalk.ts): made live, a new one each time; without it the recess is quiet. */
+  recess?: RecessSource;
 }
 
 /** The scene's view of the Senate's memory. Without one, the scene still never repeats itself within a visit. */
@@ -139,9 +144,6 @@ export interface SenateMemoryLink {
   heard: (key: string) => boolean;
   /** Marks an interlude's line said. */
   hear: (key: string) => void;
-  /** The recess's next debate, and moving it on. */
-  recess: () => number;
-  setRecess: (n: number) => void;
 }
 
 export interface Rotunda {
@@ -159,6 +161,8 @@ export interface Rotunda {
   hold: (on: boolean) => void;
   /** A member (or "kernel", the chair) talks for this many seconds while it answers him; 0 stops it. */
   talk: (by: string, seconds: number) => void;
+  /** The argument on the floor now and what has been said in it (#910), so the members answer him in its context. */
+  topic: () => { motion: string; lines: { by: string; text: string }[] } | null;
   dispose: () => void;
 }
 
@@ -167,6 +171,8 @@ const TYPE_LIGHT: Record<RiteKind | "idle", Color> = { duty: new Color("#dfe9ff"
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const GLYPHS = [..."ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ{}<>/=;∴"];
 const PHONE_W = 760;
+/** With nothing new to argue (#910), the chamber keeps quiet this long before it looks again. */
+const QUIET_MS = 20_000;
 
 interface Pod {
   s: RotundaSeat;
@@ -914,6 +920,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   });
   let kind: RiteKind | "idle" = "idle";
   let nextMur = 2;
+  const murSaid = new Set<string>();
   const murmur = () => {
     const w = host.clientWidth;
     const h = host.clientHeight;
@@ -921,7 +928,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const cap = ph ? MURMUR_MAX.phone : MURMUR_MAX.wide;
     const free = murEls.filter((m) => m.i < 0);
     if (murEls.length - free.length >= cap || !free.length) return;
-    const text = murmurFor(kind, Math.random(), Math.random());
+    // Each said once (#910): a live argument's new murmur first, then a written one not heard yet; none left, none said.
+    const text = opts.recess?.murmur() ?? freshMurmur(kind, (t) => murSaid.has(t) || (opts.memory?.heard(ambientKey("gallery", t)) ?? false));
+    if (!text) return;
+    murSaid.add(text);
+    opts.memory?.hear(ambientKey("gallery", text));
     const bottom = opts.safeBottom();
     for (let tries = 0; tries < 16; tries++) {
       const i = Math.floor(Math.random() * N);
@@ -1201,11 +1212,19 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // the floor than any item brings. The opener and those who concur take the a, c and b spots; the dissent takes the red
   // counter spot. Each stays on the floor until its spot is wanted again, so the floor fills as the argument grows. Real
   // business preempts it: a docket that fills starts a new session, which cancels this one mid-line.
-  // The recess picks up where this viewer left it, so a reload doesn't start the same debate over (#900).
-  let recess = opts.memory?.recess() ?? 0;
+  // Since #910 each argument is new (liveTalk.ts): made live as the chamber runs, or a written one this viewer hasn't
+  // heard; with nothing new, the chamber keeps quiet a while and asks again. Nothing is argued twice.
+  let topic: { motion: string; lines: { by: string; text: string }[] } | null = null;
   async function debate(tk: number) {
-    const d = debateAt(recess++);
-    opts.memory?.setRecess(recess);
+    const d = opts.recess ? await opts.recess.peek() : null;
+    if (tk !== token || dead) throw new Error("cancel");
+    if (!d) {
+      chair("");
+      await sleep(QUIET_MS, tk);
+      return;
+    }
+    opts.recess?.take(d);
+    topic = { motion: d.motion, lines: [] };
     kind = "decision";
     opts.onFloor(null);
     clearCaps();
@@ -1237,6 +1256,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       }
       if (p) say(slot, p, { text: l.text }, nay);
       else chair(l.text);
+      topic?.lines.push({ by: l.by, text: l.text });
       await line(p ? l.by : "kernel", l.text, tk);
     }
     chair(d.close);
@@ -1246,6 +1266,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     lookTo.set(0, 2.6, 0.4);
     dollyTo = 1.04;
     await line("kernel", d.close, tk, ITEM_END_MS);
+    topic = null;
     chair("");
     clearCaps();
     allHome();
@@ -1256,6 +1277,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   }
   async function session(startKey: string | null) {
     const tk = ++token;
+    topic = null;
     voice?.stop();
     allHome();
     clearCaps();
@@ -1930,6 +1952,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         talker = a;
       } else a.talkUntil = Math.min(a.talkUntil, clock.t);
     },
+    topic: () => (topic ? { motion: topic.motion, lines: [...topic.lines] } : null),
     dispose: () => {
       dead = true;
       token++;

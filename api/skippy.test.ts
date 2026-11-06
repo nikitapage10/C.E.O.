@@ -83,7 +83,7 @@ describe("Skippy's month (#646)", () => {
     await kernel.add(now, { input_tokens: 1000, output_tokens: 100 }, 22);
     const s = await skippySpend({ chat, kernel }, 60, now);
     expect(s).toMatchObject({ month: "2026-11", capUsd: 60, warnUsd: 50, spentUsd: 52, leftUsd: 8, state: "warn", calls: 2 });
-    expect(s.parts).toEqual({ triage: 1, talk: 20, research: 9, web: 0, kernel: 22, agents: 0 });
+    expect(s.parts).toEqual({ triage: 1, talk: 20, research: 9, web: 0, kernel: 22, agents: 0, senate: 0 });
     await kernel.add(now, { input_tokens: 1, output_tokens: 1 }, 7.9);
     expect((await skippySpend({ chat, kernel }, 60, now)).state).toBe("capped");
   });

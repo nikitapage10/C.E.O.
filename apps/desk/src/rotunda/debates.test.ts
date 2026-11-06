@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { debateAt, debateLines, debateOpen, DEBATES, isMember } from "./debates.ts";
+import { debateLines, debateOpen, DEBATES, isMember } from "./debates.ts";
 import { ROTUNDA_SAY_MAX } from "../../../../api/_skippy/rotundavoice.ts";
 
 describe("the Senate in recess (#878)", () => {
-  it("rotates through a curated set, each argued by several members with a dissent", () => {
+  it("keeps a written fallback set, each argued by several members with a dissent", () => {
     expect(DEBATES.length).toBeGreaterThanOrEqual(10);
     expect(new Set(DEBATES.map((d) => d.key)).size).toBe(DEBATES.length);
     for (const d of DEBATES) {
@@ -14,9 +14,6 @@ describe("the Senate in recess (#878)", () => {
       expect(new Set(d.lines.map((l) => l.by)).size, d.key).toBe(d.lines.length);
       for (const l of d.lines) expect(isMember(l.by), `${d.key}: ${l.by}`).toBe(true);
     }
-    expect(debateAt(0)).toBe(DEBATES[0]);
-    expect(debateAt(DEBATES.length + 1)).toBe(DEBATES[1]);
-    expect(debateAt(-1)).toBe(DEBATES[DEBATES.length - 1]);
   });
 
   it("every line fits the chamber's voice and never says whose taste it is", () => {

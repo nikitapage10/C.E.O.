@@ -13,6 +13,11 @@
  *       still comes back the same is refused. `murmurs` are a few new gallery heckles for the back tiers.
  *   { senate: "reply", seated, said, motion?, lines? }  → 200 { lines: [{ by, text }] }: one or two members answer what
  *       Nikita just said on the floor, in kind and in the argument's context.
+ *   { senate: "join", seated, said, motion, lines, cast? }  → 200 { join: { answers: [{ by, text }], rest: [{ by, stance,
+ *       text }], close } } (#925): Nikita's words join the argument on the floor. The one or two members who were just
+ *       speaking answer him first, perhaps one more chimes in, then the argument carries on from there with his point in
+ *       it (a few more lines and a new ruling), same motion. His earlier words in the same argument come back in `lines`
+ *       as `by: "floor"`.
  *     Either may answer 200 { quiet: "capped" | "off" | "held" | "repeat" | "busy" | "model" }: nothing to say this time,
  *     and the browser falls back to what it hasn't said yet, or to quiet. Never a line said before.
  *
@@ -51,6 +56,8 @@ export const TOPICS_KEEP = 400;
 export const TOPICS_IN_PROMPT = 120;
 const DEBATE_MAX_TOKENS = 1_400;
 const REPLY_MAX_TOKENS = 400;
+/** Nikita joining the argument (#925): the answers to him and the rest of the argument, so a little more than a reply. */
+const JOIN_MAX_TOKENS = 900;
 /** The longest a prompt can be, in tokens, at most (system, the used motions, the facts). */
 const PROMPT_MAX_TOKENS = 6_000;
 /** One call at its most. */
@@ -281,6 +288,13 @@ Use only the members you are given, each at most twice. The motion is a new subj
 export const REPLY_SYSTEM = `${RULES}
 The owner, Nikita, has just spoken from the floor in <said>. Write the members' answers to him, in kind: as playful, curious or serious as he was, in their own voices, one or two sentences each, under 200 characters. If he asked something, answer it in character; if a chamber argument is on, stay in it. Use only the members you are given.`;
 
+export const JOIN_SYSTEM = `${RULES}
+A recess argument is on the floor (the motion and the lines said so far are below). The owner, Nikita, has just stepped in from the floor with the words in <said>; lines marked "Nikita (from the floor)" are his earlier words in this argument. He joins this argument: it is not a new conversation.
+"answers": first the members listed as speaking answer him directly, in character and in the argument's terms (one line each, the one he cut off first); then at most one other member may chime in on his point. One or two sentences each, under 200 characters.
+"rest": two or three more lines of the same argument, carrying on from there with his point taken into account (agree, rebut, build on it), stance "aye" or "nay", at least one "nay" unless his point settled it.
+"close": the chair's new ruling on the motion, one sentence with a dash of his vanity, that reflects what Nikita added.
+Use only the members you are given, by id, never the chair in "answers" or "rest".`;
+
 const STANCES = ["open", "aye", "nay"] as const;
 export type Stance = (typeof STANCES)[number];
 
@@ -313,6 +327,17 @@ export const REPLY_SCHEMA = {
     },
   },
   required: ["lines"],
+  additionalProperties: false,
+} as const;
+
+export const JOIN_SCHEMA = {
+  type: "object",
+  properties: {
+    answers: REPLY_SCHEMA.properties.lines,
+    rest: DEBATE_SCHEMA.properties.lines,
+    close: { type: "string" },
+  },
+  required: ["answers", "rest", "close"],
   additionalProperties: false,
 } as const;
 
@@ -406,6 +431,38 @@ export function readReply(got: unknown, members: readonly string[]): { by: strin
   return out.length ? out.slice(0, 2) : null;
 }
 
+/**
+ * The model's join, checked (#925): the answers come from the members given (never the chair), the first from one who was
+ * speaking when he cut in; at most three answers and four more lines; every word public-safe. Null when not.
+ */
+export function readJoin(got: unknown, members: readonly string[], speaking: readonly string[]): Joined | null {
+  if (!got || typeof got !== "object") return null;
+  const o = got as Record<string, unknown>;
+  const who = members.filter((m) => m !== "kernel");
+  const answers: { by: string; text: string }[] = [];
+  for (const l of Array.isArray(o.answers) ? o.answers : []) {
+    const r = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
+    const by = typeof r.by === "string" ? r.by : "";
+    const text = tidy(r.text);
+    if (!who.includes(by) || !publicSafe(text)) return null;
+    answers.push({ by, text });
+  }
+  if (!answers.length || answers.length > 3) return null;
+  if (speaking.length && !speaking.includes(answers[0]!.by)) return null;
+  const rest: DebateLine[] = [];
+  for (const l of Array.isArray(o.rest) ? o.rest : []) {
+    const r = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
+    const by = typeof r.by === "string" ? r.by : "";
+    const text = tidy(r.text);
+    if (!who.includes(by) || !publicSafe(text)) return null;
+    rest.push({ by, stance: r.stance === "nay" ? "nay" : "aye", text });
+  }
+  if (rest.length > 4) return null;
+  const close = tidy(o.close);
+  if (!publicSafe(close)) return null;
+  return { answers, rest, close };
+}
+
 /** Picks `n` of `from` at random (the order shuffled too). */
 export function pickSome<T>(from: readonly T[], n: number, rnd: () => number = Math.random): T[] {
   const a = [...from];
@@ -437,8 +494,15 @@ export interface SenateDeps {
   log?: (line: string) => void;
 }
 
+/** Nikita's words joined to the argument on the floor (#925): the answers to him, the rest of the argument, its new ruling. */
+export interface Joined {
+  answers: { by: string; text: string }[];
+  rest: DebateLine[];
+  close: string;
+}
+
 export type Quiet = "capped" | "off" | "held" | "repeat" | "busy" | "model";
-export type SenateAnswer = { debate: LiveDebate } | { lines: { by: string; text: string }[] } | { quiet: Quiet };
+export type SenateAnswer = { debate: LiveDebate } | { lines: { by: string; text: string }[] } | { join: Joined } | { quiet: Quiet };
 
 /** When each kind was last asked, on this instance. */
 const lastAsk: Record<keyof typeof GAP_MS, number> = { debate: 0, reply: 0 };
@@ -512,4 +576,51 @@ export async function floorReply(body: Record<string, unknown>, deps: SenateDeps
   if ("quiet" in got) return got;
   const lines = readReply(got.answer, members);
   return lines ? { lines } : { quiet: "held" };
+}
+
+/** The lines said so far, as the function takes them: the members' (with a voice) and Nikita's own from the floor. */
+function readBefore(v: unknown, keep: number): { by: string; text: string }[] {
+  return (Array.isArray(v) ? v : [])
+    .slice(-keep)
+    .map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}))
+    .map((l) => ({ by: l.by === "floor" ? "floor" : typeof l.by === "string" && castVoiceOf(l.by) ? l.by : "", text: tidy(l.text) }))
+    .filter((l) => l.by && publicSafe(l.text));
+}
+
+/**
+ * Nikita's words join the argument on the floor (#925). Nikita, 2026-11-06: if the Historian and the Director are
+ * mid-argument and he butts in, "those two would be the ones to respond, and then maybe somebody else chimes in. It
+ * shouldn't be ... a completely tangent or not integrated conversation." One call, under the same cap and gap as a reply:
+ * the members who were speaking answer him, maybe one more chimes in, and the rest of the argument follows from there.
+ * His words go only when they pass the privacy check; everything that comes back is checked again.
+ */
+export async function joinDebate(body: Record<string, unknown>, deps: SenateDeps): Promise<SenateAnswer> {
+  const said = tidy(body.said, 400);
+  if (!said || privateParts(said).length || MONEY.test(said)) return { quiet: "held" };
+  const motion = tidy(body.motion, 200);
+  if (!motion || !publicSafe(motion)) return { quiet: "off" };
+  const before = readBefore(body.lines, 8);
+  // Who was speaking when he cut in: the last two members heard (not the chair, not him).
+  const speaking: string[] = [];
+  for (const l of [...before].reverse()) if (l.by !== "floor" && l.by !== "kernel" && !speaking.includes(l.by) && speaking.length < 2) speaking.push(l.by);
+  const cast = readSeats(body.cast);
+  const seated = readSeats(body.seated);
+  const others = pickSome(
+    seated.filter((id) => !speaking.includes(id) && !cast.includes(id)),
+    1,
+    deps.rnd,
+  );
+  const members = [...new Set([...speaking, ...cast, ...before.map((l) => l.by).filter((b) => b !== "floor" && b !== "kernel"), ...others])].slice(0, 6);
+  if (!members.length) return { quiet: "off" };
+  const transcript = before.map((l) => `${l.by === "floor" ? "Nikita (from the floor)" : l.by}: ${l.text}`).join("\n");
+  const user = `${factsOf(members, [], 0)}\nThe argument on: ${motion}\n${transcript}\nSpeaking when he cut in: ${speaking.join(", ") || "nobody yet"}\n<said>${said}</said>\nUse these members, by id: ${members.join(", ")}.`;
+  // A join is a reply to Nikita: it shares the reply's gap.
+  const got = await call("reply", deps, JOIN_SYSTEM, user, JOIN_MAX_TOKENS, JOIN_SCHEMA as unknown as Record<string, unknown>);
+  if ("quiet" in got) return got;
+  const join = readJoin(got.answer, members, speaking);
+  if (!join) {
+    deps.log?.("senate: a join held back");
+    return { quiet: "held" };
+  }
+  return { join };
 }

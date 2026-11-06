@@ -74,7 +74,8 @@ import type { RotundaVoice } from "./voice.ts";
 import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig } from "./senateActor.ts";
 import { senatePoses, senatorOf } from "./senators.ts";
 import { debateLines, debateOpen } from "./debates.ts";
-import type { RecessSource } from "./liveTalk.ts";
+import type { FloorTopic, Joined, RecessSource } from "./liveTalk.ts";
+import { GALLERY_FADE, GALLERY_R0, KEEP_OUT, YAW_ARC, ZOOM, keepOutScale, softStep } from "./clearance.ts";
 import { ambientKey } from "./heard.ts";
 
 /**
@@ -97,6 +98,10 @@ import { ambientKey } from "./heard.ts";
  * on the docket the members argue a topic of their own (debates.ts) until real business takes the floor.
  * Since #910 those arguments are made live, a new motion every time (liveTalk.ts), the gallery's murmurs are each said
  * once, and when nothing new is left the chamber keeps quiet rather than say anything again.
+ * Since #925 Nikita's words on the floor join the argument that's on (`join`): the members who were speaking answer him
+ * and it carries on from there. No podium ever comes into the camera's face (clearance.ts: the gallery stands beyond the
+ * camera's reach, the keys keep to an arc and a tight zoom, and a member's podium inside the keep-out shrinks away), the
+ * gallery is far denser, darker and further back, each figure a shimmer of gold sigil nanites, and the room is darker.
  *
  * Every Skippy in it is its own self (#775): its own idle, gestures, faces and reactions, played from senators.ts by
  * senateActor.ts, with a moving face cast over the front of each can's head.
@@ -162,7 +167,12 @@ export interface Rotunda {
   /** A member (or "kernel", the chair) talks for this many seconds while it answers him; 0 stops it. */
   talk: (by: string, seconds: number) => void;
   /** The argument on the floor now and what has been said in it (#910), so the members answer him in its context. */
-  topic: () => { motion: string; lines: { by: string; text: string }[] } | null;
+  topic: () => FloorTopic | null;
+  /**
+   * Nikita's words join the argument on the floor (#925): answered by the members who were speaking, then the argument
+   * goes on with his point in it. Resolves once they have answered him; null when no argument is on.
+   */
+  join: (said: string, j: Joined) => Promise<void> | null;
   dispose: () => void;
 }
 
@@ -171,6 +181,10 @@ const TYPE_LIGHT: Record<RiteKind | "idle", Color> = { duty: new Color("#dfe9ff"
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const GLYPHS = [..."ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ{}<>/=;∴"];
 const PHONE_W = 760;
+/** The gallery's tiers (#925): how many, and how far out and up each steps from the last. */
+const TIERS = 14;
+const TIER_DR = 1.05;
+const TIER_DY = 1.2;
 /** With nothing new to argue (#910), the chamber keeps quiet this long before it looks again. */
 const QUIET_MS = 20_000;
 
@@ -349,19 +363,20 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH0 ? 1.25 : 1.75));
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  // Darker overall (#925, Nikita: "darken the room overall"): the spotlights, the gold and the captions carry it.
+  renderer.toneMappingExposure = 0.92;
   renderer.shadowMap.enabled = !PH0;
   renderer.shadowMap.type = PCFShadowMap;
   const scene = new Scene();
-  scene.background = new Color(0x07080d);
-  scene.fog = new FogExp2(0x0a0c16, 0.034);
+  scene.background = new Color(0x030407);
+  scene.fog = new FogExp2(0x05060c, 0.032);
   const cam = new PerspectiveCamera(40, 1, 0.1, 120);
   const disposables: { dispose: () => void }[] = [];
   const keep = <T extends { dispose: () => void }>(x: T) => (disposables.push(x), x);
 
   // ---- the chamber ------------------------------------------------------------------------------------------------
-  scene.add(new HemisphereLight(0x9aa4d0, 0x06060a, 0.65));
-  const moon = new DirectionalLight(0xbfc8ff, 0.5);
+  scene.add(new HemisphereLight(0x9aa4d0, 0x06060a, 0.36));
+  const moon = new DirectionalLight(0xbfc8ff, 0.28);
   moon.position.set(-6, 14, 8);
   scene.add(moon);
   const shaft = new SpotLight(0xffefcf, 160, 22, 0.24, 0.55, 1.2);
@@ -377,7 +392,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const beam2 = new Mesh(keep(new CylinderGeometry(0.3, 1.2, 16, 48, 1, true)), beam2Mat);
   beam2.position.y = 8;
   scene.add(beam, beam2);
-  const floor = new Mesh(keep(new CircleGeometry(30, 96)), keep(new MeshStandardMaterial({ color: 0x0c0d14, roughness: 0.45, metalness: 0.4 })));
+  const floor = new Mesh(keep(new CircleGeometry(44, 96)), keep(new MeshStandardMaterial({ color: 0x07080c, roughness: 0.5, metalness: 0.4 })));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
@@ -408,24 +423,27 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       uniforms: { t: { value: 0 } },
       vertexShader: `varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
       fragmentShader: `varying vec2 vU; uniform float t;
-        void main(){ float h = vU.y; vec3 deep = vec3(.018,.022,.04), haze = vec3(.07,.09,.16);
-          vec3 c = mix(deep, haze, smoothstep(.05,.75,h)); c = mix(c, vec3(.03,.035,.06), smoothstep(.8,1.,h));
-          float tier = smoothstep(.0,.5,fract(h*14.)) * smoothstep(1.,.86,fract(h*14.)); c += vec3(.025,.022,.016)*(1.-tier)*smoothstep(.05,.7,h);
+        void main(){ float h = vU.y; vec3 deep = vec3(.008,.01,.018), haze = vec3(.032,.04,.072);
+          vec3 c = mix(deep, haze, smoothstep(.05,.75,h)); c = mix(c, vec3(.014,.016,.028), smoothstep(.8,1.,h));
+          float tier = smoothstep(.0,.5,fract(h*14.)) * smoothstep(1.,.86,fract(h*14.)); c += vec3(.014,.012,.008)*(1.-tier)*smoothstep(.05,.7,h);
           float win = step(.82, fract(vU.x*220.)) * step(.6, fract(h*14.+.3)) * step(fract(sin(floor(vU.x*220.)*12.9+floor(h*14.)*78.2)*43758.5),.35);
-          c += vec3(1.,.8,.5)*win*.10*(.6+.4*sin(t*.7+vU.x*90.))*smoothstep(.15,.7,h);
+          c += vec3(1.,.8,.5)*win*.06*(.6+.4*sin(t*.7+vU.x*90.))*smoothstep(.15,.7,h);
           gl_FragColor = vec4(c,1.); }`,
     }),
   );
-  const wall = new Mesh(keep(new CylinderGeometry(24, 13, 22, 96, 1, true)), wallMat);
-  wall.position.y = 10.5;
+  // Since #925 the bowl stands well back: its first tier beyond the furthest the camera ever goes (clearance.ts), so no
+  // gallery podium is ever between the camera and the floor.
+  const wall = new Mesh(keep(new CylinderGeometry(GALLERY_R0 + 25, GALLERY_R0 + 1, 26, 128, 1, true)), wallMat);
+  wall.position.y = 12.5;
   scene.add(wall);
-  for (let k = 0; k < 10; k++) gold(9.4 + k * 1.15, 0.6 + k * 1.35, 0.22 - k * 0.018, 0.008);
+  for (let k = 0; k < TIERS; k++) gold(GALLERY_R0 - 0.5 + k * TIER_DR, 0.6 + k * TIER_DY, 0.2 - k * 0.011, 0.02);
   // No light slants in from the oculus any more (Nikita, 2026-11-05): the only beams are the chair's shaft and a
   // spotlight on whoever has the floor.
 
-  // The gallery: hundreds of pods, instanced silhouettes with a pinprick light each.
-  const N = PH0 ? 420 : 980;
-  const crowd = new InstancedMesh(keep(new CylinderGeometry(0.34, 0.2, 0.18, 8)), keep(new MeshStandardMaterial({ color: 0x1a1b24, metalness: 0.5, roughness: 0.6, emissive: 0x0c0e18 })), N);
+  // The gallery: hundreds of pods, instanced silhouettes with a pinprick light each. Since #925 (Nikita: "too sparse and a
+  // little too fake", "darken the background more and add many more of them") it is far denser, deeper and further back.
+  const N = PH0 ? 900 : 2200;
+  const crowd = new InstancedMesh(keep(new CylinderGeometry(0.34, 0.2, 0.18, 8)), keep(new MeshStandardMaterial({ color: 0x0e0f15, metalness: 0.5, roughness: 0.6, emissive: 0x05060b })), N);
   const lp = new Float32Array(N * 3);
   const lr = new Float32Array(N);
   const lc = new Float32Array(N * 3);
@@ -438,10 +456,10 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const warm = new Color(0xffcf8a);
     const cool = new Color(0x8fb4ff);
     for (let i = 0; i < N; i++) {
-      const tier = i % 10;
-      const r = 9.8 + tier * 1.15 + Math.random() * 0.3;
-      const a = (i / N) * Math.PI * 2 * 10.13 + Math.random() * 0.05;
-      const y = 0.9 + tier * 1.35 + Math.random() * 0.25;
+      const tier = i % TIERS;
+      const r = GALLERY_R0 + tier * TIER_DR + Math.random() * 0.3;
+      const a = (i / N) * Math.PI * 2 * (TIERS + 0.13) + Math.random() * 0.05;
+      const y = 0.9 + tier * TIER_DY + Math.random() * 0.25;
       V.set(Math.cos(a) * r, y, Math.sin(a) * r);
       q.setFromAxisAngle(UP, -a);
       M.compose(V, q, S1);
@@ -468,7 +486,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         vertexShader: `attribute float rnd; attribute vec3 tint; uniform float t, vote, share, px; varying vec3 vC; varying float vA;
           void main(){ bool aye = rnd < share; float tw = .45 + .35*sin(t*1.3 + rnd*40.);
             vC = mix(tint, vec3(1., .82, .45), aye ? vote : 0.); vA = tw * (aye ? 1. + vote*1.4 : 1. - vote*.5);
-            vec4 mv = modelViewMatrix*vec4(position,1.); gl_PointSize = (aye ? 2.2 + vote*1.6 : 2.0) * px * (14./-mv.z); gl_Position = projectionMatrix*mv; }`,
+            vec4 mv = modelViewMatrix*vec4(position,1.); vA *= smoothstep(${GALLERY_FADE.to.toFixed(1)}, ${GALLERY_FADE.from.toFixed(1)}, -mv.z) * (.55 + .45 * exp(-max(0., -mv.z - 30.) * .03));
+            gl_PointSize = (aye ? 2.2 + vote*1.6 : 2.0) * px * (24./-mv.z); gl_Position = projectionMatrix*mv; }`,
         fragmentShader: `varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord-.5); if(d>.5) discard; gl_FragColor = vec4(vC, vA*(1.-d*2.)); }`,
       }),
     ),
@@ -596,11 +615,18 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // gallery is about twice as full, and each figure reads as Skippy: the can as it stands, arms down, turned a little
   // off the front so the admiral's bicorne shows both horns, drawn as a crisp line of light round a faint dark fill. Each
   // floats a hand above its podium with a bob, a lean and a size of its own, all in the shader.
+  //
+  // Since #925 (Nikita: they look "so blatantly not real, especially the closer ones") none is close: the gallery stands
+  // beyond the furthest the camera goes (clearance.ts), deeper and darker, many more of them, small and dim. Each figure
+  // is no longer a flat cut-out but a shimmer of gold sigil nanites in the can's shape: specks of light that flicker on
+  // and off, thicker along the outline, the edges dissolving into loose specks and the fill only a dark breath. Each sways
+  // a little, now and then turns its head, and stands at its own size, width and hat (some face the other way), all in
+  // the shader. Any that came within GALLERY_FADE of the camera would fade out entirely.
   if (shade) {
     const tex = keep(shade.tex);
     const g = keep(new PlaneGeometry(shade.aspect, 1));
     g.translate(0, 0.5, 0);
-    const NS = PH0 ? 120 : 380;
+    const NS = PH0 ? 360 : 1100;
     const fog = scene.fog as FogExp2;
     const shadowU = { t: { value: 0 }, map: { value: tex }, fogC: { value: fog.color }, dens: { value: fog.density } };
     const shadowMat = keep(
@@ -608,34 +634,52 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         uniforms: shadowU,
         transparent: true,
         depthWrite: false,
-        vertexShader: `uniform float t; varying vec2 vU; varying float vD;
-          void main(){ float id = float(gl_InstanceID); vU = uv;
-            float h1 = fract(sin(id * 12.9898) * 43758.5453), h2 = fract(sin(id * 78.233) * 24634.6345);
+        blending: AdditiveBlending,
+        vertexShader: `uniform float t; varying vec2 vU; varying float vD; varying float vId; varying float vNear;
+          void main(){ float id = float(gl_InstanceID); vId = id;
+            float h1 = fract(sin(id * 12.9898) * 43758.5453), h2 = fract(sin(id * 78.233) * 24634.6345), h3 = fract(sin(id * 39.425) * 15731.743);
+            // Some face the other way; each its own width and its own hat.
+            vU = vec2(h3 < .5 ? uv.x : 1. - uv.x, uv.y);
             vec3 o = (modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.)).xyz; float s = length(instanceMatrix[1].xyz);
             vec3 to = cameraPosition - o; to.y = 0.; vec3 right = normalize(vec3(to.z, 0., -to.x) + vec3(1e-5, 0., 0.));
-            float lean = (h1 - .5) * .16 + sin(t * (.35 + h2 * .3) + id * 1.73) * .035;
-            float bob = sin(t * (.7 + h1 * .5) + id * 2.31) * .045 + .07;
-            vec2 q = vec2(position.x * cos(lean) - (position.y - .5) * sin(lean), position.x * sin(lean) + (position.y - .5) * cos(lean) + .5);
+            float sway = (h1 - .5) * .12 + sin(t * (.3 + h2 * .25) + id * 1.73) * .03;
+            float bob = sin(t * (.6 + h1 * .4) + id * 2.31) * .03 + .07;
+            vec2 p = position.xy; p.x *= .86 + h2 * .3;
+            // The head and hat: wider or narrower, and now and then a turn of the head (a slide and a squeeze of the top).
+            float head = smoothstep(.62, .74, p.y);
+            float turn = smoothstep(.82, 1., sin(t * (.11 + h1 * .07) + id * 4.7));
+            p.x = p.x * (1. + head * ((h1 - .5) * .4 - turn * .22)) + head * turn * (h2 < .5 ? -.06 : .06);
+            vec2 q = vec2(p.x * cos(sway) - (p.y - .5) * sin(sway), p.x * sin(sway) + (p.y - .5) * cos(sway) + .5);
             vec3 w = o + right * q.x * s + vec3(0., (q.y + bob) * s, 0.);
-            vec4 mv = viewMatrix * vec4(w, 1.); vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
-        fragmentShader: `uniform sampler2D map; uniform vec3 fogC; uniform float dens; varying vec2 vU; varying float vD;
+            vec4 mv = viewMatrix * vec4(w, 1.); vD = -mv.z;
+            vNear = smoothstep(${GALLERY_FADE.to.toFixed(1)}, ${GALLERY_FADE.from.toFixed(1)}, length(cameraPosition - o));
+            gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `uniform sampler2D map; uniform vec3 fogC; uniform float dens, t; varying vec2 vU; varying float vD; varying float vId; varying float vNear;
+          float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
           void main(){ vec3 m = texture2D(map, vU).rgb; float body = m.r, halo = max(m.g - m.r, 0.), rim = m.b;
-            if (body < .03 && halo < .03) discard;
-            vec3 line = mix(vec3(.72, .8, 1.05), vec3(.95, .82, .52), smoothstep(.6, .68, vU.y));
-            vec3 c = mix(vec3(.1, .11, .17), line, rim);
-            c = mix(line * .5, c, body);
-            float a = max(max(body * .6, rim), halo * .3);
-            float haze = 1. - exp(-pow(dens * 1.7 * vD, 2.));
-            c = mix(c, fogC * 1.6, haze * .45);
-            gl_FragColor = vec4(c, a * (1. - haze * .2)); }`,
+            if (body < .02 && halo < .05) discard;
+            // The nanites: a fine grid of specks over the figure, each flickering on its own beat.
+            vec2 cell = floor(vU * vec2(16., 32.)); float r = hash(cell + vId * 7.13);
+            float beat = .5 + .5 * sin(t * (1.2 + r * 2.4) + r * 40.);
+            vec2 f = fract(vU * vec2(16., 32.)) - .5; float pip = smoothstep(.5, .15, length(f));
+            // Thick along the outline, sparse inside, loose and dissolving at the edges (the halo).
+            float keep = rim * .85 + body * .22 + halo * .18;
+            float speck = step(1. - keep, r) * pip * (.35 + .65 * beat);
+            vec3 gold = mix(vec3(.85, .62, .3), vec3(1., .86, .55), smoothstep(.6, .72, vU.y));
+            float haze = 1. - exp(-pow(dens * .8 * vD, 2.));
+            float a = (speck * (.7 + rim * .5) + body * .05) * (1. - haze * .7) * vNear;
+            gl_FragColor = vec4(mix(gold, fogC * 3., haze * .5) * a, 1.); }`,
       }),
     );
+    // Additive light: the dark fill is the bowl behind it, never a flat dark card.
+    shadowMat.premultipliedAlpha = true;
     const shadows = new InstancedMesh(g, shadowMat, NS);
     // Each stands on a podium of its own (Nikita: "they should be on a podium and a Skippy silhouette"): a small copy of
     // the members' bronze pod and its gold rim, two instanced draws for the whole gallery, in place of the plain seat.
+    // Since #925 dark bronze, its rim a faint line of gold, sunk in the haze.
     const PS = 0.5;
-    const stands = new InstancedMesh(keep(new CylinderGeometry(0.78, 0.42, 0.42, 16)), keep(new MeshStandardMaterial({ color: 0x3a3027, metalness: 0.8, roughness: 0.38 })), NS);
-    const rims = new InstancedMesh(keep(new TorusGeometry(0.78, 0.03, 4, 32)), keep(new MeshBasicMaterial({ color: 0xc9a85c, transparent: true, opacity: 0.45 })), NS);
+    const stands = new InstancedMesh(keep(new CylinderGeometry(0.78, 0.42, 0.42, 12)), keep(new MeshStandardMaterial({ color: 0x17130f, metalness: 0.8, roughness: 0.45 })), NS);
+    const rims = new InstancedMesh(keep(new TorusGeometry(0.78, 0.035, 4, 24)), keep(new MeshBasicMaterial({ color: 0xc9a85c, transparent: true, opacity: 0.32 })), NS);
     const M = new Matrix4();
     const q = new Quaternion();
     const flat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
@@ -643,23 +687,23 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const S = new Vector3();
     const ZERO = new Vector3(0, 0, 0);
     let n = 0;
-    // Spread across the back tiers: far enough up and out that the haze takes their edges and nobody sees they're flat.
-    // Every other seat on the lower of them, every third higher up, picked by a hash so no tier is left bare.
+    // Spread across the tiers, two seats in three filled, picked by a hash so no tier is left bare; bigger further up,
+    // so the back rows still read at their distance.
     for (let i = 0; i < N && n < NS; i++) {
-      const tier = i % 10;
-      const pick = (Math.imul(i, 0x9e3779b1) >>> 16) % (tier < 6 ? 2 : 3);
-      if (tier < 1 || pick !== 0) continue;
+      const tier = i % TIERS;
+      const pick = (Math.imul(i, 0x9e3779b1) >>> 16) % 3;
+      if (pick === 0) continue;
       crowd.getMatrixAt(i, M);
       V.setFromMatrixPosition(M);
-      // None on the camera's side of the bowl, where one would loom over the floor.
+      // None on the camera's own side of the bowl: behind it, it would never be seen.
       const off = Math.atan2(Math.sin(Math.atan2(V.z, V.x) - Math.PI / 2), Math.cos(Math.atan2(V.z, V.x) - Math.PI / 2));
-      if (Math.abs(off) < 1.1) continue;
+      if (Math.abs(off) < 0.9) continue;
       // The plain seat gives way to the podium.
       crowd.setMatrixAt(i, M.compose(V, q, ZERO));
       stands.setMatrixAt(n, M.compose(V, q, S.setScalar(PS)));
       V.y += 0.21 * PS;
       rims.setMatrixAt(n, M.compose(V, flat, S.setScalar(PS)));
-      S.setScalar(0.74 * (0.86 + ((Math.imul(i, 0x85ebca6b) >>> 20) % 9) * 0.03));
+      S.setScalar((0.8 + tier * 0.035) * (0.82 + ((Math.imul(i, 0x85ebca6b) >>> 20) % 13) * 0.03));
       V.y += 0.01;
       shadows.setMatrixAt(n++, M.compose(V, q, S));
     }
@@ -1214,7 +1258,15 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // business preempts it: a docket that fills starts a new session, which cancels this one mid-line.
   // Since #910 each argument is new (liveTalk.ts): made live as the chamber runs, or a written one this viewer hasn't
   // heard; with nothing new, the chamber keeps quiet a while and asks again. Nothing is argued twice.
-  let topic: { motion: string; lines: { by: string; text: string }[] } | null = null;
+  let topic: FloorTopic | null = null;
+  // Nikita's words joined to the argument (#925, senateFloor.ts): taken at the next line's turn, so the line he cut into
+  // finishes first. The members who were speaking answer him from where they stand, perhaps one more chimes in, and the
+  // argument carries on from there with his point in it and a new ruling; `done` lets the floor's caption go.
+  let joinQ: { said: string; j: Joined; done: () => void } | null = null;
+  const dropJoin = () => {
+    joinQ?.done();
+    joinQ = null;
+  };
   async function debate(tk: number) {
     const d = opts.recess ? await opts.recess.peek() : null;
     if (tk !== token || dead) throw new Error("cancel");
@@ -1224,7 +1276,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       return;
     }
     opts.recess?.take(d);
-    topic = { motion: d.motion, lines: [] };
+    topic = { motion: d.motion, lines: [], cast: [...new Set(d.lines.map((l) => l.by).filter((b) => b !== "kernel"))] };
     kind = "decision";
     opts.onFloor(null);
     clearCaps();
@@ -1237,36 +1289,71 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const spots: [Slot, SpotId][] = [["a", "a"], ["c", "c"], ["b", "b"]];
     const held = new Map<SpotId, Pod>();
     let s = 0;
-    for (const l of d.lines) {
-      const nay = l.stance === "nay";
-      const [slot, spot] = nay ? (["d", "d"] as [Slot, SpotId]) : spots[s++ % spots.length]!;
-      const p = podOr(l.by);
+    /** One member's line: from the spot it already stands on, or the next free one (the dissent takes the counter spot). */
+    const speak = async (by: string, text: string, nay: boolean) => {
+      const p = podOr(by);
+      const mine = p ? [...held].find(([, q]) => q === p)?.[0] : undefined;
+      const [slot, spot]: [Slot, SpotId] = mine ? [mine as Slot, mine] : nay ? ["d", "d"] : spots[s++ % spots.length]!;
       const was = held.get(spot);
       if (was && was !== p) {
         say(slot, null);
         goHome(was);
       }
       if (p) {
-        goIn(p, spot, nay);
-        held.set(spot, p);
+        if (!mine) {
+          goIn(p, spot, nay);
+          held.set(spot, p);
+        }
         focus = p;
         lookTo.set(SPOT[spot].x * 0.4, 2.6, 0.8);
         dollyTo = 0.96;
-        await sleep(FLY_MS, tk);
+        if (!mine) await sleep(FLY_MS, tk);
       }
-      if (p) say(slot, p, { text: l.text }, nay);
-      else chair(l.text);
-      topic?.lines.push({ by: l.by, text: l.text });
-      await line(p ? l.by : "kernel", l.text, tk);
+      if (p) say(slot, p, { text }, spot === "d");
+      else chair(text);
+      topic?.lines.push({ by, text });
+      await line(p ? by : "kernel", text, tk);
+    };
+    let queue = [...d.lines];
+    let close = d.close;
+    let closed = false;
+    for (;;) {
+      const jq = joinQ;
+      if (jq) {
+        joinQ = null;
+        try {
+          topic?.lines.push({ by: "floor", text: jq.said });
+          voice?.prefetch([...jq.j.answers, ...jq.j.rest, { by: "kernel", text: jq.j.close }]);
+          chair("");
+          for (const a of jq.j.answers) await speak(a.by, a.text, false);
+        } finally {
+          jq.done();
+        }
+        // The argument goes on from here, his point in it, to a new ruling.
+        queue = [...jq.j.rest];
+        if (jq.j.close !== close) {
+          close = jq.j.close;
+          closed = false;
+        }
+        continue;
+      }
+      const l = queue.shift();
+      if (l) {
+        await speak(l.by, l.text, l.stance === "nay");
+        continue;
+      }
+      if (closed) break;
+      chair(close);
+      voteTo = 1;
+      shareTo = 0.6;
+      focus = null;
+      lookTo.set(0, 2.6, 0.4);
+      dollyTo = 1.04;
+      await line("kernel", close, tk, ITEM_END_MS);
+      closed = true;
     }
-    chair(d.close);
-    voteTo = 1;
-    shareTo = 0.6;
-    focus = null;
-    lookTo.set(0, 2.6, 0.4);
-    dollyTo = 1.04;
-    await line("kernel", d.close, tk, ITEM_END_MS);
     topic = null;
+    dropJoin();
     chair("");
     clearCaps();
     allHome();
@@ -1278,6 +1365,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   async function session(startKey: string | null) {
     const tk = ++token;
     topic = null;
+    dropJoin();
     voice?.stop();
     allHome();
     clearCaps();
@@ -1705,6 +1793,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   let T = 0;
   let raf = 0;
   const tmp = new Vector3();
+  const camDir = new Vector3();
   const shaftCol = new Color(0xffe6b8);
   const IDLE_SHAFT = new Color(0xffe6b8);
   const minStep = PH0 ? 1000 / 30 - 2 : 0;
@@ -1712,12 +1801,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // WASD round the Senate (#802): A/D orbit the camera round the chamber, W/S zoom in and out a little, both eased
   // and the zoom held to sensible limits; Escape brings the session's own view back. The shared helper (#776) keeps
   // the keys off while anything is typed into.
+  // Since #925 the turn keeps to an arc either side of the session's view and the zoom to a tight range, each with a soft
+  // edge (clearance.ts), so the camera never swings round onto a member's podium; Escape (and the idle return) bring the
+  // session's own view back.
   let yaw = 0;
   let yawTo = 0;
   let zoom = 1;
   let zoomTo = 1;
-  const ZOOM_IN = 0.7;
-  const ZOOM_OUT = 1.18;
   const pan = wasdPan({
     el: host,
     reduce,
@@ -1725,10 +1815,10 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     origin: () => [look.x, look.z],
     forward: () => [look.x - cam.position.x, look.z - cam.position.z],
     orbit: {
-      turn: (r) => (yawTo += r),
-      zoom: (a) => (zoomTo = Math.max(ZOOM_IN, Math.min(ZOOM_OUT, zoomTo - a * 0.45))),
+      turn: (r) => (yawTo = softStep(yawTo, r, -YAW_ARC, YAW_ARC)),
+      zoom: (a) => (zoomTo = softStep(zoomTo, -a * 0.3, ZOOM.in, ZOOM.out)),
       home: () => {
-        yawTo = Math.round(yaw / (Math.PI * 2)) * Math.PI * 2;
+        yawTo = 0;
         zoomTo = 1;
       },
     },
@@ -1761,6 +1851,25 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     clock.t += Math.min(0.5, raw);
     if (!floorHeld) sclock.t += Math.min(0.5, raw);
     const k = 1 - Math.pow(0.04, dt);
+    // The camera first (#925), so every podium can be kept clear of it this same frame.
+    look.lerp(lookTo, k * 0.35);
+    dolly += (dollyTo - dolly) * k * 0.35;
+    const ph = phone();
+    const ek = reduce ? 1 : 1 - Math.exp(-dt * 5);
+    yaw += (yawTo - yaw) * ek;
+    zoom += (zoomTo - zoom) * ek;
+    const orbit = Math.PI / 2 + yaw + (reduce ? 0 : Math.sin(T * 0.06) * 0.32);
+    // A tall phone stands further back, so the whole bowl fits across it.
+    const rad = (ph ? (cam.aspect < 0.95 ? 17.5 : 15.5) : 13.2) * dolly * zoom;
+    const camY = (ph ? 7.4 : 5.0) * (0.8 + dolly * 0.2);
+    pan.step(dt);
+    cam.position.set(Math.cos(orbit) * rad + pan.x, camY, Math.sin(orbit) * rad + pan.z);
+    tmp.copy(look);
+    tmp.x += pan.x;
+    tmp.z += pan.z;
+    if (ph) tmp.y += 1.1;
+    cam.lookAt(tmp);
+    camDir.copy(tmp).sub(cam.position).normalize();
     for (const p of pods) {
       if (p.tw) {
         const u = Math.min(1, (clock.t - p.tw.t0) / p.tw.dur);
@@ -1772,6 +1881,10 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       p.dis += (p.disTo - p.dis) * k;
       const bob = reduce ? 0 : Math.sin(T * 1.2 + p.phase) * (p.speaking ? 0.08 : 0.04);
       p.g.position.set(p.at.x, p.at.y + bob, p.at.z);
+      // Never in the camera's face (#925): one that comes into the keep-out round it and its line of sight shrinks away.
+      const clear = keepOutScale(p.g.position, cam.position, camDir, KEEP_OUT);
+      p.g.scale.setScalar(Math.max(1e-3, clear));
+      p.g.visible = clear > 0.01;
       const face = p.speaking ? Math.atan2(cam.position.x - p.at.x, cam.position.z - p.at.z) : Math.atan2(-p.at.x, -p.at.z);
       let d = face - p.g.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -1834,23 +1947,6 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     shadowTick(reduce ? 0 : T);
     edgeU.t.value = reduce ? 0 : T;
     renderer.getDrawingBufferSize(edgeU.res.value);
-    look.lerp(lookTo, k * 0.35);
-    dolly += (dollyTo - dolly) * k * 0.35;
-    const ph = phone();
-    const ek = reduce ? 1 : 1 - Math.exp(-dt * 5);
-    yaw += (yawTo - yaw) * ek;
-    zoom += (zoomTo - zoom) * ek;
-    const orbit = Math.PI / 2 + yaw + (reduce ? 0 : Math.sin(T * 0.06) * 0.32);
-    // A tall phone stands further back, so the whole bowl fits across it.
-    const rad = (ph ? (cam.aspect < 0.95 ? 17.5 : 15.5) : 13.2) * dolly * zoom;
-    const camY = (ph ? 7.4 : 5.0) * (0.8 + dolly * 0.2);
-    pan.step(dt);
-    cam.position.set(Math.cos(orbit) * rad + pan.x, camY, Math.sin(orbit) * rad + pan.z);
-    tmp.copy(look);
-    tmp.x += pan.x;
-    tmp.z += pan.z;
-    if (ph) tmp.y += 1.1;
-    cam.lookAt(tmp);
     stepAtmos(dt, T);
     renderer.render(scene, cam);
     placeCaps();
@@ -1952,10 +2048,18 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
         talker = a;
       } else a.talkUntil = Math.min(a.talkUntil, clock.t);
     },
-    topic: () => (topic ? { motion: topic.motion, lines: [...topic.lines] } : null),
+    topic: () => (topic ? { motion: topic.motion, lines: [...topic.lines], cast: [...(topic.cast ?? [])] } : null),
+    join: (said, j) => {
+      if (!topic || dead) return null;
+      return new Promise<void>((res) => {
+        dropJoin();
+        joinQ = { said, j, done: res };
+      });
+    },
     dispose: () => {
       dead = true;
       token++;
+      dropJoin();
       voice?.stop();
       cancelAnimationFrame(raf);
       window.clearInterval(bg);

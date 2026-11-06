@@ -115,6 +115,63 @@ export async function fetchFloorReply(said: string, seated: string[], topic: { m
   }
 }
 
+/** The argument on the floor, as the chamber hands it to the floor (#910, #925). */
+export interface FloorTopic {
+  motion: string;
+  /** The lines said so far, Nikita's own from the floor as `by: "floor"`. */
+  lines: { by: string; text: string }[];
+  /** The members arguing it. */
+  cast?: string[];
+}
+
+/** Nikita's words joined to the argument on the floor (#925). */
+export interface Joined {
+  /** The members who were speaking answer him first, then perhaps one more. */
+  answers: { by: string; text: string }[];
+  /** The rest of the argument, from there, with his point in it. */
+  rest: { by: string; stance: Stance; text: string }[];
+  /** The chair's new ruling. */
+  close: string;
+}
+
+/** The function's join, as the chamber takes it; null when it isn't well formed. */
+export function readJoined(v: unknown): Joined | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const rows = (x: unknown) => (Array.isArray(x) ? x : []).map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}));
+  const answers = rows(o.answers)
+    .map((l) => ({ by: str(l.by, 20), text: str(l.text, 300) }))
+    .filter((l) => l.by && l.text)
+    .slice(0, 3);
+  const rest = rows(o.rest)
+    .map((l) => ({ by: str(l.by, 20), stance: (l.stance === "nay" ? "nay" : "aye") as Stance, text: str(l.text, 300) }))
+    .filter((l) => l.by && l.text)
+    .slice(0, 4);
+  const close = str(o.close, 300);
+  return answers.length && close ? { answers, rest, close } : null;
+}
+
+/**
+ * Nikita's words join the argument on the floor (#925): the members who were speaking answer him, perhaps one more
+ * chimes in, and the argument carries on with his point in it. Null when that can't come live (the cap, the privacy
+ * check, the model); the floor then answers him as before.
+ */
+export async function fetchJoin(said: string, seated: string[], topic: FloorTopic, doFetch: typeof fetch = fetch): Promise<Joined | null> {
+  try {
+    const res = await doFetch("/api/skippy-room", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ room: "today", senate: "join", said: said.slice(0, 300), seated, motion: topic.motion, lines: topic.lines.slice(-8), ...(topic.cast && { cast: topic.cast }) }),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => ({}))) as { join?: unknown };
+    return readJoined(body.join);
+  } catch {
+    return null;
+  }
+}
+
 export function createRecess(o: RecessOpts): RecessSource {
   const now = o.now ?? Date.now;
   let next: Promise<Debate | null> | null = null;

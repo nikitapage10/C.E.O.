@@ -3,7 +3,7 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { holdHint } from "../holdToTalk.ts";
 import { askRoom, listen, micSupported, recall, remember, setOwnVoice, silentWav, type Listener, type RoomAnswer } from "../roomvoice/roomVoice.ts";
 import { readMs, SUBMIND_TITLE } from "./rite.ts";
-import { fetchFloorReply } from "./liveTalk.ts";
+import { fetchFloorReply, fetchJoin, type FloorTopic, type Joined } from "./liveTalk.ts";
 import { fetchLine } from "./voice.ts";
 
 /**
@@ -22,6 +22,13 @@ import { fetchLine } from "./voice.ts";
  * the argument on the floor, each in Skippy's voice bent its way (the Rotunda's share; past it, read). When that can't
  * come, the chair answers as before.
  *
+ * Since #925, with an argument on the floor his words join it rather than start a side conversation (Nikita, 2026-11-06:
+ * "those two would be the ones to respond, and then maybe somebody else chimes in"): one live call (liveTalk.ts,
+ * `fetchJoin`) brings the answers of the members who were speaking, perhaps one more, and the rest of the argument with
+ * his point in it. The chamber takes them at the next line's turn (rotundaScene.ts `join`): the line he cut into
+ * finishes, they answer him from where they stand in the chamber's own captions and voices while his line stays up as
+ * his, and the argument carries on to a new ruling. When that can't come, the floor answers him as before.
+ *
  * Nothing is kept: the turns live in roomVoice.ts's memory for a follow-on, and are forgotten on reload.
  */
 
@@ -37,8 +44,22 @@ export const FLOOR_WORDS: Readonly<Record<string, readonly string[]>> = {
   workshop: ["workshop", "artiste", "design", "art", "picture", "pictures", "image", "images"],
   studio: ["studio", "director", "video", "film", "movie"],
   annex: ["annex", "stagehand", "election", "elections", "vote", "voting", "ballot"],
-  haven: ["haven", "steward", "home", "house", "lights", "vacuum", "litter", "cat", "cats", "pet", "pets", "feeder", "kitchen", "shopping", "groceries", "grocery", "gym", "chores"],
+  haven: ["haven", "steward", "home", "house", "lights", "vacuum", "litter", "cat", "cats", "pet", "pets", "feeder", "feed", "food", "dispense", "portion", "kibble", "kitchen", "shopping", "groceries", "grocery", "gym", "chores"],
 };
+
+/**
+ * Words that ask Skippy to do something, or ask after something he looks after, rather than add to the argument
+ * (Nikita, 2026-11-06: holding Space and asking the Senate to "dispense one portion of dry food" got a confused debate).
+ * A minimal check of the Senate's own until the shared entry point with its intent check (#926) hands the floor only
+ * debate remarks: these go to Skippy's voice route (the member whose room it is, or Skippy himself), never the debate.
+ */
+const ASK = /^(?:hey skippy\b[ ,]*)?(?:(?:can|could|would|will) you|please|turn|switch|set|start|stop|pause|resume|dispense|feed|give|add|remove|remind|schedule|book|send|reply|order|buy|open|close|lock|unlock|run|play|call|text|email|cancel|check|show|tell me|what(?:'s| is) (?:on|my|the)|how(?:'s| is) (?:my|the)|is (?:my|the)|are (?:my|the)|did (?:i|my|the|you)|when(?:'s| is) (?:my|the))\b/;
+
+/** True when his words are a request or a question for Skippy to act on (see ASK), not a remark for the debate. */
+export function asksToDo(text: string): boolean {
+  const t = text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+  return ASK.test(t) || /\bplease\b/.test(t);
+}
 
 /** The most members brought in on one question. */
 export const FLOOR_MAX = 2;
@@ -79,7 +100,8 @@ export interface FloorTurn {
   failed: boolean;
 }
 export interface FloorState {
-  phase: "idle" | "listening" | "asking" | "answering";
+  /** "joined": his words are in the argument on the floor and the members are answering them in the chamber (#925). */
+  phase: "idle" | "listening" | "asking" | "answering" | "joined";
   /** What Nikita said (or is saying). */
   question: string;
   /** The chair's word, who it goes to. */
@@ -99,7 +121,16 @@ export interface FloorScene {
   /** Lights the member who has the floor (null: none). */
   light: (id: string | null) => void;
   /** The argument on the floor now (#910), if one is. */
-  topic?: () => { motion: string; lines: { by: string; text: string }[] } | null;
+  topic?: () => FloorTopic | null;
+  /** His words joined to that argument (#925): resolves once the members have answered him; null when none is on. */
+  join?: (said: string, j: Joined) => Promise<void> | null;
+}
+
+/** Who was speaking when he cut in: the last two members heard in the argument (not the chair, not him), newest first. */
+export function speakersOf(topic: FloorTopic | null): string[] {
+  const out: string[] = [];
+  for (const l of [...(topic?.lines ?? [])].reverse()) if (l.by !== "kernel" && l.by !== "floor" && !out.includes(l.by) && out.length < 2) out.push(l.by);
+  return out;
 }
 
 /** A beat between turns, and how long the last answer stays once it is said. */
@@ -120,13 +151,18 @@ function hush(): void {
 
 /** Gives the floor back: the caption goes, the session picks up its line. */
 function release(): void {
+  letGo();
+  set({ phase: "idle", question: "", chair: "", turn: null });
+}
+
+/** The session picks up its line; the floor's caption is left to the caller. */
+function letGo(): void {
   listener?.cancel();
   listener = null;
   hush();
   scene?.light(null);
   scene?.hold(false);
   setOwnVoice(null);
-  set({ phase: "idle", question: "", chair: "", turn: null });
 }
 
 /** Plays an answer's audio to its end (false when it couldn't play), or holds for its reading time. */
@@ -196,12 +232,33 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
     return holdHint("error" in got ? got.error : "I didn't catch anything. Try again.");
   }
   const text = "text" in got ? got.text : "";
+  // An argument on the floor: his words join it (#925). The members who were speaking answer him in the chamber and it
+  // goes on from there; his line stays up as his until they have.
+  // A request or a question about his home, devices or work goes to Skippy's voice route instead, never the debate.
+  const command = !!text && (asksToDo(text) || routeFloor(text, scene?.seated() ?? [])[0] !== "kernel");
+  const topic = text && !command ? (scene?.topic?.() ?? null) : null;
+  if (text && topic && scene?.join) {
+    const speaking = speakersOf(topic);
+    set({ phase: "asking", question: text, chair: floorChair(speaking.length ? speaking : ["kernel"]) });
+    const j = await fetchJoin(text, scene.seated(), topic, doFetch);
+    if (run !== n) return;
+    const heard = j ? (scene?.join?.(text, j) ?? null) : null;
+    if (heard) {
+      set({ phase: "joined", chair: "", turn: null });
+      letGo();
+      await heard;
+      if (run === n) set({ phase: "idle", question: "", chair: "", turn: null });
+      return;
+    }
+  }
+  // Tried to join, or a request: the members' in-kind banter isn't asked for; Skippy's own route answers.
+  const tried = !!topic || command;
   // Without the words in hand (a clip, Firefox), the chair takes it: the function writes the words and Skippy answers.
   const ids = text ? routeFloor(text, scene?.seated() ?? []) : ["kernel"];
   set({ phase: "asking", question: text || useFloor.getState().question, chair: floorChair(ids) });
   scene?.talk("kernel", 1.6);
   // About nothing in particular: the members answer him live, in kind (#910); the chair's own answer when they can't.
-  if (text && ids.length === 1 && ids[0] === "kernel") {
+  if (text && !tried && ids.length === 1 && ids[0] === "kernel") {
     const lines = await fetchFloorReply(text, scene?.seated() ?? [], scene?.topic?.() ?? null, doFetch);
     if (run !== n) return;
     if (lines) {

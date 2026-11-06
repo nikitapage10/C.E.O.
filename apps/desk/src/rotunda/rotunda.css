@@ -255,8 +255,10 @@
 .desk .rt-ask-a .rt-ask-who{color:rgb(var(--c))}
 .desk .rt-ask-a p{border-left-color:rgb(var(--c))}
 .desk .rt-ask-a.is-failed p{opacity:.75}
+.desk .rt-ask.is-joined{top:clamp(150px,19%,180px);width:min(440px,calc(100% - 32px))}
+.desk .rt-ask.is-joined p{font-size:14.5px;padding:6px 11px;background:rgba(10,11,16,.72)}
 .desk .rt-stage.is-floor .rt-chair.on,.desk .rt-stage.is-floor .rt-cap.on{opacity:.18}
 .desk .rt-stage.is-floor .rt-mur.on{opacity:.08}
 @keyframes rt-ask-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
-@media (max-width:760px){.desk .rt-ask{top:96px}.desk .rt-ask p{font-size:14.5px}}
+@media (max-width:760px){.desk .rt-ask,.desk .rt-ask.is-joined{top:96px}.desk .rt-ask p{font-size:14.5px}.desk .rt-ask.is-joined p{font-size:13px}}
 @media (prefers-reduced-motion:reduce){.desk .rt-ask{animation:none}}

@@ -98,7 +98,7 @@ describe("the step's prompt", () => {
   it("keeps the cached part identical from hour to hour", () => {
     const later = buildPrompt({ cast: WORLD_CAST, state: initialState(), digest: { lines: [], shipped: [] }, clock: "Tuesday 13 October, 11 am", recap: { day: "2026-10-12", summaries: ["x"] } });
     expect(later.system).toBe(prompt.system);
-    expect(later.user).toContain("the day in Ilyr (recap) for 2026-10-12");
+    expect(later.user).toContain("the day in the Lattice (recap) for 2026-10-12");
   });
 
   it("asks for an answer in a fixed shape, with only real agents, rooms and kinds", () => {

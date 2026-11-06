@@ -3,7 +3,7 @@ import { itemLive, OWED_WINDOW_MS, readTextsView, UNREAD_WINDOW_MS, type TextsVi
 import type { ComposeInput, DraftInput, SortInput } from "../../../api/_relay/models.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { LearnInput } from "../../../api/_relay/voice.ts";
-import { verdictOf } from "./backlog.ts";
+import { judge, verdictOf } from "./backlog.ts";
 import type { BlueBubbles, ChatInfo, Contact, Message, Polled } from "./bluebubbles.ts";
 import { DEFAULT_CONFIG } from "./config.ts";
 import { Engine, peopleName, SETTLE_MS } from "./engine.ts";
@@ -187,20 +187,22 @@ describe("a chat kept unread in Messages is owed (#924)", () => {
     expect(threadOf(h, A)).toMatchObject({ state: "settled", why: "closing" });
   });
 
-  it("never overrides a rule: money, codes, short codes, promos and the skip list still settle an unread chat", async () => {
+  it("never overrides money, legal or the skip list; an unread code, short code or promo waits, kept from the models (#950)", async () => {
     const h = setup();
     const money = msg("Thank you for your business, your invoice is attached", NOW - 60_000, false, A, false);
     h.bb.byChat.set(chatOf(A), [money]);
     await h.engine.onMessage({ chat: chatOf(A), group: false, groupName: "", message: money });
     expect(threadOf(h, A)).toMatchObject({ state: "settled", why: "money" });
-    expect(verdictOf(chat("72345", msg("Join us tonight", NOW - DAY, false, "72345", false)), NOW, [], contactOf)).toBe("settled");
-    expect(verdictOf(chat(A, msg("Your verification code is 482913", NOW - 40 * DAY, false, A, false)), NOW, [], contactOf)).toBe("settled");
+    expect(judge(chat("72345", msg("Join us tonight", NOW - DAY, false, "72345", false)), NOW, [], contactOf)).toEqual({ verdict: "owed", untilRead: "short-code" });
+    expect(judge(chat(A, msg("Your verification code is 482913", NOW - 40 * DAY, false, A, false)), NOW, [], contactOf)).toEqual({ verdict: "owed", untilRead: "code" });
+    // Read, they are set aside as before, and listed.
+    expect(judge(chat("72345", msg("Join us tonight", NOW - DAY, false, "72345", true)), NOW, [], contactOf)).toEqual({ verdict: "settled", why: "short-code" });
     expect(verdictOf(chat(B, msg("hey", NOW - 40 * DAY, false, B, false)), NOW, ["blake example"], contactOf)).toBe("settled");
   });
 
-  it("reaches back 60 days: the backlog owes an unread 45-day chat, lists it with its texts, and keeps it past 30", async () => {
+  it("reaches back past 60 days: the backlog owes an unread 45-day chat, lists it with its texts, and keeps it (#950: no age limit while unread)", async () => {
     const h = setup();
-    const old = msg("Yes", NOW - 45 * DAY, false, A, false);
+    const old = msg("Yes! What time should I get there?", NOW - 45 * DAY, false, A, false);
     const readOld = msg("did you ever get the photos?", NOW - 45 * DAY, false, B, true);
     h.bb.byChat.set(chatOf(A), [msg("are you coming Saturday?", NOW - 46 * DAY, true), old]);
     h.bb.byChat.set(chatOf(B), [readOld]);
@@ -213,22 +215,23 @@ describe("a chat kept unread in Messages is owed (#924)", () => {
     const view = readTextsView(h.engine.texts(), h.now())!;
     const item = view.items.find((i) => i.name === "Avery Sample")!;
     expect(item).toMatchObject({ state: "owed", unread: true });
-    expect(item.messages?.map((m) => m.text)).toEqual(["are you coming Saturday?", "Yes"]);
+    expect(item.messages?.map((m) => m.text)).toEqual(["are you coming Saturday?", "Yes! What time should I get there?"]);
     expect(view.older?.items.map((o) => o.name)).toEqual(["Blake Example"]);
     h.engine.sweep();
     expect(threadOf(h, A).state).toBe("owed");
-    // Past 60 days it goes, unread or not.
+    // Past 60 days it stays while Messages shows it unread (#950).
     h.at(NOW + 16 * DAY);
     h.engine.sweep();
-    expect(h.store.load().threads.some((t) => t.chat === chatOf(A))).toBe(false);
+    expect(threadOf(h, A).state).toBe("owed");
   });
 
-  it("on the site: an unread item lives 60 days, a read one 30", () => {
+  it("on the site: an unread item lives a year (#950), a read one 30 days", () => {
     const since = NOW - 40 * DAY;
     expect(itemLive({ state: "owed", since, last: since, unread: true }, NOW)).toBe(true);
     expect(itemLive({ state: "owed", since, last: since }, NOW)).toBe(false);
     expect(itemLive({ state: "owed", since: NOW - UNREAD_WINDOW_MS - 1, unread: true }, NOW)).toBe(false);
-    expect(UNREAD_WINDOW_MS).toBe(2 * OWED_WINDOW_MS);
+    expect(UNREAD_WINDOW_MS).toBe(365 * DAY);
+    expect(OWED_WINDOW_MS).toBe(30 * DAY);
   });
 
   it("brings back a chat Relay set aside once it is unread again, on the scan and on the read check, with no model call", async () => {
@@ -243,6 +246,7 @@ describe("a chat kept unread in Messages is owed (#924)", () => {
     h.bb.byChat.get(chatOf(A))![1] = { ...unread, read: true };
     await h.engine.recheck();
     expect(threadOf(h, A).state).toBe("settled");
+    h.bb.byChat.get(chatOf(A))![1] = unread;
     h.bb.chatsList = [chat(A, unread)];
     await h.engine.backlog();
     expect(threadOf(h, A)).toMatchObject({ state: "owed", held: "no-reply" });
@@ -267,14 +271,18 @@ describe("a chat kept unread in Messages is owed (#924)", () => {
     expect(threadOf(h, A).state).toBe("owed");
   });
 
-  it("leaves a large group summary-only: unread alone doesn't make it owed", () => {
-    expect(verdictOf(chat(A, msg("who's in?", NOW - DAY, false, A, false), { chat: "iMessage;+;chat924", group: true, multi: true, people: 7, handle: "" }), NOW, [], contactOf)).toBe("group");
+  it("a large group waits while unread (#950: muted or not), and is summary-only once read", () => {
+    const g = { chat: "iMessage;+;chat924", group: true, multi: true, people: 7, handle: "" };
+    expect(judge(chat(A, msg("who's in?", NOW - DAY, false, A, false), { ...g, muted: true }), NOW, [], contactOf)).toEqual({ verdict: "owed", untilRead: "group" });
+    expect(verdictOf(chat(A, msg("who's in?", NOW - DAY, false, A, true), g), NOW, [], contactOf)).toBe("group");
   });
 
   it("`relay check` says so: an unread 45-day chat is owed, a read one older", () => {
     const c = chat(A, null);
-    expect(explain(c, [msg("Yes", NOW - 45 * DAY, false, A, false)], undefined, NOW, []).verdict).toBe("owed");
-    expect(explain(c, [msg("Yes", NOW - 45 * DAY, false, A, true)], undefined, NOW, []).verdict).toBe("older");
+    expect(explain(c, [msg("Are you around next week?", NOW - 45 * DAY, false, A, false)], undefined, NOW, []).verdict).toBe("owed");
+    expect(explain(c, [msg("Are you around next week?", NOW - 45 * DAY, false, A, true)], undefined, NOW, []).verdict).toBe("older");
+    // An old unread "Yes" only ends it (#950: the Mac's read state can be stale).
+    expect(explain(c, [msg("Yes", NOW - 45 * DAY, false, A, false)], undefined, NOW, []).verdict).toBe("ender");
   });
 });
 

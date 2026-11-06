@@ -13,6 +13,7 @@ export const ASIDE_WORDS: Record<AsideWhy, string> = {
   code: "a code",
   "short-code": "an automated sender",
   promo: "marketing",
+  ender: "only an ok or a tapback",
 };
 
 /**

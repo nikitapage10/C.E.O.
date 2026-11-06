@@ -133,7 +133,7 @@ export function contextLines(c: DeskContext, now: number): string {
     list(c.setup),
     "Shipped lately:",
     list(c.shipped.map((s) => `#${s.issue} ${s.title}`)),
-    c.world ? `The Lattice's clock: hour ${c.world.step}${c.world.latest ? `. Latest in Ilyr: ${c.world.latest}` : ""}` : "The Lattice's clock: not running yet.",
+    c.world ? `The Lattice's clock: hour ${c.world.step}${c.world.latest ? `. Latest in the Lattice: ${c.world.latest}` : ""}` : "The Lattice's clock: not running yet.",
   ];
   return out.join("\n");
 }

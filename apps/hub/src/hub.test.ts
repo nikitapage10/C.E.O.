@@ -211,6 +211,11 @@ describe("rules settle on the Mac", () => {
     expect(settleByRule({ handle: "+15555550123", names: ["Private Person"], text: "hey" }, ["private person"])).toBe("skip");
     expect(settleByRule({ handle: "+15555550123", names: [], text: "The court date for the settlement moved to Friday" }, [])).toBe("money");
     expect(settleByRule({ handle: "+15555550123", names: ["Riley Test"], text: "Dinner Saturday?" }, [])).toBeNull();
+    // #950 audit: everyday texts between people are no longer money by the email line's subject words.
+    for (const text of ["I paid for the tickets, we're square", "rent's done, thanks for the transfer", "meet at the basketball court at 6", "did your order come yet", "my balance on the beam was terrible lol"]) expect(settleByRule({ handle: "+15555550123", names: ["Riley Test"], text }, []), text).toBeNull();
+    for (const text of ["Your rent payment of $1,450 is past due", "I owe you $20 for pizza", "Your card ending 4321 was charged", "my lawyer says the contract is fine"]) expect(settleByRule({ handle: "+15555550123", names: ["Riley Test"], text }, []), text).toBe("money");
+    // A bank's address is money whatever it says.
+    expect(settleByRule({ handle: "alerts@chase.com", names: [], text: "hello" }, [])).toBe("money");
   });
 });
 
@@ -522,7 +527,8 @@ describe("the rules reach every model call (#541 review)", () => {
     h.at(NOW + SETTLE_MS + 1);
     await h.engine.work();
     const g = h.store.load().threads[0]!;
-    expect(g).toMatchObject({ group: true, state: "settled" });
+    // Unread in Messages, it waits (#950), held as a group's set-aside until it is read.
+    expect(g).toMatchObject({ group: true, state: "owed", held: "group" });
     expect(g.summary).not.toBeNull();
     // Bound to a draft: refused (a group never has one).
     h.site.waiting = [req({ rid: "1".repeat(24), thread: g.id, draftAt: NOW })];
@@ -1088,10 +1094,24 @@ describe("the full text and groups on the Desk (#758)", () => {
     expect(h.store.load().threads[0]!.state).toBe("owed");
   });
 
-  it("a group that neither asks nor names Nikita stays summary-only", async () => {
+  it("a group that neither asks nor names Nikita waits while unread (#950), then stays summary-only once read", async () => {
     const h = await groupRound(["Sunday at noon?", "Works for me"], false);
-    expect(h.store.load().threads[0]!.state).not.toBe("owed");
+    expect(h.store.load().threads[0]!).toMatchObject({ state: "owed", held: "group" });
     expect(h.site.views.at(-1)!.items.find((i) => i.group)?.summary?.text).toBe("Planning Sunday.");
+    // Read on the Mac: the read check lets it go back to the shelf, summary and all.
+    h.bb.history = h.bb.history.map((m) => ({ ...m, read: true }));
+    await h.engine.recheck();
+    expect(h.store.load().threads[0]!).toMatchObject({ state: "settled", why: "group" });
+    await h.engine.report(true);
+    expect(h.site.views.at(-1)!.items.find((i) => i.group)?.summary?.text).toBe("Planning Sunday.");
+  });
+
+  it("a group asked something keeps waiting once read (#950)", async () => {
+    const h = await groupRound(["Sunday at noon?", "Can you bring chairs?"], true);
+    expect(h.store.load().threads[0]!.held).toBeUndefined();
+    h.bb.history = h.bb.history.map((m) => ({ ...m, read: true }));
+    await h.engine.recheck();
+    expect(h.store.load().threads[0]!.state).toBe("owed");
   });
 
   it("a thread a rule settles never shows its text, not even on the Desk", async () => {

@@ -1,0 +1,146 @@
+# The Skippy probe (#955): the first step of every upkeep tick (docs/FOUNDRY.md, "The Skippy probe"). Rivet starts it
+# with `gh workflow run skippy-probe.yml --ref main` and waits for it. It sends a short battery of real asks to live
+# Skippy (scripts/skippy-probe-lib.mjs: home questions that must only read, an order that must be understood but is
+# never sent, web asks, a follow-up, odd phrasings) through POST /api/skippy-probe, a dry run: no device moves, nothing
+# is kept, and only verdicts come back, never Skippy's words (api/_skippy/probe.ts). A failed rule opens (or comments
+# on) one "Skippy probe: answers failing" foundry:fix issue, first in the Foundry's queue.
+#
+# Spend: the rules' asks need no model; MODEL_PER_RUN (2) model asks a run, a few cents, inside Skippy's month cap,
+# and past its warn line the server skips them. No new GitHub secret: the probe's token is read from the Key Vault.
+name: Skippy probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: skippy-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    if: github.repository == 'nikitapage10/C.E.O.'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Signs in like live-watch.yml (OIDC, the `azure` environment, main only) to read the probe's token from the Key
+    # Vault; GitHub keeps no copy of it.
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      outcome: ${{ steps.run.outputs.outcome }}
+    env:
+      SITE: https://${{ vars.AZURE_SITE_HOST || 'thankful-forest-019308c1e.5.azurestaticapps.net' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Tidy the Azure settings
+        id: az
+        if: vars.AZURE_CLIENT_ID != ''
+        env:
+          CLIENT: ${{ vars.AZURE_CLIENT_ID }}
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          SUB: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          RG: ${{ vars.AZURE_RG }}
+        run: |
+          for k in CLIENT TENANT SUB RG; do
+            printf '%s=%s\n' "${k,,}" "$(printf '%s' "${!k}" | tr -d '\r\n[:space:]')" >> "$GITHUB_OUTPUT"
+          done
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        if: vars.AZURE_CLIENT_ID != ''
+        with:
+          client-id: ${{ steps.az.outputs.client }}
+          tenant-id: ${{ steps.az.outputs.tenant }}
+          subscription-id: ${{ steps.az.outputs.sub }}
+      - name: Read the probe's token
+        if: vars.AZURE_CLIENT_ID != ''
+        # `skippy-probe-token` from the Key Vault: masked, never printed, handed to the probe through the job's
+        # environment file only. Without it the probe stays off.
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+        run: |
+          vault=$(az keyvault list -g "$RG" --query "[0].name" -o tsv 2>/dev/null) || vault=""
+          token=""
+          if [ -n "$vault" ]; then token=$(az keyvault secret show --vault-name "$vault" -n skippy-probe-token --query value -o tsv 2>/dev/null) || token=""; fi
+          if [ -z "$token" ]; then echo "::notice::No skippy-probe-token in the Azure Key Vault; the Skippy probe is off (docs/AZURE.md, \"The Skippy probe's key\")."; exit 0; fi
+          echo "::add-mask::$token"
+          printf 'SKIPPY_PROBE_TOKEN=%s\n' "$token" >> "$GITHUB_ENV"
+      - name: Probe Skippy
+        id: run
+        # Exit 1: a case failed (reported below); 2: the probe is off or not set up (a notice, not a failure).
+        run: |
+          set +e
+          node scripts/skippy-probe.mjs --url="$SITE" --out="$RUNNER_TEMP/skippy-probe.json"
+          code=$?
+          case "$code" in
+            0) echo "outcome=pass" >> "$GITHUB_OUTPUT" ;;
+            1) echo "outcome=fail" >> "$GITHUB_OUTPUT" ;;
+            *) echo "outcome=off" >> "$GITHUB_OUTPUT"; echo "::notice::The Skippy probe didn't run (no token, or the endpoint isn't set up)." ;;
+          esac
+          exit 0
+      - name: Keep the verdicts
+        if: steps.run.outputs.outcome == 'pass' || steps.run.outputs.outcome == 'fail'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: skippy-probe
+          path: ${{ runner.temp }}/skippy-probe.json
+          retention-days: 14
+
+  report:
+    # The only job that may write: it opens (or comments on) the "Skippy probe: answers failing" fix issue, and says
+    # so on it when every case passes again (the Foundry closes it with its fix).
+    needs: probe
+    if: always() && github.repository == 'nikitapage10/C.E.O.' && (needs.probe.outputs.outcome == 'pass' || needs.probe.outputs.outcome == 'fail')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # The crew's own identity (#138), as in live-watch.yml: the App's short-lived token when its secrets are set,
+      # the built-in token otherwise. Only whether they are set is read here, never their values.
+      HAS_APP: ${{ secrets.FOUNDRY_APP_ID != '' && secrets.FOUNDRY_APP_PRIVATE_KEY != '' }}
+      OUTCOME: ${{ needs.probe.outputs.outcome }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: skippy-probe
+          path: ${{ runner.temp }}
+      - name: The crew's token
+        id: app
+        if: env.HAS_APP == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.FOUNDRY_APP_ID }}
+          private-key: ${{ secrets.FOUNDRY_APP_PRIVATE_KEY }}
+          permission-issues: write
+      - name: Open, update or clear the Foundry fix
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.app.outputs.token || github.token }}
+          script: |
+            const fs = require("node:fs");
+            const { failureBody } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/skippy-probe-lib.mjs`);
+            const { results } = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/skippy-probe.json`, "utf8"));
+            const title = "Skippy probe: answers failing";
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: "open", labels: "foundry,foundry:fix", per_page: 50 });
+            const existing = open.find((i) => i.title === title);
+            if (process.env.OUTCOME === "fail") {
+              const body = failureBody(results, run);
+              if (existing) await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body: `Still failing.\n\n${body}` });
+              else await github.rest.issues.create({ ...context.repo, title, labels: ["foundry", "foundry:fix"], body });
+            } else if (existing) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body: `Every probe case passed again: ${run}` });
+            }

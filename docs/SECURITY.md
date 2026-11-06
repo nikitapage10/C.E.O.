@@ -190,6 +190,7 @@ with a new value.
 | `POST /api/skippy-answer` with `Authorization: Bearer <SUBMIND_FEED_TOKEN>` (#312) | Skippy's and the room subminds' threads, answering a question Desk Skippy handed off | The gate checks the key itself, at least 32 characters, in constant time, on that one path and method, and the function checks it again; it can only attach one plain line (700 characters at most, held back whole when it looks private) to a turn that was handed off and isn't answered yet, and the ping it sends names who answered, never what. Without the key set the route is off |
 | Any route with `x-ceo-site-bypass: <SITE_BYPASS_TOKEN>` | `live-watch.yml` (`scripts/boot-check.mjs --url`) only, since #313: the backup reads Azure's own store, and the final copy from Vercel uses Vercel's Blob token | A shared secret, at least 32 characters, compared in constant time, read from the Key Vault (`site-bypass-token`) at run time; the workflow sends it only to the site, from a file or a same-origin browser route, and never print it. Without it, the live watch only checks that the login page answers |
 | `GET` or `HEAD` of `/api/haven-plan`, `/api/haven-meals`, `/api/haven-photos` with `x-ceo-builder-key: <BUILDER_READ_KEY>` (#800) | The Builder's cloud sessions, reading Nikita's private Haven files to check a change | A shared secret, at least 32 characters, different from every other key, compared in constant time, from the Key Vault (`builder-read-key`); exactly those methods, paths and queries, read-only ([The Builder's read key](#the-builders-read-key)). Unset, the header does nothing |
+| `POST /api/skippy-probe` with `Authorization: Bearer <SKIPPY_PROBE_TOKEN>` (#955) | `skippy-probe.yml`, the upkeep run's Skippy probe, which reads the key from the Key Vault | A shared secret, at least 32 characters, different from every other key, compared in constant time by the gate and again by the function, on that one path and method with no query ([The Skippy probe's key](#the-skippy-probes-key)). A dry run: no device moves, nothing is kept, only verdicts come back. Unset, the route is off |
 
 | GET of a room read with `x-ceo-room-key: <SUBMIND_LOG_TOKEN>` (or `Authorization: Bearer`) | The active submind threads (#281): the four active rooms' Asked Skippy logs, the Green's league, the Exchange's board and positions, the world feed (and `?day=`), the Foundry feed, the room feed | The read key, from the Key Vault only, at least 32 characters, compared in constant time; exactly the listed paths and queries, GET only (`api/_site/roomkeys.ts`), and the private handlers check the key again. See "The subminds' room keys" below |
 | `POST /api/room-feed` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a short room event (#281) | The feed key, the same way; that one write only, which answers `{ ok, id }` and nothing more |
@@ -268,6 +269,32 @@ change is checked against the real floor plan and data before it ships. Setup is
   or it counts as unset; compared in constant time; never logged. Unset, the header does nothing. The room keys also refuse a
   value equal to it.
 - **If it leaks**, give `builder-read-key` a new version in the vault and restart the Function App: the old key opens nothing.
+
+## The Skippy probe's key
+
+Nikita, 2026-11-06 (#955): test live Skippy at the start of every upkeep tick. Setup is in [AZURE.md](AZURE.md), "The
+Skippy probe's key"; how it runs is in [FOUNDRY.md](FOUNDRY.md), "The Skippy probe".
+
+- **What it opens.** `POST /api/skippy-probe` with `Authorization: Bearer <SKIPPY_PROBE_TOKEN>`, no query, and nothing
+  else (`api/_skippy/probekey.ts`, checked by the gate and again in `api/skippy.ts`). Its body is one ask or one and its
+  follow-up, on the Desk, phone or call path.
+- **A dry run, always.** The key never reaches a real write: the turn's tools get a dry host (`dryHost`,
+  `api/_skippy/probe.ts`) whose reads are the real reads and whose writes (a home device, the lights, the Kitchen and
+  Things-to-buy lists, the meal planner, the cart, an issue, a memory write) are recorded by name and never sent; a
+  Yes-tap call waits in a throwaway store, so no button reaches the Desk and none can be tapped. No room log, no memory
+  journal, no hand-off is kept.
+- **No words come back.** The function grades the reply and answers with the verdict only (flags, length, tier, the
+  fixed names of the tools that read or would have written, timings): never the reply, a device reading or anything
+  from memory. A "looked at" chip passes only as a tool's title, a web search only as "web" (its query is dropped).
+  So the workflow's public log, its summary, its artifact and the issue it files hold nothing private.
+- **Spend.** Each ask counts against Skippy's one month cap like any other, under his pace (eight a minute); past the
+  month's warn line only the free rules asks run.
+- **The key itself.** At least 32 random characters, different from every other key (`FOUNDRY_DESK_KEY`,
+  `SITE_BYPASS_TOKEN`, `SITE_SESSION_SECRET`, `DESK_PINGS_SECRET`, `GMAIL_TOKEN_KEY`, the two room keys,
+  `BUILDER_READ_KEY`, `HOME_TOKEN_KEY`), or it counts as unset; compared in constant time; never logged. Key Vault only
+  (`skippy-probe-token`), read by the workflow at run time and masked; never in the repo, an issue, a test or a chat.
+- **If it leaks**, give `skippy-probe-token` a new version in the vault and restart the Function App: the old key opens
+  nothing. What a leaked key could do: spend some of Skippy's month (paced, capped) and learn verdicts about his answers.
 
 ## Hey Skippy from the iPhone
 

@@ -299,12 +299,13 @@ export interface Metrics {
  * The bottom row. Signed in, from the queue itself; signed out, from the public counts (counts only). A line that
  * isn't connected adds nothing; a number with neither line is null (shown as a dash).
  */
-export function metricsOf(email: EmailStatus | null, texts: RelayStatus | null, queue: Exchange[] | null, sentHere: number): Metrics {
+export function metricsOf(email: EmailStatus | null, texts: RelayStatus | null, queue: Exchange[] | null, sentHere: number, groupsWaiting = 0): Metrics {
   const emailOn = !!email && email.gmail === "connected" && email.agent !== "waiting";
   const textsOn = !!texts && texts.hub !== "off" && texts.hub !== "wiped";
   if (!emailOn && !textsOn) return { waiting: null, drafted: null, sent: null, filtered: null, unread: null };
   const owed = queue?.filter((x) => !x.settled) ?? null;
-  const waiting = owed ? owed.length : (emailOn ? email.needsYou : 0) + (textsOn ? texts.owed : 0);
+  // Signed in, the line's owed ones plus the groups waiting on the shelf (#950); signed out, the hub's own count.
+  const waiting = owed ? owed.length + groupsWaiting : (emailOn ? email.needsYou : 0) + (textsOn ? texts.owed : 0);
   const drafted = queue ? queue.filter((x) => x.draft).length : textsOn ? texts.draftsReady : 0;
   const sent = Math.max(textsOn ? texts.sentToday : 0, sentHere);
   const filtered = (emailOn ? email.noise + email.skipped : 0) + (textsOn ? texts.settled : 0);

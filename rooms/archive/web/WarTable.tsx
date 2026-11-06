@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import { PLACES, placeOf, stepPlace, type PlaceId } from "../data/warTable.ts";
+import { PLACES, placeOf, stepPlace, WT_SILVER, WT_SILVER_RGB, type PlaceId } from "../data/warTable.ts";
 import type { PlaceState, WarTable as Scene } from "./warTableScene.ts";
 import "./wartable.css";
 
@@ -243,4 +243,4 @@ export function WarTable({ head, panels, notes, states, open, onOpen }: WarTable
   );
 }
 
-const TONE = { "--tone": "var(--room-archive)" } as CSSProperties;
+const TONE = { "--tone": WT_SILVER, "--fl-accent": WT_SILVER_RGB } as CSSProperties;

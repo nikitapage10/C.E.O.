@@ -68,6 +68,10 @@ export interface UndoneOpts {
   drift?: (x: number, y: number, z: number) => [number, number, number];
   /** How wide the solid middle is: the frame's x against its y, and the radius the corners sit at (the Senate: .84, 1.31). */
   shape?: [number, number];
+  /** The wire's colour and the nanites' bright colour, 0..1 (default the Senate's gold); Relay's mast is blue and white. */
+  tint?: { wire: [number, number, number]; hi: [number, number, number] };
+  /** The darkening veil toward the corners (default on); off for a scene drawn faint over a page, behind its cards. */
+  veil?: boolean;
   /** Kept for disposal. */
   keep: <T extends { dispose: () => void }>(x: T) => T;
 }
@@ -79,11 +83,12 @@ export interface Undone {
   step: (t: number, renderer: WebGLRenderer) => void;
 }
 
-const GOLD = "vec3(.79, .66, .36)";
-const GOLD_HI = "vec3(.89, .79, .55)";
+const vec3 = (c: [number, number, number]) => `vec3(${c.map((v) => v.toFixed(3)).join(", ")})`;
 
 export function comeUndone(o: UndoneOpts): Undone {
   const { keep } = o;
+  const GOLD = vec3(o.tint?.wire ?? [0.79, 0.66, 0.36]);
+  const GOLD_HI = vec3(o.tint?.hi ?? [0.89, 0.79, 0.55]);
   const NG = SIGIL_GLYPHS.length;
   const [sx, sr] = o.shape ?? [0.84, 1.31];
   const u = { t: { value: 0 }, res: { value: new Vector2(1, 1) }, atlas: { value: o.atlas }, px: o.px };
@@ -228,7 +233,7 @@ export function comeUndone(o: UndoneOpts): Undone {
   peel.renderOrder = 22;
 
   return {
-    addTo: (scene) => scene.add(veil, wires, dust, peel),
+    addTo: (scene) => (o.veil === false ? scene.add(wires, dust, peel) : scene.add(veil, wires, dust, peel)),
     step: (t, renderer) => {
       u.t.value = t;
       renderer.getDrawingBufferSize(u.res.value);

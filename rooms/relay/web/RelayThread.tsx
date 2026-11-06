@@ -23,6 +23,7 @@ import { errorText, useThread, type Notice } from "../data/useThread.ts";
 import { useRoomMic } from "@ceo/desk/roomvoice/roomVoice.ts";
 import { useHoldSpace } from "./holdSpace.ts";
 import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
+import { RelayMast } from "./RelayMast.tsx";
 import "./thread.css";
 
 /**
@@ -1001,6 +1002,8 @@ export function RelayThread({ now }: { now: number }) {
   return (
     <div className="cx" data-phase={phase} data-still={engine?.reduced || undefined}>
       <section className="cx-stage" ref={stageRef} aria-label="Relay at a glance">
+        {/* The mast (#933): very faint, far behind the cards. */}
+        <RelayMast />
         <header className="cx-top">
           <div className="cx-title">
             <h1 className="cx-mark">

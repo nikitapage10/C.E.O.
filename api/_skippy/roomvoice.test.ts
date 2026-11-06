@@ -386,6 +386,25 @@ describe("POST /api/skippy-room (#638)", () => {
     expect((await roomVoicePost(post("nope", cookie, undefined, "text/plain"), d)).status).toBe(415);
   });
 
+  it("asks once more when the model fails, before the hiccup line (#952)", async () => {
+    let tries = 0;
+    const { d, store } = deps({ skippy: async () => (++tries === 1 ? { reply: "", handedOff: false, error: "model" } : { reply: "Back on my feet, monkey.", handedOff: false }) });
+    const cookie = await signedInCookie(DESK, NOW, store);
+    const body = (await (await roomVoicePost(post({ room: "green", text: "who do I start" }, cookie), d)).json()) as { say: string };
+    expect(tries).toBe(2);
+    expect(body.say).toBe("Back on my feet, monkey.");
+    // Twice failed: the line, and no third try. A refusal (the pace) is never retried.
+    tries = 0;
+    const twice = deps({ skippy: async () => (++tries, { reply: "", handedOff: false, error: "model" }) }, store);
+    const said = (await (await roomVoicePost(post({ room: "green", text: "who do I start" }, cookie), twice.d)).json()) as { say: string };
+    expect(tries).toBe(2);
+    expect(said.say).toBe(ROOM_SAYS.model);
+    let paced = 0;
+    const slow = deps({ skippy: async () => (++paced, { reply: "", handedOff: false, error: "slow-down" }) }, store);
+    await roomVoicePost(post({ room: "green", text: "who do I start" }, cookie), slow.d);
+    expect(paced).toBe(1);
+  });
+
   it("says why when the chat can't answer, with its status, in his voice too (#926)", async () => {
     const { d, store, calls } = deps({
       skippy: async () => ({ reply: "", handedOff: false, error: "slow-down" }),

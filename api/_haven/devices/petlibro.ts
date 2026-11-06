@@ -72,6 +72,8 @@ export interface PetlibroExtra {
   grain?: unknown;
   work?: unknown;
   wet?: unknown;
+  /** Petlibro's answer code when it refused the wet plan read (#952), for the plan-read diagnostic. */
+  wetCode?: number;
   /** The fountain's todayDrinkData. */
   drink?: unknown;
   /** The dry feeder's feedingPlan/list and feedingPlan/todayNew. */
@@ -235,9 +237,10 @@ export function petlibroReading(id: string, kind: DeviceKind, item: unknown, rea
   const meals = wetMeals(extra.wet, now);
   // The device list's own next meal and plan switch (the integration's nextFeedingTime, nextFeedingEndTime and
   // enableFeedingPlan): what the card can still say when the plan itself doesn't come back to this account.
-  const nextTime = planTime(d.nextFeedingTime);
-  const nextEnd = planTime(d.nextFeedingEndTime);
-  const planOn = onOff(d.enableFeedingPlan);
+  // realInfo carries them too on some firmware (#952), so either answers.
+  const nextTime = planTime(d.nextFeedingTime ?? r.nextFeedingTime);
+  const nextEnd = planTime(d.nextFeedingEndTime ?? r.nextFeedingEndTime);
+  const planOn = onOff(d.enableFeedingPlan ?? r.enableFeedingPlan);
   return {
     ...base,
     foodLow,
@@ -247,7 +250,7 @@ export function petlibroReading(id: string, kind: DeviceKind, item: unknown, rea
     ...(meals.length > 0 && { meals }),
     ...(nextTime && { nextFeed: { time: nextTime, ...(nextEnd && nextEnd !== nextTime && { end: nextEnd }) } }),
     ...(planOn !== undefined && { planOn }),
-    ...("wet" in extra && { wetPlanShape: wetPlanShape(extra.wet, extra.wet === null) }),
+    ...("wet" in extra && { wetPlanShape: wetPlanShape(extra.wet, extra.wet === null, extra.wetCode) }),
     state: online ? (open ? "lid open" : "closed") : "offline",
   };
 }
@@ -323,15 +326,54 @@ export function onOff(v: unknown): boolean | undefined {
   return undefined;
 }
 
-/** The wet plan's entries as wetListV3 sends them (`plan`), or the answer itself when it comes back as a bare list. */
-function wetEntries(wet: unknown): Record<string, unknown>[] {
-  const plan = Array.isArray(wet) ? wet : obj(wet).plan;
-  return Array.isArray(plan) ? plan.map(obj) : [];
+/** The names a list of wet meals has come under (the integration's `plan`, and the shapes Petlibro's other plans use). */
+const PLAN_KEYS = ["plan", "plans", "planList", "wetFeedingPlanList", "wetPlanList", "feedingPlanList", "feedingPlans", "list", "data"] as const;
+
+/** A list that may come as JSON text (Petlibro sends some arrays as strings, like repeatDay). */
+function listOf(v: unknown): unknown[] | null {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string" && v.trim().startsWith("[")) {
+    try {
+      const got: unknown = JSON.parse(v);
+      return Array.isArray(got) ? got : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Whether a template is the one in use, when the answer says which. */
+const inUse = (t: Record<string, unknown>) => [t.enable, t.isUse, t.inUse, t.use, t.used, t.selected, t.isDefault, t.current].some((v) => onOff(v) === true);
+
+/**
+ * The wet plan's entries as wetListV3 sends them (#952: read every shape a plan has been seen in, so a plan that comes
+ * back is never dropped by the parser): `plan` (the integration's), or another list name, a list sent as JSON text, the
+ * answer itself as a bare list, or a list of templates each with its own plan (the one in use, else the first with
+ * meals).
+ */
+function wetEntries(wet: unknown, depth = 0): Record<string, unknown>[] {
+  if (depth > 3) return [];
+  const bare = listOf(wet);
+  const lists = bare ? [bare] : PLAN_KEYS.map((k) => listOf(obj(wet)[k])).filter((l): l is unknown[] => !!l && l.length > 0);
+  const list = (lists[0] ?? []).slice(0, 24).map(obj);
+  // Templates: entries that hold plans of their own.
+  const nested = list.filter((t) => PLAN_KEYS.some((k) => listOf(t[k])?.length));
+  if (nested.length) {
+    const pick = nested.find(inUse) ?? nested.find((t) => wetEntries(t, depth + 1).length) ?? nested[0]!;
+    return wetEntries(pick, depth + 1);
+  }
+  // A wrapper object around the plan ({ data: { plan } }).
+  if (!list.length && depth === 0) {
+    const inner = obj(obj(wet).data ?? obj(wet).result);
+    if (Object.keys(inner).length) return wetEntries(inner, depth + 1);
+  }
+  return list;
 }
 
 /** An entry's start and end: the integration's executionStartTime and executionEndTime, or the shorter names. */
-const startOf = (o: Record<string, unknown>) => o.executionStartTime ?? o.startTime ?? o.executionTime ?? o.time;
-const endOf = (o: Record<string, unknown>) => o.executionEndTime ?? o.endTime;
+const startOf = (o: Record<string, unknown>) => o.executionStartTime ?? o.startTime ?? o.executionTime ?? o.feedTime ?? o.planTime ?? o.time;
+const endOf = (o: Record<string, unknown>) => o.executionEndTime ?? o.endTime ?? o.feedEndTime;
 /** A plate number as sent (a number or a digit); NaN when there is none. */
 const plateNum = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && /^\d$/.test(v.trim()) ? Number(v) : NaN);
 
@@ -350,7 +392,7 @@ const keyNames = (objs: Record<string, unknown>[]) => [...new Set(objs.flatMap((
  * many entries, how many are switched off or have no time the parser reads, and the key names on the entries and on
  * the answer. Names and counts only, never a value. Pure.
  */
-export function wetPlanShape(wet: unknown, failed = false): WetPlanShape {
+export function wetPlanShape(wet: unknown, failed = false, code?: number): WetPlanShape {
   const w = obj(wet);
   const entries = wetEntries(wet);
   const t = w.templateName;
@@ -362,12 +404,13 @@ export function wetPlanShape(wet: unknown, failed = false): WetPlanShape {
     badTime: entries.filter((o) => planTime(startOf(o)) === null).length,
     keys: keyNames(entries),
     top: keyNames([w]),
+    ...(failed && code !== undefined && { code }),
   };
 }
 
 /** The shape in one log line: counts and key names only. */
 export function shapeLine(s: WetPlanShape): string {
-  return `petlibro: wet plan read=${s.read} template=${s.template} entries=${s.entries} disabled=${s.disabled} badTime=${s.badTime} keys=[${s.keys.join(",")}] top=[${s.top.join(",")}]`;
+  return `petlibro: wet plan read=${s.read}${s.code !== undefined ? ` code=${s.code}` : ""} template=${s.template} entries=${s.entries} disabled=${s.disabled} badTime=${s.badTime} keys=[${s.keys.join(",")}] top=[${s.top.join(",")}]`;
 }
 
 /**
@@ -405,6 +448,9 @@ export function wetMeals(wet: unknown, now?: number): WetMeal[] {
 
 type Answer = { code?: unknown; data?: unknown };
 
+/** The wet feeder's plan, read by deviceSn (the integration's `device_wet_feeding_plan`). */
+const WET_PLAN = "/device/wetFeedingPlan/wetListV3";
+
 /** The login digest's shape: 32 lowercase hex characters. */
 export const LOGIN_DIGEST = /^[0-9a-f]{32}$/;
 
@@ -424,6 +470,8 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
   readonly vendor = "petlibro" as const;
   readonly actions = ["feeder.feed", "wet.open", "wet.rotate", "wet.close", "wet.status"] as const;
   private why: VendorProblem | null = null;
+  /** The answer code of each path Petlibro last refused (#952: why the wet plan doesn't come back), never a value. */
+  private refused = new Map<string, number>();
   private holdUntil = 0;
   private signingIn: Promise<string> | null = null;
   private reading: Promise<Found<PetlibroRef>[]> | null = null;
@@ -542,7 +590,11 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
         }
         continue;
       }
-      if (Number(a.code) !== PETLIBRO_CODE.ok) this.fail("vendor", 502);
+      if (Number(a.code) !== PETLIBRO_CODE.ok) {
+        if (Number.isInteger(Number(a.code))) this.refused.set(path, Number(a.code));
+        this.fail("vendor", 502);
+      }
+      this.refused.delete(path);
       this.why = null;
       return a.data ?? {};
     }
@@ -594,8 +646,9 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
   private async extraOf(kind: DeviceKind, serial: string, now: number, read: (path: string, body?: Record<string, unknown>) => Promise<unknown>): Promise<PetlibroExtra> {
     if (kind === "fountain") return { drink: await read("/data/deviceDrinkWater/todayDrinkData") };
     if (kind === "wet-feeder") {
-      const [wet, grain] = await Promise.all([read("/device/wetFeedingPlan/wetListV3"), read("/device/data/grainStatus")]);
-      return { wet, grain };
+      const [wet, grain] = await Promise.all([read(WET_PLAN), read("/device/data/grainStatus")]);
+      const code = wet === null ? this.refused.get(WET_PLAN) : undefined;
+      return { wet, grain, ...(code !== undefined && { wetCode: code }) };
     }
     const [work, grain, plans, today] = await Promise.all([
       read("/device/workRecord/list", { deviceSn: serial, startTime: now - 7 * 86_400_000, endTime: now, size: 10, type: ["GRAIN_OUTPUT_SUCCESS"] }),

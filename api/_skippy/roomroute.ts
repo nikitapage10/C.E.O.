@@ -261,12 +261,14 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     say = sayTodo(todo.text, todo.due, now);
   } else {
     const sub = voice.log ? ROOM_SUBMINDS[voice.log] : null;
-    const turn = await deps.skippy(text, history, passkey, {
-      rules: roomRules(voice),
-      log: voice.log,
-      by: sub && isNeeds(sub.id) ? sub.id : null,
-      ...(page && { page }),
-    });
+    const turn = await onceMore(() =>
+      deps.skippy(text, history, passkey, {
+        rules: roomRules(voice),
+        log: voice.log,
+        by: sub && isNeeds(sub.id) ? sub.id : null,
+        ...(page && { page }),
+      }),
+    );
     say = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);
     status = turn.error ? STATUS[turn.error] : 200;
     if (!turn.error && turn.wrote?.length) wrote = { wrote: turn.wrote, did: turn.did ?? [] };
@@ -300,12 +302,23 @@ export function senatePage(body: Record<string, unknown>): string {
 }
 
 /**
+ * A turn whose model failed is asked once more before the hiccup line is said (#952, Nikita 02:30Z: one failed call on
+ * the Senate's floor came straight back as "My magnificent mind hiccupped"). Only a model failure: a refusal for
+ * privacy, the pace or the month is final.
+ */
+export async function onceMore(ask: () => Promise<PhoneTurn>): Promise<PhoneTurn> {
+  const failed = (): PhoneTurn => ({ reply: "", handedOff: false, error: "model" });
+  const first = await ask().catch(failed);
+  return first.error === "model" ? ask().catch(failed) : first;
+}
+
+/**
  * The chair takes words from the Senate's floor himself (#926): Skippy's one brain as Today, the same tools, caps and
  * privacy check as any room's mic, answered in the shape the floor already voices (`{ lines }`, the chair's line).
  */
 async function chairAnswers(said: string, body: Record<string, unknown>, deps: RoomRouteDeps, passkey: string): Promise<Response | null> {
   const today = ROOM_VOICES.today!;
-  const turn = await deps.skippy(said, [], passkey, { rules: roomRules(today), log: today.log, by: null, page: senatePage(body), floor: true });
+  const turn = await onceMore(() => deps.skippy(said, [], passkey, { rules: roomRules(today), log: today.log, by: null, page: senatePage(body), floor: true }));
   // A remark on the argument: the members answer it.
   if (turn.floor) return null;
   const text = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);

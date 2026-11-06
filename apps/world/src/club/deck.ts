@@ -4,6 +4,8 @@
  * the whole Break Room jumps. Without a track, the set runs on a 32-beat phrase with a drop at the top of each.
  */
 
+import { duckableContext, siteDucked } from "@ceo/engine/web/siteSound.ts";
+
 /** The house tempo. */
 export const CLUB_BPM = 124;
 
@@ -85,8 +87,9 @@ const changed = () => listeners.forEach((fn) => fn());
 /** Play a track the C.E.O. picked from their own files. Nothing is uploaded: it plays in this browser only. */
 export async function playTrack(file: File): Promise<void> {
   stopTrack();
-  ctx ??= new AudioContext();
-  if (ctx.state === "suspended") await ctx.resume();
+  // Suspended while Skippy is on a call (#952), resumed after.
+  ctx ??= duckableContext(new AudioContext());
+  if (ctx.state === "suspended" && !siteDucked()) await ctx.resume();
   audio = new Audio(URL.createObjectURL(file));
   audio.crossOrigin = "anonymous";
   const src = ctx.createMediaElementSource(audio);
@@ -114,7 +117,7 @@ export function holdDeck(hold: boolean) {
     audio.pause();
     void ctx?.suspend();
   } else {
-    void ctx?.resume();
+    if (!siteDucked()) void ctx?.resume();
     void audio.play().catch(() => {});
   }
 }

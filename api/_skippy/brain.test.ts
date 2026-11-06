@@ -296,6 +296,28 @@ describe("a Talk call (#926): the passkey's own turn, quick on the call", () => 
   });
 });
 
+describe("a home ask handed on from any surface is answered by the one brain (#952)", () => {
+  it("never by the responder that can't read the devices", async () => {
+    const w = await world();
+    const at = new Date(NOW).toISOString();
+    await w.log.add({ id: "a1b2c3d4e5f60718", at, question: "When is the next wet food cycle for my cat?", answer: "Pondering.", room: "kernel", model: "claude-sonnet-5-5", needs: "skippy", via: "phone" }, NOW);
+    const kept: { text: string; final: boolean }[] = [];
+    const asked: string[] = [];
+    const d = { log: w.log, ledger: new MemoryChatLedger(), env: {}, now: NOW, run: null, brief: async () => "", desk: async () => ({ desk: "", rooms: "" }), league: async () => "", fileIssue: async () => null, keep: async (a: { text: string; final: boolean }) => (kept.push(a), true), deep: async (q: string) => (asked.push(q), "The next wet meal is at 6pm, bowl 2.") } satisfies AgentDeps;
+    expect(await respond("a1b2c3d4e5f60718", d)).toEqual({ state: "answered", usd: 0 });
+    expect(asked).toEqual(["When is the next wet food cycle for my cat?"]);
+    expect(kept[0]).toMatchObject({ text: "The next wet meal is at 6pm, bowl 2.", final: true });
+  });
+
+  it("answers a schedule question by the rules on the phone, from the wet plan, with no model", async () => {
+    const w = await world();
+    const turn = await phoneAnswer("When is the next wet food cycle for my cat?", "phone-sample", [], w.chatDeps);
+    expect(w.modelMs()).toBe(0);
+    expect(turn.error).toBeUndefined();
+    expect(turn.tier).toBe("rules");
+  });
+});
+
 describe("the tiers' latency (#926), the model's time mocked", () => {
   it("rules: no model at all", async () => {
     const w = await world();

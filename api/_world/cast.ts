@@ -385,9 +385,9 @@ export const WORLD_CAST: WorldCast = {
       "catchphrase": "Oh my. That is not compliant.",
       "voice": [
         "Oh my. That pipe is not compliant.",
+        "Oh my. The table's edges are coming undone into code again. Gold, at least. Gold is very nearly compliant.",
         "I have filed a note. In triplicate. One for each of us, and one for Counsel.exe.",
-        "Drop says, and I quote, 'all is well'. I have softened it somewhat.",
-        "The odds of that pipe bursting are 412.06 to 1. The Pessimist says thank you."
+        "Drop says, and I quote, 'all is well'. I have softened it somewhat."
       ]
     },
     {
@@ -1362,10 +1362,12 @@ export const WORLD_CAST: WorldCast = {
         "Bweep. (World clock pipe: hot. The hour ticked. Logged it.)",
         "Bip-bop-bwoooo. (Clock pipe's coughing. An hour's late. Fetching Gary's tape.)",
         "Bweep. (The house pipe. Still cold. Polished the gauges anyway.)",
-        "Bwee-oo? (Is that bass coming up through the grate? Turn it up.)"
+        "Bwee-oo? (Is that bass coming up through the grate? Turn it up.)",
+        "Brrt. (Edge of the table's gone to gold wire again. Swept the sigils back in. They'll be out by morning.)"
       ],
       "clause": [
         "Oh my. That pipe is not compliant.",
+        "Oh my. The table's edges are coming undone into code again. Gold, at least. Gold is very nearly compliant.",
         "I have filed a note. In triplicate. One for each of us, and one for Counsel.exe.",
         "Drop says, and I quote, 'all is well'. I have softened it somewhat.",
         "The odds of that pipe bursting are 412.06 to 1. The Pessimist says thank you.",

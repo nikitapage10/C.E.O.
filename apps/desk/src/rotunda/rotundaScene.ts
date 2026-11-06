@@ -11,6 +11,7 @@ import {
   CylinderGeometry,
   DirectionalLight,
   DoubleSide,
+  Euler,
   FogExp2,
   Group,
   HemisphereLight,
@@ -75,8 +76,9 @@ import { makeActor, onSpeaker, startTalk, stepActor, type Actor, type SenateRig 
 import { senatePoses, senatorOf } from "./senators.ts";
 import { debateLines, debateOpen } from "./debates.ts";
 import type { FloorTopic, Joined, RecessSource } from "./liveTalk.ts";
-import { GALLERY_FADE, GALLERY_R0, KEEP_OUT, YAW_ARC, ZOOM, keepOutScale, softStep } from "./clearance.ts";
+import { CAMERA_MAX_R, GALLERY_FADE, GALLERY_R0, KEEP_OUT, YAW_ARC, ZOOM, keepOutScale, softStep } from "./clearance.ts";
 import { ambientKey } from "./heard.ts";
+import { whereClause } from "./floorSteer.ts";
 
 /**
  * The Senate in 3D (#740), Today's chamber: the round 3 concept (concepts/2026-11-04-today-boiler, r3/rotunda.js)
@@ -105,6 +107,11 @@ import { ambientKey } from "./heard.ts";
  *
  * Every Skippy in it is its own self (#775): its own idle, gestures, faces and reactions, played from senators.ts by
  * senateActor.ts, with a moving face cast over the front of each can's head.
+ *
+ * Since #948 (Nikita, 2026-11-06: "even darker", a middle layer of "higher-fidelity Skippies", "fog ... so it doesn't look
+ * too clear") the room is darker still, a ring of full 3D Skippies stands on raised plinths between the members and the
+ * gallery (the bench: real cans, dim bronze in the haze, each turning toward whoever speaks), and the bowl fills with
+ * drifting ground fog and a veil of mist in front of the gallery. Whoever answers Nikita rises on his podium to do it.
  */
 
 export interface RotundaSeat {
@@ -169,10 +176,15 @@ export interface Rotunda {
   /** The argument on the floor now and what has been said in it (#910), so the members answer him in its context. */
   topic: () => FloorTopic | null;
   /**
-   * Nikita's words join the argument on the floor (#925): answered by the members who were speaking, then the argument
-   * goes on with his point in it. Resolves once they have answered him; null when no argument is on.
+   * Nikita's words join the argument on the floor (#925): the members who were speaking answer him on the floor
+   * (senateFloor.ts, #948), and once the session picks up, the argument goes on with his point in it. False when no
+   * argument is on.
    */
-  join: (said: string, j: Joined) => Promise<void> | null;
+  join: (said: string, j: Joined) => boolean;
+  /** Raises a member (or "kernel", the chair) on his podium to answer Nikita (#948); null steps whoever is up back down. */
+  rise: (id: string | null) => void;
+  /** What the chamber was on, as the chair's clause for the steer back (#948, floorSteer.ts); null when it was on nothing. */
+  where: () => string | null;
   dispose: () => void;
 }
 
@@ -210,6 +222,9 @@ interface Pod {
   speaking: boolean;
   hot: boolean;
   light: Spot | null;
+  /** Risen on its podium to answer Nikita (#948): 0 down, 1 up, eased. */
+  lift: number;
+  liftTo: number;
   /** The Skippy in it (#775). */
   a: Actor;
 }
@@ -364,19 +379,21 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   // Darker overall (#925, Nikita: "darken the room overall"): the spotlights, the gold and the captions carry it.
-  renderer.toneMappingExposure = 0.92;
+  // Darker again (#948, Nikita: "the background even darker").
+  renderer.toneMappingExposure = 0.86;
   renderer.shadowMap.enabled = !PH0;
   renderer.shadowMap.type = PCFShadowMap;
   const scene = new Scene();
-  scene.background = new Color(0x030407);
-  scene.fog = new FogExp2(0x05060c, 0.032);
+  scene.background = new Color(0x010103);
+  // A thicker haze (#948, "so it isn't too clear"): the members still read; the bench softens; the gallery sinks into it.
+  scene.fog = new FogExp2(0x04050a, 0.038);
   const cam = new PerspectiveCamera(40, 1, 0.1, 120);
   const disposables: { dispose: () => void }[] = [];
   const keep = <T extends { dispose: () => void }>(x: T) => (disposables.push(x), x);
 
   // ---- the chamber ------------------------------------------------------------------------------------------------
-  scene.add(new HemisphereLight(0x9aa4d0, 0x06060a, 0.36));
-  const moon = new DirectionalLight(0xbfc8ff, 0.28);
+  scene.add(new HemisphereLight(0x9aa4d0, 0x06060a, 0.3));
+  const moon = new DirectionalLight(0xbfc8ff, 0.24);
   moon.position.set(-6, 14, 8);
   scene.add(moon);
   const shaft = new SpotLight(0xffefcf, 160, 22, 0.24, 0.55, 1.2);
@@ -392,7 +409,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const beam2 = new Mesh(keep(new CylinderGeometry(0.3, 1.2, 16, 48, 1, true)), beam2Mat);
   beam2.position.y = 8;
   scene.add(beam, beam2);
-  const floor = new Mesh(keep(new CircleGeometry(44, 96)), keep(new MeshStandardMaterial({ color: 0x07080c, roughness: 0.5, metalness: 0.4 })));
+  const floor = new Mesh(keep(new CircleGeometry(44, 96)), keep(new MeshStandardMaterial({ color: 0x050609, roughness: 0.5, metalness: 0.4 })));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
@@ -423,11 +440,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       uniforms: { t: { value: 0 } },
       vertexShader: `varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
       fragmentShader: `varying vec2 vU; uniform float t;
-        void main(){ float h = vU.y; vec3 deep = vec3(.008,.01,.018), haze = vec3(.032,.04,.072);
-          vec3 c = mix(deep, haze, smoothstep(.05,.75,h)); c = mix(c, vec3(.014,.016,.028), smoothstep(.8,1.,h));
-          float tier = smoothstep(.0,.5,fract(h*14.)) * smoothstep(1.,.86,fract(h*14.)); c += vec3(.014,.012,.008)*(1.-tier)*smoothstep(.05,.7,h);
+        void main(){ float h = vU.y; vec3 deep = vec3(.004,.005,.01), haze = vec3(.016,.02,.038);
+          vec3 c = mix(deep, haze, smoothstep(.05,.75,h)); c = mix(c, vec3(.007,.008,.015), smoothstep(.8,1.,h));
+          float tier = smoothstep(.0,.5,fract(h*14.)) * smoothstep(1.,.86,fract(h*14.)); c += vec3(.008,.007,.005)*(1.-tier)*smoothstep(.05,.7,h);
           float win = step(.82, fract(vU.x*220.)) * step(.6, fract(h*14.+.3)) * step(fract(sin(floor(vU.x*220.)*12.9+floor(h*14.)*78.2)*43758.5),.35);
-          c += vec3(1.,.8,.5)*win*.06*(.6+.4*sin(t*.7+vU.x*90.))*smoothstep(.15,.7,h);
+          c += vec3(1.,.8,.5)*win*.04*(.6+.4*sin(t*.7+vU.x*90.))*smoothstep(.15,.7,h);
           gl_FragColor = vec4(c,1.); }`,
     }),
   );
@@ -768,9 +785,113 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     pad.scale.set(1.5, 0.75, 1);
     g.add(pad);
     const base = baseOf(s);
-    return { s, g, shell, ring, glow, mat: can.mat, pad, home, at: home.clone(), prev: home.clone(), vel: new Vector3(), tw: null, lit: base, litTo: base, base, dis: 0, disTo: 0, phase: Math.random() * 6, speaking: false, hot: false, light: null, a: can.a };
+    return { s, g, shell, ring, glow, mat: can.mat, pad, home, at: home.clone(), prev: home.clone(), vel: new Vector3(), tw: null, lit: base, litTo: base, base, dis: 0, disTo: 0, phase: Math.random() * 6, speaking: false, hot: false, light: null, lift: 0, liftTo: 0, a: can.a };
   });
   const actors: Actor[] = [sk.a, ...pods.map((p) => p.a)];
+
+  // The bench (#948). Nikita, 2026-11-06: a middle layer of "higher-fidelity Skippies" between the glowing gallery at the
+  // back and the members' podiums in front. Real cans this time, the same model as the members, on tall bronze plinths
+  // with a gold rim, in a ring behind the members and above them, never on the camera's side of the bowl (it keeps 1.6
+  // rad clear of the camera's own bearing, beyond the A/D arc and the chamber's sway). Dim bronze, a faint warm glow, sunk
+  // in the haze: they don't speak, they watch, each turning its head toward whoever has the floor, bobbing a little on
+  // its own beat. No faces, no shadows, no per-figure lights; a phone gets half as many. Any that came into the camera's
+  // keep-out (clearance.ts) would shrink away like a member's podium.
+  interface Bencher {
+    g: Group;
+    inner: Group;
+    head: Bone | null;
+    bind: Quaternion;
+    y0: number;
+    seed: number;
+    hy: number;
+  }
+  const bench: Bencher[] = [];
+  {
+    const BN = PH0 ? 7 : 14;
+    const BR = 10.6;
+    const ARC = Math.PI * 2 - 3.2;
+    // A slim stem and a small bronze cup like the members' own pods: a podium, never a column across the view.
+    const stemG = keep(new CylinderGeometry(0.05, 0.09, 1, 10));
+    const cupG = keep(new CylinderGeometry(0.48, 0.26, 0.26, 28));
+    const plinthM = keep(new MeshStandardMaterial({ color: 0x1d1813, metalness: 0.8, roughness: 0.42 }));
+    const rimG2 = keep(new TorusGeometry(0.48, 0.014, 6, 64));
+    const rimM2 = keep(new MeshBasicMaterial({ color: 0xc9a85c, transparent: true, opacity: 0.42 }));
+    let benchMat: MeshStandardMaterial | null = null;
+    const rest = poses.get("rest");
+    for (let i = 0; i < BN; i++) {
+      const a = Math.PI / 2 + 1.6 + ((i + 0.5) / BN) * ARC;
+      const r = BR + (i % 2) * 0.7;
+      const top = 3.2 + (i % 2) * 0.6;
+      const g = new Group();
+      g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+      g.rotation.y = Math.atan2(-g.position.x, -g.position.z);
+      const stem = new Mesh(stemG, plinthM);
+      stem.scale.y = top - 0.2;
+      stem.position.y = (top - 0.2) / 2;
+      const cup = new Mesh(cupG, plinthM);
+      cup.position.y = top - 0.13;
+      const rim = new Mesh(rimG2, rimM2);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.y = top + 0.004;
+      const model = cloneSkinned(proto);
+      let mesh: SkinnedMesh | null = null;
+      let head: Bone | null = null;
+      model.traverse((o) => {
+        if ((o as Bone).isBone) {
+          const n = o.name.replace(/^mixamorig:?/, "");
+          if (rest?.has(n)) (o as Bone).quaternion.copy(rest.get(n)!);
+          if (n === "Head") head = o as Bone;
+        }
+        if (!mesh && (o as SkinnedMesh).isSkinnedMesh) mesh = o as SkinnedMesh;
+      });
+      const sm = mesh as SkinnedMesh | null;
+      if (sm) {
+        if (!benchMat) {
+          benchMat = keep(((sm.material as MeshStandardMaterial).clone() as MeshStandardMaterial));
+          benchMat.color.setScalar(0.5);
+          benchMat.emissive = new Color(0x3a2a12);
+          benchMat.emissiveMap = benchMat.map;
+          benchMat.emissiveIntensity = 0.55;
+        }
+        sm.material = benchMat;
+        sm.castShadow = false;
+        sm.frustumCulled = false;
+      }
+      model.position.copy(centre).multiplyScalar(-1);
+      const inner = new Group();
+      inner.add(model);
+      const size = 0.92;
+      inner.scale.setScalar(size / height);
+      const y0 = top + size / 2 + 0.02;
+      inner.position.y = y0;
+      g.add(stem, cup, rim, inner);
+      scene.add(g);
+      const hb = head as Bone | null;
+      bench.push({ g, inner, head: hb, bind: hb ? hb.quaternion.clone() : new Quaternion(), y0, seed: Math.random(), hy: 0 });
+    }
+  }
+  const benchQ = new Quaternion();
+  const benchE = new Euler();
+  const benchSpot = new Vector3();
+  /** One frame of the bench: a bob, and each head turning toward whoever has the floor. */
+  const stepBench = (dt: number, T: number, speaker: Vector3 | null, camAt: Vector3, camDirN: Vector3) => {
+    const hk = reduce ? 1 : 1 - Math.exp(-dt * 2.5);
+    for (const b of bench) {
+      b.inner.position.y = b.y0 + (reduce ? 0 : Math.sin(T * (0.5 + b.seed * 0.3) + b.seed * 9) * 0.035);
+      let want = reduce ? 0 : Math.sin(T * (0.13 + b.seed * 0.08) + b.seed * 20) * 0.25;
+      if (speaker) {
+        let d = Math.atan2(speaker.x - b.g.position.x, speaker.z - b.g.position.z) - b.g.rotation.y;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        want = Math.max(-0.75, Math.min(0.75, d));
+      }
+      b.hy += (want - b.hy) * hk;
+      if (b.head) b.head.quaternion.copy(b.bind).multiply(benchQ.setFromEuler(benchE.set(0.06, b.hy, 0)));
+      benchSpot.set(b.g.position.x, b.y0, b.g.position.z);
+      const clear = keepOutScale(benchSpot, camAt, camDirN, KEEP_OUT);
+      b.g.scale.setScalar(Math.max(1e-3, clear));
+      b.g.visible = clear > 0.01;
+    }
+  };
   /** Who has the floor: the last to start a line that is still going. */
   let talker: Actor | null = null;
   let heldTalker: { a: Actor; left: number } | null = null;
@@ -1052,8 +1173,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     glide(p, SPOT[spot]);
     p.litTo = 1;
     p.disTo = counter ? 1 : 0;
-    // Its own light if it already has one (it used to take a second and leave the first on over an empty seat); else a
-    // free one, or the one that has been fading longest.
+    spotOn(p, counter ? COUNTER_LIGHT : TYPE_LIGHT[kind]);
+  };
+  /** A spotlight on a pod: its own if it already has one (it used to take a second and leave the first on over an empty
+   * seat); else a free one, or the one that has been fading longest. */
+  function spotOn(p: Pod, colour: Color) {
     let L = p.light;
     if (!L) {
       L = lightPool.find((x) => !x.pod) ?? lightPool.reduce((a, b) => (b.to === 0 && b.on < a.on ? b : a));
@@ -1062,9 +1186,45 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     L.pod = p;
     L.to = 1;
     L.l.target = p.g;
-    L.l.color.copy(counter ? COUNTER_LIGHT : TYPE_LIGHT[kind]);
+    L.l.color.copy(colour);
     p.light = L;
-  };
+  }
+  // Rising to answer Nikita (#948): the one he addressed lifts on his podium in a light of his own, and the camera leans
+  // toward him; stepping down gives the view back to the session.
+  let skLift = 0;
+  let skLiftTo = 0;
+  let viewWas: { look: Vector3; dolly: number; focus: Pod | null } | null = null;
+  function rise(id: string | null) {
+    const p = id && id !== "kernel" ? byId(id) : null;
+    for (const q of pods) {
+      if (q === p || !q.liftTo) continue;
+      q.liftTo = 0;
+      if (!q.speaking) {
+        q.litTo = q.base;
+        if (q.light) q.light.to = 0;
+      }
+    }
+    skLiftTo = id === "kernel" ? 1 : 0;
+    if (id && !viewWas) viewWas = { look: lookTo.clone(), dolly: dollyTo, focus };
+    if (p) {
+      p.liftTo = 1;
+      p.litTo = 1;
+      spotOn(p, TYPE_LIGHT.idle);
+      focus = p;
+      lookTo.set(p.at.x * 0.35, 2.7, p.at.z * 0.35);
+      dollyTo = 0.96;
+    } else if (id === "kernel") {
+      onChair();
+      focus = null;
+      lookTo.set(0, 2.8, 0);
+      dollyTo = 0.95;
+    } else if (viewWas) {
+      lookTo.copy(viewWas.look);
+      dollyTo = viewWas.dolly;
+      focus = viewWas.focus;
+      viewWas = null;
+    }
+  }
   const goHome = (p: Pod) => {
     if (!p.speaking) return;
     p.speaking = false;
@@ -1259,12 +1419,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   // Since #910 each argument is new (liveTalk.ts): made live as the chamber runs, or a written one this viewer hasn't
   // heard; with nothing new, the chamber keeps quiet a while and asks again. Nothing is argued twice.
   let topic: FloorTopic | null = null;
-  // Nikita's words joined to the argument (#925, senateFloor.ts): taken at the next line's turn, so the line he cut into
-  // finishes first. The members who were speaking answer him from where they stand, perhaps one more chimes in, and the
-  // argument carries on from there with his point in it and a new ruling; `done` lets the floor's caption go.
-  let joinQ: { said: string; j: Joined; done: () => void } | null = null;
+  // Nikita's words joined to the argument (#925, senateFloor.ts). Since #948 the members who were speaking answer him on
+  // the floor itself, risen on their podiums, while the session is held; once it picks up, the line he cut into finishes
+  // and the argument carries on from there with his point in it and a new ruling.
+  let joinQ: Joined | null = null;
   const dropJoin = () => {
-    joinQ?.done();
     joinQ = null;
   };
   async function debate(tk: number) {
@@ -1321,18 +1480,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       const jq = joinQ;
       if (jq) {
         joinQ = null;
-        try {
-          topic?.lines.push({ by: "floor", text: jq.said });
-          voice?.prefetch([...jq.j.answers, ...jq.j.rest, { by: "kernel", text: jq.j.close }]);
-          chair("");
-          for (const a of jq.j.answers) await speak(a.by, a.text, false);
-        } finally {
-          jq.done();
-        }
-        // The argument goes on from here, his point in it, to a new ruling.
-        queue = [...jq.j.rest];
-        if (jq.j.close !== close) {
-          close = jq.j.close;
+        // The argument goes on from here, his point (and the answers he had) in it, to a new ruling.
+        voice?.prefetch([...jq.rest, { by: "kernel", text: jq.close }]);
+        queue = [...jq.rest];
+        if (jq.close !== close) {
+          close = jq.close;
           closed = false;
         }
         continue;
@@ -1411,17 +1563,77 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     t.colorSpace = SRGBColorSpace;
     return t;
   })();
-  const haze = Array.from({ length: PH0 ? 8 : 16 }, (_, i) => {
+  // More of it since #948, and further out, round the bench too.
+  const haze = Array.from({ length: PH0 ? 12 : 26 }, (_, i) => {
     const inShaft = i % 3 === 0;
-    const s = new Sprite(keep(new SpriteMaterial({ map: hazeTex, color: inShaft ? 0xffe9c8 : 0x8fa2d0, transparent: true, opacity: inShaft ? 0.09 : 0.06, depthWrite: false })));
-    const r = inShaft ? Math.random() * 0.8 : 3 + Math.random() * 6;
+    const s = new Sprite(keep(new SpriteMaterial({ map: hazeTex, color: inShaft ? 0xffe9c8 : 0x7f90bb, transparent: true, opacity: inShaft ? 0.09 : 0.07, depthWrite: false })));
+    const r = inShaft ? Math.random() * 0.8 : 3 + Math.random() * 9;
     const a = Math.random() * 6.28;
     s.position.set(Math.cos(a) * r, inShaft ? Math.random() * 10 : 0.8 + Math.random() * 6, Math.sin(a) * r);
-    s.scale.setScalar(inShaft ? 2.4 + Math.random() * 1.5 : 5 + Math.random() * 4);
+    s.scale.setScalar(inShaft ? 2.4 + Math.random() * 1.5 : 5 + Math.random() * 6);
     s.userData = { inShaft, a, r, w: (Math.random() - 0.5) * 0.04, rot: (Math.random() - 0.5) * 0.05 };
     scene.add(s);
     return s;
   });
+
+  // The fog (#948, Nikita: "fog and atmospheric effects so it isn't too clear"). Ground fog: a few sheets of slow, drifting
+  // noise low over the floor, thin round the podium so the chair stays clear, thickening out past the members and the
+  // bench. And a veil of mist hung in front of the gallery, just beyond the furthest the camera goes (clearance.ts), so
+  // the gallery's tiers sink into it and the bowl has depth. All in the shaders: no per-frame work but a clock.
+  const NOISE = `float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
+      return mix(mix(h2(i), h2(i+vec2(1.,0.)), f.x), mix(h2(i+vec2(0.,1.)), h2(i+vec2(1.,1.)), f.x), f.y); }
+    float fbm(vec2 p){ float v = 0., a = .5; for (int o = 0; o < ${PH0 ? 3 : 4}; o++){ v += a*vn(p); p = p*2.03 + 17.1; a *= .5; } return v; }`;
+  const fogT = { value: 0 };
+  // Raw display values, as the chamber's other shaders write them (no tone mapping on a ShaderMaterial).
+  const fogC = new Color().setRGB(0.15, 0.17, 0.235);
+  const fogSheet = (y: number, strength: number, off: number) => {
+    const m = new Mesh(
+      keep(new PlaneGeometry(90, 90)),
+      keep(
+        new ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          side: DoubleSide,
+          uniforms: { t: fogT, col: { value: fogC }, k: { value: strength }, off: { value: off } },
+          vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
+          fragmentShader: `uniform float t, k, off; uniform vec3 col; varying vec3 vW; ${NOISE}
+            void main(){ float r = length(vW.xz);
+              vec2 p = vW.xz*.11 + vec2(t*.018 + off, -t*.011 + off*1.7);
+              float n = fbm(p + fbm(p*1.6 - t*.01)*1.3);
+              float a = smoothstep(.36, .82, n) * k * smoothstep(2.4, 7.5, r) * (1. - smoothstep(28., 42., r));
+              gl_FragColor = vec4(col, a); }`,
+        }),
+      ),
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = y;
+    m.renderOrder = 3;
+    scene.add(m);
+  };
+  fogSheet(0.28, 0.6, 0);
+  fogSheet(0.85, 0.42, 3.1);
+  if (!PH0) fogSheet(1.6, 0.24, 7.4);
+  const VEIL_R = (CAMERA_MAX_R + GALLERY_R0) / 2;
+  const mist = new Mesh(
+    keep(new CylinderGeometry(VEIL_R, VEIL_R, 16, 96, 1, true)),
+    keep(
+      new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: BackSide,
+        uniforms: { t: fogT, col: { value: fogC } },
+        vertexShader: `varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+        fragmentShader: `uniform float t; uniform vec3 col; varying vec2 vU; ${NOISE}
+          void main(){ float n = fbm(vec2(vU.x*38. + t*.02, vU.y*4.5 - t*.012));
+            float a = (.18 + .5*smoothstep(.3, .85, n)) * (1. - smoothstep(.15, .9, vU.y)) * .55;
+            gl_FragColor = vec4(col*.8, a); }`,
+      }),
+    ),
+  );
+  mist.position.y = 7.6;
+  mist.renderOrder = 1;
+  scene.add(mist);
 
   // Nanites: the sigil glyphs from one atlas. Drifters in the air, a field under each pod, and a share of the drifters
   // that gathers round the podium whenever the chair speaks.
@@ -1703,6 +1915,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const tmp3 = new Vector3();
   const stepAtmos = (dt: number, T: number) => {
     const calm = reduce ? 0.15 : 1;
+    fogT.value = reduce ? 0 : T;
     for (const s of haze) {
       const u = s.userData as { inShaft: boolean; a: number; r: number; w: number; rot: number };
       const mat = s.material;
@@ -1879,13 +2092,14 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       const target = p.hot ? Math.max(p.litTo, 0.95) : p.litTo;
       p.lit += (target - p.lit) * k;
       p.dis += (p.disTo - p.dis) * k;
-      const bob = reduce ? 0 : Math.sin(T * 1.2 + p.phase) * (p.speaking ? 0.08 : 0.04);
-      p.g.position.set(p.at.x, p.at.y + bob, p.at.z);
+      const bob = reduce ? 0 : Math.sin(T * 1.2 + p.phase) * (p.speaking || p.liftTo ? 0.08 : 0.04);
+      p.lift += (p.liftTo - p.lift) * (reduce ? 1 : k * 0.5);
+      p.g.position.set(p.at.x, p.at.y + bob + ease(p.lift) * 0.85, p.at.z);
       // Never in the camera's face (#925): one that comes into the keep-out round it and its line of sight shrinks away.
       const clear = keepOutScale(p.g.position, cam.position, camDir, KEEP_OUT);
       p.g.scale.setScalar(Math.max(1e-3, clear));
       p.g.visible = clear > 0.01;
-      const face = p.speaking ? Math.atan2(cam.position.x - p.at.x, cam.position.z - p.at.z) : Math.atan2(-p.at.x, -p.at.z);
+      const face = p.speaking || p.liftTo ? Math.atan2(cam.position.x - p.at.x, cam.position.z - p.at.z) : Math.atan2(-p.at.x, -p.at.z);
       let d = face - p.g.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       p.g.rotation.y += d * k * 0.8;
@@ -1897,7 +2111,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       p.ring.rotation.z += dt * 0.5;
       (p.pad.material as SpriteMaterial).opacity = 0.1 + p.lit * 0.45 + (reduce ? 0 : Math.sin(T * 2.2 + p.phase) * 0.04 * p.lit);
     }
-    skG.position.y = 2.0 + (reduce ? 0 : Math.sin(T * 0.9) * 0.05);
+    skLift += (skLiftTo - skLift) * (reduce ? 1 : k * 0.5);
+    skG.position.y = 2.0 + ease(skLift) * 0.4 + (reduce ? 0 : Math.sin(T * 0.9) * 0.05);
     stepSenate(dt);
     const skFace = focus ? Math.atan2(focus.g.position.x, focus.g.position.z) : Math.atan2(cam.position.x, cam.position.z) * 0.8;
     let sd = skFace - skG.rotation.y;
@@ -1969,6 +2184,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   raf = requestAnimationFrame(frame);
 
   // ---- the Senate's manners (#775) -------------------------------------------------------------------------------
+  const speakAt = new Vector3();
   function stepSenate(dt: number) {
     // Whoever has the floor; when it changes, each other Skippy takes the new speaker its own way.
     let cur = talker && clock.t < talker.talkUntil ? talker : null;
@@ -1986,6 +2202,8 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
           sx = p.g.position.x;
           sz = p.g.position.z;
         }
+    speakAt.set(sx, 0, sz);
+    stepBench(dt, T, cur ? speakAt : null, cam.position, camDir);
     sk.a.look = 0;
     for (const p of pods) {
       p.a.amp = 0.4 + 0.6 * Math.min(1, p.lit * 1.4);
@@ -2050,11 +2268,16 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     },
     topic: () => (topic ? { motion: topic.motion, lines: [...topic.lines], cast: [...(topic.cast ?? [])] } : null),
     join: (said, j) => {
-      if (!topic || dead) return null;
-      return new Promise<void>((res) => {
-        dropJoin();
-        joinQ = { said, j, done: res };
-      });
+      if (!topic || dead) return false;
+      topic.lines.push({ by: "floor", text: said }, ...j.answers);
+      joinQ = j;
+      return true;
+    },
+    rise,
+    where: () => {
+      if (topic) return whereClause({ motion: topic.motion });
+      const m = floorKey ? docket.find((x) => x.key === floorKey) : undefined;
+      return m ? whereClause({ item: m.n }) : null;
     },
     dispose: () => {
       dead = true;

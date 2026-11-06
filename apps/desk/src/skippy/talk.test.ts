@@ -131,9 +131,10 @@ describe("a live call keeps local read-aloud quiet and answers whole (#521)", ()
     }
   });
 
-  it("puts a long answer in whole, and cuts at a sentence end when it must", () => {
+  it("puts a long answer's first sentences in to be said (#952: the rest is in the chat), and cuts at a sentence end when it must", () => {
     const long = "A twenty-five basis point hike is five percent, which the market priced in. ".repeat(12).trim();
-    expect(landedNote(long.slice(0, 900), true)).toContain(long.slice(0, 900));
+    expect(landedNote(long.slice(0, 900), true)).toContain("A twenty-five basis point hike is five percent, which the market priced in.");
+    expect(landedNote(long.slice(0, 900), true)).not.toContain(long.slice(0, 300));
     const cut = clipSentence(long.repeat(3), 1500);
     expect(cut.length).toBeLessThanOrEqual(1500);
     expect(cut.endsWith("in.")).toBe(true);

@@ -270,3 +270,19 @@
 
 /* The room's whole flow (SystemsGraph.tsx) takes the kit's display face for its title. */
 .desk .bx-page .bx-detail .wv-gtitle{font-family:var(--fl-disp);font-size-adjust:none;font-weight:500}
+
+/* ---------- the deck under the Map (#936): the 3D map's edges carried down the page ----------
+ * Everything under the map sits on a dark deck behind a gold hairline, over the gold wire grid and the sigil nanites
+ * (@ceo/engine/sigils/UndoneField.tsx), strongest toward the sides; the cards turn solid with gold hairlines and ticks. */
+[data-room="boiler"] .bx-deck{position:relative;isolation:isolate;padding:0 0 var(--fl-s5);background:linear-gradient(180deg,#0b0c0f 0,#09090b 160px,#080808 100%);border-top:1px solid rgba(201,168,92,.3)}
+[data-room="boiler"] .bx-deck::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;z-index:1;background:linear-gradient(90deg,transparent,rgba(232,199,122,.9) 50%,transparent);box-shadow:0 0 18px rgba(255,154,42,.4)}
+[data-room="boiler"] .bx-deck>.bx-deck-sig{position:absolute;inset:0;z-index:0;width:100%;height:100%;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent);mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent)}
+[data-room="boiler"] .bx-deck>:not(.bx-deck-sig){position:relative;z-index:1}
+[data-room="boiler"] .bx-deck .bx-card{position:relative;border-radius:2px;border-color:rgba(201,168,92,.26);background:linear-gradient(180deg,rgba(20,17,13,.96),rgba(9,9,10,.96));box-shadow:0 40px 80px -40px #000,inset 0 1px 0 rgba(232,199,122,.1)}
+[data-room="boiler"] .bx-deck .bx-card::before{content:"";position:absolute;inset:-3px;pointer-events:none;background:linear-gradient(#c9a85c,#c9a85c) 0 0/10px 1px,linear-gradient(#c9a85c,#c9a85c) 0 0/1px 10px,linear-gradient(#c9a85c,#c9a85c) 100% 0/10px 1px,linear-gradient(#c9a85c,#c9a85c) 100% 0/1px 10px,linear-gradient(#c9a85c,#c9a85c) 0 100%/10px 1px,linear-gradient(#c9a85c,#c9a85c) 0 100%/1px 10px,linear-gradient(#c9a85c,#c9a85c) 100% 100%/10px 1px,linear-gradient(#c9a85c,#c9a85c) 100% 100%/1px 10px;background-repeat:no-repeat}
+[data-room="boiler"] .bx-deck .bx-card:hover,[data-room="boiler"] .bx-deck .bx-card:focus-within{border-color:rgba(232,199,122,.5)}
+[data-room="boiler"] .bx-deck .bx-go{color:#e3c98d}
+[data-room="boiler"] .bx-deck .bx-readout{border-top-color:rgba(201,168,92,.3)}
+[data-room="boiler"] .bx-deck .bx-folds{border-top-color:rgba(201,168,92,.3)}
+[data-room="boiler"] .bx-deck .bx-more{border-bottom-color:rgba(201,168,92,.14)}
+[data-room="boiler"] .bx-deck .bx-more>summary::after{color:#e3c98d}

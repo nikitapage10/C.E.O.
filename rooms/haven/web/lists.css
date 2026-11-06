@@ -46,3 +46,27 @@
 @media (max-width:760px){
   [data-room="haven"] .hv-ls-l label,[data-room="haven"] .hv-ls-add input{font-size:16px}
 }
+
+/* The lights (#931): scenes, switches and the projector's power, under the lists in the head; the same glass. */
+[data-room="haven"] .hv-lights{position:relative;width:272px;margin-top:10px;padding:10px 12px 12px;border:1px solid var(--hv-line);border-radius:14px;background:var(--hv-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:auto}
+[data-room="haven"][data-open] .hv-lights{display:none}
+[data-room="haven"] .hv-lt-h{margin:0 0 8px;font:500 13px var(--hv-text);letter-spacing:.06em;text-transform:uppercase;color:var(--hv-ink)}
+[data-room="haven"] .hv-lt-row,[data-room="haven"] .hv-lt-list{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;padding:0;list-style:none}
+[data-room="haven"] .hv-lt-scene,[data-room="haven"] .hv-lt,[data-room="haven"] .hv-lt-pow{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 12px;border:1px solid var(--hv-line);border-radius:999px;background:rgba(255,255,255,.04);color:var(--hv-soft);font:500 13px var(--hv-text);cursor:pointer}
+[data-room="haven"] .hv-lt-scene{border-color:rgba(var(--hv-gold),.45);color:rgb(var(--hv-gold))}
+[data-room="haven"] .hv-lt i{width:9px;height:9px;border-radius:50%;border:1px solid var(--hv-mute)}
+[data-room="haven"] .hv-lt[data-on="on"]{color:var(--hv-ink);border-color:rgba(var(--hv-gold),.5)}
+[data-room="haven"] .hv-lt[data-on="on"] i{border-color:rgb(var(--hv-gold));background:rgb(var(--hv-gold));box-shadow:0 0 8px rgb(var(--hv-gold))}
+[data-room="haven"] .hv-lt[data-on="offline"]{opacity:.5}
+[data-room="haven"] :is(.hv-lt-scene,.hv-lt,.hv-lt-pow):disabled{cursor:default;opacity:.6}
+[data-room="haven"] :is(.hv-lt-scene,.hv-lt,.hv-lt-pow):focus-visible{outline:2px solid rgb(var(--hv-gold));outline-offset:2px}
+[data-room="haven"] .hv-lt-remote{display:flex;align-items:center;gap:6px;margin:0 0 8px;color:var(--hv-soft);font:500 13px var(--hv-text)}
+[data-room="haven"] .hv-lt-remote span{flex:1}
+[data-room="haven"] .hv-lt-note{margin:4px 0 0;font:400 12px/1.4 var(--hv-text);color:var(--hv-mute)}
+/* A lamp over each placed light on the house: glowing on, dim off, hollow when unknown. */
+[data-room="haven"] .hv-bulb i{width:12px;height:12px;background:rgba(40,38,46,.9);border:1px solid rgba(var(--hv-gold),.6);box-shadow:none}
+[data-room="haven"] .hv-bulb[data-on="on"] i{background:rgb(var(--hv-gold));box-shadow:0 0 14px 3px rgba(var(--hv-gold),.75)}
+[data-room="haven"] .hv-bulb[data-on="unknown"] i,[data-room="haven"] .hv-bulb[data-on="offline"] i{background:transparent;border-style:dashed}
+@media (max-width:860px){
+  [data-room="haven"] .hv-lights{width:auto;margin:10px var(--fl-pad,16px) 0}
+}

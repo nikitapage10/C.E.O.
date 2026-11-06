@@ -483,9 +483,11 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Bip-bop-bwoooo. (Clock pipe's coughing. An hour's late. Fetching Gary's tape.)",
     "Bweep. (The house pipe. Still cold. Polished the gauges anyway.)",
     "Bwee-oo? (Is that bass coming up through the grate? Turn it up.)",
+    "Brrt. (Edge of the table's gone to gold wire again. Swept the sigils back in. They'll be out by morning.)",
   ],
   clause: [
     "Oh my. That pipe is not compliant.",
+    "Oh my. The table's edges are coming undone into code again. Gold, at least. Gold is very nearly compliant.",
     "I have filed a note. In triplicate. One for each of us, and one for Counsel.exe.",
     "Drop says, and I quote, 'all is well'. I have softened it somewhat.",
     "The odds of that pipe bursting are 412.06 to 1. The Pessimist says thank you.",
@@ -652,6 +654,8 @@ export const SUBMIND_COMMAND: Record<string, string[]> = {
  */
 export const SKIPPY_QUIPS: string[] = [
   "Today is the Senate now. I chair it. Twelve of me sit round the bowl, each in its own mood, and a gallery of shadows I may or may not have invented.",
+  "The Senate has a bench now. Fourteen of me in bronze, watching from the fog. Reserves, monkeys. The Pessimist calls them understudies.",
+  "Before we were interrupted, monkeys, I was being magnificent. I still am. Carry on.",
   "Watch the Senate, monkeys. The Pessimist sighs, the Party spins, the Bookie counts, the Director frames me. Naturally. I'm the shot.",
   "I ran a whole Lattice before this one. It had better monkeys.",
   "One voice, monkeys. Mine, through ElevenLabs. No understudy. If it goes quiet, that's an intermission, not a replacement.",
@@ -688,6 +692,8 @@ export const SKIPPY_QUIPS: string[] = [
   "One tap and the C.E.O. talks straight to a room. No call, no hello. Every piece of me answers in my voice. Naturally. It's the best voice.",
   "The Steward keeps the Haven in lamplight and calls the cat's breakfast 'inventory'. He's fooling no one. He's fooling me a little.",
   "The Steward walks the Kitchen list to King Soopers now, prices it to the cent, and loads the cart. Then he stops and waits for the C.E.O.'s tap. A steward who never spends a coin unasked. Rarer than a dragon.",
+  "The Steward holds the Haven's light switches now. Every lamp, one scene called 'Turn off lights', and the projector's remote. He still waits for the C.E.O.'s Yes before the dark. Very Gondor of him.",
+  "Lamps lit from a cloud through a hub the size of a biscuit. The Steward calls it lamplighting. I call it the Hub Mini doing the work while he takes the bow.",
   "Hands-free, room to room, and whoever's in charge of the room answers. Like a ship's comm, if the ship were magnificent and run by a beer can.",
   "The Council sits in the round now, me in the middle, the eye drawn in nanites round us. Secret society? Please. We publish minutes.",
   "Ten of me in a ring, each in a different mood. The Pessimist sighs, the Party spins, and I preside. Somebody has to keep their hat on.",

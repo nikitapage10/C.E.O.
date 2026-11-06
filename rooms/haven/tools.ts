@@ -142,8 +142,8 @@ export const TOOLS: readonly RoomTool[] = [
     room: "haven",
     title: "Read the home",
     description:
-      "The home right now: the thermostat's inside temperature, humidity, mode and set point (the apartment's temperature), then the vacuum, the dry and wet food feeders (the lid, the bowl in front, the next meal), the fountain and the Litter-Robot. about \"climate\" for the temperature alone, \"wet-feeder\" for what's in the wet food feeder and its schedule. Instant: the last good reading answers when the devices' clouds are slow.",
-    input: { type: "object", properties: { about: { type: "string", enum: ["all", "climate", "wet-feeder"] } }, required: [], additionalProperties: false },
+      "The home right now: the thermostat's inside temperature, humidity, mode and set point (the apartment's temperature), then the vacuum (and its next scheduled clean), the dry and wet food feeders (the lid, the bowl in front, the next meal), the fountain and the Litter-Robot. about \"climate\" for the temperature alone; \"wet-feeder\" for the next wet meal, the bowls and the wet schedule; \"dry-feeder\" for the next dry meal; \"feeders\" for both; \"vacuum\" for the vacuum and its schedule from the Roborock app. Any question about when a feeder or the vacuum runs next: call this, never ask Nikita to rephrase. Instant: the last good reading answers when the devices' clouds are slow.",
+    input: { type: "object", properties: { about: { type: "string", enum: ["all", "climate", "wet-feeder", "dry-feeder", "feeders", "vacuum"] } }, required: [], additionalProperties: false },
     effect: "read",
   },
   {
@@ -163,6 +163,47 @@ export const TOOLS: readonly RoomTool[] = [
         water: { type: "string", enum: ["off", "on"], description: "For the vacuum: mop off (vacuum only) or on, only when he says." },
       },
       required: ["action"],
+      additionalProperties: false,
+    },
+    effect: "write",
+    confirm: true,
+  },
+  // The lights (#931): SwitchBot and Govee, through api/_haven/lights. Reading is free; a switch or a scene changes
+  // the home, so it waits for Nikita's Yes like the other devices.
+  {
+    name: "lights_list",
+    room: "haven",
+    title: "Read the lights",
+    description: "The home's lights with each one's on or off, the SwitchBot scenes (such as 'Turn off lights'), and the infrared remotes (the projector), by the names the apps give them. Read it before lights_set or lights_scene to get a name right.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
+    effect: "read",
+  },
+  {
+    name: "lights_set",
+    room: "haven",
+    title: "Switch a light",
+    description: "Turn one light, or an infrared remote such as the projector, on or off, by its name from lights_list. For every light at once, run the scene instead (lights_scene). It runs only after Nikita taps Yes.",
+    input: {
+      type: "object",
+      properties: {
+        name: { type: "string", maxLength: 60, description: "The light's or remote's name, as lights_list gives it." },
+        on: { type: "boolean", description: "true for on, false for off." },
+      },
+      required: ["name", "on"],
+      additionalProperties: false,
+    },
+    effect: "write",
+    confirm: true,
+  },
+  {
+    name: "lights_scene",
+    room: "haven",
+    title: "Run a lights scene",
+    description: "Run one of the SwitchBot app's manual scenes by its name from lights_list (e.g. 'Turn off lights'). It runs only after Nikita taps Yes.",
+    input: {
+      type: "object",
+      properties: { name: { type: "string", maxLength: 60, description: "The scene's name, as lights_list gives it." } },
+      required: ["name"],
       additionalProperties: false,
     },
     effect: "write",

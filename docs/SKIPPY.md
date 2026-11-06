@@ -336,6 +336,26 @@ Skippy, who works out from the context whether the ask is about this page, anoth
   call the moment it lands. One waiting line per question, never "thread", "crew" or "Kernel". `read_haven` reads the
   home on the call: the live view inside 1.5 s, else the last good lines kept server-side
   (`haven/devices/home-lines.json`, with their age past two minutes; `api/_haven/devices/homeread.ts`).
+- **Schedules, on every surface (#952).** "When is the next wet food cycle?", "when does the dry feeder feed next?",
+  "what's the vacuum's schedule?" are rules-tier reads (`scheduleAsk`): `home_status` with `about` `wet-feeder`,
+  `dry-feeder`, `feeders` or `vacuum`, the next meal or clean first (`api/_haven/devices/schedule.ts`). The wet plan
+  (wetListV3, read by deviceSn for the Haven's shared account) is parsed in every shape it has come in, falls back on
+  the device list's (or realInfo's) `nextFeedingTime`, and a refused read keeps Petlibro's code in the plan-read
+  diagnostic. The vacuum's schedules are the Roborock app's own (`GET /user/devices/{duid}/jobs`, kept ten minutes).
+  A hand-off about the home from any surface is answered by `deepAnswer`, never by the always-on responder, which has
+  no device reads (it once told the phone "the device readings sit behind your sign-in"). Skippy never asks Nikita to
+  rephrase: he calls the tool.
+- **On a call, one answer per question (#952).** A slow call web search is passed on once (no polling) and a repeat of
+  it is silence (`PASSED_ON`); an answer that lands while one of the call's tools is out is held and put in the moment
+  it comes back, never twice, and only its first sentence or two is said (`apps/desk/src/skippy/landing.ts`); the
+  whole answer stays in the chat. The call's captions scroll with the speech (`apps/desk/src/hologram/captions.ts`),
+  and the rest of the site (the Senate, the rooms' voices, the Lattice's sounds and music) is muted for the call and
+  brought back after (`@ceo/engine/web/siteSound.ts`).
+- **The Senate's floor (#952).** A question about the debate ("what are you guys talking about?") goes to the members
+  like a remark; a deeper answer that fails or comes back empty on the floor goes to them too. A room or floor turn
+  whose model failed is asked once more before "my magnificent mind hiccupped" (`onceMore`, `roomroute.ts`).
+- **Typing never locks (#952).** Skippy's chat box clears on Send and stays open; messages sent while one is out queue
+  and are answered in order, each under its own question (`apps/desk/src/skippy/chat.ts`).
 - **Failures say what failed.** A tool that throws says which one ("… failed just now: its service didn't answer"); a
   device that refuses says why; a room voice error is spoken too.
 - **Tests.** `api/_skippy/brain.test.ts` runs each surface's real ask through its real route with synthetic devices

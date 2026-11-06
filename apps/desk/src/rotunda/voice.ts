@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { duckable } from "@ceo/engine/web/siteSound.ts";
 import { silentWav } from "../roomvoice/roomVoice.ts";
 import { rateOf } from "./senators.ts";
 
@@ -124,8 +125,9 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   let dead = false;
   let held = false;
   const holds = new Set<"view" | "floor">();
-  const main = new Audio();
-  const mur = new Audio();
+  // Muted while Skippy is on a call (#952).
+  const main = duckable(new Audio());
+  const mur = duckable(new Audio());
   main.preload = mur.preload = "auto";
   let end: ((ok: boolean) => void) | null = null;
   let murEnd: (() => void) | null = null;

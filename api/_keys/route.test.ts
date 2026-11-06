@@ -116,6 +116,9 @@ describe("the allowlist (#330)", () => {
       "openai",
       "email-skip-terms",
       "email-priority",
+      "switchbot-token",
+      "switchbot-secret",
+      "govee-api-key",
     ]);
   });
 

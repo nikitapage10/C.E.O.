@@ -39,6 +39,10 @@ export const SETTABLE_KEYS: readonly SettableKey[] = [
   { secret: "openai", setting: "OPENAI_STUDIO_KEY", label: "OpenAI (the Studio)", from: "platform.openai.com, API keys" },
   { secret: "email-skip-terms", setting: "EMAIL_SKIP_TERMS", label: "Email skip terms", from: "your own list, comma-separated" },
   { secret: "email-priority", setting: "EMAIL_PRIORITY", label: "Email priorities", from: "your own priority list, one per line", multiline: true },
+  // The Haven's lights (#931): cloud API keys for lights and switches, asked for by Nikita (#931 thread).
+  { secret: "switchbot-token", setting: "SWITCHBOT_TOKEN", label: "SwitchBot token", from: "SwitchBot app, Profile, Preferences, Developer Options" },
+  { secret: "switchbot-secret", setting: "SWITCHBOT_SECRET", label: "SwitchBot secret", from: "SwitchBot app, Developer Options" },
+  { secret: "govee-api-key", setting: "GOVEE_API_KEY", label: "Govee API key", from: "Govee Home app, Profile, Apply for API Key (emailed)" },
 ];
 
 /**
@@ -57,7 +61,8 @@ export const NEVER_SETTABLE: readonly (string | RegExp)[] = [
   /^site-/,
   /^desk-/,
   /^foundry-/,
-  /token/,
+  // Any other token: SwitchBot's API token (#931) is a third-party key like the rest above, the one exception.
+  /^(?!switchbot-token$).*token/,
   // The home devices' accounts and sealing key (#632): passwords to physical devices stay with the Cloud Shell paste.
   /^home-/,
   /^petlibro-/,

@@ -961,8 +961,11 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   const beamG = keep(new CylinderGeometry(0.12, 0.85, 1, 32, 1, true));
   beamG.translate(0, -0.5, 0);
   const lightPool: Spot[] = [0, 1, 2, 3].map(() => {
+    // Always in the scene, dark when unused (#973): a light that came and went changed how many lights every lit
+    // material is built for, and each change recompiled them all on the spot, a stall as the first member took the
+    // floor (seconds on a slow device, right as the chamber first showed). Four always, built for once, before the
+    // first frame.
     const l = new SpotLight(0xffffff, 0, 12, 0.3, 0.6, 1.3);
-    l.visible = false;
     scene.add(l, l.target);
     const beam = new Mesh(beamG, keep(new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide })));
     beam.visible = false;
@@ -2228,8 +2231,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       }
       L.on = L.pod ? L.on : 0;
       L.l.intensity = L.on * 90;
-      L.l.visible = L.on > 0.005;
-      L.beam.visible = L.l.visible;
+      L.beam.visible = L.on > 0.005;
       if (L.beam.visible && L.pod) {
         // The beam runs from the light to just under the pod, in the light's colour.
         beamDir.set(L.pod.g.position.x, L.pod.g.position.y - 0.4, L.pod.g.position.z).sub(L.l.position);

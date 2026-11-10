@@ -6,8 +6,8 @@ const DAY = { type: "string", enum: ["mon", "tue", "wed", "thu", "fri", "sat", "
  * The Haven's tools for Skippy (#646): the Kitchen list, the meal planner's edits (#678: the same closed set of edits
  * the Kitchen's buttons make, api/_haven/mealShape.ts; Talk to edit drives these), the home's read (#926: the thermostat
  * first, api/_haven/devices/homeread.ts) and the home devices through their own rails (the feed cap, the litter gate,
- * named rooms; api/_haven/devices/home.ts). Typed, a device acts only after Nikita's Yes tap; spoken, when his own words
- * asked for it (api/_skippy/agent/tools.ts). Data only.
+ * named rooms; api/_haven/devices/home.ts) and the lights. Typed, a device or a light acts only after Nikita's Yes tap;
+ * spoken (the phone, a mic, a call), at once when his own words asked for it (api/_skippy/agent/tools.ts, #1011). Data only.
  */
 export const TOOLS: readonly RoomTool[] = [
   {
@@ -169,7 +169,8 @@ export const TOOLS: readonly RoomTool[] = [
     confirm: true,
   },
   // The lights (#931): SwitchBot and Govee, through api/_haven/lights. Reading is free; a switch or a scene changes
-  // the home, so it waits for Nikita's Yes like the other devices.
+  // the home, so typed on the Desk it waits for Nikita's Yes like the other devices, and said out loud it runs on his
+  // own words for it (#1011).
   {
     name: "lights_list",
     room: "haven",
@@ -182,7 +183,7 @@ export const TOOLS: readonly RoomTool[] = [
     name: "lights_set",
     room: "haven",
     title: "Switch a light",
-    description: "Turn one light, or an infrared remote such as the projector, on or off, by its name from lights_list. For every light at once, run the scene instead (lights_scene). It runs only after Nikita taps Yes.",
+    description: "Turn one light, or an infrared remote such as the projector, on or off, by its name from lights_list; the name 'all' switches every light at once ('turn on the lights'). The lights' answer says what actually switched.",
     input: {
       type: "object",
       properties: {
@@ -199,7 +200,7 @@ export const TOOLS: readonly RoomTool[] = [
     name: "lights_scene",
     room: "haven",
     title: "Run a lights scene",
-    description: "Run one of the SwitchBot app's manual scenes by its name from lights_list (e.g. 'Turn off lights'). It runs only after Nikita taps Yes.",
+    description: "Run one of the SwitchBot app's manual scenes by its name from lights_list (e.g. 'Turn off lights').",
     input: {
       type: "object",
       properties: { name: { type: "string", maxLength: 60, description: "The scene's name, as lights_list gives it." } },

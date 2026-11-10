@@ -264,8 +264,9 @@ Kernel (#501), signed-in only:
   devices) never runs from the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the
   chat shows exactly what will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the
   input it was kept with. Spoken (a call, the mic, hold Space, the phone), Skippy has every tool too (#926): a home
-  device runs on Nikita's own words when they ask for that action (`spokenAsked`, `api/_skippy/agent/words.ts`), and
-  every other tapped tool says it waits for his Yes on the Desk. Money, legal, the skip list and privacy hold as typed.
+  device, a light or a lights scene runs at once on Nikita's own words when they ask for that action (`spokenAsked` and
+  `spokenLights`, `api/_skippy/agent/words.ts`; the lights since #1011: "turn on the lights" from the phone switches
+  them, no Yes on the Desk), and every other tapped tool says it waits for his Yes on the Desk. Money, legal, the skip list and privacy hold as typed.
 - **Fetched content never acts.** Once a web search result is in a turn, only reads run for the rest of it.
 - **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
   the Builder, after the tap. Skippy never writes code through the API.
@@ -319,7 +320,7 @@ Skippy, who works out from the context whether the ask is about this page, anoth
   check, pace, month and room log. The separate routers (the Haven's device branch in the room voice and the phone,
   the Senate's word router, the Kernel responder for call asks) are gone.
 - **Tier 0, rules (no model).** The thermostat ("what's the temperature in the apartment?") and a home device asked
-  in plain words ("open the wet-food feeder", "dispense one portion of dry food") run their tool at once
+  in plain words ("open the wet-food feeder", "dispense one portion of dry food", "turn on the lights", #1011) run their tool at once
   (`directAsk`, `api/_skippy/agent/words.ts`), even with the month spent. Typed on the Desk, a device still shows its
   Yes tap. Target: under 2 s on a call, the device's own time included; no model call.
 - **Tier 1, fast (Haiku 5.5).** Everything else: one pass with every room's tools, the page as a hint, and the core

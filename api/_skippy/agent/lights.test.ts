@@ -43,7 +43,7 @@ function host(): ToolHost & { switched: [string, boolean][]; scenes: string[] } 
 }
 
 describe("Skippy's lights tools (#931)", () => {
-  it("reads the lights on every surface, and switches only on the Desk after a Yes", async () => {
+  it("reads the lights on every surface; a switch waits for the Yes typed on the Desk", async () => {
     expect(toolsFor("spoken").map((t) => t.name)).toEqual(expect.arrayContaining(["lights_list", "lights_set", "lights_scene"]));
     expect(toolNamed("lights_set")?.confirm).toBe(true);
     expect(toolNamed("lights_scene")?.confirm).toBe(true);
@@ -51,10 +51,38 @@ describe("Skippy's lights tools (#931)", () => {
     const list = await callTool("lights_list", {}, h, { pending: null, surface: "spoken" });
     expect(list).toMatchObject({ ok: true, text: expect.stringMatching(/Study \(SwitchBot Bot\) on; Porch \(SwitchBot Bot\) off.*All off.*Beamer \(Projector\)/) });
     expect(list.ok && "text" in list ? list.text : "").not.toMatch(/aaaa|cccc/);
-    // Said out loud, even in Nikita's own words, a switch waits for his Yes on the Desk.
-    expect(await callTool("lights_set", { name: "Study", on: false }, h, { pending: new MemoryPending(), surface: "spoken", said: "turn the study light off", via: "phone" })).toMatchObject({ ok: false, text: expect.stringMatching(/Yes tap/) });
-    expect(await callTool("lights_scene", { name: "All off" }, h, { pending: new MemoryPending(), surface: "spoken", said: "all off" })).toMatchObject({ ok: false });
+    expect(await callTool("lights_set", { name: "Study", on: false }, h, { pending: new MemoryPending(), surface: "desk" })).toMatchObject({ ok: true, confirm: { summary: "Turn Study off" } });
     expect(h.switched).toEqual([]);
+  });
+
+  it("said out loud (the phone, a mic, a call), a switch or a scene runs at once on Nikita's own words for it (#1011)", async () => {
+    const h = host();
+    const spoken = (said: string) => ({ pending: new MemoryPending(), surface: "spoken" as const, said, via: "phone" as const });
+    expect(await callTool("lights_set", { name: "Study", on: false }, h, spoken("turn the study light off"))).toMatchObject({ ok: true, text: "Done.", did: "Study off" });
+    expect(h.switched).toEqual([["aaaaaaaaaaaa", false]]);
+    // "The lights": every light that answers, and the answer says they are on only once each switch took.
+    expect(await callTool("lights_set", { name: "all", on: true }, h, spoken("turn on the lights"))).toMatchObject({ ok: true, text: "The lights are on.", did: "Lights on" });
+    expect(h.switched.slice(1)).toEqual([["aaaaaaaaaaaa", true], ["bbbbbbbbbbbb", true]]);
+    expect(await callTool("lights_scene", { name: "All off" }, h, spoken("all off"))).toMatchObject({ ok: true, text: "Done." });
+    expect(await callTool("lights_scene", { name: "All off" }, h, spoken("turn everything off"))).toMatchObject({ ok: true });
+    expect(h.scenes).toEqual(["cccccccccccc", "cccccccccccc"]);
+    const before = h.switched.length;
+    // A question, the other direction, or words that never asked for the lights run nothing.
+    expect(await callTool("lights_set", { name: "all", on: true }, h, spoken("are the lights on?"))).toMatchObject({ ok: false, text: expect.stringMatching(/^Nothing ran/) });
+    expect(await callTool("lights_set", { name: "all", on: true }, h, spoken("turn off the lights"))).toMatchObject({ ok: false });
+    expect(await callTool("lights_set", { name: "Porch", on: true }, h, spoken("what's for dinner"))).toMatchObject({ ok: false });
+    expect(await callTool("lights_set", { name: "Porch", on: true }, h, { pending: null, surface: "spoken" })).toMatchObject({ ok: false });
+    expect(await callTool("lights_scene", { name: "All off" }, h, spoken("how are you"))).toMatchObject({ ok: false });
+    expect(h.switched.length).toBe(before);
+    expect(h.scenes.length).toBe(2);
+  });
+
+  it("says what failed when a light doesn't take the switch, never that it's done (#1011)", async () => {
+    const h = host();
+    const down = { ...h, lights: { ...h.lights!, set: async (id: string) => (id === "bbbbbbbbbbbb" ? { ok: false as const, code: "vendor" as const, say: "SwitchBot didn't take that just now. Try again in a moment." } : { ok: true as const, say: "Done." }) } };
+    const spoken = { pending: null, surface: "spoken" as const, said: "lights on" };
+    expect(await callTool("lights_set", { name: "all", on: true }, down, spoken)).toMatchObject({ ok: true, text: "Lights on: Study; Porch didn't take it.", warned: true });
+    expect(await callTool("lights_set", { name: "Porch", on: true }, down, { ...spoken, said: "turn the porch light on" })).toMatchObject({ ok: false, text: expect.stringMatching(/didn't take that/) });
   });
 
   it("asks before switching a light or the projector, then does exactly that", async () => {
@@ -78,7 +106,7 @@ describe("Skippy's lights tools (#931)", () => {
     await confirmTool(got.ok && "confirm" in got ? got.confirm.id : "", true, h, pending);
     expect(h.scenes).toEqual(["cccccccccccc"]);
     expect(await callTool("lights_set", { name: "All off", on: false }, h, { pending, surface: "desk" })).toMatchObject({ ok: false });
-    expect(await callTool("lights_set", { name: "Garage", on: true }, h, { pending, surface: "desk" })).toMatchObject({ ok: false, text: expect.stringMatching(/lights_list/) });
+    expect(await callTool("lights_set", { name: "Garage", on: true }, h, { pending, surface: "desk" })).toMatchObject({ ok: false, text: "I don't know a light called Garage. The lights are: Study, Porch, Beamer." });
     expect(await callTool("lights_scene", { name: "Study" }, h, { pending, surface: "desk" })).toMatchObject({ ok: false });
   });
 

@@ -162,3 +162,72 @@ export function jobsGrowth(view: JobsView | null): { parts: { colour: string; n:
   const shown = parts.reduce((n, p) => n + p.n, 0);
   return { parts, share: view.budget ? Math.min(1, view.used / view.budget) : 0, note: shown ? `${count("new")} new · ${count("applied")} applied` : "no jobs yet" };
 }
+
+const wordIn = (text: string, w: string) => {
+  const t = w.trim().toLowerCase();
+  return !!t && new RegExp(`(^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9])`).test(text.toLowerCase());
+};
+
+export type CareerVerdict = "up" | "level" | "back";
+
+export interface CareerMove {
+  /** 0–100: how far the job would push the career forward. */
+  value: number;
+  verdict: CareerVerdict;
+  /** "Step up", "Sideways", "Step back". */
+  word: string;
+  /** The company's standing, in a word or two, and its 0–100 part. */
+  standing: { word: string; n: number };
+  /** The role's level against your years, and its 0–100 part. */
+  level: { word: string; n: number };
+  /** Pay against your floor, and its 0–100 part; null when the listing names no pay. */
+  pay: { word: string; n: number } | null;
+}
+
+const LEAD_TITLE = /\b(director|head of|vp|vice president|principal|staff|chief|group (product|program) manager|senior manager)\b/i;
+const LOW_TITLE = /\b(associate|junior|jr|entry|intern|coordinator|assistant|analyst ii?|specialist i{1,2})\b/i;
+
+/**
+ * Whether a job moves the career forward (Nikita, 2026-11-10): the company's standing from your own lists (big
+ * companies are industry leaders, rising ones are startups on the up, the rest unknown), the role's level from the
+ * years it asks and its title against your years, and its pay against your floor. Plain rules, no model.
+ */
+export function careerMove(job: Job, profile: JobsProfile): CareerMove {
+  const on = (list: string[]) => list.some((w) => wordIn(job.company, w));
+  const big = on(profile.big);
+  const fav = on(profile.companies);
+  const rising = on(profile.rising);
+  const standing = big
+    ? { word: "Industry leader", n: fav ? 100 : 90 }
+    : rising
+      ? { word: "Rising startup", n: fav ? 78 : 70 }
+      : fav
+        ? { word: "On your list", n: 75 }
+        : { word: "Lesser known", n: 35 };
+
+  const yrs = profile.years ?? 10;
+  let lvl = 60;
+  if (job.yearsAsked != null) lvl = job.yearsAsked >= yrs ? 90 : job.yearsAsked >= yrs - 3 ? 70 : job.yearsAsked >= yrs - 5 ? 45 : 25;
+  if (LEAD_TITLE.test(job.title)) lvl = Math.max(lvl, 80) + 10;
+  else if (LOW_TITLE.test(job.title)) lvl -= 25;
+  else if (/\bsenior|sr\.?\b/i.test(job.title)) lvl += 5;
+  lvl = Math.max(0, Math.min(100, lvl));
+  const level = { word: lvl >= 80 ? "Senior / lead role" : lvl >= 55 ? "At your level" : "Junior to you", n: lvl };
+
+  const top = job.payMax ?? job.payMin;
+  const floor = profile.minSalary ?? 180_000;
+  const pay =
+    top == null
+      ? null
+      : top >= floor * 1.15
+        ? { word: "Pays well above floor", n: 95 }
+        : top >= floor
+          ? { word: "Pays at your floor", n: 70 }
+          : top >= floor * 0.8
+            ? { word: "Pays a little under", n: 40 }
+            : { word: "Pays well under", n: 10 };
+
+  const value = Math.round(pay ? standing.n * 0.5 + level.n * 0.3 + pay.n * 0.2 : standing.n * 0.6 + level.n * 0.4);
+  const verdict: CareerVerdict = value >= 70 ? "up" : value >= 48 ? "level" : "back";
+  return { value, verdict, word: verdict === "up" ? "Step up" : verdict === "level" ? "Sideways" : "Step back", standing, level, pay };
+}

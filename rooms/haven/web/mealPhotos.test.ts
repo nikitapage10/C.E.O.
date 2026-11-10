@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { fakeMeals } from "../../../api/_haven/meals.fixture.ts";
 import { applyEdit } from "../../../api/_haven/mealShape.ts";
-import { confirmPhotos, photoStates, shootOf } from "./mealPhotos.ts";
+import { confirmPhotos, photoStates, shootOf, stepShotsOf } from "./mealPhotos.ts";
+import { cookOf } from "./cook.ts";
 
 /** The planner's side of the photo library (#678, #687): what a customized night is sent as, and the answers read as untrusted. */
 
@@ -39,5 +40,18 @@ describe("the meal photos", () => {
       }),
     );
     expect([...states!]).toEqual([["beef-bowl-0123abcd", "ready"]]);
+  });
+});
+
+describe("cook mode's step pictures (#1010)", () => {
+  it("asks for one per step, as cooked, with what it uses, and none for a part left out", () => {
+    const got = applyEdit(fakeMeals(), { op: "customize", day: "wed", part: { index: 1, option: "no-carb" } }, Date.now());
+    if (!got.ok) throw new Error(got.error);
+    const shots = stepShotsOf(cookOf(got.file, got.file.week!.slots[2]!)!);
+    expect(shots.map((s) => s.step)).toEqual([0, 1, 4]);
+    expect(shots[1]).toEqual({
+      step: 1,
+      shot: { meal: "sausage-pasta", name: "sausage pasta", description: "Brown the Italian sausage in a wide pan over medium-high heat, breaking it up, about 6 minutes.", components: ["Italian sausage"], style: "step" },
+    });
   });
 });

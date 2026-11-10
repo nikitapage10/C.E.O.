@@ -1527,6 +1527,11 @@
   flex: 1;
   min-width: 160px;
 }
+[data-room="haven"] .mp-cookActs {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 [data-room="haven"] .mp-cookTxt small {
   display: block;
   font-size: 12px;
@@ -1559,6 +1564,41 @@
   }
   [data-room="haven"] .mp-steps b {
     font-size: 13px;
+  }
+  /* A phone (#1010): no tiny links to aim at, Recipe and Cook mode side by side at a thumb's size, and room under
+     the list for Ask Skippy and the mic floating over its end. */
+  [data-room="haven"] .mp-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: 14px;
+  }
+  [data-room="haven"] .mp-cookList {
+    padding-bottom: 96px;
+  }
+  [data-room="haven"] .mp-cookRow {
+    padding: 10px;
+  }
+  [data-room="haven"] .mp-cookActs {
+    display: grid;
+    flex-basis: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    gap: 8px;
+  }
+  [data-room="haven"] .mp-cookActs > button {
+    justify-content: center;
+    min-height: 48px;
+    margin: 0;
+  }
+  [data-room="haven"] .mp-cookActs .mp-link {
+    justify-self: stretch;
+    border: 1px solid var(--hv-line);
+    border-radius: 999px;
+    text-decoration: none;
+  }
+  [data-room="haven"] .mp-cookRow .mp-recipe {
+    padding: 4px 4px 2px;
+    font-size: 15px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

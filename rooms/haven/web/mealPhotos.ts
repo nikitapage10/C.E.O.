@@ -5,8 +5,9 @@
  * `photoUrl` (the passkey session's GET); a missing one falls back to the placeholder.
  */
 
-import { PHOTO_STATES, photoUrl, type MealToShoot, type PhotoBudget, type PhotoState, type PhotoTicket } from "../../../api/_haven/photoShape.ts";
+import { CONFIRM_MAX, PHOTO_STATES, photoUrl, type MealToShoot, type PhotoBudget, type PhotoState, type PhotoTicket } from "../../../api/_haven/photoShape.ts";
 import { DAYS, slotDish, type Day, type MealsFile } from "../../../api/_haven/mealShape.ts";
+import type { Cook } from "./cook.ts";
 
 export { photoUrl };
 export type { PhotoState };
@@ -84,3 +85,25 @@ export async function photoStates(ids: string[], f: typeof fetch = fetch): Promi
 
 /** What a night's photo says while it isn't there yet. */
 export const PHOTO_WORD: Record<PhotoState, string | null> = { queued: "photo queued", making: "making the photo", ready: null, failed: "photo failed", budget: "photo cap reached" };
+
+/**
+ * Cook mode's step pictures (#1010): one per step, asked for the first time the recipe is opened in cook mode (the
+ * library keeps them, so a second opening only reads their states). A step for a part left out tonight gets none.
+ * Each is the step's words as cooked and the ingredients it uses, in the style `step` (small, low quality).
+ */
+export function stepShotsOf(cook: Pick<Cook, "meal" | "name" | "steps" | "lines">): Array<{ step: number; shot: MealToShoot }> {
+  return cook.steps
+    .map((s, step) => ({ s, step }))
+    .filter(({ s }) => !s.skip && s.runs.length)
+    .slice(0, CONFIRM_MAX)
+    .map(({ s, step }) => ({
+      step,
+      shot: {
+        meal: cook.meal,
+        name: cook.name.slice(0, 80),
+        description: s.runs.map((r) => r.text).join("").slice(0, 300),
+        components: s.uses.map((k) => cook.lines[k]?.item ?? "").filter(Boolean).slice(0, 8),
+        style: "step",
+      },
+    }));
+}

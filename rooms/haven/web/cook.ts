@@ -3,7 +3,8 @@
  * (CookMode.tsx). Everything comes from the planner's own helpers (`slotDish`, which is `dishOf` with the night's
  * `custom`, and `portionsOf`), so the swapped parts, the portion and the heat match the drawer exactly. A step that
  * names a part that was swapped names the new one, marked; a step for a part left out (No carb, No side) says so.
- * Nothing new is read or stored.
+ * Each step also lists the ingredients it uses (#1010, `usesOf`): the recipes carry no per-step amounts, so they're
+ * found by name in the step's words. Nothing new is read or stored.
  */
 
 import { cooksDinner, DAY_NAME, DAYS, lunchDish, lunchSkipped, portionsOf, shopLine, slotDish, type Component, type Day, type Dish, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
@@ -18,6 +19,8 @@ export interface CookStep {
   runs: Run[];
   /** "No rigatoni tonight": the step is for a part that's left out. */
   skip: string | null;
+  /** The ingredients this step uses (#1010), as indices into `Cook.lines`, in the order the step names them. */
+  uses: number[];
 }
 
 export interface CookPart {
@@ -34,6 +37,8 @@ export interface CookLine {
 }
 
 export interface Cook {
+  /** The planner's meal id (the step pictures' library key, #1010). */
+  meal: string;
   day: Day;
   /** Tonight's dinner, or the day's quick lunch (#719). */
   course: "dinner" | "lunch";
@@ -103,7 +108,75 @@ export function stepOf(text: string, swaps: Swap[]): CookStep {
     }
     runs = next;
   }
-  return { runs: runs.filter((r) => r.text.length > 0), skip };
+  return { runs: runs.filter((r) => r.text.length > 0), skip, uses: [] };
+}
+
+/* ── Which ingredients a step uses (#1010) ── */
+
+/** Words that say what kind, not what: never enough on their own to tie a step to an ingredient. */
+const DESCRIPTIVE = new Set(
+  "fresh ground raw large small medium italian greek boneless skinless black white red green yellow extra virgin dried dry chopped minced sliced diced whole baby plain light dark sweet hot mild lean frozen canned kosher sea unsalted salted low fat free sodium shredded grated crushed cooked uncooked thin thick cut boxed jarred block bunch each piece pieces head clove cloves".split(" "),
+);
+
+/** One ingredient line as a step might name it: its full names (the item, the part it belongs to) and its telling words. */
+export interface LineNames {
+  /** Whole names, matched as a phrase: "italian sausage", "protein pasta". */
+  names: string[];
+  /** Single words a step may use alone ("sausage", "chicken"), counted only when no other line shares them. */
+  words: string[];
+}
+
+/** "Ground beef 85/15" → "ground beef"; "Lobster tail, 5 oz" → "lobster tail". */
+const bare = (s: string) =>
+  s
+    .split(",")[0]!
+    .toLowerCase()
+    .replace(/[^\p{L}\s'-]+/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w && !/\d/.test(w))
+    .join(" ")
+    .trim();
+
+/** The names a line can go by: the item, and the part it belongs to (its component's name). */
+export function lineNames(item: string, part?: string): LineNames {
+  const names = [...new Set([bare(item), part ? bare(part) : ""].filter((x) => x.length >= 3))];
+  const words = [...new Set(names.flatMap((n) => n.split(" ")).filter((w) => w.length >= 3 && !DESCRIPTIVE.has(w)))];
+  return { names, words };
+}
+
+/** A name as a pattern: whole words, an optional plural on the last ("tortilla" finds "tortillas", "peach" "peaches"). */
+function patternOf(name: string): RegExp {
+  const stem = name.replace(/(?:es|s)$/, (m) => (name.length - m.length >= 3 ? "" : m));
+  return new RegExp(`(?<![\\p{L}])${esc(stem).replace(/ /g, "[\\s-]+")}(?:s|es)?(?![\\p{L}])`, "giu");
+}
+
+/**
+ * The lines a step uses: first every line whose whole name the step says ("the Italian sausage"), then any single
+ * telling word only one line has ("sear the chicken" → the chicken breast). A word inside a name already found counts
+ * for nothing more, and a word two lines share ("pepper") ties the step to neither. In the order the step says them.
+ */
+export function usesOf(text: string, lines: LineNames[]): number[] {
+  const found = new Map<number, number>();
+  let rest = text;
+  const blank = (m: RegExpExecArray) => (rest = rest.slice(0, m.index) + " ".repeat(m[0].length) + rest.slice(m.index + m[0].length));
+  // Longest names first, so "protein pasta" wins over a shorter name inside it.
+  const whole = lines.flatMap((l, k) => l.names.map((n) => ({ k, n }))).sort((a, b) => b.n.length - a.n.length);
+  for (const { k, n } of whole) {
+    const re = patternOf(n);
+    for (let m = re.exec(rest); m; m = re.exec(rest)) {
+      if (!found.has(k) || m.index < found.get(k)!) found.set(k, m.index);
+      blank(m);
+      re.lastIndex = 0;
+    }
+  }
+  const owners = new Map<string, number[]>();
+  lines.forEach((l, k) => l.words.forEach((w) => owners.set(w, [...(owners.get(w) ?? []), k])));
+  for (const [w, ks] of owners) {
+    if (ks.length !== 1 || found.has(ks[0]!)) continue;
+    const m = patternOf(w).exec(rest);
+    if (m) found.set(ks[0]!, m.index);
+  }
+  return [...found.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k);
 }
 
 /** "Rigatoni (8 oz)" → { item: "Rigatoni", amount: "8 oz" }, with the planner's own rounding (`shopLine`). */
@@ -145,8 +218,15 @@ function cookDish(d: Dish, day: Day, course: Cook["course"], portions: number, w
       was: p.base.name.toLowerCase(),
     });
   }
-  const steps = d.meal.steps.map((t) => stepOf(t, swaps));
+  // Each line with the part it belongs to, so "the rigatoni" finds the pasta and "the protein" finds nothing new.
+  const partOf = (x: Ingredient) => d.parts.find((p) => p.now?.ingredients.includes(x))?.now?.name;
+  const names = d.ingredients.map((x) => lineNames(x.item, partOf(x)));
+  const steps = d.meal.steps.map((t) => {
+    const s = stepOf(t, swaps);
+    return { ...s, uses: usesOf(s.runs.map((r) => r.text).join(""), names) };
+  });
   return {
+    meal: d.meal.id,
     day,
     course,
     dayName: DAY_NAME[day],

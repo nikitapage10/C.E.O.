@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fakeMeals } from "../../../api/_haven/meals.fixture.ts";
 import { applyEdit, type MealEdit, type MealsFile } from "./meals.ts";
-import { cookLunchOf, cookOf } from "./cook.ts";
+import { cookLunchOf, cookOf, lineNames, usesOf } from "./cook.ts";
 
 const edited = (f: MealsFile, ...edits: MealEdit[]) => edits.reduce((x, e) => {
   const got = applyEdit(x, e, 0);
@@ -18,6 +18,7 @@ describe("cook mode (#705)", () => {
     expect(c.dayName).toBe("Wednesday");
     expect(c.steps).toHaveLength(5);
     expect(c.steps.every((s) => s.skip === null && s.runs.every((r) => !r.swap))).toBe(true);
+    expect(c.meal).toBe("sausage-pasta");
     // Wednesday's dinner makes Thursday's lunch too.
     expect(c.portions).toBe(2);
     expect(c.why).toEqual(["makes Thursday's lunch"]);
@@ -64,5 +65,43 @@ describe("cook mode (#705)", () => {
     expect(c.lines).toContainEqual({ item: "Chicken breast", amount: "¾ lb", pantry: false });
     expect(cookLunchOf(f, f.week!.slots[1]!)).toBeNull();
     expect(cookOf(f, f.week!.slots[0]!)!.course).toBe("dinner");
+  });
+
+  it("ties each step to the ingredients it names, with their amounts (#1010)", () => {
+    const c = wed(fakeMeals());
+    const used = (i: number) => c.steps[i]!.uses.map((k) => `${c.lines[k]!.item} ${c.lines[k]!.amount}`);
+    expect(used(0)).toEqual([]);
+    expect(used(1)).toEqual(["Italian sausage 1 lb"]);
+    expect(used(2)).toEqual(["Rigatoni 8 oz"]);
+    expect(used(3)).toEqual(["Rigatoni 8 oz"]);
+    expect(used(4)).toEqual(["Greek yogurt ½ cup"]);
+  });
+
+  it("follows a swap: the step that now names the new part uses its amount (#1010)", () => {
+    const f = edited(fakeMeals(), { op: "customize", day: "wed", part: { index: 1, option: "protein-pasta" } });
+    const c = wed(f);
+    expect(c.steps[2]!.uses.map((k) => c.lines[k]!.item)).toEqual(["Protein pasta"]);
+  });
+});
+
+describe("which ingredients a step uses (#1010)", () => {
+  const lines = [lineNames("Chicken breast", "Chicken breast"), lineNames("Ground beef 85/15", "Ground beef"), lineNames("Corn tortillas"), lineNames("Black pepper"), lineNames("Red pepper flakes"), lineNames("Garlic"), lineNames("Lobster tail, 5 oz", "Lobster tail")];
+
+  it("finds whole names, plurals and telling words alone, in the order the step says them", () => {
+    expect(usesOf("Warm the tortilla, then sear the chicken.", lines)).toEqual([2, 0]);
+    expect(usesOf("Brown the ground beef with the garlic.", lines)).toEqual([1, 5]);
+    expect(usesOf("Broil the lobster tails.", lines)).toEqual([6]);
+    expect(usesOf("Season the beef.", lines)).toEqual([1]);
+  });
+
+  it("ties a word two lines share to neither, but a whole name still to its own", () => {
+    expect(usesOf("Season with pepper.", lines)).toEqual([]);
+    expect(usesOf("Finish with black pepper.", lines)).toEqual([3]);
+  });
+
+  it("never matches inside another word or on what kind it is alone", () => {
+    expect(usesOf("Bring well-salted water to a boil.", [lineNames("Salt")])).toEqual([]);
+    expect(usesOf("Add the ground spices.", lines)).toEqual([]);
+    expect(usesOf("Toss with garlicky oil.", lines)).toEqual([]);
   });
 });

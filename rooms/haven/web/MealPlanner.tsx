@@ -462,16 +462,19 @@ function CookList({ f }: { f: MealsFile }) {
             <span className="mp-cookTxt">
               <small>
                 {DAY_NAME[s.day]} · {lunch ? "lunch" : "dinner"} · {d.meal.minutes} min
+                {d.meal.steps.length ? ` · ${d.meal.steps.length} step${d.meal.steps.length === 1 ? "" : "s"}` : ""}
               </small>
               <b>{d.meal.name}</b>
               {d.customized ? <small>{d.changes.join(" · ")}</small> : null}
             </span>
-            <button type="button" className="mp-link" aria-expanded={open === key} onClick={() => setOpen((v) => (v === key ? null : key))}>
-              {open === key ? "Hide" : "Recipe"}
-            </button>
-            <button type="button" className="mp-cook is-small" onClick={() => setCooking(lunch ? cookLunchOf(f, s) : cookOf(f, s))}>
-              Cook mode
-            </button>
+            <span className="mp-cookActs">
+              <button type="button" className="mp-link" aria-expanded={open === key} onClick={() => setOpen((v) => (v === key ? null : key))}>
+                {open === key ? "Hide" : "Recipe"}
+              </button>
+              <button type="button" className="mp-cook is-small" onClick={() => setCooking(lunch ? cookLunchOf(f, s) : cookOf(f, s))}>
+                Cook mode
+              </button>
+            </span>
             {open === key ? <Recipe steps={d.meal.steps} d={d} /> : null}
           </li>
         ))}

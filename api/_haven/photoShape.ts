@@ -14,9 +14,11 @@
 /** A meal id, a component id or a photo id: the planner's own shape (api/_haven/mealShape.ts, `ID`). */
 export const PHOTO_ID = /^[a-z0-9][a-z0-9-]{1,47}$/;
 
-export const PHOTO_STYLES = ["plate", "prep", "workout"] as const;
+export const PHOTO_STYLES = ["plate", "prep", "workout", "step"] as const;
 /** `plate`: plated on off-white ceramic in daylight. `prep`: portioned into meal-prep containers. `workout`: the
- * Gym's exercise art (#718), one picture per exercise of the plan, made through the same library and cap. */
+ * Gym's exercise art (#718), one picture per exercise of the plan, made through the same library and cap. `step`: one
+ * cook-mode step in progress (#1010), the step's words in `description` and what it uses in `components`; made small
+ * and at low quality (photoGen.ts, `STEP_PLAN`), asked for the first time a recipe is opened in cook mode. */
 export type PhotoStyle = (typeof PHOTO_STYLES)[number];
 
 export const PHOTO_SOURCES = ["openai", "upload", "seed"] as const;
@@ -144,10 +146,14 @@ export function readMealsToShoot(v: unknown): MealToShoot[] | null {
   return out;
 }
 
-/** What the key is made of: the meal, its components as a set (case and order don't matter) and the style. */
-export function keySource(m: Pick<MealToShoot, "meal" | "components" | "style">): string {
+/**
+ * What the key is made of: the meal, its components as a set (case and order don't matter) and the style. A step's
+ * picture (#1010) adds the step's words, so each step of a meal is its own picture and a step that names a swapped
+ * part gets a new one; the other styles' keys are unchanged.
+ */
+export function keySource(m: Pick<MealToShoot, "meal" | "components" | "style"> & { description?: string }): string {
   const parts = [...new Set(m.components.map((c) => c.toLowerCase()))].sort();
-  return JSON.stringify([m.meal, parts, m.style]);
+  return JSON.stringify(m.style === "step" ? [m.meal, parts, m.style, (m.description ?? "").toLowerCase()] : [m.meal, parts, m.style]);
 }
 
 /** A photo's id from its meal and key: `<meal>-<8 hex>`, inside the planner's id shape (48 characters at most). */
@@ -173,8 +179,17 @@ export const STYLE_WORKOUT =
   "Cinematic editorial fitness illustration, painterly digital art. One athletic adult performing the exercise named below with correct form, full body in frame, three-quarter view, in a dark modern home gym at night: black rubber floor tiles, a black steel power rack and dumbbells softly out of focus behind, warm amber key light from one side and a cool blue rim light, a little haze, high contrast, calm and focused mood, vertical composition.";
 const WORKOUT_TAIL = "No text, no labels, no logos, no brand names, no mirrors facing the viewer; the face turned away or in shadow, nobody recognisable.";
 
+/** A cook-mode step (#1010): the same food-blog daylight as the plates, the step caught in the middle of being done. */
+export const STYLE_STEP =
+  "Photorealistic professional food blog process photograph of one cooking step in progress, 45-degree or top-down angle, on a light grey stone countertop or a pale wood cutting board, matte off-white ceramic bowls and plates, a simple stainless pan or pot where the step needs one, a linen napkin with a thin grey check at the edge, bright soft natural window daylight, crisp detail, shallow depth of field, clean and calm.";
+const STEP_TAIL = "Show only what this step does, nothing from later steps. No text, no labels, no logos, no people, no hands.";
+
 /** The image prompt for one meal as built. */
 export function promptFor(m: MealToShoot): string {
+  if (m.style === "step") {
+    const uses = m.components.length ? ` Using: ${m.components.join(", ")}.` : "";
+    return `${STYLE_STEP} Dish: ${m.name}. Step: ${m.description.replace(/\.$/, "")}.${uses} ${STEP_TAIL}`;
+  }
   if (m.style === "workout") return `${STYLE_WORKOUT} Exercise: ${[m.name, m.description].filter(Boolean).join(": ").replace(/\.$/, "")}. ${WORKOUT_TAIL}`;
   const style = m.style === "prep" ? STYLE_PREP : STYLE_PLATE;
   const dish = [m.name, m.description].filter(Boolean).join(": ").replace(/\.$/, "");

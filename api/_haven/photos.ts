@@ -48,7 +48,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { waitUntil } from "../_waitUntil.js";
 import { readJson, updateJson } from "./json.js";
-import { generateImage, ImageLedger, type GenDeps } from "./photoGen.js";
+import { generateImage, ImageLedger, STEP_PLAN, type GenDeps } from "./photoGen.js";
 import { kindOf, smallJpeg } from "./photoImage.js";
 import {
   CATALOG_MAX,
@@ -88,7 +88,7 @@ export const LEASE_MS = 6 * 60_000;
 export const RUN_MS = 7 * 60_000;
 
 /** The photo's key: 16 hex of the SHA-256 of its meal, components and style. */
-export const keyOf = (m: Pick<MealToShoot, "meal" | "components" | "style">) => createHash("sha256").update(keySource(m)).digest("hex").slice(0, 16);
+export const keyOf = (m: Pick<MealToShoot, "meal" | "components" | "style"> & { description?: string }) => createHash("sha256").update(keySource(m)).digest("hex").slice(0, 16);
 
 const iso = (ms: number) => new Date(ms).toISOString();
 const ticketOf = (p: PhotoEntry): PhotoTicket => ({ meal: p.meal, key: p.key, id: p.id, status: p.status });
@@ -295,7 +295,8 @@ export async function runQueue(deps: RunDeps): Promise<{ made: number; failed: n
     while (deps.now() - started < RUN_MS) {
       const next = await deps.library.claim(by, deps.now());
       if (!next) break;
-      const got = await generateImage(next.prompt, deps.gen);
+      // A cook step's picture (#1010) is small and low quality; every other style is the demo's.
+      const got = await generateImage(next.prompt, deps.gen, next.style === "step" ? STEP_PLAN : undefined);
       if (got.ok) {
         try {
           const where = await deps.library.store(next.id, got.bytes);

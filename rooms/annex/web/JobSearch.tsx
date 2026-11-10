@@ -377,6 +377,8 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
   const [avoid, setAvoid] = useState(joinWords(profile.avoid));
   const [companies, setCompanies] = useState(joinWords(profile.companies));
   const [near, setNear] = useState(joinWords(profile.near));
+  const [big, setBig] = useState(joinWords(profile.big));
+  const [rising, setRising] = useState(joinWords(profile.rising));
   const [daily, setDaily] = useState(profile.daily);
   const [years, setYears] = useState(profile.years ? String(profile.years) : "");
   const [applied, setApplied] = useState(profile.applied.map((a) => `${a.company}: ${a.title}`).join("\n"));
@@ -390,6 +392,8 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
       avoid: splitWords(avoid),
       companies: splitWords(companies),
       near: splitWords(near),
+      big: splitWords(big),
+      rising: splitWords(rising),
       daily,
       years: Number(years) || null,
       applied: applied.split("\n").flatMap((l) => {
@@ -470,6 +474,14 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
         <label className="jb-field jb-wide">
           <span>Companies you'd most like</span>
           <textarea className="jb-in" rows={2} value={companies} onChange={(e) => setCompanies(e.target.value)} placeholder="Comma-separated; their jobs rise to the top" />
+        </label>
+        <label className="jb-field">
+          <span>Big companies</span>
+          <textarea className="jb-in" rows={3} value={big} onChange={(e) => setBig(e.target.value)} placeholder="Comma-separated; rank first after your own list" />
+        </label>
+        <label className="jb-field">
+          <span>Rising companies</span>
+          <textarea className="jb-in" rows={3} value={rising} onChange={(e) => setRising(e.target.value)} placeholder="Comma-separated startups on the up; rank next" />
         </label>
         <label className="jb-field jb-wide">
           <span>Close to home</span>

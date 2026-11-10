@@ -197,6 +197,15 @@ describe("the Job search (#1000)", () => {
     expect(denver.score).toBeGreaterThan(remote.score);
   });
 
+  it("ranks big companies, then rising ones, then the rest", () => {
+    const p = cleanProfile({ big: ["Microsoft", "Example Labs"], rising: ["Northwind"] });
+    const of = (company: string) => scoreJob(normaliseJob(serpJob("c", "Program Manager", { company_name: company }), "q", "t")!, p, new Set());
+    expect(of("Example Labs").why).toContain("big company");
+    expect(of("Northwind").why).toContain("rising company");
+    expect(of("Example Labs").score).toBeGreaterThan(of("Northwind").score);
+    expect(of("Northwind").score).toBeGreaterThan(of("Tailspin").score);
+  });
+
   it("names the next daily run", () => {
     const s = { ...new MemoryJobsStore().state, profile: cleanProfile({ searches: [{ q: "a" }] }) };
     expect(nextRunAt(s, NOW)).toBe("2026-11-11T13:00:00.000Z");

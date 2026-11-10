@@ -74,6 +74,9 @@ export interface JobsProfile {
   applied: { company: string; title: string }[];
   /** Places close to home (whole words in a job's location): those jobs, and hybrid ones, rank above remote ones. */
   near: string[];
+  /** Company tiers (whole words in the company's name): big companies rank first, then rising ones, then the rest. */
+  big: string[];
+  rising: string[];
 }
 
 export interface Job {
@@ -143,7 +146,7 @@ export interface JobsView extends JobsState {
   nextRun: string | null;
 }
 
-export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [], near: [] });
+export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [], near: [], big: [], rising: [] });
 export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null });
 
 /* ── Reading things defensively ── */
@@ -162,7 +165,7 @@ const names = (v: unknown): string[] => {
   return list
     .map((w) => str(w, 60))
     .filter((w) => w && !seen.has(w.toLowerCase()) && seen.add(w.toLowerCase()))
-    .slice(0, 40);
+    .slice(0, 400);
 };
 /** A logo SerpApi sends: an https URL, or an inline raster image (never SVG, which can carry script) under 40 KB. */
 export function logoOf(v: unknown): string | null {
@@ -244,7 +247,7 @@ export function cleanProfile(raw: unknown): JobsProfile {
     .filter((s) => s.q)
     .slice(0, MAX_SEARCHES);
   const n = typeof r.minSalary === "number" ? r.minSalary : typeof r.minSalary === "string" ? Number(r.minSalary.replace(/[^\d.]/g, "")) : NaN;
-  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: names(r.companies), daily: r.daily !== false, years: yearsOf(r.years), applied: appliedOf(r.applied), near: words(r.near) };
+  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: names(r.companies).slice(0, 40), daily: r.daily !== false, years: yearsOf(r.years), applied: appliedOf(r.applied), near: words(r.near), big: names(r.big).slice(0, 400), rising: names(r.rising).slice(0, 400) };
 }
 
 const isState = (v: unknown): v is JobState => (JOB_STATES as readonly unknown[]).includes(v);
@@ -378,6 +381,9 @@ export function scoreJob(job: Job, profile: JobsProfile, resume: Set<string>): J
   }
   const fav = profile.companies.find((w) => hasWord(job.company, w));
   if (fav) lift(18, "on your company list");
+  // Then the company's tier (Nikita, 2026-11-10): big companies first, then startups on the rise, then everyone else.
+  else if (profile.big.some((w) => hasWord(job.company, w))) lift(12, "big company");
+  else if (profile.rising.some((w) => hasWord(job.company, w))) lift(7, "rising company");
   const pref = profile.prefer.filter((w) => hasWord(hay, w));
   if (pref.length) lift(Math.min(24, pref.length * 8), `mentions ${pref.slice(0, 3).join(", ")}`);
   if (profile.searches.some((s) => s.q && titleL.includes(s.q.toLowerCase()))) lift(10, "title matches a search");

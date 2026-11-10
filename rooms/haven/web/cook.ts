@@ -7,6 +7,7 @@
  * found by name in the step's words. Nothing new is read or stored.
  */
 
+import { CONFIRM_MAX, type MealToShoot } from "../../../api/_haven/photoShape.ts";
 import { cooksDinner, DAY_NAME, DAYS, lunchDish, lunchSkipped, portionsOf, shopLine, slotDish, type Component, type Day, type Dish, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
 
 /** A run of a step's words; `swap` marks the new part's name where the recipe named the old one. */
@@ -243,4 +244,26 @@ function cookDish(d: Dish, day: Day, course: Cook["course"], portions: number, w
     lines: d.ingredients.map((x) => lineOf(x, d.portion * portions)),
     changes: d.changes,
   };
+}
+
+/**
+ * A recipe's step pictures (#1010): one per step, as cooked: the step's words and the ingredients it uses, in the
+ * style `step` (small, low quality). A step for a part left out tonight gets none. The meal planner queues them all
+ * when the week is finalized (#1016, api/_haven/stepShots.ts); cook mode only reads them (`findPhotos`).
+ */
+export function stepShotsOf(cook: Pick<Cook, "meal" | "name" | "steps" | "lines">): Array<{ step: number; shot: MealToShoot }> {
+  return cook.steps
+    .map((s, step) => ({ s, step }))
+    .filter(({ s }) => !s.skip && s.runs.length)
+    .slice(0, CONFIRM_MAX)
+    .map(({ s, step }) => ({
+      step,
+      shot: {
+        meal: cook.meal,
+        name: cook.name.slice(0, 80),
+        description: s.runs.map((r) => r.text).join("").slice(0, 300),
+        components: s.uses.map((k) => cook.lines[k]?.item ?? "").filter(Boolean).slice(0, 8),
+        style: "step",
+      },
+    }));
 }

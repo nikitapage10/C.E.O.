@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import type { Cook, CookLine, CookStep } from "./cook.ts";
-import { confirmPhotos, photoStates, photoUrl, stepShotsOf, type PhotoState } from "./mealPhotos.ts";
+import { findPhotos, photoUrl, stepShotsOf, type PhotoState } from "./mealPhotos.ts";
 import "./cook.css";
 
 /**
@@ -12,15 +12,12 @@ import "./cook.css";
  * it's got out (kept while the page is open). Next, Back and Ingredients are big and at the thumb; the arrow keys and
  * a sideways swipe on the step move too, and Escape or Close leaves. The screen is kept awake with the browser's Wake
  * Lock while it's open; where the browser doesn't offer it or says no, it simply isn't. Built by `cookOf` (cook.ts)
- * from the night as customized; the step pictures come from the meal photo library (`stepShotsOf`) and never hold
- * anything up.
+ * from the night as customized; the step pictures come from the meal photo library (`stepShotsOf`), made when the
+ * week was finalized (#1016), read once here and never holding anything up.
  */
 
 const ROLE: Record<string, string> = { protein: "Protein", carb: "Carb", side: "Side" };
 const PORTION: Record<number, string> = { 0.75: "¾", 1: "1", 1.25: "1¼", 1.5: "1½" };
-const POLL_MS = 8_000;
-/** About six minutes of looking for pictures still being made; the next opening picks up the rest. */
-const POLLS = 45;
 
 /** What's ticked off, per meal and night, while the page is open: closing cook mode for a minute keeps it. */
 const ticked = new Map<string, Set<number>>();
@@ -65,13 +62,13 @@ interface Pic {
 }
 
 /**
- * The steps' pictures (#1010): asked of the library once when cook mode opens (made only the first time), then their
- * states read every few seconds while any is still being made. Null when the library isn't there: nothing is shown.
+ * The steps' pictures (#1010): read from the library once when cook mode opens. They're made when the week is
+ * finalized (#1016), never here: a step without one simply shows none. Null when the library isn't there.
  */
 function useStepPics(cook: Cook): Map<number, Pic> | null {
   const [pics, setPics] = useState<Map<number, Pic> | null>(null);
   const shots = useMemo(() => stepShotsOf(cook), [cook]);
-  // The shots as text: the same recipe as cooked asks once, however often the planner draws a new `cook`.
+  // The shots as text: the same recipe as cooked reads once, however often the planner draws a new `cook`.
   const sig = JSON.stringify(shots.map((s) => [s.shot.meal, s.shot.description, s.shot.components]));
   const want = useRef(shots);
   want.current = shots;
@@ -79,30 +76,17 @@ function useStepPics(cook: Cook): Map<number, Pic> | null {
     const asked = want.current;
     if (!asked.length) return;
     let gone = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let polls = 0;
-    const poll = (now: Map<number, Pic>) => {
-      const waiting = [...now.values()].filter((p) => p.status === "queued" || p.status === "making");
-      if (!waiting.length || polls++ >= POLLS) return;
-      timer = setTimeout(() => {
-        void photoStates(waiting.map((p) => p.id)).then((got) => {
-          if (gone) return;
-          const next = new Map(now);
-          if (got) for (const [k, p] of now) next.set(k, { ...p, status: got.get(p.id) ?? p.status });
-          setPics(next);
-          poll(next);
-        });
-      }, POLL_MS);
-    };
-    void confirmPhotos(asked.map((s) => s.shot)).then((got) => {
-      if (gone || !got || got.photos.length !== asked.length) return;
-      const m = new Map<number, Pic>(asked.map((s, j) => [s.step, { id: got.photos[j]!.id, status: got.photos[j]!.status }]));
+    void findPhotos(asked.map((s) => s.shot)).then((got) => {
+      if (gone || !got) return;
+      const m = new Map<number, Pic>();
+      asked.forEach((s, j) => {
+        const t = got[j];
+        if (t) m.set(s.step, { id: t.id, status: t.status });
+      });
       setPics(m);
-      poll(m);
     });
     return () => {
       gone = true;
-      clearTimeout(timer);
     };
   }, [sig]);
   return pics;

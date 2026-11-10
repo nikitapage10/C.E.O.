@@ -1,7 +1,8 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { fakeMeals } from "../../../api/_haven/meals.fixture.ts";
 import { applyEdit } from "../../../api/_haven/mealShape.ts";
-import { confirmPhotos, photoStates, shootOf, stepShotsOf } from "./mealPhotos.ts";
+import { confirmPhotos, findPhotos, photoStates, shootOf, stepShotsOf } from "./mealPhotos.ts";
 import { cookOf } from "./cook.ts";
 
 /** The planner's side of the photo library (#678, #687): what a customized night is sent as, and the answers read as untrusted. */
@@ -53,5 +54,26 @@ describe("cook mode's step pictures (#1010)", () => {
       step: 1,
       shot: { meal: "sausage-pasta", name: "sausage pasta", description: "Brown the Italian sausage in a wide pan over medium-high heat, breaking it up, about 6 minutes.", components: ["Italian sausage"], style: "step" },
     });
+  });
+
+  it("cook mode only reads them: it asks the library to find, never to confirm or generate (#1016)", async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const f = (async (_url: string, init: RequestInit) => {
+      sent.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+      return new Response(JSON.stringify({ photos: [{ id: "sausage-pasta-0123abcd", key: "0123456789abcdef", status: "ready" }, null] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const shots = stepShotsOf(cookOf(fakeMeals(), fakeMeals().week!.slots[2]!)!).slice(0, 2).map((s) => s.shot);
+    const got = await findPhotos(shots, f);
+    expect(sent.map((b) => b.action)).toEqual(["find"]);
+    expect(got).toEqual([{ meal: "sausage-pasta", key: "0123456789abcdef", id: "sausage-pasta-0123abcd", status: "ready" }, null]);
+    // A short or odd answer is no answer; nothing is asked twice.
+    expect(await findPhotos(shots, answer({ photos: [null] }))).toBeNull();
+    expect(await findPhotos(shots, answer({ photos: [{ id: "Bad Id", status: "ready" }, { id: "ok-id", status: "nope" }] }))).toEqual([null, null]);
+    expect(await findPhotos([], f)).toEqual([]);
+    expect(sent).toHaveLength(1);
+    // And cook mode itself holds no way to queue a picture or poll for one.
+    const src = readFileSync(new URL("./CookMode.tsx", import.meta.url), "utf8");
+    expect(src).toContain("findPhotos(");
+    expect(src).not.toMatch(/confirmPhotos|photoStates|setTimeout\(|setInterval\(/);
   });
 });

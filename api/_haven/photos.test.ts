@@ -5,11 +5,12 @@ import { BlobPreconditionError, prefixed, type BlobBackend } from "../_blob.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { FEED_TOKEN, isFeedWrite, LOG_TOKEN } from "../_site/roomkeys.ts";
-import { finalImageOf, generateImage, IMAGE_COST_USD, IMAGES_CAP_USD, IMAGES_URL, ImageLedger, ledgerPath, STEP_PLAN, type GenDeps } from "./photoGen.ts";
+import { finalImageOf, generateImage, IMAGE_COST_USD, IMAGES_CAP_USD, IMAGES_URL, ImageLedger, ledgerPath, STEP_CAP_USD, STEP_PLAN, WORKOUT_PLAN, type GenDeps } from "./photoGen.ts";
 import { decodeImage, decodePng, kindOf, shrink, smallJpeg } from "./photoImage.ts";
 import {
   CATALOG_PATH,
   keyOf,
+  LEASE_MS,
   PHOTO_ID,
   photoIdOf,
   PhotoLibrary,
@@ -240,22 +241,30 @@ describe("the generator", () => {
     expect(finalImageOf("data: not json image_generation.completed\n")).toBeNull();
   });
 
-  it("asks for gpt-image-2 at 1024x1536, medium, streamed with a partial image", async () => {
+  it("asks gpt-image-2.6-sunburst for a recipe at 1024x1536, high (#1016), streamed with a partial image", async () => {
     const s = setup(["ok"]);
     const got = await generateImage("a prompt", s.gen());
-    expect(got).toEqual({ ok: true, bytes: IMAGE, quality: "medium" });
-    expect(s.ai.calls).toEqual([{ url: IMAGES_URL, auth: `Bearer ${OPENAI}`, body: { model: "gpt-image-2", prompt: "a prompt", size: "1024x1536", quality: "medium", n: 1, stream: true, partial_images: 1 } }]);
-    expect((await new ImageLedger(s.state).read(NOW)).usd).toBe(IMAGE_COST_USD.medium);
+    expect(got).toEqual({ ok: true, bytes: IMAGE, quality: "high" });
+    expect(s.ai.calls).toEqual([{ url: IMAGES_URL, auth: `Bearer ${OPENAI}`, body: { model: "gpt-image-2.6-sunburst", prompt: "a prompt", size: "1024x1536", quality: "high", n: 1, stream: true, partial_images: 1 } }]);
+    expect((await new ImageLedger(s.state).read(NOW)).usd).toBe(IMAGE_COST_USD.high);
+    expect(IMAGE_COST_USD.high).toBe(0.3);
   });
 
-  it("falls back to low once, and hands back what an error status didn't bill", async () => {
+  it("keeps the Gym's art at medium then low", async () => {
     const s = setup([500, "ok"]);
+    const got = await generateImage("p", s.gen(), WORKOUT_PLAN);
+    expect(s.ai.calls.map((c) => c.body.quality)).toEqual(["medium", "low"]);
+    expect(got.ok && got.quality).toBe("low");
+  });
+
+  it("falls back to medium, then low once, and hands back what an error status didn't bill", async () => {
+    const s = setup([500, 500, "ok"]);
     const got = await generateImage("p", s.gen());
     expect(got.ok && got.quality).toBe("low");
-    expect(s.ai.calls.map((c) => c.body.quality)).toEqual(["medium", "low"]);
+    expect(s.ai.calls.map((c) => c.body.quality)).toEqual(["high", "medium", "low"]);
     const spent = await new ImageLedger(s.state).read(NOW);
     expect([spent.images, spent.usd]).toEqual([1, IMAGE_COST_USD.low]);
-    const none = setup([400, 400]);
+    const none = setup([400, 400, 400]);
     expect(await generateImage("p", none.gen())).toEqual({ ok: false, error: "failed", detail: "openai 400" });
     expect((await new ImageLedger(none.state).read(NOW)).usd).toBe(0);
   });
@@ -292,13 +301,13 @@ describe("the library and its queue", () => {
     expect(await run(s)).toEqual({ made: 0, failed: 0, budget: false });
     expect(s.ai.calls).toHaveLength(2);
     const cat = await s.library.catalog();
-    expect(cat.photos.map((p) => [p.source, p.quality, p.width, p.height])).toEqual([["openai", "medium", 48, 72], ["openai", "medium", 48, 72]]);
+    expect(cat.photos.map((p) => [p.source, p.quality, p.width, p.height])).toEqual([["openai", "high", 48, 72], ["openai", "high", 48, 72]]);
     expect(cat.worker).toBeNull();
     expect(s.lines.join("\n")).not.toContain("Gochujang");
   });
 
   it("marks a failure, and tries it once more when the week is confirmed again", async () => {
-    const s = setup([500, 500, "ok"]);
+    const s = setup([500, 500, 500, "ok"]);
     const [t] = await s.library.enqueue([MEAL], NOW);
     expect(await run(s)).toEqual({ made: 0, failed: 1, budget: false });
     expect((await s.library.catalog()).photos[0]).toMatchObject({ status: "failed", error: "openai 500", tries: 1 });
@@ -322,7 +331,7 @@ describe("the library and its queue", () => {
     await s.library.enqueue([PREP], NOW);
     expect(await s.library.claim("run-b", NOW)).toBeNull();
     // A run that went quiet: its lease and its photo come free.
-    const later = NOW + 7 * 60_000;
+    const later = NOW + LEASE_MS + 60_000;
     const next = await s.library.claim("run-b", later);
     expect(next?.meal).toBe(MEAL.meal);
     expect(next?.tries).toBe(2);
@@ -461,7 +470,7 @@ describe("cook mode's step pictures (#1010)", () => {
     const s = setup(["ok"]);
     const [t] = await s.library.enqueue([STEP(1, "Brown the sausage.", ["Italian sausage"])], NOW);
     expect(await run(s)).toEqual({ made: 1, failed: 0, budget: false });
-    expect(s.ai.calls.map((c) => [c.body.size, c.body.quality])).toEqual([["1024x1024", "low"]]);
+    expect(s.ai.calls.map((c) => [c.body.model, c.body.size, c.body.quality, c.body.partial_images])).toEqual([["gpt-image-2.6-flare", "1024x1024", "low", 0]]);
     expect((await new ImageLedger(s.state).read(NOW)).usd).toBe(STEP_PLAN.cost.low);
     expect((await s.library.catalog()).photos.find((p) => p.id === t!.id)?.status).toBe("ready");
     // A failed step isn't tried at medium: one attempt, handed back.
@@ -470,5 +479,52 @@ describe("cook mode's step pictures (#1010)", () => {
     expect(await run(f)).toEqual({ made: 0, failed: 1, budget: false });
     expect(f.ai.calls).toHaveLength(1);
     expect((await new ImageLedger(f.state).read(NOW)).usd).toBe(0);
+  });
+
+  it("gives the steps their own $3 inside the $10 cap: steps stop there, recipes still get made (#1016)", async () => {
+    const s = setup(["ok"]);
+    const cost = STEP_PLAN.cost.low!;
+    await s.state.put(ledgerPath("2026-11"), JSON.stringify({ month: "2026-11", images: 99, usd: STEP_CAP_USD - cost / 2 + 1, stepUsd: STEP_CAP_USD - cost / 2 }), { contentType: "application/json", allowOverwrite: true });
+    const before = await new ImageLedger(s.state).read(NOW);
+    expect([before.stepCapUsd, before.stepReached, before.reached]).toEqual([3, true, false]);
+    await s.library.enqueue([STEP(1, "Brown the sausage.", []), STEP(2, "Cook the rigatoni.", [])], NOW);
+    await s.library.enqueue([MEAL], NOW + 1);
+    expect(await run(s)).toEqual({ made: 1, failed: 0, budget: true });
+    // The recipe's photo went first and was made; both steps wait, and OpenAI was asked once, for the recipe.
+    expect(s.ai.calls.map((c) => c.body.model)).toEqual(["gpt-image-2.6-sunburst"]);
+    const cat = await s.library.catalog();
+    expect(cat.photos.map((p) => [p.style, p.status])).toEqual([["step", "budget"], ["step", "budget"], ["plate", "ready"]]);
+    const after = await new ImageLedger(s.state).read(NOW);
+    expect(after.stepUsd).toBe(before.stepUsd);
+    expect(after.usd).toBeCloseTo(before.usd + IMAGE_COST_USD.high, 6);
+  });
+
+  it("counts a step against both the steps' share and the whole cap, and hands both back on an error status", async () => {
+    const s = setup([500]);
+    const led = new ImageLedger(s.state);
+    expect(await led.reserve("low", NOW, 1, "step")).toBe(true);
+    expect(await led.reserve("low", NOW, 2.5, "step")).toBe(false);
+    expect(await led.reserve("high", NOW, 2.5)).toBe(true);
+    expect((await led.read(NOW)).stepUsd).toBe(1);
+    expect((await led.read(NOW)).usd).toBe(3.5);
+    await led.refund("low", NOW, 1, "step");
+    expect([(await led.read(NOW)).stepUsd, (await led.read(NOW)).usd]).toEqual([0, 2.5]);
+  });
+
+  it("finds what cook mode asks for without queueing or making anything", async () => {
+    const s = setup(["ok"]);
+    const made = STEP(1, "Brown the sausage.", ["Italian sausage"]);
+    await s.library.enqueue([made], NOW);
+    await run(s);
+    const calls = s.ai.calls.length;
+    const res = await photosPost(post({ action: "find", meals: [made, STEP(2, "Never planned.", [])] }, await s.cookie()), s.deps);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { photos: Array<{ id: string; status: string } | null> };
+    expect(body.photos[0]?.status).toBe("ready");
+    expect(body.photos[1]).toBeNull();
+    expect(s.runs).toHaveLength(0);
+    expect(s.ai.calls).toHaveLength(calls);
+    expect((await s.library.catalog()).photos).toHaveLength(1);
+    expect((await photosPost(post({ action: "find", meals: [made] }), s.deps)).status).toBe(401);
   });
 });

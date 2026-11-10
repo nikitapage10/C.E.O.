@@ -15,7 +15,10 @@
  *                                                       `week` (a Monday) aims confirm or send at a week ahead (#721).
  *                                                       Finalizing again after the plan changed (#761) also takes
  *                                                       off the open list lines the planner put there that no week
- *                                                       sent to the list wants any more.
+ *                                                       sent to the list wants any more. It also queues every
+ *                                                       recipe's cook-step pictures in the photo library (#1016,
+ *                                                       api/_haven/stepShots.ts; `stepPhotos`, how many), made after
+ *                                                       the answer, never when cook mode opens.
  *   POST /api/haven-meals { action: "reopen" }          passkey session (#761, the Shopping card's Clear list): the
  *                                                       week back to a draft, not sent, so Finalize is open again
  *                                                       → { meals }.
@@ -43,6 +46,8 @@ import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { readJson, updateJson } from "./json.js";
 import { KitchenList, sameKey } from "./list.js";
+import { livePhotoDeps, queueStepPhotos } from "./photos.js";
+import { weekStepShots } from "./stepShots.js";
 import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
@@ -157,10 +162,21 @@ export interface MealsDeps {
   blob: BlobBackend | null;
   env: Record<string, string | undefined>;
   log: (line: string) => void;
+  /**
+   * Finalize's hook for the cook steps' pictures (#1016): queues the week's step pictures in the photo library and
+   * starts making them after the answer. How many were queued now, or null when the library isn't set up.
+   */
+  stepPhotos?: (meals: MealsFile, week?: string) => Promise<number | null>;
 }
 
 export function liveMealsDeps(env: Record<string, string | undefined> = process.env): MealsDeps {
-  return { desk: { deskKey: env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(env), now: Date.now() }, blob: pickBlob(env), env, log: (line) => console.log(line) };
+  return {
+    desk: { deskKey: env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(env), now: Date.now() },
+    blob: pickBlob(env),
+    env,
+    log: (line) => console.log(line),
+    stepPhotos: (meals, week) => queueStepPhotos(weekStepShots(meals, week), livePhotoDeps(env)),
+  };
 }
 
 function json(body: unknown, status = 200): Response {
@@ -227,8 +243,10 @@ export async function mealsPost(request: Request, deps: MealsDeps): Promise<Resp
     // The customized nights to photograph (`week.photoQueue`): the Desk hands them to the photo library
     // (POST /api/haven-photos, api/_haven/photos.ts) and writes the ids back with the `photo` edit.
     const photos = photoJobs(viewOf(got.file, week)).length;
-    deps.log(`haven: the week was confirmed (${sent?.added ?? 0} to the list${sent?.dropped ? `, ${sent.dropped} off it` : ""}, ${photos} photos to make)`);
-    return reply({ ok: true, changes: got.changes, added: sent?.added ?? 0, already: sent?.already ?? 0, dropped: sent?.dropped ?? 0, photos, ...view(sent?.meals ?? got.file) });
+    // Every recipe's step pictures (#1016), queued now and made after the answer; a failure here never fails finalize.
+    const steps = deps.stepPhotos ? await deps.stepPhotos(sent?.meals ?? got.file, week).catch(() => null) : null;
+    deps.log(`haven: the week was confirmed (${sent?.added ?? 0} to the list${sent?.dropped ? `, ${sent.dropped} off it` : ""}, ${photos} photos to make, ${steps ?? 0} step pictures queued)`);
+    return reply({ ok: true, changes: got.changes, added: sent?.added ?? 0, already: sent?.already ?? 0, dropped: sent?.dropped ?? 0, photos, stepPhotos: steps ?? 0, ...view(sent?.meals ?? got.file) });
   }
   if (body.action === "reopen") {
     const meals = await store.reopen(week);

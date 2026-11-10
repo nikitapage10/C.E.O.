@@ -406,12 +406,18 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   on the step move too, and Escape or Close leaves (the Kitchen stays open). The screen is kept awake with the
   browser's Wake Lock while it's open ("Screen stays on"), taken again when the tab comes back; where the browser
   lacks it or refuses, the note just isn't there.
-- **Step pictures (#1010).** The first time a recipe is opened in cook mode it asks the meal photo library (below)
-  for one picture per step (`stepShotsOf` in [`mealPhotos.ts`](../rooms/haven/web/mealPhotos.ts), style `step`: the
-  step's words as cooked and the ingredients it uses), then reads their states every 8 s for a few minutes. A step
-  shows a quiet numbered stand-in ("Picture on its way") until its picture is ready, and nothing at all when it
-  failed, the month's cap is reached or the library isn't there, so cook mode never waits on it. A step for a part
-  left out gets none. Opening the same recipe again makes nothing new.
+- **Step pictures (#1010; made at plan time since #1016).** One picture per step (`stepShotsOf` in
+  [`cook.ts`](../rooms/haven/web/cook.ts), style `step`: the step's words as cooked and the ingredients it uses). They
+  are made when the week is **finalized**, never when a recipe is opened: Finalize (`POST /api/haven-meals { action:
+  "confirm" }`) queues every step of every recipe cooked that week (each dinner, and each quick lunch that isn't
+  leftovers; `weekStepShots` in [`api/_haven/stepShots.ts`](../api/_haven/stepShots.ts)) in the photo library (one
+  catalog write before the answer, which says how many as `stepPhotos`) and the library's run makes them after the
+  answer, one at a time, recipes' photos first. A run cut short leaves the rest queued for the ten-minute timer; a
+  step already in the library is never made again, and one that failed or hit the cap is tried once more on the next
+  finalize. Cook mode only reads them, once, as it opens (`POST /api/haven-photos { action: "find" }`, no polling):
+  a step shows its picture when it's ready, a quiet numbered stand-in ("Picture on its way") while it's still being
+  made, and nothing at all when there's none, it failed, the cap was reached or the library isn't there. A step for a
+  part left out gets none.
 - **Talking to it (#698).** Nikita edits the week by talking to Skippy: his chat on the Desk, a room's mic (the Haven's
   Steward, or Skippy on Today) or Hands-free. The Haven's tools (rooms/haven/tools.ts, run in
   `api/_skippy/agent/tools.ts`) make the same edits, each through `readEdit` first, so a tool can only make an edit the
@@ -459,21 +465,30 @@ marked `stepsBy: "desk"`; "Watch a demo" opens a YouTube search, never an embed.
   and no blob URL is ever handed out: a photo comes back only through `GET /api/haven-photos` to the passkey session.
   The template makes the container; until the deploy can apply it (the role paste, docs/AZURE.md) the first write
   makes it instead, private (azure/src/blob.ts, #711).
-- **Made.** OpenAI's images API with the Studio's key (Key Vault secret `openai`, `OPENAI_STUDIO_KEY`):
-  `gpt-image-2`, 1024 × 1536, quality medium, streamed with one partial image (the final
-  `image_generation.completed` event's image is kept), then low once if medium fails. The prompt is the demo's two
+- **Made.** OpenAI's images API with the Studio's key (Key Vault secret `openai`, `OPENAI_STUDIO_KEY`). gpt-image-2
+  shuts off on 2027-02-10, so since #1016 a recipe's photo (`plate`, `prep`) is `gpt-image-2.6-sunburst` (OpenAI's
+  quality model), 1024 × 1536, quality **high** first (Nikita: "the recipes could be higher quality"), then medium,
+  then low once, streamed with one partial image (the final `image_generation.completed` event's image is kept). The
+  Gym's art (`workout`) is the same model at medium, then low. The prompt is the demo's two
   styles (plated on off-white ceramic in daylight; meal-prep containers on grey stone) with the dish's name,
   description and components after Customize ([`api/_haven/photoGen.ts`](../api/_haven/photoGen.ts)).
-- **Step pictures (#1010).** Style `step`, for cook mode: 1024 × 1024 at low quality, one try (no medium), counted at
-  $0.02 each, in the same food-blog daylight as the plates (off-white ceramic, light stone or wood, no people or
+- **Step pictures (#1010).** Style `step`, for cook mode: `gpt-image-2.6-flare` (the fast, cheap model, #1016),
+  1024 × 1024 (the smallest it takes: 512 × 512 is refused as below its minimum pixel budget) at low quality, no
+  partial image, one try (no medium), counted at $0.03 each, in the same food-blog daylight as the plates (off-white ceramic, light stone or wood, no people or
   hands). Its key adds the step's words to the meal, components and style, so each step is its own picture and a
   step that names a swapped part gets a new one; the other styles' keys are unchanged. A five-step recipe counts
-  about $0.10 against the cap, once.
+  about $0.15 against the steps' share, once.
 - **The cap.** The project's OpenAI images cap, **$10 a month**, in the ledger `openai/images-<YYYY-MM>.json` in the
-  private store. Each attempt is counted before the call at $0.10 (medium) or $0.03 (low), above list price, and
-  handed back only when OpenAI answered with an error status. About 100 photos a month; past the cap nothing is
-  called and the waiting photos read `budget` until the month turns and the week is confirmed again.
-- **One at a time.** Photos are made after the answer, oldest first, one run at a time under a lease in the catalog;
+  private store. The cook steps have their own **$3 a month** inside it (#1016, `STEP_CAP_USD`, `stepUsd` in the same
+  ledger): step pictures stop there (about 100 a month) and wait as `budget`, while recipes' photos carry on, so they
+  always keep at least $7. OpenAI prices the 2.6 models by token ($30 per million image output tokens, $5 per million
+  text input; no per-image table), so each attempt is counted before the call conservatively: $0.30 high, $0.10
+  medium, $0.05 low for a 1024 × 1536 photo, $0.03 for a low 1024 × 1024 step (measured 824 output tokens, about
+  $0.025). A counted attempt is handed back only when OpenAI answered with an error status. A recipe's photo counts
+  $0.30 when high works first time; past the cap nothing is called and the waiting photos read `budget` until the
+  month turns and the week is confirmed again.
+- **One at a time.** Photos are made after the answer, recipes' photos before cook steps, then oldest first, one run
+  at a time under a lease in the catalog;
   the timer `haven_photos` runs every ten minutes while anything waits, so a run cut short is picked up again.
 - **Idempotent.** A photo's `key` is the SHA-256 (16 hex) of its meal id, its components as a set (case and order don't
   matter) and its style; its id is `<meal>-<first 8 of the key>`. Confirming the same week again returns the same ids
@@ -499,13 +514,14 @@ capped.
 | --- | --- |
 | `POST /api/haven-photos { action: "confirm", meals: MealToShoot[] }` (1–14 meals): the confirm-week hook | `{ photos: [{ meal, key, id, status }], budget }` at once. `status` is `queued`, `making`, `ready`, `failed` or `budget`; put `id` on the night (`slot.photo`) and show it once `ready`. |
 | `POST /api/haven-photos { action: "generate", meal: MealToShoot }`: one meal | `{ photo: { meal, key, id, status }, budget }` |
+| `POST /api/haven-photos { action: "find", meals: MealToShoot[] }` (1–14): cook mode's read (#1016) | `{ photos: [{ meal, key, id, status } \| null] }`, in order, null where the library has none. Never queues or makes anything. |
 | `GET /api/haven-photos?view=catalog[&ids=a,b,…]`: poll the tickets (up to 50 ids) or list the library | `{ photos: PhotoEntry[], budget, ready }`; `ready` is false until the OpenAI key is set |
 | `GET /api/haven-photos?id=<id>[&size=full]`: the photo (`photoUrl(id)` in photoShape.ts) | the 720 px JPEG (or the original), `Cache-Control: private, max-age=3600`; 404 when there is none |
 | `POST /api/haven-photos { action: "upload", meal, image, id?, name?, style?, components?, source? }` | `{ photo: PhotoEntry }`. `image` is base64 PNG or JPEG (a `data:` prefix is fine), at most 4 MB decoded; the id is `id` or the meal's own, and an upload under an id already there replaces it. |
 | `POST /api/haven-photos { action: "remove", id }` | `{ ok: true }`, or 404 |
 | `PUT /api/haven-photos { meal, image, id?, name?, style?, components? }` with the feed key (`x-ceo-room-key` or `Authorization: Bearer`), no query | `{ ok, id, bytes }` only, source `seed`: the Builder loads photos with no tap. Neither room key can read a photo. |
 
-`budget` is `{ month, images, usd, capUsd, left, reached }`. Errors: 401 without the session, 400 `bad-meals`,
+`budget` is `{ month, images, usd, capUsd, left, reached, stepUsd, stepCapUsd, stepReached }`. Errors: 401 without the session, 400 `bad-meals`,
 `bad-photo` (the bytes aren't an image it can read) or `bad-request`, 413 `too-big`, 503 `not-set-up` or `store`
 (an upload the library couldn't keep; the log says the error's class and code, never the photo or its meal).
 

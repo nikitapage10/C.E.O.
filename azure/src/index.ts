@@ -123,8 +123,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
   ["haven-plan", havenplan.planRoute],
   // The Kitchen's meal planner (#678): profile, catalog and week, read and changed only by a passkey session;
-  // the feed key may PUT a seed (api/_haven/meals.ts). Signed out, /api/haven?view=status has its counts.
-  ["haven-meals", havenmeals.mealsRoute],
+  // the feed key may PUT a seed (api/_haven/meals.ts). Signed out, /api/haven?view=status has its counts. Finalize
+  // queues the week's cook-step pictures (#1016) and makes them after the answer, so it answers within 2.5 s.
+  ["haven-meals", havenmeals.mealsRoute, { settleMs: 2_500 }],
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],

@@ -18,7 +18,8 @@ export const PHOTO_STYLES = ["plate", "prep", "workout", "step"] as const;
 /** `plate`: plated on off-white ceramic in daylight. `prep`: portioned into meal-prep containers. `workout`: the
  * Gym's exercise art (#718), one picture per exercise of the plan, made through the same library and cap. `step`: one
  * cook-mode step in progress (#1010), the step's words in `description` and what it uses in `components`; made small
- * and at low quality (photoGen.ts, `STEP_PLAN`), asked for the first time a recipe is opened in cook mode. */
+ * and at low quality (photoGen.ts, `STEP_PLAN`), queued for every recipe of the week when it is finalized (#1016,
+ * api/_haven/stepShots.ts) and only read by cook mode. */
 export type PhotoStyle = (typeof PHOTO_STYLES)[number];
 
 export const PHOTO_SOURCES = ["openai", "upload", "seed"] as const;
@@ -29,7 +30,7 @@ export type PhotoSource = (typeof PHOTO_SOURCES)[number];
  *   queued  waiting its turn (made one at a time, oldest first)
  *   making  being made now
  *   ready   both sizes are in the library
- *   failed  OpenAI said no or sent nothing, twice (medium, then low); confirming again tries once more
+ *   failed  OpenAI said no or sent nothing at every quality its plan tries; confirming again tries once more
  *   budget  the month's image cap was reached first; confirming again next month tries once more
  */
 export const PHOTO_STATES = ["queued", "making", "ready", "failed", "budget"] as const;
@@ -67,7 +68,7 @@ export interface PhotoEntry {
   created: string;
   updated: string;
   /** "medium" or "low" for a made photo, once ready. */
-  quality?: "medium" | "low";
+  quality?: "high" | "medium" | "low";
   /** The full image's name in the library (`full/<id>.png` or `.jpg`), once ready. */
   full?: string;
   width?: number;
@@ -87,6 +88,10 @@ export interface PhotoBudget {
   /** Whole images left at the conservative per-image estimate. */
   left: number;
   reached: boolean;
+  /** The cook steps' pictures' share (#1016): what they took this month and their own cap. */
+  stepUsd?: number;
+  stepCapUsd?: number;
+  stepReached?: boolean;
 }
 
 /** What the confirm hook answers for each meal it was given. */
@@ -240,7 +245,7 @@ export function readCatalog(v: unknown): PhotoCatalog {
       status: (PHOTO_STATES as readonly unknown[]).includes(p.status) ? (p.status as PhotoState) : "failed",
       created,
       updated: iso(p.updated, created),
-      ...(p.quality === "medium" || p.quality === "low" ? { quality: p.quality } : {}),
+      ...(p.quality === "high" || p.quality === "medium" || p.quality === "low" ? { quality: p.quality } : {}),
       ...(full ? { full } : {}),
       ...(num(p.width) !== undefined ? { width: num(p.width) } : {}),
       ...(num(p.height) !== undefined ? { height: num(p.height) } : {}),

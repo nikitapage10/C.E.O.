@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { POPUPS, useAnnex, type Popup, type PopupStatus } from "../data/annex.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import { GlassStage } from "./GlassStage.tsx";
@@ -20,8 +21,18 @@ import "./annex.css";
 const ElectionNight = lazy(() => import("./ElectionNight.tsx").then((m) => ({ default: m.ElectionNight })));
 const JobSearch = lazy(() => import("./JobSearch.tsx").then((m) => ({ default: m.JobSearch })));
 
-const STATUS_WORD: Record<PopupStatus, string> = { live: "Growing", ended: "Ended", archived: "Seed", graduated: "Graduated" };
-const BED_OF: Record<PopupStatus, BedState> = { live: "bed", ended: "bed", archived: "vault", graduated: "plot" };
+const STATUS_WORD: Record<PopupStatus, string> = {
+  live: "Growing",
+  ended: "Ended",
+  archived: "Seed",
+  graduated: "Graduated",
+};
+const BED_OF: Record<PopupStatus, BedState> = {
+  live: "bed",
+  ended: "bed",
+  archived: "vault",
+  graduated: "plot",
+};
 const reduced = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function Section({ popup }: { popup: Popup }) {
@@ -106,7 +117,6 @@ export function Annex() {
   const growth = useAnnex((s) => s.growth);
   const [lit, setLit] = useState<string | null>(null);
   const deck = useRef<HTMLElement>(null);
-  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => {
     void useAnnex.getState().refresh();
   }, []);
@@ -119,55 +129,76 @@ export function Annex() {
   const running = POPUPS.filter((p) => status[p.id] === "live" || status[p.id] === "ended");
   const shelf = POPUPS.filter((p) => status[p.id] === "archived");
   const out = POPUPS.filter((p) => status[p.id] === "graduated");
-  // The console's tabs: each running (or graduated) pop-up's own section, then the beds and the Shelf.
+  // The pop-ups with a dashboard: each running (or graduated) one opens in a glass pane over the Glasshouse.
   const shown = [...running, ...out];
-  const tabList = [...shown.map((p) => ({ id: p.id, k: p.name, b: growth[p.id]?.note || STATUS_WORD[status[p.id]] })), { id: "beds", k: "Beds and Shelf", b: `${running.length} growing · ${shelf.length} ${shelf.length === 1 ? "seed" : "seeds"}` }];
-  // A pop-up's dashboard can be linked (/annex#jobs); the tab open is kept in the address.
-  const [tabWant, setTabWant] = useState<string | null>(() => (typeof window !== "undefined" && window.location.hash.length > 1 ? decodeURIComponent(window.location.hash.slice(1)) : null));
-  const setTab = (id: string) => {
-    setTabWant(id);
+  // The pane open is kept in the address (/annex#jobs), so a pop-up's dashboard can be linked.
+  const [openWant, setOpenWant] = useState<string | null>(() => (typeof window !== "undefined" && window.location.hash.length > 1 ? decodeURIComponent(window.location.hash.slice(1)) : null));
+  const openId = shown.some((p) => p.id === openWant) ? openWant : null;
+  const setAddress = (id: string | null) => {
     try {
-      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#${encodeURIComponent(id)}`);
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${id ? `#${encodeURIComponent(id)}` : ""}`);
     } catch {
-      // The address is a nicety; the tab still opens.
+      // The address is a nicety; the pane still opens.
     }
   };
-  const tab = tabList.some((t) => t.id === tabWant) ? tabWant! : tabList[0]!.id;
+  const back = useRef<HTMLElement | null>(null);
+  const open = (id: string) => {
+    back.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setOpenWant(id);
+    setAddress(id);
+  };
+  const close = () => {
+    setOpenWant(null);
+    setAddress(null);
+    back.current?.focus({ preventScroll: true });
+  };
+  // Open: Esc closes, the page under it holds still, and focus starts on the pane's close.
+  useEffect(() => {
+    if (!openId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    const was = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.setTimeout(() => document.querySelector<HTMLElement>(`#an-pane-${openId} .an-pane-x`)?.focus({ preventScroll: true }), 30);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = was;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId]);
 
   const view: GlassView = useMemo(
     () => ({
       popups: POPUPS.map((p) => {
         const g = growth[p.id];
-        return { id: p.id, name: p.name, state: BED_OF[status[p.id]], ended: status[p.id] === "ended", staked: follows[p.id].length > 0, growth: g ? { parts: g.parts, share: g.share } : null };
+        return {
+          id: p.id,
+          name: p.name,
+          state: BED_OF[status[p.id]],
+          ended: status[p.id] === "ended",
+          staked: follows[p.id].length > 0,
+          growth: g ? { parts: g.parts, share: g.share } : null,
+        };
       }),
     }),
     [status, follows, growth],
   );
   const notes = useMemo(() => Object.fromEntries(POPUPS.map((p) => [p.id, growth[p.id]?.note ?? ""])), [growth]);
-  // Opens a running pop-up's own dashboard: its tab in the console, scrolled into view.
-  const open = (id: string) => {
-    setTab(id);
-    window.setTimeout(() => deck.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" }), 30);
-  };
-  // A tag or a bed in the Glasshouse opens its pop-up's dashboard when it is growing (or out the door); a seed on the
-  // Shelf opens the console on its row, lit, with Re-spin.
+  // A tag or a bed in the Glasshouse opens its pop-up's pane when it is growing (or out the door); a seed on the
+  // Shelf lights its row in the console below, with Re-spin.
   const pick = (id: string) => {
     if (shown.some((p) => p.id === id)) return open(id);
-    setTab("beds");
     setLit(id);
     window.setTimeout(() => {
       const row = document.getElementById(`an-${id}`);
-      (row ?? deck.current)?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" });
+      (row ?? deck.current)?.scrollIntoView({
+        behavior: reduced() ? "auto" : "smooth",
+        block: "center",
+      });
       row?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
     }, 30);
-  };
-  const onTabKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
-    const n = tabList.length;
-    const to = e.key === "ArrowRight" ? (i + 1) % n : e.key === "ArrowLeft" ? (i - 1 + n) % n : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
-    if (to < 0) return;
-    e.preventDefault();
-    setTab(tabList[to]!.id);
-    tabs.current[to]?.focus();
   };
   const onSet = (p: Popup) => (s: PopupStatus) => void setStatus(p.id, s);
 
@@ -181,7 +212,10 @@ export function Annex() {
           <h1 className="an-h1 desk__title">
             Pop-ups, <em>grown under glass.</em>
           </h1>
-          <p className="an-sub">Short-run projects on the C.E.O. engine. Running ones grow in the beds; a shelved one drops to seed in the vault under the floor; one that earns it is transplanted out the door to a room of its own. Tap a bed to open its dashboard. Kept by Skippy, the Stagehand.</p>
+          <p className="an-sub">
+            Short-run projects on the C.E.O. engine. Running ones grow in the beds; a shelved one drops to seed in the vault under the floor; one that earns it is transplanted out the door to a room
+            of its own. Tap a bed to open its dashboard. Kept by Skippy, the Stagehand.
+          </p>
           <dl className="an-stats">
             <div>
               <dt>In the beds</dt>
@@ -199,47 +233,21 @@ export function Annex() {
         </header>
       </GlassStage>
 
-      {/* Under the glass, one console (#932): each running pop-up's own section, and the beds and the Shelf. */}
+      {/* Under the glass, one console (#932): the beds and the Shelf. Each pop-up's dashboard opens in its pane above. */}
       <section ref={deck} className="an-deck" aria-label="The Glasshouse's console">
         <PaneSigils />
-        <div className="an-deck-tabs" role="tablist" aria-label="Under the glass">
-          {tabList.map((t, i) => (
-            <button
-              key={t.id}
-              ref={(el) => void (tabs.current[i] = el)}
-              type="button"
-              role="tab"
-              id={`an-tab-${t.id}`}
-              aria-selected={tab === t.id}
-              aria-controls={`an-panel-${t.id}`}
-              tabIndex={tab === t.id ? 0 : -1}
-              className="an-deck-tab"
-              onClick={() => setTab(t.id)}
-              onKeyDown={(e) => onTabKey(e, i)}
-            >
-              <span>{t.k}</span> <b>{t.b}</b>
-            </button>
-          ))}
-        </div>
-
-        {/* Every section stays mounted behind its tab, so its feed keeps its bed's crystals growing while another
-            tab is open; only Shelve stops it. */}
-        {load !== "idle" &&
-          shown.map((p) => (
-            <div key={p.id} className="an-deck-p" role="tabpanel" id={`an-panel-${p.id}`} aria-labelledby={`an-tab-${p.id}`} hidden={tab !== p.id}>
-              <Suspense fallback={<div className="desk__loading" role="status" aria-label="Loading" />}>
-                <Section popup={p} />
-              </Suspense>
-            </div>
-          ))}
-        <div className="an-deck-p" role="tabpanel" id="an-panel-beds" aria-labelledby="an-tab-beds" hidden={tab !== "beds"}>
+        <div className="an-deck-p" id="an-panel-beds">
           <div className="an-beds">
             <section className="an-bench" aria-label="In the beds">
               <h2 className="an-h2">In the beds</h2>
               <ol className="an-cloches">
                 {Array.from({ length: Math.max(BED_COUNT, running.length) }, (_, i) => {
                   const p = running[i];
-                  return p ? <Bed key={p.id} n={i + 1} popup={p} status={status[p.id]} note={growth[p.id]?.note} lit={lit === p.id} onSet={onSet(p)} onOpen={() => open(p.id)} /> : <Bed key={`free-${i}`} n={i + 1} lit={false} />;
+                  return p ? (
+                    <Bed key={p.id} n={i + 1} popup={p} status={status[p.id]} note={growth[p.id]?.note} lit={lit === p.id} onSet={onSet(p)} onOpen={() => open(p.id)} />
+                  ) : (
+                    <Bed key={`free-${i}`} n={i + 1} lit={false} />
+                  );
                 })}
               </ol>
               {!running.length && <p className="an-note">Every bed is free. Re-spin a seed from the Shelf to grow it here again.</p>}
@@ -273,6 +281,38 @@ export function Annex() {
           </div>
         </div>
       </section>
+
+      {/* Each pop-up's dashboard, in a pane of the Glasshouse's own glass laid over it (Nikita, 2026-11-10). Every pane
+          stays mounted once the page is up, so its feed keeps its bed's crystals growing while it is closed; only
+          Shelve stops it. */}
+      {load !== "idle" &&
+        typeof document !== "undefined" &&
+        createPortal(
+          shown.map((p) => (
+            <div key={p.id} className="an-pane" id={`an-pane-${p.id}`} hidden={openId !== p.id} role="dialog" aria-modal="true" aria-labelledby={`an-pane-t-${p.id}`}>
+              <button type="button" className="an-pane-scrim" aria-label="Close" tabIndex={-1} onClick={close} />
+              <div className="an-pane-glass">
+                <i className="an-pane-mullions" aria-hidden="true" />
+                <header className="an-pane-bar">
+                  <span className="an-pane-eyb">
+                    The Glasshouse <i /> {STATUS_WORD[status[p.id]]}
+                  </span>
+                  <b id={`an-pane-t-${p.id}`}>{p.name}</b>
+                  <button type="button" className="an-pane-x" onClick={close} aria-label={`Close ${p.name}`}>
+                    <span aria-hidden="true">×</span>
+                  </button>
+                </header>
+                <div className="an-pane-body">
+                  <Suspense fallback={<div className="desk__loading" role="status" aria-label="Loading" />}>
+                    <Section popup={p} />
+                  </Suspense>
+                </div>
+              </div>
+            </div>
+          )),
+          // On the page's body, so no stacking context of the Desk's can put its bar over the pane.
+          document.body,
+        )}
     </div>
   );
 }

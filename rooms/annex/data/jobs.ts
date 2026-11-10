@@ -22,6 +22,7 @@ export interface JobsProfile {
   companies: string[];
   daily: boolean;
   years: number | null;
+  applied: { company: string; title: string }[];
 }
 
 export interface Job {
@@ -40,6 +41,7 @@ export interface Job {
   apply: { title: string; link: string }[];
   snippet: string;
   highlights: string[];
+  logo?: string | null;
   yearsAsked?: number | null;
   search: string;
   score: number;

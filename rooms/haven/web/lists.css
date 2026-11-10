@@ -70,3 +70,25 @@
 @media (max-width:860px){
   [data-room="haven"] .hv-lights{width:auto;margin:10px var(--fl-pad,16px) 0}
 }
+/* #974: the panel by vendor, each light's Colour and Place, the look controls, and the bulb in the light's own colour */
+[data-room="haven"] .hv-lt-sec{margin:0 0 6px}
+[data-room="haven"] .hv-lt-sh{margin:6px 0 6px;font:500 11px var(--hv-text);letter-spacing:.08em;text-transform:uppercase;color:var(--hv-mute)}
+[data-room="haven"] .hv-lt-list{flex-direction:column;flex-wrap:nowrap}
+[data-room="haven"] .hv-lt-line{display:flex;align-items:center;gap:6px}
+[data-room="haven"] .hv-lt-line .hv-lt{flex:1;min-width:0}
+[data-room="haven"] .hv-lt-line .hv-lt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[data-room="haven"] .hv-lt-mini{min-height:30px;padding:0 9px;border:1px solid var(--hv-line);border-radius:999px;background:transparent;color:var(--hv-mute);font:500 12px var(--hv-text);cursor:pointer}
+[data-room="haven"] .hv-lt-mini[aria-pressed="true"],[data-room="haven"] .hv-lt-mini[aria-expanded="true"]{color:rgb(var(--hv-gold));border-color:rgba(var(--hv-gold),.5)}
+[data-room="haven"] .hv-lt-mini:disabled{opacity:.45;cursor:default}
+[data-room="haven"] .hv-lt-mini:focus-visible{outline:2px solid rgb(var(--hv-gold));outline-offset:2px}
+[data-room="haven"] .hv-lt[data-on="on"][style] i{border-color:var(--hv-lt-c);background:var(--hv-lt-c);box-shadow:0 0 8px var(--hv-lt-c)}
+[data-room="haven"] .hv-lt-look{display:flex;flex-direction:column;gap:8px;margin:6px 0 4px;padding:8px;border-radius:10px;background:rgba(255,255,255,.03)}
+[data-room="haven"] .hv-lt-sw{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+[data-room="haven"] .hv-lt-sw button{width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,255,255,.25);cursor:pointer}
+[data-room="haven"] .hv-lt-pick{width:28px;height:26px;padding:0;border:0;background:transparent;cursor:pointer}
+[data-room="haven"] .hv-lt-dim{display:flex;align-items:center;gap:8px;color:var(--hv-soft);font:400 12px var(--hv-text)}
+[data-room="haven"] .hv-lt-dim input{flex:1;accent-color:rgb(var(--hv-gold))}
+[data-room="haven"] .hv-lt-mood{min-height:30px;border:1px solid var(--hv-line);border-radius:8px;background:rgba(8,9,12,.8);color:var(--hv-soft);font:400 13px var(--hv-text)}
+[data-room="haven"] .hv-lt-note.is-placing{margin:0 0 8px;color:rgb(var(--hv-gold))}
+[data-room="haven"] .hv-bulb[data-on="on"] i{background:rgb(var(--hv-bulb,var(--hv-gold)));box-shadow:0 0 14px 3px rgba(var(--hv-bulb,var(--hv-gold)),.75)}
+[data-room="haven"] .hv-house[data-placing] canvas{cursor:crosshair}

@@ -77,6 +77,24 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
       set: async (id, on) => (await lightsOf(env)).set(id, on),
       scene: async (id) => (await lightsOf(env)).scene(id),
     },
+    placeLight: blob
+      ? async (name, at) => {
+          const { PlanStore, spotIn } = await import("../../_haven/plan.js");
+          const store = new PlanStore(blob);
+          let spot: { x: number; y: number } | null = null;
+          if (at && "room" in at) {
+            const plan = await store.read();
+            if (!plan) return { ok: false, say: "There's no floor plan saved yet." };
+            spot = spotIn(plan, at.room, at.where);
+            if (!spot) return { ok: false, say: `No room on the plan is called ${at.room.slice(0, 40)}. Use a room's name as the Haven shows it.` };
+          } else if (at) spot = at;
+          const got = await store.placeLight(name, spot);
+          if (got === "no-plan") return { ok: false, say: "There's no floor plan saved yet." };
+          if (got === "bad") return { ok: false, say: "That spot didn't take: the map holds as many lights as it can." };
+          const words = at && "room" in at ? ` in ${at.room.slice(0, 40)}${at.where === "middle" ? "" : ` (${WHERE_WORDS[at.where]})`}` : "";
+          return { ok: true, say: spot ? `${name} is on the map${words}.` : `${name} is off the map.` };
+        }
+      : null,
     fileIssue: async (title, body) => {
       const token = await githubToken("issues");
       if (!token) return null;
@@ -91,6 +109,8 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
     now,
   };
 }
+
+const WHERE_WORDS: Record<string, string> = { n: "north wall", s: "south wall", e: "east wall", w: "west wall", ne: "north-east corner", nw: "north-west corner", se: "south-east corner", sw: "south-west corner" };
 
 /** The lights (#931), loaded only when a lights tool runs; a stand-in that says so when their keys aren't set. */
 async function lightsOf(env: Env) {

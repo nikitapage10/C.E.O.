@@ -190,7 +190,7 @@ export function readPlan(v: unknown): HavenPlan | null {
   }
   const lights: PlanLight[] = [];
   for (const l of arr(b.lights, LIMITS.lights).map(o)) {
-    const x = n(l.x), y = n(l.y), nm = typeof l.name === "string" ? l.name.replace(/[<>&"'`\\{}]/g, "").replace(/\s+/g, " ").trim().slice(0, 60) : "";
+    const x = n(l.x), y = n(l.y), nm = lightName(l.name);
     if (x !== null && y !== null && nm) lights.push({ name: nm, x, y });
   }
   const path: [number, number][] = [];
@@ -217,3 +217,56 @@ export function readPlan(v: unknown): HavenPlan | null {
   };
 }
 
+
+/** A light's name as the plan keeps it: plain words, no markup, at most 60 characters. */
+export function lightName(v: unknown): string {
+  return typeof v === "string" ? v.replace(/[<>&"'`\\{}]/g, "").replace(/\s+/g, " ").trim().slice(0, 60) : "";
+}
+
+/** The same name, compared: case, spacing and punctuation aside (the Desk matches lights to spots this way too). */
+export function lightKey(v: string): string {
+  return v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/**
+ * The plan with one light's spot set (#974: a tap on the house, or Skippy's lights_place), or taken off with `at` null.
+ * Its old spot goes, whatever case it was written in; the spot is clamped to the plan. Null when the name is empty or
+ * the plan already holds as many spots as it can and this one is new.
+ */
+export function placeLight(plan: HavenPlan, name: string, at: { x: number; y: number } | null): HavenPlan | null {
+  const nm = lightName(name);
+  if (!nm) return null;
+  const rest = (plan.lights ?? []).filter((l) => lightKey(l.name) !== lightKey(nm));
+  if (!at) {
+    const { lights: _drop, ...bare } = plan;
+    return rest.length ? { ...bare, lights: rest } : bare;
+  }
+  if (rest.length >= LIMITS.lights) return null;
+  const x = n(at.x, 0, plan.w), y = n(at.y, 0, plan.h);
+  if (x === null || y === null) return null;
+  return { ...plan, lights: [...rest, { name: nm, x, y }] };
+}
+
+/** Where in a room a light stands, said in words (#974, Skippy's lights_place): its middle, a wall's middle or a corner. */
+export const LIGHT_WHERE = ["middle", "n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
+export type LightWhere = (typeof LIGHT_WHERE)[number];
+
+/**
+ * The plan spot for a room by its name and a place in it, or null when no room has that name. Corners and walls sit a
+ * little in from the walls (an eighth of the room, 20 to 45 units), in the room's largest part.
+ */
+export function spotIn(plan: HavenPlan, room: string, where: LightWhere): { x: number; y: number } | null {
+  const want = lightKey(room).replace(/\b(the|room)\b/g, " ").replace(/\s+/g, " ").trim();
+  if (!want) return null;
+  const key = (r: PlanRoom) => lightKey(r.name).replace(/\b(the|room)\b/g, " ").replace(/\s+/g, " ").trim();
+  const exact = plan.rooms.filter((r) => key(r) === want || r.id === want);
+  const near = plan.rooms.filter((r) => key(r) && (key(r).includes(want) || want.includes(key(r))));
+  const r = exact.length === 1 ? exact[0] : near.length === 1 ? near[0] : undefined;
+  if (!r) return null;
+  const [x, y, w, h] = r.parts.reduce((a, p) => (p[2] * p[3] > a[2] * a[3] ? p : a), r.parts[0]!);
+  const ix = Math.max(20, Math.min(45, w / 8)), iy = Math.max(20, Math.min(45, h / 8));
+  const k = where === "middle" ? "" : where;
+  const cx = k.includes("w") ? x + ix : k.includes("e") ? x + w - ix : x + w / 2;
+  const cy = k.includes("n") ? y + iy : k.includes("s") ? y + h - iy : y + h / 2;
+  return { x: Math.round(cx), y: Math.round(cy) };
+}

@@ -30,6 +30,7 @@ import { plainLine } from "../../foundry.js";
 import type { ReadName } from "../voicereads.js";
 import { climateOf, deviceOf } from "../../_haven/devices/homeread.js";
 import type { Lights } from "../../_haven/lights/lights.js";
+import { LIGHT_WHERE, type LightWhere } from "../../_haven/planShape.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
 import { spokenAsked } from "./words.js";
@@ -69,12 +70,20 @@ export interface ToolHost {
   homeAct: ((req: HomeAsk) => Promise<{ ok: boolean; say: string; warned?: boolean }>) | null;
   /** The lights (#931, api/_haven/lights): SwitchBot and Govee; absent or null where their keys aren't set. */
   lights?: Pick<Lights, "view" | "byName" | "set" | "scene"> | null;
+  /**
+   * A light's spot on the private floor plan (#974, api/_haven/plan.ts): in a room by its name and a place in it, at x
+   * and y, or off the map (null). Absent or null without the private store.
+   */
+  placeLight?: ((name: string, at: LightAt | null) => Promise<{ ok: boolean; say: string }>) | null;
   /** Files an issue labelled foundry and foundry:chat; its number, or null. */
   fileIssue: ((title: string, body: string) => Promise<number | null>) | null;
   /** The skip list's terms (EMAIL_SKIP_TERMS), which never go in memory. */
   skipTerms: readonly string[];
   now: number;
 }
+
+/** Where Skippy puts a light (#974): a room and a place in it, or plan units. */
+export type LightAt = { room: string; where: LightWhere } | { x: number; y: number };
 
 /** One home device ask, as the rails take it. */
 export interface HomeAsk {
@@ -142,6 +151,7 @@ async function lightsText(host: ToolHost): Promise<string> {
   const lines = [
     v.lights.length ? `Lights: ${v.lights.map((l) => `${l.name || "unnamed"} (${l.vendor === "govee" ? "Govee" : "SwitchBot"} ${l.type || "device"}) ${!l.online ? "offline" : l.on === null ? "state unknown" : l.on ? "on" : "off"}`).join("; ")}.` : "No lights found.",
     v.scenes.length ? `Scenes: ${v.scenes.map((s) => s.name).join("; ")}.` : "",
+    v.groups?.length ? `Groups (on or off for all of them; never placed): ${v.groups.map((g) => g.name).join("; ")}.` : "",
     v.remotes.length ? `Remotes (power on or off, no state): ${v.remotes.map((r) => `${r.name} (${r.type || "IR remote"})`).join("; ")}.` : "",
     down.length ? `${down.join(" and ")} didn't answer just now.` : "",
   ];
@@ -467,6 +477,24 @@ const EXECUTORS: Record<string, Executor> = {
       if (!l.ok) return l;
       const r = await host.lights!.set(l.id, i.on === true);
       return r.ok ? { ok: true, text: r.say, did: plainLine(`${l.name} ${i.on ? "on" : "off"}`, 40) } : { ok: false, text: r.say };
+    },
+  },
+  lights_place: {
+    run: async (i, host) => {
+      if (!host.placeLight) return { ok: false, text: "The floor plan isn't kept on this copy." };
+      // The light's own name from the apps, when they're set up: a spot is matched by it.
+      let name = plainLine(str(i.name), 60);
+      if (host.lights) {
+        const got = await host.lights.byName(str(i.name));
+        if (!got) return { ok: false, text: `I don't know a light called ${name}. Read lights_list for the names.` };
+        if (got.kind !== "light") return { ok: false, text: `${got.name} is ${got.kind === "remote" ? "a remote" : got.kind === "group" ? "a group" : "a scene"}, not a light: only lights go on the map.` };
+        name = got.name;
+      }
+      const where = LIGHT_WHERE.includes(i.where as LightWhere) ? (i.where as LightWhere) : "middle";
+      const at: LightAt | null = i.clear === true ? null : typeof i.x === "number" && typeof i.y === "number" ? { x: i.x, y: i.y } : typeof i.room === "string" && i.room.trim() ? { room: i.room, where } : null;
+      if (!at && i.clear !== true) return { ok: false, text: "Say which room it's in (and where in it), or its x and y." };
+      const r = await host.placeLight(name, at);
+      return r.ok ? { ok: true, text: r.say, did: plainLine(`${name} ${at ? "placed" : "off the map"}`, 40) } : { ok: false, text: r.say };
     },
   },
   lights_scene: {

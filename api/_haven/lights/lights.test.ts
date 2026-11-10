@@ -62,11 +62,36 @@ function vendors(opts: { sbDown?: boolean } = {}) {
           data: [
             { sku: "H6000", device: "AA:BB", deviceName: "Shelf strip", type: "devices.types.light", capabilities: [{ type: "devices.capabilities.on_off", instance: "powerSwitch" }] },
             { sku: "H7000", device: "CC:DD", deviceName: "Air sensor", type: "devices.types.sensor", capabilities: [] },
+            {
+              sku: "H6076",
+              device: "EE:FF",
+              deviceName: "Test Floor Lamp",
+              type: "devices.types.light",
+              capabilities: [
+                { type: "devices.capabilities.on_off", instance: "powerSwitch" },
+                { type: "devices.capabilities.range", instance: "brightness", parameters: { range: { min: 1, max: 100 } } },
+                { type: "devices.capabilities.color_setting", instance: "colorRgb" },
+                { type: "devices.capabilities.color_setting", instance: "colorTemperatureK", parameters: { range: { min: 2200, max: 6500 } } },
+                { type: "devices.capabilities.dynamic_scene", instance: "lightScene", parameters: { options: [] } },
+              ],
+            },
+            { sku: "SameModeGroup", device: "GG:HH", deviceName: "Same-Model", type: "devices.types.light", capabilities: [{ type: "devices.capabilities.on_off", instance: "powerSwitch" }] },
           ],
         });
-      if (path === "/device/state") return reply({ code: 200, payload: { capabilities: [{ type: "devices.capabilities.on_off", instance: "powerSwitch", state: { value: goveeOn } }, { type: "devices.capabilities.online", instance: "online", state: { value: true } }] } });
+      if (path === "/device/state")
+        return reply({
+          code: 200,
+          payload: {
+            capabilities: [
+              { type: "devices.capabilities.on_off", instance: "powerSwitch", state: { value: goveeOn } },
+              { type: "devices.capabilities.online", instance: "online", state: { value: true } },
+              ...(body.payload.device === "EE:FF" ? [{ instance: "colorRgb", state: { value: 0x39ff7a } }, { instance: "brightness", state: { value: 80 } }] : []),
+            ],
+          },
+        });
+      if (path === "/device/scenes") return reply({ code: 200, payload: { capabilities: [{ type: "devices.capabilities.dynamic_scene", instance: "lightScene", parameters: { options: [{ name: "Aurora", value: { id: 11, paramId: 22 } }, { name: "<b>Sunset</b>", value: { id: 33, paramId: 44 } }] } }] } });
       if (path === "/device/control") {
-        goveeOn = body.payload.capability.value;
+        if (body.payload.capability.instance === "powerSwitch") goveeOn = body.payload.capability.value;
         return reply({ code: 200 });
       }
     }
@@ -105,7 +130,10 @@ describe("the lights (#931)", () => {
       ["Porch", "switchbot", "Bot", false],
       ["Shelf strip", "govee", "devices.types.light", false],
       ["Study", "switchbot", "Plug Mini (US)", true],
+      ["Test Floor Lamp", "govee", "devices.types.light", false],
     ]);
+    // A group made in the app is listed apart, never as a light.
+    expect(v.groups?.map((g) => g.name)).toEqual(["Same-Model"]);
     expect(v.scenes.map((s) => s.name)).toEqual(["All off"]);
     expect(v.remotes.map((r) => [r.name, r.type])).toEqual([["Beamer", "Projector"]]);
     for (const x of [...v.lights, ...v.scenes, ...v.remotes]) expect(x.id).toMatch(/^[0-9a-f]{12}$/);
@@ -164,10 +192,34 @@ describe("the lights (#931)", () => {
     const { lights, lines } = lightsWith(vendors({ sbDown: true }));
     const v = await lights.view();
     expect(v.vendors).toEqual({ switchbot: "down", govee: "live" });
-    expect(v.lights.map((l) => l.name)).toEqual(["Shelf strip"]);
+    expect(v.lights.map((l) => l.name)).toEqual(["Shelf strip", "Test Floor Lamp"]);
     expect(lines.join("\n")).toMatch(/switchbot list failed \(190\)/);
     const only = await lightsWith(vendors(), { sb: false, gv: true }).lights.view();
     expect(only.vendors.switchbot).toBe("waiting");
+  });
+
+  it("reads a Govee light's colour, brightness and moods, and sets each (#974)", async () => {
+    const { lights, calls, lines } = lightsWith();
+    const v = await lights.view();
+    const lamp = v.lights.find((l) => l.name === "Test Floor Lamp")!;
+    expect(lamp).toMatchObject({ rgb: "#39ff7a", brightness: 80, look: { color: true, brightness: true, kelvin: [2200, 6500], moods: ["Aurora", "bSunset/b"] } });
+    expect(v.lights.find((l) => l.name === "Shelf strip")!.look).toMatchObject({ color: false, moods: [] });
+    expect(await lights.look(lamp.id, { rgb: 0xff3030 })).toMatchObject({ ok: true });
+    expect(calls.at(-1)!.body).toMatchObject({ payload: { device: "EE:FF", capability: { type: "devices.capabilities.color_setting", instance: "colorRgb", value: 0xff3030 } } });
+    expect(await lights.look(lamp.id, { kelvin: 1000 })).toMatchObject({ ok: true });
+    expect(calls.at(-1)!.body).toMatchObject({ payload: { capability: { instance: "colorTemperatureK", value: 2200 } } });
+    expect(await lights.look(lamp.id, { brightness: 40 })).toMatchObject({ ok: true });
+    expect(calls.at(-1)!.body).toMatchObject({ payload: { capability: { instance: "brightness", value: 40 } } });
+    expect(await lights.look(lamp.id, { mood: "aurora" })).toMatchObject({ ok: true, say: "Test Floor Lamp: Aurora." });
+    expect(calls.at(-1)!.body).toMatchObject({ payload: { capability: { type: "devices.capabilities.dynamic_scene", instance: "lightScene", value: { id: 11, paramId: 22 } } } });
+    expect(await lights.look(lamp.id, { mood: "Disco" })).toMatchObject({ ok: false, code: "unknown" });
+    const strip = v.lights.find((l) => l.name === "Shelf strip")!;
+    expect(await lights.look(strip.id, { rgb: 0xffffff })).toMatchObject({ ok: false, code: "unknown" });
+    expect(await lights.look(v.groups![0]!.id, { rgb: 0xffffff })).toMatchObject({ ok: false, code: "unknown" });
+    // A group switches on and off like a light.
+    expect(await lights.set(v.groups![0]!.id, true)).toMatchObject({ ok: true });
+    expect(calls.at(-1)!.body).toMatchObject({ payload: { sku: "SameModeGroup", device: "GG:HH" } });
+    expect(lines.join("\n")).not.toMatch(/Floor Lamp|EE:FF|Aurora/);
   });
 
   it("keeps the states a minute, then reads them again", async () => {
@@ -209,6 +261,14 @@ describe("/api/haven/lights (#931)", () => {
     expect((await lightsPost(post({ op: "set", id: "SB-PLUG-1", on: true }, cookie), d)).status).toBe(400);
     expect((await lightsPost(post({ op: "blink", id: study.id }, cookie), d)).status).toBe(400);
     expect((await lightsPost(post({ op: "set", id: "0123456789ab", on: true }, cookie), d)).status).toBe(404);
+    // #974: one look change at a time, checked.
+    const lamp = v.lights.find((l) => l.name === "Test Floor Lamp")!;
+    expect((await lightsPost(post({ op: "look", id: lamp.id, rgb: "#39ff7a" }, cookie), d)).status).toBe(200);
+    expect((await lightsPost(post({ op: "look", id: lamp.id, brightness: 50 }, cookie), d)).status).toBe(200);
+    expect((await lightsPost(post({ op: "look", id: lamp.id, rgb: "green" }, cookie), d)).status).toBe(400);
+    expect((await lightsPost(post({ op: "look", id: lamp.id, brightness: 0 }, cookie), d)).status).toBe(400);
+    expect((await lightsPost(post({ op: "look", id: lamp.id, rgb: "#39ff7a", brightness: 50 }, cookie), d)).status).toBe(400);
+    expect((await lightsPost(post({ op: "look", id: study.id, rgb: "#39ff7a" }, cookie), d)).status).toBe(404);
   });
 
   it("waits without keys", async () => {

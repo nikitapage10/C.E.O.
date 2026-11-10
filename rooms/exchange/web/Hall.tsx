@@ -3,10 +3,12 @@ import "@fontsource-variable/big-shoulders-display";
 import "@fontsource-variable/geist-mono";
 import "./hall.css";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
+import { useHide } from "@ceo/engine/web/hide.ts";
+import { Private } from "@ceo/engine/web/Private.tsx";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import { asideLine, byMove } from "../data/asides.ts";
 import { biggestMove, floorWord } from "../data/floor.ts";
-import { bookWord, hallView, type HallSoon } from "../data/hall.ts";
+import { bookWord, hallView, shareWord, type HallSoon } from "../data/hall.ts";
 import { money, startPolymarket, usePolymarket } from "../data/polymarket.ts";
 import { usePositions } from "../data/positions.ts";
 import { ago, MarketRow, usePinToggle } from "./Markets.tsx";
@@ -21,7 +23,9 @@ import type { Hall as Scene } from "./hallScene.ts";
  * room's real "still to come". Over the scene: the floor's word and the day's figures at the top left, a tag riding each
  * post, and on the right the busiest markets as a list, each opening to its chart, volumes, link and pin. Picking a
  * post opens its row. Until the 3D is up, and without WebGL, the tags sit in a row with the marquee over them, so the
- * floor is whole and usable at once. Public odds only.
+ * floor is whole and usable at once. Public odds only, but for the book's ring (#988): signed in, Nikita's open
+ * positions stand on it as pillars, each tagged with its market, side and share of the book (never a figure), every
+ * tag marked private for Hide; signed out the ring stands empty.
  */
 
 type GL = "idle" | "loading" | "on" | "off";
@@ -35,6 +39,8 @@ export function Hall({ soon, onBook }: { soon: readonly HallSoon[]; onBook: () =
   const busy = usePolymarket((s) => s.busy);
   const posStatus = usePositions((s) => s.status);
   const open = usePositions((s) => s.data?.totals.open ?? null);
+  const positions = usePositions((s) => s.data?.positions ?? null);
+  const hide = useHide((s) => s.on);
   const { pinned, toggle } = usePinToggle();
   const [now, setNow] = useState(() => Date.now());
   const [openRow, setOpenRow] = useState<string | null>(null);
@@ -48,7 +54,8 @@ export function Hall({ soon, onBook }: { soon: readonly HallSoon[]; onBook: () =
     return () => window.clearInterval(t);
   }, []);
 
-  const view = useMemo(() => hallView({ status, board, posStatus, open, soon }), [status, board, posStatus, open, soon]);
+  const view = useMemo(() => hallView({ status, board, posStatus, open, soon, positions: posStatus === "live" ? positions : null, hide }), [status, board, posStatus, open, soon, positions, hide]);
+  const holds = view.book.holds ?? [];
   const top = useMemo(() => (board?.top ?? []).slice(0, LIMIT), [board]);
   const dayMoney = top.reduce((x, m) => x + m.volume24h, 0);
   const lead = useMemo(() => byMove(board?.world ?? [])[0] ?? null, [board]);
@@ -67,7 +74,7 @@ export function Hall({ soon, onBook }: { soon: readonly HallSoon[]; onBook: () =
   live.current = view;
   const pick = useRef<(id: string) => void>(() => {});
   pick.current = (id: string) => {
-    if (id === "book") return onBook();
+    if (id === "book" || id.startsWith("hold-")) return onBook();
     setOpenRow(id);
     window.requestAnimationFrame(() => list.current?.querySelector(`[data-xc-line="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" }));
   };
@@ -234,12 +241,26 @@ export function Hall({ soon, onBook }: { soon: readonly HallSoon[]; onBook: () =
             </button>
           </li>
         ))}
-        <li>
-          <button type="button" ref={tagRef("book")} className="xc-tag is-book" onClick={onBook}>
-            <b>Your book</b>
-            <span>{view.book.state === "live" && view.book.open !== null ? `${bookBig} ${bookSmall}` : bookSmall}</span>
-          </button>
-        </li>
+        {holds.map((h, i) => (
+          <li key={h.id}>
+            <button type="button" ref={tagRef(h.id)} className={`xc-tag is-hold is-${h.tone}${i > 2 ? " is-minor" : ""}${hot === h.id ? " is-hot" : ""}`} onClick={onBook} onMouseEnter={() => setHot(h.id)} onMouseLeave={() => setHot(null)} onFocus={() => setHot(h.id)} onBlur={() => setHot(null)} aria-label={hide ? "One of your positions (hidden)" : `Your position: ${h.name}, ${h.side}, ${shareWord(h.share)} of your book`}>
+              <Private as="b" label="position hidden">{h.name}</Private>
+              <span>
+                <Private>
+                  <em className="fl-num">{shareWord(h.share)}</em> of book · <i>{h.side}</i>
+                </Private>
+              </span>
+            </button>
+          </li>
+        ))}
+        {holds.length === 0 && (
+          <li>
+            <button type="button" ref={tagRef("book")} className="xc-tag is-book" onClick={onBook}>
+              <b>Your book</b>
+              <span>{view.book.state === "live" && view.book.open !== null ? `${bookBig} ${bookSmall}` : bookSmall}</span>
+            </button>
+          </li>
+        )}
         {view.soon.map((s, i) => (
           <li key={s.id} aria-hidden="true">
             <span ref={tagRef(`soon-${i}`)} className="xc-tag is-soon">
@@ -275,7 +296,7 @@ export function Hall({ soon, onBook }: { soon: readonly HallSoon[]; onBook: () =
   );
 }
 
-const rank = (id: string) => (id.startsWith("soon-") ? 3 : id === "book" ? 2 : 1);
+const rank = (id: string) => (id.startsWith("hold-") ? 0 : id.startsWith("soon-") ? 3 : id === "book" ? 2 : 1);
 
 /** The page's accent while on the floor: gold (#823). */
 export const HALL_ACCENT = { "--fl-accent": "201,168,92" } as CSSProperties;

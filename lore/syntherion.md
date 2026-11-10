@@ -622,7 +622,11 @@ more posts are still being built, gold wire with the solid rising into it and si
 one for each thing the floor is still waiting on. Toward the edges the stone and the columns come undone into gold
 wire and nanites, the Senate's edges. Noco has challenged the unbuilt posts to a duel twice; they did not show up,
 which Noco counts as a win. Hedge sits facing the marquee, which is new, and checks the unbuilt posts' wire every
-morning for load-bearing optimism.
+morning for load-bearing optimism. Since #988 the book has moved to the middle of the floor: an oval plinth between
+the two busiest posts, the C.E.O.'s open positions standing on it as lacquered pillars, each as tall as its share of
+the book, a lit ticket over it and nanites rising off its top. The pillars are only solid to the one who holds the
+key; to anyone else they stand empty, wire to the floor. Gold dust drifts up through the whole hall now, which the
+Bookie says is what money looks like when nobody is allowed to count it.
 
 **The bowl.** Since #824 the Green's page is a stadium: a bowl of solid stands round a lit field at night, floodlight
 towers at the corners, a ribbon board scrolling the score along the fascia and a jumbotron hung over midfield on

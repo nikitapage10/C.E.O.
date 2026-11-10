@@ -10,6 +10,7 @@ import "./env.js";
 import { app, type HttpMethod } from "@azure/functions";
 import { registerAzureBlob } from "../../api/_blob.js";
 import * as annex from "../../api/_annex/route.js";
+import { JOBS_SCHEDULE } from "../../api/_annex/jobs.js";
 import * as daystory from "../../api/day-story.js";
 import * as deskauth from "../../api/desk-auth.js";
 import * as deskpings from "../../api/desk-pings.js";
@@ -85,6 +86,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // and shared by every viewer (api/_annex/route.ts). annex-elections GET is public, like the results themselves.
   ["annex", annex],
   ["annex-elections", annex],
+  // The Job search (#1000, api/_annex/jobs.ts): a Desk session only; Google Jobs through SerpApi.
+  ["annex-jobs", annex],
   // Hey Skippy from the iPhone (#627, docs/HEY-SKIPPY.md): POST with a phone key (hashed in the private store, paced
   // 30 an hour), and GET a signed, single-use link to the spoken answer. The Desk's Phones panel and Kitchen list read
   // and write through /api/haven (passkey session; ?view=status is counts only); /api/hey-skippy is the greeting clips.
@@ -275,6 +278,20 @@ app.timer("haven_photos_tick", {
     await keysFresh();
     const result = await havenphotos.drainPhotos().catch(() => "failed" as const);
     if (result === "failed") context.warn("haven photos: failed");
+  },
+});
+
+// The Annex's Job search (#1000, api/_annex/jobs.ts): once a day at 13:00 UTC, the saved searches on SerpApi, inside
+// the month's search budget (JOBS_MONTHLY_SEARCHES). Nothing while it is shelved or SERPAPI_KEY isn't set. Counts only.
+app.timer("annex_jobs_daily", {
+  schedule: JOBS_SCHEDULE,
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    await keysFresh();
+    const result = await annex.runJobsDaily().catch(() => "failed");
+    if (result === "failed") context.warn("annex jobs: failed");
+    else context.log(`annex jobs: ${result}`);
   },
 });
 

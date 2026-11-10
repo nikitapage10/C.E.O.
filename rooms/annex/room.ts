@@ -17,15 +17,19 @@ export default defineRoom({
   auth: {
     annex: ["site", "passkey"],
     "annex-elections": ["public"],
+    "annex-jobs": ["site", "passkey"],
   },
-  keys: [],
+  keys: ["SERPAPI_KEY"],
   usesClaude: false,
   threat: ["TB1"],
   budgetKb: 64,
   purpose: {
-    goal: "Stages short-run pop-ups on the engine, starting with live election results read from civicAPI, so a new agent feature can be tried for a night before it earns a room.",
-    agents: [{ name: "civicAPI", use: "Election night's live results" }],
-    measure: "pop-ups live, and races followed on Election night",
+    goal: "Stages short-run pop-ups on the engine (Election night on civicAPI, a private daily Job search on SerpApi) so a new agent feature can be tried before it earns a room.",
+    agents: [
+      { name: "civicAPI", use: "Election night's live results" },
+      { name: "SerpApi", use: "The Job search's Google Jobs results, once a day" },
+    ],
+    measure: "pop-ups live, races followed on Election night, and jobs saved and applied to",
   },
   lore: { submind: "stagehand", agents: [], house: [], section: "The Annex", lines: "skippy" },
 });

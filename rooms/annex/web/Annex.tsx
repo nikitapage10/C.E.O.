@@ -18,6 +18,7 @@ import "./annex.css";
  */
 
 const ElectionNight = lazy(() => import("./ElectionNight.tsx").then((m) => ({ default: m.ElectionNight })));
+const JobSearch = lazy(() => import("./JobSearch.tsx").then((m) => ({ default: m.JobSearch })));
 
 const STATUS_WORD: Record<PopupStatus, string> = { live: "Growing", ended: "Ended", archived: "Seed", graduated: "Graduated" };
 const BED_OF: Record<PopupStatus, BedState> = { live: "bed", ended: "bed", archived: "vault", graduated: "plot" };
@@ -25,6 +26,7 @@ const reduced = () => typeof window !== "undefined" && typeof window.matchMedia 
 
 function Section({ popup }: { popup: Popup }) {
   if (popup.id === "elections") return <ElectionNight />;
+  if (popup.id === "jobs") return <JobSearch />;
   return null;
 }
 
@@ -37,7 +39,7 @@ function Row({ popup, status, note, lit, onSet }: { popup: Popup; status: PopupS
         <b>{popup.name}</b>
         <span>{popup.line}</span>
       </div>
-      <span className="an-until">{shelved ? "Code and settings kept" : note || `Runs to ${popup.until}`}</span>
+      <span className="an-until">{shelved ? "Code and settings kept" : note || (popup.until ? `Runs to ${popup.until}` : "Runs until shelved")}</span>
       {shelved ? (
         <button type="button" className="an-btn an-btn--go" onClick={() => onSet("live")} title="Back up into its bed, as it was">
           Re-spin
@@ -81,7 +83,7 @@ function Bed({ popup, status, note, lit, onSet, n }: { popup?: Popup; status?: P
       </span>
       <b>{popup.name}</b>
       <span className="an-bed-line">{popup.line}</span>
-      <span className="an-until">{note || `Runs to ${popup.until}`}</span>
+      <span className="an-until">{note || (popup.until ? `Runs to ${popup.until}` : "Runs until shelved")}</span>
       <button type="button" className="an-btn" onClick={() => onSet("archived")} title="Back to seed on the Shelf: stops its reads and timers, keeps its code and settings">
         Shelve
       </button>

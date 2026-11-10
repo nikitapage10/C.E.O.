@@ -147,6 +147,15 @@ sets, clamped numbers, trimmed strings, `api/_annex/elections.ts`), sends no mod
 public results, which the site gate lets through on GET. The Annex's own record (pop-up statuses, followed race ids)
 is written only in a passkey session (TB1).
 
+The Annex's Job search (#1000) calls SerpApi (serpapi.com, Google Jobs) from the Azure function only: the browser never
+calls it. SerpApi's key is the Key Vault secret `serpapi-key`, set from Cloud Shell and not settable from the site
+(`NEVER_SETTABLE`, `api/_keys/allowlist.ts`); it goes to serpapi.com alone, as the `api_key` parameter it requires, and
+never into a log. What is searched, the pay floor, the words, the resume and the jobs found live only in the private
+store (`desk/annex/jobs.json`, the resume apart in `desk/annex/jobs-resume.json`), never in the repo, and are read and
+written only in a passkey session (`/api/annex-jobs`, no public view, the site gate never lets it through). SerpApi's
+answer is untrusted data (capped plain strings, https apply links only, `api/_annex/jobs.ts`); no model sees any of it.
+Runs are one a day on a timer plus a tap at most every 30 minutes, inside a monthly budget, and log counts only.
+
 The Haven (#616) draws Nikita's home in 3D from a floor plan that is never in the repo: the repo holds only a generic
 renderer and the plan's shape (`api/_haven/planShape.ts`). The plan (rooms, walls, doors, furniture and where each
 device stands) is JSON in the private store (`haven/plan.json`), read only through `/api/haven-plan` in a

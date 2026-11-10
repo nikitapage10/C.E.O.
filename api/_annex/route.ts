@@ -14,6 +14,9 @@
  *                                   took, and the seconds since civicAPI last changed each Senate and governor race
  *                                   (and any of them). Counts and seconds only.
  *
+ * GET  /api/annex-jobs           → the Job search (#1000, api/_annex/jobs.ts): Desk session only, read and changed
+ * POST /api/annex-jobs              there; runs the saved searches on SerpApi on demand (a daily timer runs them too).
+ *
  * Underscore folder: Vercel never serves it as a function.
  */
 
@@ -21,6 +24,7 @@ import { pickBlob } from "../_blob.js";
 import { requireSession, sameOrigin, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { electionBoard, freshness, seedElections, type ElectionBoard, type ElectionDeps } from "./elections.js";
+import { budgetOf, changeJobs, JOBS_PATH, pickJobsStore, runJobs, viewOf, type JobsDeps } from "./jobs.js";
 import { cleanFollows, isPopup, isStatus, pickAnnexStore, type AnnexState, type AnnexStore } from "./state.js";
 
 export const ANNEX_PATH = "/api/annex";
@@ -127,12 +131,52 @@ export async function getElections(request: Request, deps: AnnexDeps = liveAnnex
   return json(board, 200, "public, max-age=15");
 }
 
-/** The two endpoints, by path (azure/src/index.ts registers both on this module). */
+export function liveJobsDeps(): JobsDeps {
+  const env = process.env;
+  return { store: pickJobsStore(env), fetcher: (url, init) => fetch(url, init), key: (env.SERPAPI_KEY ?? "").trim(), budget: budgetOf(env), now: Date.now() };
+}
+
+/** The Job search's record (#1000): a Desk session only, since a job search is private. */
+export async function getJobs(request: Request, deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<Response> {
+  const signed = await requireSession(request, deps.desk);
+  if (!signed.ok) return signed.response;
+  const [state, resume] = await Promise.all([jobs.store.read(), jobs.store.readResume().catch(() => "")]);
+  return withCookie(json(viewOf(state, jobs, !!resume)), signed);
+}
+
+export async function postJobs(request: Request, deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<Response> {
+  if (!sameOrigin(request)) return json({ error: "cross-site" }, 403);
+  const signed = await requireSession(request, deps.desk);
+  if (!signed.ok) return signed.response;
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body || typeof body !== "object") return withCookie(json({ error: "bad-request" }, 400), signed);
+  if (body.action === "run") {
+    const annex = await stateOf(deps).catch(() => null);
+    if (annex?.popups.jobs.status === "archived") return withCookie(json({ error: "shelved" }, 409), signed);
+    const { result, state } = await runJobs(jobs, "hand");
+    const resume = await jobs.store.readResume().catch(() => "");
+    return withCookie(json({ ...viewOf(state, jobs, !!resume), result }), signed);
+  }
+  const done = await changeJobs(jobs, body);
+  if ("error" in done) return withCookie(json(done, 400), signed);
+  return withCookie(json(viewOf(done.state, jobs, done.hasResume)), signed);
+}
+
+/** The daily run (azure/src/index.ts, `annex_jobs_daily`): nothing while the pop-up is on the Shelf. */
+export async function runJobsDaily(deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<string> {
+  const annex = await stateOf(deps).catch(() => null);
+  if (!annex || annex.popups.jobs.status !== "live") return "shelved";
+  return (await runJobs(jobs, "schedule")).result;
+}
+
+/** The endpoints, by path (azure/src/index.ts registers each on this module). */
 export async function GET(request: Request): Promise<Response> {
-  return new URL(request.url).pathname === ELECTIONS_PATH ? getElections(request) : getAnnex(request);
+  const path = new URL(request.url).pathname;
+  return path === ELECTIONS_PATH ? getElections(request) : path === JOBS_PATH ? getJobs(request) : getAnnex(request);
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (new URL(request.url).pathname === ELECTIONS_PATH) return json({ error: "method" }, 405);
-  return postAnnex(request);
+  const path = new URL(request.url).pathname;
+  if (path === ELECTIONS_PATH) return json({ error: "method" }, 405);
+  return path === JOBS_PATH ? postJobs(request) : postAnnex(request);
 }

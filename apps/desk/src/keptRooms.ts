@@ -2,7 +2,8 @@
  * Which Desk rooms stay mounted (#759, #934). The Senate (Today), the Haven and Relay are always loaded (Nikita,
  * 2026-11-06 01:05Z: "those three should always kind of be loaded in the background at all times"): once the Desk is
  * idle after its first paint they mount one at a time, each in idle time of its own (a mount is a few hundred
- * milliseconds of work, so never all three in one go), hidden and paused, beside the room on screen, and stay. A hidden room is out
+ * milliseconds of work, so never all three in one go), the Haven and Relay only once the Senate's chamber is built
+ * (#973, `onSenateBuilt`), hidden and paused, beside the room on screen, and stay. A hidden room is out
  * of the layout, so its scene draws nothing (each scene's IntersectionObserver), and coming back shows it as it was,
  * with nothing to build or compile again. A kept room's keys stay quiet out of sight: the Senate's and Relay's
  * hold-to-talk take Space only on screen, and Relay's keys (Y to send, WASD) listen only while it is shown
@@ -10,6 +11,34 @@
  * already fetched, so it opens at once. On a machine that reports little memory (the same test as the kept Lattice,
  * latticeWarm.ts) nothing is kept.
  */
+
+/**
+ * The Senate first (#973). Nikita, 2026-11-06: the Senate loaded slower once the warm-up mounted the Haven and Relay
+ * promptly (#958), both building beside the chamber while it was still building. So the rooms after the Senate wait
+ * until its chamber reports built (its first frame, or its flat fallback without WebGL), or SENATE_WAIT_MS at most,
+ * so a chamber that never reports never holds them for good.
+ */
+export const SENATE_WAIT_MS = 30_000;
+let senateUp = false;
+const senateWaiting = new Set<() => void>();
+/** The Senate's chamber is built (Rotunda.tsx): the warm-up may go on. */
+export function senateBuilt(): void {
+  if (senateUp) return;
+  senateUp = true;
+  for (const f of [...senateWaiting]) f();
+  senateWaiting.clear();
+}
+/** Calls `f` once the Senate's chamber is built (at once if it is); returns how to stop waiting. */
+export function onSenateBuilt(f: () => void): () => void {
+  if (senateUp) {
+    f();
+    return () => {};
+  }
+  senateWaiting.add(f);
+  return () => senateWaiting.delete(f);
+}
+/** Whether the room the warm-up mounts next waits on the Senate's chamber: every one after the Senate itself. */
+export const waitsOnSenate = (room: string | undefined): boolean => room !== undefined && room !== "today";
 
 /** The rooms always kept loaded, in the bar's order (#934). */
 export const ALWAYS_KEPT = ["today", "haven", "relay"] as const;

@@ -23,7 +23,7 @@ import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import { installHoldToTalk } from "./holdToTalk.ts";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
-import { ALWAYS_KEPT, keptAfter, SCENE_ROOMS, settleShown } from "./keptRooms.ts";
+import { ALWAYS_KEPT, keptAfter, onSenateBuilt, SCENE_ROOMS, SENATE_WAIT_MS, settleShown, waitsOnSenate } from "./keptRooms.ts";
 import { focusPage } from "./pageFocus.ts";
 import { RoomGuard } from "./RoomGuard.tsx";
 import { canWarm, warmRotunda } from "./rotunda/warm.ts";
@@ -152,15 +152,28 @@ export function Desk({ route }: { route: DeskPage }) {
   }, [route, pathname]);
 
   // The rooms kept mounted (#759, #934, keptRooms.ts): the one on screen, and the Senate, the Haven and Relay hidden and
-  // paused, mounted one at a time in the Desk's idle time after its first paint.
+  // paused, mounted one at a time in the Desk's idle time after its first paint, the Haven and Relay once the Senate's
+  // chamber is built (#973).
   const [warmed, setWarmed] = useState(0);
   const [kept, setKept] = useState<DeskPage[]>([route]);
   const next = ALWAYS_KEPT[warmed] as DeskPage | undefined;
   const nextMounted = next !== undefined && kept.includes(next);
+  // The Senate first (#973): the rooms after it wait until its chamber is built, never building beside it.
+  const [senateUp, setSenateUp] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSenateUp(true), SENATE_WAIT_MS);
+    const off = onSenateBuilt(() => setSenateUp(true));
+    return () => {
+      window.clearTimeout(t);
+      off();
+    };
+  }, []);
+  const held = !senateUp && waitsOnSenate(next);
   useEffect(() => {
     if (warmed >= ALWAYS_KEPT.length || !keepLattice()) return;
     // One already mounted (the room on screen, or visited) costs nothing: straight on to the next.
     if (nextMounted) return setWarmed((n) => n + 1);
+    if (held) return;
     let gone = false;
     let raf = 0;
     // Promptly (#958): the first just after the first paint, then one room per idle slot, each its own task (a mount
@@ -172,7 +185,7 @@ export function Desk({ route }: { route: DeskPage }) {
       window.clearTimeout(t);
       cancelAnimationFrame(raf);
     };
-  }, [warmed, nextMounted]);
+  }, [warmed, nextMounted, held]);
   const want = keptAfter(kept, route, keepLattice(), warmed);
   if (want.join() !== kept.join()) setKept(want);
 

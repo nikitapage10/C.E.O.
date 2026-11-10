@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { DECK_FONT, DECK_GLYPHS, useDeckCanvas } from "@ceo/engine/sigils/deckCanvas.ts";
 
 /**
- * Under the print farm (#932): the Workshop's console sits on a build plate. A fine gold grid, ruled every five, that
+ * Under the flow (#932, #989): the Workshop's console sits on a build plate. A fine gold grid, ruled every five, that
  * holds in the middle and breaks into dashes toward the sides; a nozzle laying one slow serpentine pass whose line cools
  * behind it; and sigil nanites settling down onto the plate the way filament lays down, layer on layer, brighter at the
  * sides where the grid comes undone into them. Drawn by the engine's deck loop (30 fps, on screen only, still under

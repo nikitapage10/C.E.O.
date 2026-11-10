@@ -4,7 +4,9 @@ import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import { PLACES, placeOf, stepPlace, WT_SILVER, WT_SILVER_RGB, type PlaceId } from "../data/warTable.ts";
 import type { PlaceState, WarTable as Scene } from "./warTableScene.ts";
+import { LegendSigils } from "./LegendSigils.tsx";
 import "./wartable.css";
+import "./legend.css";
 
 /**
  * The war table (#826): the Archive's page as a campaign table that fills the screen. Each of the Archive's features is
@@ -214,6 +216,7 @@ export function WarTable({ head, panels, notes, states, open, onOpen }: WarTable
           </p>
         </div>
         <nav className="wt-legend" aria-label="The places on the table">
+          <LegendSigils />
           {PLACES.map((p, i) => (
             <button
               key={p.id}

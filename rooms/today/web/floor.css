@@ -1,0 +1,63 @@
+/*
+ * The Senate's floor (#977): what sits under the chamber matches it, the way the Foundry's, the Workshop's, the Annex's
+ * and the Studio's decks match theirs (#932). The shared gold wire with the chamber's tiers spreading under it
+ * (FloorSigils.tsx), and over it the same sections as see-through gold-framed panels: the docket rail that folds what
+ * can wait away, the minutes of what happened, the warm petitions, and every room as a seat with its brass nameplate.
+ * The same real data as before; only the room they sit in changes.
+ */
+.desk .td-deck{--td-gold:#e3c98d;--td-brass:#c9a85c;--td-gl:rgba(201,168,92,.24);position:relative;isolation:isolate;padding:34px clamp(16px,4vw,64px) 96px;background:linear-gradient(180deg,rgba(6,6,9,0) 0,#08080b 120px,#09090c 100%);border-top:1px solid rgba(201,168,92,.35)}
+.desk .td-deck::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;z-index:1;background:linear-gradient(90deg,transparent,rgba(232,199,122,.9) 50%,transparent);box-shadow:0 0 18px rgba(232,199,122,.35)}
+.desk .td-deck-sig{position:absolute;inset:0;z-index:0;width:100%;height:100%;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 0,#000 78%,transparent);mask-image:linear-gradient(180deg,#000 0,#000 78%,transparent)}
+.desk .td-deck>:not(.td-deck-sig){position:relative;z-index:1}
+.desk .td-deck .wv-tmore-box{max-width:1216px;margin:0 auto}
+
+/* The corner marks every panel on the floor carries: brass ticks like a frame guide. */
+.desk .td-deck .td-later-bar::after,.desk .td-deck .wv-tmore-in>section::after{content:"";position:absolute;inset:-4px;pointer-events:none;background:linear-gradient(var(--td-brass),var(--td-brass)) 0 0/14px 1px,linear-gradient(var(--td-brass),var(--td-brass)) 0 0/1px 14px,linear-gradient(var(--td-brass),var(--td-brass)) 100% 0/14px 1px,linear-gradient(var(--td-brass),var(--td-brass)) 100% 0/1px 14px,linear-gradient(var(--td-brass),var(--td-brass)) 0 100%/14px 1px,linear-gradient(var(--td-brass),var(--td-brass)) 0 100%/1px 14px,linear-gradient(var(--td-brass),var(--td-brass)) 100% 100%/14px 1px,linear-gradient(var(--td-brass),var(--td-brass)) 100% 100%/1px 14px;background-repeat:no-repeat}
+
+/* ---------- the docket rail: what can wait, folded under the chamber ---------- */
+.desk .td-deck .td-later-bar{max-width:1216px;margin:0 auto;border-radius:3px;border-color:var(--td-gl);background:linear-gradient(180deg,rgba(22,19,14,.86),rgba(10,10,12,.9));box-shadow:inset 0 1px 0 rgba(255,236,190,.06),0 24px 50px -30px #000}
+.desk .td-deck .td-later-bar:hover,.desk .td-deck .td-later-bar:focus-visible{border-color:rgba(201,168,92,.5)}
+.desk .td-deck .td-later-k b{color:var(--td-gold)}
+.desk .td-deck.is-open .td-later-k b{color:#fff0c8;text-shadow:0 0 18px rgba(232,199,122,.35)}
+/* Its four icons as the docket's seals: bronze discs in a gold ring. */
+.desk .td-deck .td-later-ics>span{border-color:rgba(201,168,92,.4);background:radial-gradient(circle at 40% 35%,#2e2a22,#121114 72%);color:var(--td-gold);box-shadow:0 0 0 2px #070708,0 3px 8px #000}
+.desk .td-deck .td-later-bar:hover .td-later-ics>span{color:#fff0c8;border-color:rgba(232,199,122,.7)}
+.desk .td-deck .td-later-ics i{background:var(--td-gold)}
+.desk .td-deck .td-later-chev{color:var(--td-brass)}
+
+/* ---------- each section a see-through panel on the floor ---------- */
+.desk .td-deck .wv-tmore-in>section{position:relative;margin:28px 0 0;padding:clamp(18px,2.2vw,30px);border:1px solid var(--td-gl);border-radius:3px;background:linear-gradient(180deg,rgba(14,13,12,.82),rgba(8,8,10,.86));box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 30px 60px -30px rgba(0,0,0,.8)}
+.desk .td-deck .wv-tmore-in>section .wv-sechead{padding-bottom:14px;border-bottom:1px solid rgba(201,168,92,.16)}
+.desk .td-deck .wv-tmore-in .wv-eyb{color:var(--td-brass)}
+.desk .td-deck .wv-tmore-in .wv-h2{color:var(--wv-ink)}
+
+/* The short version as the minutes: each line ruled in gold, its hour set like the chamber's clock. */
+.desk .td-deck .wv-moments{max-width:none}
+.desk .td-deck .wv-mo+.wv-mo{border-top:1px solid rgba(201,168,92,.08)}
+.desk .td-deck .wv-mo time{font-family:var(--td-disp);font-style:italic;font-size:14px;color:rgba(227,201,141,.7)}
+.desk .td-deck .wv-mo img{border-color:rgba(201,168,92,.45);box-shadow:0 0 0 3px #0a0a0c,0 0 0 4px rgba(201,168,92,.18)}
+
+/* Warm, not on fire: petitions on the floor, each with its room's ribbon and a bronze seal. */
+.desk .td-deck .wv-pr{border-radius:3px;border-color:rgba(201,168,92,.2);background:linear-gradient(180deg,rgba(20,18,15,.88),rgba(10,10,12,.9))}
+.desk .td-deck .wv-pr::after{content:"";position:absolute;right:16px;top:16px;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#d9bf86,#8a6f35 60%,#3b2f17);box-shadow:0 0 0 2px #0b0b0d,0 0 0 3px rgba(201,168,92,.35)}
+.desk .td-deck .wv-pr.is-bad::after{background:radial-gradient(circle at 40% 35%,#ffb0a0,#b0453a 60%,#41160f)}
+.desk .td-deck .wv-pr-k{padding-right:30px}
+
+/* Walk in anywhere: every room a seat on the floor, its picture framed and its name on a brass plate. */
+.desk .td-deck .rooms .room a{gap:0;padding:0;border-radius:3px;border-color:rgba(201,168,92,.2);background:#0b0b0d}
+.desk .td-deck .rooms .room a:hover{border-color:rgba(232,199,122,.55);box-shadow:0 18px 40px -22px rgba(232,199,122,.45)}
+.desk .td-deck .rooms .room__pic{border-radius:0;border-bottom:1px solid rgba(201,168,92,.3)}
+.desk .td-deck .rooms .room__text{padding:12px 14px 8px}
+.desk .td-deck .rooms .room__name{font-family:var(--td-disp);font-weight:500;font-size:18px;letter-spacing:.01em}
+.desk .td-deck .rooms .room__foot{margin:0 10px 10px;padding:7px 10px;border:1px solid rgba(201,168,92,.28);border-radius:2px;background:linear-gradient(180deg,#2a251b,#16140f 55%,#1e1a13);box-shadow:inset 0 1px 0 rgba(255,236,190,.1)}
+.desk .td-deck .rooms .room__cap{color:var(--td-gold);letter-spacing:.12em}
+.desk .td-deck .rooms .room--hot a{border-color:rgba(232,199,122,.5)}
+.desk .td-deck .rooms .room--hot .room__foot{border-color:rgba(232,199,122,.7);box-shadow:inset 0 1px 0 rgba(255,236,190,.14),0 0 18px -6px rgba(232,199,122,.6)}
+
+@media (max-width:760px){
+  .desk .td-deck{padding:22px 16px 88px}
+  .desk .td-deck .wv-tmore-in>section{padding:16px 12px;margin-top:20px}
+  .desk .td-deck .rooms .room__text{padding:10px 10px 6px}
+  .desk .td-deck .rooms .room__name{font-size:16px}
+  .desk .td-deck .rooms .room__foot{margin:0 6px 8px;padding:6px 8px}
+}

@@ -22,7 +22,9 @@ import "@fontsource-variable/jost/wght.css";
 import "@fontsource-variable/eb-garamond/wght.css";
 import "@fontsource-variable/eb-garamond/wght-italic.css";
 import "@fontsource-variable/source-sans-3/wght.css";
+import { FloorSigils } from "./FloorSigils.tsx";
 import "./today.css";
+import "./floor.css";
 
 /** The rest of Today, loaded the first time "Not worth knowing now" is opened (or in the idle time after first paint). */
 export const loadTodayMore = () => import("./TodayMore.tsx");
@@ -132,7 +134,8 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
           />
       </section>
 
-      <section className={`td-later cf-later${more ? " is-open" : ""}`} aria-label="Not worth knowing now">
+      <section className={`td-later td-deck cf-later${more ? " is-open" : ""}`} aria-label="Not worth knowing now">
+        <FloorSigils />
         <button type="button" className="td-later-bar" aria-expanded={more} aria-controls="today-more" onClick={openMore} onPointerEnter={() => void loadTodayMore()} onFocus={() => void loadTodayMore()}>
           <span className="td-later-k">
             <b>{more ? "Fold it away" : "Not worth knowing now"}</b>

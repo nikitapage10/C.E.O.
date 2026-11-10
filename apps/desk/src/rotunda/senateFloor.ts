@@ -83,8 +83,8 @@ export interface FloorScene {
   join?: (said: string, j: Joined) => boolean;
 }
 
-/** A beat between turns. */
-const TURN_GAP_MS = 700;
+/** A beat between turns: the next speaker within about half a second (#973). */
+const TURN_GAP_MS = 300;
 
 let listener: Listener | null = null;
 let player: HTMLAudioElement | null = null;

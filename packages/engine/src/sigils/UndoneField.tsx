@@ -25,11 +25,17 @@ export interface UndoneFieldProps {
   most?: [number, number];
   /** A room's own layer, drawn over the grid and under the nanites each frame. Fixed for the page's life. */
   under?: (f: DeckFrame) => void;
+  /** The wire's and the nanites' colours as "r,g,b" (default the Senate's gold): Relay keeps its blue wire and white
+   *  nanites, the Archive the Tide's silver (#977). */
+  tone?: { wire: string; glyph: string; hi: string };
 }
 
 type N = { x: number; y: number; v: number; s: number; g: number; t: number; hi: boolean };
 
-export function UndoneField({ className, step = 44, most = [150, 46], under }: UndoneFieldProps) {
+export function UndoneField({ className, step = 44, most = [150, 46], under, tone }: UndoneFieldProps) {
+  const WIRE = tone?.wire ?? GOLD;
+  const GLYPH = tone?.glyph ?? GOLD;
+  const HI = tone?.hi ?? GOLD_HI;
   const ref = useRef<HTMLCanvasElement>(null);
   const ns = useRef<N[]>([]);
   useDeckCanvas(ref, (f) => {
@@ -54,7 +60,7 @@ export function UndoneField({ className, step = 44, most = [150, 46], under }: U
     c.lineWidth = 1;
     for (let x = (w / 2) % step; x < w; x += step) {
       const e = edge(x);
-      c.strokeStyle = `rgba(${GOLD},${0.05 + e * 0.07})`;
+      c.strokeStyle = `rgba(${WIRE},${0.05 + e * 0.07})`;
       c.setLineDash(e > 0.55 ? [3 + (1 - e) * 10, 4 + e * 10] : []);
       c.lineDashOffset = -T * 6;
       c.beginPath();
@@ -64,10 +70,10 @@ export function UndoneField({ className, step = 44, most = [150, 46], under }: U
     }
     c.setLineDash([]);
     const g = c.createLinearGradient(0, 0, w, 0);
-    g.addColorStop(0, `rgba(${GOLD},0.12)`);
-    g.addColorStop(0.3, `rgba(${GOLD},0.04)`);
-    g.addColorStop(0.7, `rgba(${GOLD},0.04)`);
-    g.addColorStop(1, `rgba(${GOLD},0.12)`);
+    g.addColorStop(0, `rgba(${WIRE},0.12)`);
+    g.addColorStop(0.3, `rgba(${WIRE},0.04)`);
+    g.addColorStop(0.7, `rgba(${WIRE},0.04)`);
+    g.addColorStop(1, `rgba(${WIRE},0.12)`);
     c.strokeStyle = g;
     for (let y = step / 2; y < h; y += step) {
       c.beginPath();
@@ -95,7 +101,7 @@ export function UndoneField({ className, step = 44, most = [150, 46], under }: U
       const a = (0.1 + edge(n.x) * 0.38) * Math.max(0, life) * (n.hi ? 1.6 : 1);
       if (a < 0.02) continue;
       c.font = `${n.s.toFixed(0)}px ${DECK_FONT}`;
-      c.fillStyle = `rgba(${n.hi ? GOLD_HI : GOLD},${Math.min(0.75, a).toFixed(3)})`;
+      c.fillStyle = `rgba(${n.hi ? HI : GLYPH},${Math.min(0.75, a).toFixed(3)})`;
       c.fillText(DECK_GLYPHS[n.g]!, n.x, n.y);
     }
   });

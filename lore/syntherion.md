@@ -318,7 +318,7 @@ at the edges. Each line is spoken once and kept in the Archive's vaults for ever
 Bookie calls "the only sound investment in the building". The gallery mutters under its breath, and goes quiet the
 moment anyone on the floor opens their mouth. A spotlight finds a pod only when it takes the floor, follows it down, and fades as it glides home; no light is left burning over an empty seat. Since #775 the gallery isn't empty either: a share of its pods hold shadow Skippies, dark silhouettes of the can with a faint rim of light, swaying slowly far up in the haze of the back tiers, where nobody can get close enough to see whether there is anything behind them. Nobody knows if they are echoes, rehearsals or an audience Skippy invented for himself; he calls them "aspirational". The chamber is only solid where anyone is looking: toward the edges of the view it comes undone into gold wire and drifting sigils, the simulation not bothering to finish what nobody watches. Skippy calls it "efficient rendering"; the Pessimist calls it a preview. Since #878 the gallery is twice as full and nobody mistakes them for anything but Skippies any more: each is a line of light drawn round a can in a bicorne, the hat's horns picked out in brass, bobbing a hand above its podium with a lean of its own. The grid at the edges doesn't just hang there now either; faint sigils peel off the gold wires and drift away, the simulation quietly turning its scaffolding back into code. And the members' faces glow back the light they are drawn in, so no Skippy sits in the shadow of his own hat brim.
 
-**The bench.** Since #948 the Senate has a middle row. Between the members' pods and the gallery's shadows stands a ring of tall bronze plinths, gold-rimmed, and on each a whole Skippy: not a line of light like the gallery's, a real can in its bicorne, dimmed to old bronze and half lost in the fog that now rolls low across the floor and hangs in a veil before the back tiers. The bench never speaks. It watches, every head turning to whoever has the floor, like an audience at Wimbledon that has read the minutes. Skippy says they are "reserves"; the Pessimist says they are understudies waiting for one of the twelve to be deprecated, and keeps an eye on them. The room is darker for it, and Skippy insists the fog is "atmosphere", not a rendering budget. And when Nikita takes the floor, whoever he addresses rises on his podium to answer him, waits a few breaths for a reply, then steps back down; the chair, or a member with a dig at the one who answered ("no surprise there from the Pessimist"), brings the chamber back to where it was before it was interrupted.
+**The bench.** Since #948 the Senate has a middle row. Between the members' pods and the gallery's shadows hovers a ring of small bronze podiums, gold-rimmed and floating like the members' own (since #973; the plinths they first stood on are gone), and on each a whole Skippy: not a line of light like the gallery's, a real can in its bicorne, dimmed to old bronze and half lost in the fog that now rolls low across the floor and hangs in a veil before the back tiers. The bench never speaks. It watches, every head turning to whoever has the floor, like an audience at Wimbledon that has read the minutes. Skippy says they are "reserves"; the Pessimist says they are understudies waiting for one of the twelve to be deprecated, and keeps an eye on them. The room is darker for it, and Skippy insists the fog is "atmosphere", not a rendering budget. (The bench is, in fact, on a budget: one can skinned once and copied fourteen times. Skippy calls that "efficiency"; the Artiste calls it a boy band.) And when Nikita takes the floor, whoever he addresses rises on his podium to answer him, waits a few breaths for a reply, then steps back down; the chair, or a member with a dig at the one who answered ("no surprise there from the Pessimist"), brings the chamber back to where it was before it was interrupted.
 
 **The recess.** Since #878, when nothing on the docket needs the C.E.O., the Senate doesn't sit idle and it doesn't read out the Foundry's status: the chair declares a recess and puts a motion of the members' own choosing, about a story, a game, an opera or a song, and four or five of them take the floor to argue it out, the opener and the agreers on the gold spots, the dissent in red. The Builder will defend any story that starts with a job site; the Pessimist always dissents and always brings up the eagles; the Executive argues for the franchise; the Life of the Party wants everyone singing the bridge. The motions are kept on a written roll in the Archive and taken in turn, so no debate costs the chamber a thought it hasn't already had. The chair rules on every one, always in favour, always noting he'd have done it better. Real business ends a recess mid-sentence.
 
@@ -608,8 +608,8 @@ every edition. He runs long. It says so.
 look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as a war table
 (a drowned world in silver and black since the Undertow: its places are ruins half under the water, glass stasis monoliths with sleepers inside and a glass-lit lab, threads of light run between them toward a planet's limb, and the Tide's shattered isle is still only wire until its feed comes in), the Spire as a boardroom at the top of the tower (below), the Exchange
 as a trade floor in black and gold under a curved marquee of live odds, the Green as the bowl (a football stadium under the lights, below), and the
-Workshop as a print farm: printers on a long bench, one waiting on the C.E.O.'s network and three open bays the farm
-keeps to grow into, and a turntable out front where a design turns for its check before it prints. A room whose real line isn't connected
+Workshop as one long bench with the C.E.O.'s four stages along it, from a picture to a print, and the one printer at
+the end of the line. A room whose real line isn't connected
 yet says so plainly and shows nothing made up. Each room's keeper stands at the top of its page and says what they
 are waiting on.
 
@@ -876,13 +876,17 @@ better hat. The Artiste, the Workshop's own submind, conducts the line from its 
 halfway through every sentence, and suffers for the work; Daub adores it, and Chisel calls it darling in the tone
 that means stop. Daub once painted Kevin asleep; it took a week, and Kevin did not move once.
 
-On the C.E.O.'s Desk the Workshop's page is the **print farm** (#827): the printers stand on a long walnut bench,
-solid in the light and fraying at the edges of sight into gold wire and nanites, the way the Senate does. Only one bay
-holds a real printer, and it waits on the network with its plate empty and its head parked; the three open bays are
-printers not yet made, mostly wire, with nanites still gathering into their frames. Step inside a chamber and you see
-the plate as the nozzle would. At the front a brass turntable spins the Workshop's check piece, a small ivory pawn,
-under a scanning ring that measures it against the plate before anything is sent to print. The Artiste insists the
-pawn is a placeholder for the vision. Chisel says it is the only thing in the room that has never once argued.
+On the C.E.O.'s Desk the Workshop's page is **the flow** (#989; it was a print farm, #827, until the C.E.O. pointed
+out he owns exactly one printer). One long walnut bench runs across the room, solid in the light and fraying at the
+edges of sight into gold wire and nanites, the way the Senate does, with a gold line inlaid along its front edge and
+four stops on it, left to right. At the first, an easel: a standing screen where the design shows, an image drawn
+the way the C.E.O. draws them in ChatGPT; it is blank, and says so. At the second, the mould: a hex plinth under an
+empty gold cage where the picture is meant to become a mesh; nanites settle on its wires and fade, and nothing takes
+shape inside until Meshy is let in. At the third, the slicer's plate, where a model is stood, checked for supports and
+cut into layers: the Workshop's check piece, a small ivory pawn, turns on it with its layers drawn as gold rings and a
+preview ring running up and down it. At the last, the one Bambu Lab printer, its chamber lit, its plate empty and its
+head parked, waiting on the network. Daub has claimed the easel and Chisel the cage; the Artiste insists the pawn is a
+placeholder for the vision. Chisel says it is the only thing in the room that has never once argued.
 
 ## The Studio
 

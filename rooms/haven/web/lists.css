@@ -89,6 +89,12 @@
 [data-room="haven"] .hv-lt-dim{display:flex;align-items:center;gap:8px;color:var(--hv-soft);font:400 12px var(--hv-text)}
 [data-room="haven"] .hv-lt-dim input{flex:1;accent-color:rgb(var(--hv-gold))}
 [data-room="haven"] .hv-lt-mood{min-height:30px;border:1px solid var(--hv-line);border-radius:8px;background:rgba(8,9,12,.8);color:var(--hv-soft);font:400 13px var(--hv-text)}
+/* #1002: plain by default, two switches a row; Edit opens Colour, Place and the groups. */
+[data-room="haven"] .hv-lt-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 4px}
+[data-room="haven"] .hv-lt-top .hv-lt-h{margin:0}
+[data-room="haven"] .hv-lt-top .hv-lt-mini{min-height:26px;padding:0 10px}
+[data-room="haven"] .hv-lights:not([data-edit]) .hv-lt-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+[data-room="haven"] .hv-lights:not([data-edit]) .hv-lt{width:100%;padding:0 10px}
 [data-room="haven"] .hv-lt-note.is-placing{margin:0 0 8px;color:rgb(var(--hv-gold))}
 [data-room="haven"] .hv-bulb[data-on="on"] i{background:rgb(var(--hv-bulb,var(--hv-gold)));box-shadow:0 0 14px 3px rgba(var(--hv-bulb,var(--hv-gold)),.75)}
 [data-room="haven"] .hv-house[data-placing] canvas{cursor:crosshair}

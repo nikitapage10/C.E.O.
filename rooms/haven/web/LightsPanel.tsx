@@ -2,11 +2,13 @@ import { useState } from "react";
 import type { Light, LightsView } from "./lights.ts";
 
 /**
- * The Lights panel (#931, #974), under the Haven's lists, one section a vendor: Govee's lights (each a switch, with
- * its colour, white, brightness and moods behind "Colour"), SwitchBot's lights and the projector's infrared power, and
- * the Scenes apart (SwitchBot's one-tap scenes and the apps' groups, "Mood", "Same-Model": on or off, never placed).
- * Each light has Place (or Move once it's on the map): tap it, then tap its spot on the house; the spot goes in the
- * private plan. Passkey only; it shows nothing until the lights' keys are set.
+ * The Lights panel (#931, #974, #1002), under the Haven's lists. Plain by default (#1002, Nikita: "overly
+ * complicated"): the Rooms (SwitchBot's switches, each a room's own lights) and the Lamps (Govee's lights) as one tap
+ * each, then the Scenes row (SwitchBot's one-tap scenes and the projector's infrared power). "Edit" opens the rest:
+ * a Govee light's colour, white, brightness and moods behind "Colour", Place (or Move once it's on the map: tap it,
+ * then its spot on the house; the spot goes in the private plan), and the apps' groups ("Same-Model": on or off,
+ * never placed). The lights Nikita doesn't use never reach it (lights.ts HIDDEN_LIGHTS). Passkey only; it shows
+ * nothing until the lights' keys are set.
  */
 
 export type Look = { rgb: string } | { kelvin: number } | { brightness: number } | { mood: string };
@@ -40,12 +42,15 @@ export interface LightsPanelProps {
 
 export function LightsPanel({ view, placed, placing, canPlace, busy, note, onSet, onScene, onLook, onPlace }: LightsPanelProps) {
   const [open, setOpen] = useState<string | null>(null);
+  const [edit, setEdit] = useState(false);
   const groups = view.groups ?? [];
   const down = (["switchbot", "govee"] as const).filter((v) => view.vendors[v] === "down").map((v) => (v === "govee" ? "Govee" : "SwitchBot"));
   if (!view.lights.length && !view.scenes.length && !groups.length && !view.remotes.length && !down.length) return null;
   const word = (l: Light) => (!l.online ? "offline" : l.on === null ? "state unknown" : l.on ? "on" : "off");
-  const govee = view.lights.filter((l) => l.vendor === "govee");
-  const sb = view.lights.filter((l) => l.vendor === "switchbot");
+  const lamps = view.lights.filter((l) => l.vendor === "govee");
+  const rooms = view.lights.filter((l) => l.vendor === "switchbot");
+  // Placing goes on while the panel is closed only by the house; keep its row's Cancel in reach.
+  const editing = edit || placing !== null;
   const placingName = placing ? view.lights.find((l) => l.id === placing)?.name : null;
   const pow = (id: string) => (
     <>
@@ -59,7 +64,7 @@ export function LightsPanel({ view, placed, placing, canPlace, busy, note, onSet
   );
 
   const row = (l: Light) => {
-    const look = l.look && (l.look.color || l.look.brightness || l.look.kelvin || l.look.moods.length) ? l.look : null;
+    const look = editing && l.look && (l.look.color || l.look.brightness || l.look.kelvin || l.look.moods.length) ? l.look : null;
     const shown = open === l.id && look;
     return (
       <li key={l.id} className="hv-lt-item" data-placing={placing === l.id ? "" : undefined}>
@@ -73,9 +78,9 @@ export function LightsPanel({ view, placed, placing, canPlace, busy, note, onSet
               Colour
             </button>
           )}
-          <button type="button" className="hv-lt-mini" aria-pressed={placing === l.id} disabled={!canPlace} aria-label={placing === l.id ? `Stop placing ${l.name}` : `${placed.has(l.id) ? "Move" : "Place"} ${l.name} on the house`} onClick={() => onPlace(placing === l.id ? null : l.id)}>
+          {editing && <button type="button" className="hv-lt-mini" aria-pressed={placing === l.id} disabled={!canPlace} aria-label={placing === l.id ? `Stop placing ${l.name}` : `${placed.has(l.id) ? "Move" : "Place"} ${l.name} on the house`} onClick={() => onPlace(placing === l.id ? null : l.id)}>
             {placing === l.id ? "Cancel" : placed.has(l.id) ? "Move" : "Place"}
-          </button>
+          </button>}
         </div>
         {shown && (
           <div className="hv-lt-look" role="group" aria-label={`${l.name}: colour and mood`}>
@@ -110,32 +115,35 @@ export function LightsPanel({ view, placed, placing, canPlace, busy, note, onSet
   };
 
   return (
-    <section className="hv-lights" aria-label="Lights">
-      <h3 className="hv-lt-h">Lights</h3>
+    <section className="hv-lights" aria-label="Lights" data-edit={editing ? "" : undefined}>
+      <div className="hv-lt-top">
+        <h3 className="hv-lt-h">Lights</h3>
+        <button type="button" className="hv-lt-mini" aria-pressed={edit} aria-label={edit ? "Done editing the lights" : "Edit the lights: colour, place, groups"} onClick={() => {
+            setEdit(!edit);
+            setOpen(null);
+            if (edit && placing) onPlace(null);
+          }}>
+          {edit ? "Done" : "Edit"}
+        </button>
+      </div>
       {placingName && (
         <p className="hv-lt-note is-placing" role="status">
           Tap where {placingName} stands on the house.
         </p>
       )}
-      {govee.length > 0 && (
-        <div className="hv-lt-sec" role="group" aria-label="Govee">
-          <h4 className="hv-lt-sh">Govee</h4>
-          <ul className="hv-lt-list">{govee.map(row)}</ul>
+      {rooms.length > 0 && (
+        <div className="hv-lt-sec" role="group" aria-label="Rooms">
+          <h4 className="hv-lt-sh">Rooms</h4>
+          <ul className="hv-lt-list">{rooms.map(row)}</ul>
         </div>
       )}
-      {(sb.length > 0 || view.remotes.length > 0) && (
-        <div className="hv-lt-sec" role="group" aria-label="SwitchBot">
-          <h4 className="hv-lt-sh">SwitchBot</h4>
-          {sb.length > 0 && <ul className="hv-lt-list">{sb.map(row)}</ul>}
-          {view.remotes.map((r) => (
-            <div key={r.id} className="hv-lt-remote" role="group" aria-label={`${r.name} power`}>
-              <span>{r.name}</span>
-              {pow(r.id)}
-            </div>
-          ))}
+      {lamps.length > 0 && (
+        <div className="hv-lt-sec" role="group" aria-label="Lamps">
+          <h4 className="hv-lt-sh">Lamps</h4>
+          <ul className="hv-lt-list">{lamps.map(row)}</ul>
         </div>
       )}
-      {(view.scenes.length > 0 || groups.length > 0) && (
+      {(view.scenes.length > 0 || view.remotes.length > 0 || (editing && groups.length > 0)) && (
         <div className="hv-lt-sec" role="group" aria-label="Scenes">
           <h4 className="hv-lt-sh">Scenes</h4>
           {view.scenes.length > 0 && (
@@ -147,12 +155,19 @@ export function LightsPanel({ view, placed, placing, canPlace, busy, note, onSet
               ))}
             </div>
           )}
-          {groups.map((g) => (
-            <div key={g.id} className="hv-lt-remote" role="group" aria-label={`${g.name}, a group`}>
-              <span>{g.name}</span>
-              {pow(g.id)}
+          {view.remotes.map((r) => (
+            <div key={r.id} className="hv-lt-remote" role="group" aria-label={`${r.name} power`}>
+              <span>{r.name}</span>
+              {pow(r.id)}
             </div>
           ))}
+          {editing &&
+            groups.map((g) => (
+              <div key={g.id} className="hv-lt-remote" role="group" aria-label={`${g.name}, a group`}>
+                <span>{g.name}</span>
+                {pow(g.id)}
+              </div>
+            ))}
         </div>
       )}
       {down.length > 0 && <p className="hv-lt-note">{down.join(" and ")} didn't answer just now.</p>}

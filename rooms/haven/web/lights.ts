@@ -1,6 +1,6 @@
 import type { Light, LightsView } from "../../../api/_haven/lights/lights.ts";
 import { readPlan, type PlanLight } from "../../../api/_haven/planShape.ts";
-import type { HavenPlan } from "./data.ts";
+import { roomAt, type HavenPlan, type PlanRoom } from "./data.ts";
 
 export type { Group, Light, LightLook, LightsView, Remote, Scene } from "../../../api/_haven/lights/lights.ts";
 
@@ -12,6 +12,9 @@ export type { Group, Light, LightLook, LightsView, Remote, Scene } from "../../.
  * #974: a light is placed by a tap on the house (`placeLightAt`, saved to the private plan) or by Skippy
  * (lights_place); a Govee light's colour, brightness and mood go back as `look`. Pure apart from the calls, so the
  * placing is tested on its own.
+ * #1002: the lights Nikita doesn't use are left out of the Haven (`HIDDEN_LIGHTS`, still switchable by Skippy), and a
+ * SwitchBot switch is a room's own lights: the whole room is lit while it's on and dark while it's off (`roomLightOf`).
+ * The laundry's switch counts as the hall's.
  */
 
 const PATH = "/api/haven/lights";
@@ -76,6 +79,46 @@ export function fixtureOf(name: string): Fixture {
 /** The room the Desk's own light is assumed on in (#974: the Studio, while Nikita is on the Desk from a desktop). */
 export const deskRoom = (plan: HavenPlan) => plan.rooms.find((r) => !r.detached && / studio /.test(words(r.name))) ?? null;
 
+/**
+ * The lights the Haven leaves out (#1002, Nikita: "I don't even use" them): whole names as the apps name them, any
+ * case. They still work (Skippy can switch them); the Lights panel and the house just don't show them. "Island
+ * Lights" is that light alone: "Island Underlights" stays.
+ */
+export const HIDDEN_LIGHTS: readonly string[] = ["Bar Lights", "Christmas Tree", "Island Lights"];
+
+/** The lights the Haven shows: all but `HIDDEN_LIGHTS`. */
+export function shownLights<L extends Pick<Light, "name">>(lights: readonly L[], hidden: readonly string[] = HIDDEN_LIGHTS): L[] {
+  const out = new Set(hidden.map(words));
+  return lights.filter((l) => !out.has(words(l.name)));
+}
+
+/** A word in a light's name that means another room (#1002: the laundry is the hall, for all intents and purposes). */
+const ROOM_ALIASES: Record<string, readonly string[]> = { laundry: ["hall", "hallway", "corridor"] };
+
+/** The room a light's name says, the longest room name first ("Living room" before "Room"), aliases after. */
+function roomNamed(plan: HavenPlan, name: string): PlanRoom | null {
+  const rooms = plan.rooms.filter((r) => !r.detached).sort((a, b) => b.name.length - a.name.length);
+  const direct = rooms.find((r) => name.includes(words(r.name)));
+  if (direct) return direct;
+  for (const [word, means] of Object.entries(ROOM_ALIASES))
+    if (name.includes(` ${word} `)) {
+      const r = rooms.find((x) => means.some((m) => words(x.name).includes(` ${m} `)));
+      if (r) return r;
+    }
+  return null;
+}
+
+/**
+ * The room a light lights as a whole (#1002): a SwitchBot switch is the room's own overhead lights (the living room,
+ * the kitchen, the dining room, the hall), so it lights the room its name says, else the room its spot is in. A floor
+ * lamp or an under-light, or a Govee light, lights only round itself: null.
+ */
+export function roomLightOf(plan: HavenPlan, light: Pick<Light, "vendor" | "name">, at?: { x: number; y: number }): PlanRoom | null {
+  if (light.vendor !== "switchbot" || fixtureOf(light.name) !== "ceiling") return null;
+  const r = roomNamed(plan, words(light.name)) ?? (at ? roomAt(plan, at.x, at.y) : null);
+  return r && !r.detached ? r : null;
+}
+
 /** A light on the house: where it hangs, in plan units. */
 export interface PlacedLight {
   light: Light;
@@ -88,7 +131,6 @@ const words = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, " ").tri
 /** Where each light goes: `placed` on the house, `loose` with no spot and no room in its name. */
 export function placeLights(plan: HavenPlan, lights: readonly Light[], spots: readonly PlanLight[] | undefined = plan.lights): { placed: PlacedLight[]; loose: Light[] } {
   const placed: PlacedLight[] = [], loose: Light[] = [];
-  const rooms = plan.rooms.filter((r) => !r.detached);
   const perRoom = new Map<string, number>();
   for (const light of lights) {
     const name = words(light.name);
@@ -97,8 +139,8 @@ export function placeLights(plan: HavenPlan, lights: readonly Light[], spots: re
       placed.push({ light, x: spot.x, y: spot.y });
       continue;
     }
-    // The room whose name the light's holds, the longest name first ("Living room" before "Room").
-    const room = [...rooms].sort((a, b) => b.name.length - a.name.length).find((r) => name.includes(words(r.name)));
+    // The room whose name the light's holds, the longest name first ("Living room" before "Room"); "Laundry" the hall.
+    const room = roomNamed(plan, name);
     if (!room) {
       loose.push(light);
       continue;

@@ -32,6 +32,7 @@ const VIEW = {
     { id: "a0000000000b", vendor: "switchbot", name: "Porch", type: "Plug Mini (US)", on: false, online: true },
     { id: "a0000000000e", vendor: "govee", name: "Test Floor Lamp", type: "devices.types.light", on: true, online: true, rgb: "#39ff7a", brightness: 90, look: LOOK },
     { id: "a0000000000f", vendor: "govee", name: "Test Uplight", type: "devices.types.light", on: false, online: true, rgb: null, brightness: null, look: LOOK },
+    { id: "a00000000011", vendor: "govee", name: "Christmas Tree", type: "devices.types.socket", on: false, online: true, rgb: null, brightness: null },
   ],
   scenes: [{ id: "a0000000000c", name: "All off" }],
   groups: [{ id: "a00000000010", vendor: "govee", name: "Same-Model", on: null }],
@@ -64,20 +65,22 @@ async function stub(page: Page, posts: unknown[]) {
   });
 }
 
-test("signed in: the lights by vendor, the scenes and groups apart, a Govee colour, and placing a light with a tap (#931, #974)", async ({ page }) => {
+test("signed in: rooms and lamps, the scenes apart, Edit for a Govee colour, the groups and placing a light with a tap (#931, #974, #1002)", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const posts: unknown[] = [];
   await stub(page, posts);
   await page.goto(`${BASE}/haven`);
   const panel = page.getByRole("region", { name: "Lights" });
   await expect(panel).toBeVisible({ timeout: 20_000 });
-  const govee = panel.getByRole("group", { name: "Govee" }), sb = panel.getByRole("group", { name: "SwitchBot" }), scenes = panel.getByRole("group", { name: "Scenes" });
+  const govee = panel.getByRole("group", { name: "Lamps" }), sb = panel.getByRole("group", { name: "Rooms" }), scenes = panel.getByRole("group", { name: "Scenes" });
   await expect(govee).toContainText("Test Floor Lamp");
   await expect(sb).toContainText("Kitchen");
   await expect(sb).not.toContainText("Test Floor Lamp");
-  // Scenes and groups are listed apart, never as lights; nothing says "not on the map".
+  // The lights Nikita doesn't use aren't listed (#1002); plain by default: no Colour, no Place, no groups until Edit.
+  await expect(panel).not.toContainText("Christmas Tree");
+  await expect(panel.getByRole("button", { name: "Test Floor Lamp: colour and mood" })).toHaveCount(0);
   await expect(scenes).toContainText("All off");
-  await expect(scenes).toContainText("Same-Model");
+  await expect(scenes).not.toContainText("Same-Model");
   await expect(panel).not.toContainText("Not on the map");
   const kitchen = panel.getByRole("button", { name: /^Kitchen, on/ });
   await expect(kitchen).toHaveAttribute("aria-pressed", "true");
@@ -91,7 +94,9 @@ test("signed in: the lights by vendor, the scenes and groups apart, a Govee colo
   await panel.getByRole("group", { name: "Beamer power" }).getByRole("button", { name: "On" }).click();
   await expect.poll(() => posts.length).toBe(3);
   expect(posts[2]).toEqual({ op: "set", id: "a0000000000d", on: true });
-  // A Govee light's colour.
+  // Edit: a Govee light's colour, and the groups listed with the scenes, never as lights.
+  await panel.getByRole("button", { name: /^Edit the lights/ }).click();
+  await expect(scenes).toContainText("Same-Model");
   await panel.getByRole("button", { name: "Test Floor Lamp: colour and mood" }).click();
   await panel.getByRole("button", { name: "Test Floor Lamp: Violet" }).click();
   await expect.poll(() => posts.length).toBe(4);

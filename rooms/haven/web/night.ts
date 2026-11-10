@@ -12,12 +12,16 @@ import * as THREE from "three";
  * into the page round it. Reduced motion: no twinkle (the page draws a frame only when something changes). Phones
  * get fewer lights. Every light and star is at least about a pixel and a half across (#974): smaller, they flickered
  * as the house turned (a point's core falling on a pixel centre one frame and between them the next).
+ *
+ * By day (#1002) the same dome and plain turn to a daytime sky (`day` 0 night to 1 day, from daylight.ts): a blue sky
+ * paling to the horizon, the range blue-grey, the plain a sunlit haze, and the stars, moon and city lights gone. The
+ * sky stays put at dusk; only its colours ease.
  */
 
 export interface Night {
   group: THREE.Group;
-  /** Per frame: the canvas size (device px), the time (s, frozen under reduced motion) and the camera. */
-  update(w: number, h: number, t: number, camera: THREE.PerspectiveCamera, dpr: number): void;
+  /** Per frame: the canvas size (device px), the time (s, frozen under reduced motion), the camera and daylight (0 to 1). */
+  update(w: number, h: number, t: number, camera: THREE.PerspectiveCamera, dpr: number, day?: number): void;
   dispose(): void;
 }
 
@@ -29,16 +33,20 @@ float edgeA(){vec2 uv=gl_FragCoord.xy/uRes;return smoothstep(0.,0.08,uv.x)*smoot
 `;
 
 const HAZE = "vec3(0.052,0.05,0.07)";
+/** The day's horizon (#1002): the sky's pale rim, which the sunlit plain fades into. */
+const DAY_HAZE = "vec3(0.62,0.69,0.78)";
 
 const GROUND_VS = `varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`;
 const GROUND_FS = `${GLSL_COMMON}
+uniform float uDay;
 varying vec3 vW;
 void main(){
   float d=length(vW.xz-cameraPosition.xz);
   float hz=smoothstep(18.,420.,d);
   vec3 col=mix(vec3(0.03,0.032,0.044),${HAZE},pow(hz,0.75));
   col+=vec3(1.,0.6,0.32)*0.035*smoothstep(80.,600.,d);
-  gl_FragColor=vec4(col,edgeA());
+  vec3 sun=mix(vec3(0.27,0.28,0.26),${DAY_HAZE},pow(hz,0.75));
+  gl_FragColor=vec4(mix(col,sun,uDay),edgeA());
 }`;
 
 const LIGHTS_VS = `
@@ -61,6 +69,7 @@ void main(){
   gl_Position=projectionMatrix*viewMatrix*w;
 }`;
 const LIGHTS_FS = `${GLSL_COMMON}
+uniform float uDay;
 varying float vB;
 varying float vWarm;
 void main(){
@@ -68,7 +77,7 @@ void main(){
   // A smooth falloff over the whole sprite, so what a light shows doesn't hang on where its centre falls in a pixel.
   float a=clamp(exp(-r*r*18.)*1.2+exp(-r*r*6.)*0.2,0.,1.)*vB*edgeA();
   vec3 c=mix(vec3(1.,0.68,0.38),vec3(0.95,0.92,0.84),step(0.72,vWarm));
-  gl_FragColor=vec4(c,a);
+  gl_FragColor=vec4(c,a*(1.-uDay));
 }`;
 
 const DOME_VS = GROUND_VS;
@@ -76,6 +85,7 @@ const DOME_FS = `${GLSL_COMMON}
 uniform float uT;
 uniform float uWest;
 uniform float uPix;
+uniform float uDay;
 varying vec3 vW;
 float wrapA(float a){return mod(a+PI,TAU)-PI;}
 float h1(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
@@ -93,14 +103,16 @@ float hills(float a){
   float r=0.008+0.004*sin(9.*a+2.)+0.003*sin(19.*a+0.3)+0.002*abs(sin(41.*a+1.1))+0.0012*abs(sin(131.*a+0.6))+0.0006*abs(sin(307.*a));
   return 0.6*(0.002+env*r);
 }
-vec3 dots(vec2 q,float cell,float n,float dens,float scale,float k,float peak){
+// The parameter is sharp, never k again (#1002): a local of the same name is a redefinition in GLSL, the dome's
+// shader didn't compile, and the sky was gone.
+vec3 dots(vec2 q,float cell,float n,float dens,float scale,float sharp,float peak){
   vec2 c=floor(q/cell);
   vec2 cw=vec2(mod(c.x,n),c.y);
   float k=h1(cw);
   if(k>dens)return vec3(0.);
   vec2 o=(vec2(h1(cw+7.1),h1(cw+3.7))*0.8+0.1)*cell;
   float d=length(q-c*cell-o)*scale;
-  return vec3(exp(-d*d*k)*peak,h1(cw+1.9),h1(cw+5.3));
+  return vec3(exp(-d*d*sharp)*peak,h1(cw+1.9),h1(cw+5.3));
 }
 void main(){
   vec3 dir=normalize(vW-cameraPosition);
@@ -127,7 +139,12 @@ void main(){
   if(alt<rr)col=mix(vec3(0.028,0.031,0.05),vec3(0.05,0.05,0.075),smoothstep(0.,rr,alt)*0.55)+warm*0.012;
   if(alt<hh)col=vec3(0.018,0.019,0.03);
   if(alt<0.)col=${HAZE}+warm*0.035;
-  gl_FragColor=vec4(col,edgeA());
+  // By day (#1002): blue overhead, pale at the horizon, the range and foothills blue-grey, no stars, moon or city glow.
+  vec3 sky=mix(${DAY_HAZE},vec3(0.3,0.5,0.8),smoothstep(0.,0.7,up));
+  if(alt<rr)sky=mix(vec3(0.47,0.53,0.62),vec3(0.55,0.61,0.7),smoothstep(0.,rr,alt));
+  if(alt<hh)sky=vec3(0.4,0.44,0.47);
+  if(alt<0.)sky=${DAY_HAZE};
+  gl_FragColor=vec4(mix(col,sky,uDay),edgeA());
 }`;
 
 /** The lights on the plain: a street grid round the house, thinning nowhere, fading into the haze. */
@@ -159,10 +176,11 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
   const group = new THREE.Group();
   const res = { value: new THREE.Vector2(1, 1) };
   const uT = { value: 0 };
+  const uDay = { value: 0 };
 
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(1000, 48, 24),
-    new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uWest: { value: o.west }, uPix: { value: 0.001 } }, vertexShader: DOME_VS, fragmentShader: DOME_FS, side: THREE.BackSide, transparent: true, depthWrite: false }),
+    new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uDay, uWest: { value: o.west }, uPix: { value: 0.001 } }, vertexShader: DOME_VS, fragmentShader: DOME_FS, side: THREE.BackSide, transparent: true, depthWrite: false }),
   );
   dome.renderOrder = -20;
   dome.frustumCulled = false;
@@ -170,7 +188,7 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(2400, 2400),
-    new THREE.ShaderMaterial({ uniforms: { uRes: res }, vertexShader: GROUND_VS, fragmentShader: GROUND_FS, transparent: true, depthWrite: false }),
+    new THREE.ShaderMaterial({ uniforms: { uRes: res, uDay }, vertexShader: GROUND_VS, fragmentShader: GROUND_FS, transparent: true, depthWrite: false }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(o.centre[0], -0.012, o.centre[1]);
@@ -189,7 +207,7 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
   const lg = new THREE.BufferGeometry();
   lg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   lg.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 3));
-  const lm = new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uPx: { value: 1 } }, vertexShader: LIGHTS_VS, fragmentShader: LIGHTS_FS, transparent: true, depthWrite: false });
+  const lm = new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uDay, uPx: { value: 1 } }, vertexShader: LIGHTS_VS, fragmentShader: LIGHTS_FS, transparent: true, depthWrite: false });
   const lights = new THREE.Points(lg, lm);
   lights.position.set(o.centre[0], 0, o.centre[1]);
   lights.renderOrder = -5;
@@ -198,9 +216,11 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
 
   return {
     group,
-    update(w, h, t, camera, dpr) {
+    update(w, h, t, camera, dpr, day = 0) {
       res.value.set(w, h);
       uT.value = t;
+      uDay.value = Math.max(0, Math.min(1, day));
+      lights.visible = uDay.value < 0.99;
       (dome.material as THREE.ShaderMaterial).uniforms.uPix!.value = ((camera.fov * Math.PI) / 180) / Math.max(1, h);
       lm.uniforms.uPx!.value = dpr;
       dome.position.copy(camera.position);

@@ -1549,9 +1549,9 @@ export class House {
     this.step(t);
     if (!this.opts.reduce) this.poseCat(t, dt);
     if (this.night) {
-      // By day the night plain, its city lights and its sky give way (#974).
-      this.night.group.visible = !this.backdrop && this.dayNow < 0.5;
-      this.night.update(this.renderer.domElement.width, this.renderer.domElement.height, t, this.camera, this.renderer.getPixelRatio());
+      // The sky is there day and night (#1002); by day it turns blue and the city lights give way (night.ts).
+      this.night.group.visible = !this.backdrop;
+      this.night.update(this.renderer.domElement.width, this.renderer.domElement.height, t, this.camera, this.renderer.getPixelRatio(), Math.max(0, this.dayNow));
     }
     this.renderer.render(this.scene, this.camera);
     this.drawThreads(t);

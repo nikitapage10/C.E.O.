@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { readPlan } from "../../../api/_haven/planShape.ts";
 import { gymBeyond } from "./gymFill.ts";
-import { deskRoom, fixtureOf, placeLights, type Light } from "./lights.ts";
-import { colourOf, drawList } from "./realLights.ts";
+import { deskRoom, fixtureOf, HIDDEN_LIGHTS, placeLights, roomLightOf, shownLights, type Light } from "./lights.ts";
+import { boxOf, colourOf, drawList, roomReach } from "./realLights.ts";
 import { dayLevel, sunAt } from "./daylight.ts";
 
 /** Where the lights go on the house (#931), on the made-up plan: nothing here is anyone's real home. */
@@ -67,7 +67,7 @@ describe("the real lights on the house (#974)", () => {
     const list = drawList(studio, [light("Test Floor Lamp")], [{ name: "test floor lamp", x: 700, y: 500 }], true);
     expect(list.map((d) => [d.light.name, d.fixture, d.virtual, d.x, d.y])).toEqual([
       ["Test Floor Lamp", "floor", false, 700, 500],
-      ["Studio", "ceiling", true, 810, 630],
+      ["Studio", "room", true, 810, 630],
     ]);
     expect(drawList(studio, [], undefined, false)).toEqual([]);
   });
@@ -82,5 +82,43 @@ describe("the real lights on the house (#974)", () => {
     expect(dayLevel(sunAt(new Date("2026-06-21T07:00:00Z")).alt)).toBe(0);
     expect(dayLevel(sunAt(new Date("2026-11-07T01:00:00Z")).alt)).toBe(0);
     expect(dayLevel(sunAt(new Date("2026-11-06T18:00:00Z")).alt)).toBe(1);
+  });
+});
+
+describe("the lights Nikita uses, and the rooms the switches light (#1002)", () => {
+  const govee = (name: string): Light => ({ ...light(name), vendor: "govee" });
+
+  it("leaves out the unused lights by whole name, keeping the island's underlights", () => {
+    const all = [govee("Bar Lights"), govee("christmas tree"), govee("Island Lights"), govee("Island Underlights"), govee("Studio Floor Lamp")];
+    expect(shownLights(all).map((l) => l.name)).toEqual(["Island Underlights", "Studio Floor Lamp"]);
+    expect(shownLights(all, [])).toHaveLength(5);
+    expect(HIDDEN_LIGHTS).toContain("Island Lights");
+  });
+
+  it("lights the whole room for a SwitchBot switch, the laundry's as the hall's", () => {
+    const of = (l: Light) => roomLightOf(plan, l)?.id ?? null;
+    expect(of(light("Living Room"))).toBe("living");
+    expect(of(light("Kitchen"))).toBe("kitchen");
+    expect(of(light("Dining Room"))).toBe("nook");
+    expect(of(light("Laundry"))).toBe("hall");
+    // A Govee lamp lights round itself, not the room; so does a switch with no room to its name or spot.
+    expect(of(govee("Kitchen"))).toBeNull();
+    expect(of(light("Porch"))).toBeNull();
+    const [hx, hy] = room("hall");
+    expect(roomLightOf(plan, light("Porch"), { x: hx + 10, y: hy + 10 })?.id).toBe("hall");
+  });
+
+  it("places the laundry's switch in the hall, and draws each switch as its room's lights, off when it's off", () => {
+    expect(placeLights(plan, [light("Laundry")]).loose).toEqual([]);
+    const list = drawList(plan, [light("Laundry"), { ...light("Kitchen"), on: true }, govee("Floor Lamp Left")], [{ name: "floor lamp left", x: 300, y: 600 }], false);
+    const hall = boxOf(plan.rooms.find((r) => r.id === "hall")!);
+    expect(list.map((d) => [d.light.name, d.fixture, d.light.on])).toEqual([
+      ["Laundry", "room", false],
+      ["Kitchen", "room", true],
+      ["Floor Lamp Left", "floor", false],
+    ]);
+    expect(list[0]!.room).toEqual(hall);
+    // A room light reaches the room's corners and no further than that (no light next door through the walls).
+    expect(roomReach(hall)).toBeCloseTo((0.62 * Math.hypot(hall.w, hall.h)) / 100);
   });
 });

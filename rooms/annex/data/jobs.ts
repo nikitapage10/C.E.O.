@@ -19,6 +19,7 @@ export interface JobsProfile {
   minSalary: number | null;
   prefer: string[];
   avoid: string[];
+  companies: string[];
   daily: boolean;
 }
 

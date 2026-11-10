@@ -8,14 +8,14 @@
  *
  * Light on quota. SerpApi counts every search against a monthly plan, so: one scheduled run a day at most, a run is one
  * search per saved query (at most MAX_SEARCHES), a hand run waits MANUAL_GAP_MS after the last, and nothing runs once
- * this month's searches reach the budget (JOBS_MONTHLY_SEARCHES, default 100). SerpApi's own account page (free, not
+ * this month's searches reach the budget (JOBS_MONTHLY_SEARCHES, default 200). SerpApi's own account page (free, not
  * counted) is read after each run so the Desk shows the plan's real searches left. No Claude call anywhere: matches
  * are scored with plain rules against the profile and the resume's words.
  *
  * GET  /api/annex-jobs                      → JobsView (Desk session)
  * POST /api/annex-jobs { action: "run" }    run the saved searches now
  *                      { action: "mark", id, state }        new, saved, applied or dismissed
- *                      { action: "profile", profile }       the searches, pay floor, prefer and avoid words
+ *                      { action: "profile", profile }       the searches, pay floor, companies, prefer and avoid words
  *                      { action: "resume", text }           the resume as plain text ("" removes it)
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -39,7 +39,7 @@ export const STALE_MS = 21 * 86_400_000;
 export const SCHEDULE_GAP_MS = 20 * 3_600_000;
 /** A hand run waits this long after the last run of any kind. */
 export const MANUAL_GAP_MS = 30 * 60_000;
-export const DEFAULT_MONTHLY = 100;
+export const DEFAULT_MONTHLY = 200;
 export const MAX_RESUME = 20_000;
 
 export const JOB_STATES = ["new", "saved", "applied", "dismissed"] as const;
@@ -60,8 +60,10 @@ export interface JobsProfile {
   minSalary: number | null;
   /** Words that lift a job (seniority, skills, kinds of company). */
   prefer: string[];
-  /** Words that hide a job when in its title, company or description. */
+  /** Words that hide a job when in its title or company (whole words, so "meta" never hides "metadata"). */
   avoid: string[];
+  /** Companies to lift to the top (whole words in the company's name). */
+  companies: string[];
   /** Whether the daily run is on. */
   daily: boolean;
 }
@@ -127,7 +129,7 @@ export interface JobsView extends JobsState {
   nextRun: string | null;
 }
 
-export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], daily: true });
+export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true });
 export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, account: null });
 
 /* ── Reading things defensively ── */
@@ -158,7 +160,7 @@ export function cleanProfile(raw: unknown): JobsProfile {
     .filter((s) => s.q)
     .slice(0, MAX_SEARCHES);
   const n = typeof r.minSalary === "number" ? r.minSalary : typeof r.minSalary === "string" ? Number(r.minSalary.replace(/[^\d.]/g, "")) : NaN;
-  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), daily: r.daily !== false };
+  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: words(r.companies), daily: r.daily !== false };
 }
 
 const isState = (v: unknown): v is JobState => (JOB_STATES as readonly unknown[]).includes(v);
@@ -264,19 +266,27 @@ export function resumeWords(text: string): Set<string> {
   return new Set((text.toLowerCase().match(/[a-z][a-z+#.-]{3,}/g) ?? []).filter((w) => !STOP.has(w)));
 }
 
+const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Whether a word or phrase is in the text as a whole word, any case ("ai" is in "AI platform", not in "maintain"). */
+export function hasWord(text: string, w: string): boolean {
+  return w ? new RegExp(`(^|[^a-z0-9])${escape(w.toLowerCase())}($|[^a-z0-9])`).test(text.toLowerCase()) : false;
+}
+
 export function scoreJob(job: Job, profile: JobsProfile, resume: Set<string>): Job {
   const why: string[] = [];
   let score = 40;
   const hay = `${job.title} ${job.company} ${job.snippet} ${job.highlights.join(" ")}`.toLowerCase();
   const titleL = job.title.toLowerCase();
-  const avoid = profile.avoid.find((w) => hay.includes(w));
+  const avoid = profile.avoid.find((w) => hasWord(`${job.title} ${job.company}`, w));
   const lift = (n: number, w: string) => {
     score += n;
     why.push(w);
   };
   if (SENIOR.test(job.title)) lift(12, "senior level");
   if (JUNIOR.test(job.title)) lift(-20, "junior level");
-  const pref = profile.prefer.filter((w) => hay.includes(w));
+  const fav = profile.companies.find((w) => hasWord(job.company, w));
+  if (fav) lift(18, "on your company list");
+  const pref = profile.prefer.filter((w) => hasWord(hay, w));
   if (pref.length) lift(Math.min(24, pref.length * 8), `mentions ${pref.slice(0, 3).join(", ")}`);
   if (profile.searches.some((s) => s.q && titleL.includes(s.q.toLowerCase()))) lift(10, "title matches a search");
   if (job.remote) lift(6, "remote");

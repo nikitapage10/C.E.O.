@@ -66,6 +66,10 @@ describe("the Job search (#1000)", () => {
     expect(s.hidden).toBe("pay under your floor");
     expect(s.why).toContain("senior level");
     expect(scoreJob(j, cleanProfile({ avoid: ["example"] }), new Set()).hidden).toBe('has "example"');
+    // Whole words only: "lab" never hides "Labs", "ai" never lifts "maintain".
+    expect(scoreJob(j, cleanProfile({ avoid: ["lab"] }), new Set()).hidden).toBeNull();
+    expect(scoreJob({ ...j, snippet: "maintain" }, cleanProfile({ prefer: ["ai"] }), new Set()).why.join()).not.toContain("mentions");
+    expect(scoreJob(j, cleanProfile({ companies: ["example labs"] }), new Set()).why).toContain("on your company list");
     expect(scoreJob(j, cleanProfile({ minSalary: 150_000 }), new Set()).hidden).toBeNull();
   });
 

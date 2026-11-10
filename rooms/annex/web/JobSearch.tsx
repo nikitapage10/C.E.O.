@@ -133,11 +133,12 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
   const [floor, setFloor] = useState(profile.minSalary ? String(profile.minSalary) : "");
   const [prefer, setPrefer] = useState(joinWords(profile.prefer));
   const [avoid, setAvoid] = useState(joinWords(profile.avoid));
+  const [companies, setCompanies] = useState(joinWords(profile.companies));
   const [daily, setDaily] = useState(profile.daily);
   const [resume, setResume] = useState("");
   const edit = (i: number, patch: Partial<(typeof searches)[number]>) => setSearches((s) => s.map((x, n) => (n === i ? { ...x, ...patch } : x)));
   const save = () =>
-    onSave({ searches: searches.filter((s) => s.q.trim()), minSalary: floor ? Number(floor.replace(/[^\d]/g, "")) || null : null, prefer: splitWords(prefer), avoid: splitWords(avoid), daily });
+    onSave({ searches: searches.filter((s) => s.q.trim()), minSalary: floor ? Number(floor.replace(/[^\d]/g, "")) || null : null, prefer: splitWords(prefer), avoid: splitWords(avoid), companies: splitWords(companies), daily });
 
   return (
     <div className="jb-setup">
@@ -184,6 +185,11 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
         <label className="jb-field">
           <span>Words that hide a job</span>
           <textarea className="jb-in" rows={3} value={avoid} onChange={(e) => setAvoid(e.target.value)} placeholder="Comma-separated: companies, industries or kinds of role to skip" />
+          <small>Matched as whole words in the title or company.</small>
+        </label>
+        <label className="jb-field jb-wide">
+          <span>Companies you'd most like</span>
+          <textarea className="jb-in" rows={2} value={companies} onChange={(e) => setCompanies(e.target.value)} placeholder="Comma-separated; their jobs rise to the top" />
         </label>
       </section>
       <div className="jb-row">

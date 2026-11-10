@@ -628,22 +628,26 @@ test("#950: the box stays open while texts queue in order; Done moves on at once
   await page.locator(".cx-rows button", { hasText: "Jordan Test" }).click();
   await expect(focused(page)).toContainText("Jordan Test");
   const box = focused(page).getByRole("textbox", { name: /Your reply to Jordan Test/ });
-  // Three texts, one after another: the box clears at once each time and stays open and editable.
+  // Three texts, one after another: the box clears at once each time and stays open and editable, and each waits
+  // under the box as "sending…" (its few seconds of Undo, then on its way). Each is looked at as it goes in: on a slow
+  // runner the first can be sent, and gone from the box, before the third is typed (nightly d4e53b9, #990).
+  const out = focused(page).locator(".cx-outmsg");
   for (const words of ["ha that cat", "ok one more", "see you sunday"]) {
     await box.fill(words);
     await box.press("Enter");
     await expect(box).toHaveValue("");
     await expect(box).toBeEditable();
+    await expect(out.filter({ hasText: words })).toContainText("sending");
   }
-  const out = focused(page).locator(".cx-outmsg");
-  await expect(out).toHaveCount(3);
-  await expect(out.nth(0)).toContainText("sending");
   // They go in the order sent; the second fails at the Mac and says so, with Resend.
   await expect.poll(() => sends(posts).map((p) => p.text), { timeout: 20_000 }).toEqual(["ha that cat", "ok one more", "see you sunday"]);
-  await expect(out.nth(0)).toContainText("sent", { timeout: 10_000 });
-  await expect(out.nth(1)).toContainText("not sent", { timeout: 10_000 });
+  const failed = out.filter({ hasText: "ok one more" });
+  await expect(failed).toContainText("not sent", { timeout: 10_000 });
+  // The other two went: "sent" for a few seconds, then out of the box, never "not sent".
+  await expect(out.filter({ hasText: "ha that cat" }).filter({ hasText: "not sent" })).toHaveCount(0);
+  await expect(out.filter({ hasText: "see you sunday" }).filter({ hasText: "not sent" })).toHaveCount(0);
   await expect(undoLine(page)).toContainText("Not sent to Jordan Test");
-  await out.nth(1).getByRole("button", { name: "Resend" }).click();
+  await failed.getByRole("button", { name: "Resend" }).click();
   await expect.poll(() => posts.filter((p) => p.action === "resend" || p.action === "send").length, { timeout: 10_000 }).toBe(4);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/950-queue.png` });
 
@@ -669,11 +673,12 @@ test("#950: any of their earlier bubbles takes a tapback, and Reply answers it i
   // Their latest by default; a tap on an earlier bubble of theirs picks it.
   await expect(focused(page).locator(".cx-tbwhich")).toHaveText("on their latest");
   const earlier = focused(page).locator(".cx-ctx .cx-bub[data-pick]", { hasText: "did you see what I sent" });
-  // The codex may still be settling its scroll onto Jordan: pick once it has.
+  // The codex may still be settling its scroll onto Jordan: pick once it has. On a CI runner the room's software-rendered
+  // field can hold the main thread for seconds while it builds, so the pick gets the time to land (nightly d4e53b9, #990).
   await expect(async () => {
-    if ((await earlier.getAttribute("data-picked")) !== "true") await earlier.click();
-    await expect(earlier).toHaveAttribute("data-picked", "true", { timeout: 1_000 });
-  }).toPass({ timeout: 10_000 });
+    if ((await earlier.getAttribute("data-picked")) !== "true") await earlier.click({ timeout: 5_000 });
+    await expect(earlier).toHaveAttribute("data-picked", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await expect(focused(page).locator(".cx-tbwhich")).toContainText("did you see what I sent");
   // #980: ‹ › step through their lines too, and stepping onto the latest lets the pick go.
   await focused(page).getByRole("button", { name: "Pick a later message of theirs" }).click();

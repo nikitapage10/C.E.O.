@@ -182,6 +182,32 @@ const FAKE_CALL = `export async function openCall(h) {
   return { level: () => window.__holoLevel ?? 0, mute: (m) => { window.__holoMuted = m; }, end: async () => {} };
 }`;
 
+/**
+ * Waits until the page's main thread runs freely: two seconds of a 100 ms tick with no gap over 300 ms. On the
+ * software renderer a 3D build (a kept room, the hologram) holds it for a second or more, which times the runner.
+ */
+async function mainThreadFree(page: Page) {
+  const worstGap = () =>
+    page.evaluate(
+      () =>
+        new Promise<number>((done) => {
+          let last = performance.now();
+          let worst = 0;
+          let n = 0;
+          const id = setInterval(() => {
+            const now = performance.now();
+            worst = Math.max(worst, now - last);
+            last = now;
+            if (++n === 20) {
+              clearInterval(id);
+              done(worst);
+            }
+          }, 100);
+        }),
+    );
+  await expect.poll(worstGap, { timeout: 120_000, intervals: [0] }).toBeLessThan(300);
+}
+
 async function startCall(page: Page) {
   await stub(page, true);
   await page.addInitScript(() => {
@@ -208,8 +234,10 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
 
   // The call itself is made from a page with no 3D scene behind it, like the hold-music test below (#834): on a CI
   // runner the Senate's software-rendered chamber holds the main thread for seconds, so his face (a 32 Hz tick) and
-  // the 0.7 s sink after End time the runner, not the call (nightly f691bda, #844).
-  await page.goto(BASE + "/foundry");
+  // the 0.7 s sink after End time the runner, not the call (nightly f691bda, #844). Since the room redesigns nearly
+  // every room has a 3D hall of its own (the Foundry's Deep Furnace since #813), so it is the Boiler Room's Controls,
+  // drawn flat (nightly d4e53b9, #990).
+  await page.goto(BASE + "/boiler/controls");
   await expect(page.locator(".desk__skippy")).toBeVisible();
   expect(asked.filter((u) => /holoScene|HologramStage/.test(u))).toEqual([]);
   await page.locator(".desk__skippy").click();
@@ -315,7 +343,13 @@ test("Talk plays hold music on a long wait, ducks it the moment anyone speaks, a
   // Called from a page with no 3D scene behind it. On the Senate ("/"), the chamber's software-rendered frames on a CI
   // runner (SwiftShader) hold the main thread for seconds at a time, so the call's 120 ms hold check (skippy/hold.ts)
   // can go 4 s without a tick and the music never gets its turn: the waits below would time the runner, not the rules.
-  await page.goto(BASE + "/foundry");
+  // The Foundry has its own 3D furnace since #813, as most rooms now have a 3D hall, so the Boiler Room's Controls,
+  // drawn flat, is the page (nightly d4e53b9, #990). The Desk also mounts the Senate, the Haven and Relay behind it once
+  // it is idle (#934, #973), and on the software renderer each of those builds holds the main thread for a second or
+  // more, so the call starts once all three are in: the room on screen and the three kept.
+  await page.goto(BASE + "/boiler/controls");
+  await expect(page.locator(".desk__main")).toHaveCount(4, { timeout: 90_000 });
+  await expect(page.locator('.desk__main[data-room="relay"] canvas').first()).toBeAttached({ timeout: 30_000 });
   await page.locator(".desk__skippy").click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
   await chat.getByRole("button", { name: /live voice call/ }).click();
@@ -324,6 +358,8 @@ test("Talk plays hold music on a long wait, ducks it the moment anyone speaks, a
   await page.waitForFunction(() => Boolean((window as { __holoCall?: unknown }).__holoCall));
   const drive = (fn: string, ...args: string[]) => page.evaluate(([f, a]) => ((window as unknown as { __holoCall: Record<string, (...x: string[]) => void> }).__holoCall[f as string]!(...(a as string[]))), [fn, args] as const);
   await expect(call).toHaveAttribute("data-hold", "ready");
+  // The hologram's own 3D boot (#798) holds the main thread too: the waits start once the page runs freely.
+  await mainThreadFree(page);
 
   // A lookup goes out; for the first second nothing plays (a quick one never gets music)...
   await drive("onToolStart");

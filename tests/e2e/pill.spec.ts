@@ -127,10 +127,15 @@ function overlapsInPage({ tolerance, mode }: { tolerance: number; mode: Mode }):
   return hits;
 }
 
-/** Every control's box, rounded: equal twice in a row means the layout has settled. */
+/**
+ * Every control's box, rounded: equal twice in a row means the layout has settled. The Senate's seats (.rt-pod,
+ * .rt-pres) are left out: they ride the chamber's 3D Skippies, moving whenever a pod drifts a few pixels as it bobs and
+ * hops (#948), so they never hold still for long; they sit in the chamber, far from the pill, and are still looked at.
+ */
 function layoutInPage(): string {
   const parts: string[] = [];
   for (const el of document.querySelectorAll<HTMLElement>(".vdock__ask, a[href], button, input, select, textarea")) {
+    if (el.matches(".rt-pod, .rt-pres")) continue;
     const r = el.getBoundingClientRect();
     parts.push(`${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`);
   }

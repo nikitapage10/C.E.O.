@@ -28,6 +28,7 @@ import {
   RingGeometry,
   SRGBColorSpace,
   Scene,
+  ShaderMaterial,
   Sprite,
   SpriteMaterial,
   TorusGeometry,
@@ -41,7 +42,7 @@ import { comeUndone, glyphMaterial, sigilAtlas, SIGIL_GLYPHS } from "@ceo/engine
 import { edgeFactor, SOFT, wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import type { TapeItem } from "../data/floor.ts";
-import { bookWord, POSTS, type HallBook, type HallPost, type HallSoon, type HallView } from "../data/hall.ts";
+import { bookWord, HOLDINGS, POSTS, shareWord, type HallBook, type HallHolding, type HallPost, type HallSoon, type HallView } from "../data/hall.ts";
 
 /**
  * The Exchange's trade floor in three.js (#823; Nikita, 2026-11-05: "trade floor, mostly physical, some mid-assembly,
@@ -52,6 +53,13 @@ import { bookWord, POSTS, type HallBook, type HallPost, type HallSoon, type Hall
  * stand mid-assembly: gold wire with the solid rising into it and sigil nanites streaming in, each one of the room's
  * real "still to come". The middle of the frame stays solid; toward its edges the stone, the walls and the columns
  * come undone into gold wire and nanites (@ceo/engine/sigils/undone.ts), the Senate's language.
+ *
+ * The book stands front and centre (#988): an oval gold-rimmed plinth between the two busiest posts, its open
+ * positions a shallow arc of lacquered pillars on it, each as tall as its share of the book, a lit ticket over it (the
+ * side and the share; the page's tag names the market; never a figure) and sigil nanites rising off its top. Signed
+ * out, the pillars stand empty in gold wire, the kiosk in front saying the book is behind the passkey. Round it all, a dense field
+ * of gold motes drifts up through the hall (one draw, moved on the GPU), and the wire grid the edges come undone into
+ * runs up the side walls and round the plinth too.
  *
  * WASD swivels the view round the floor within a set arc and dollies it in and out (the shared helper's orbit mode),
  * resisted past the soft edge and eased back when the keys let go; dragging swivels the same arc. A post is picked by
@@ -83,16 +91,26 @@ const GOLD_HI = 0xe8c77a;
 const TONE: Record<HallPost["tone"], number> = { up: 0x5fe0a2, down: 0xf07a8f, flat: 0xb9c0cc };
 const TONE_CSS: Record<HallPost["tone"], string> = { up: "#6be6ab", down: "#f48a9c", flat: "#c4cad6" };
 const PHONE_W = 760;
-/** Where the posts stand (x, z): the busiest first, front and centre. */
+/** Where the posts stand (x, z): the busiest first, either side of the book's ring. */
 const LIVE: [number, number][] = [
-  [-3.3, 0.4],
-  [3.3, 0.4],
+  [-5.9, -0.6],
+  [5.9, -0.6],
   [-8.8, -3.2],
   [8.8, -3.2],
   [0, -5.8],
 ];
-/** The book's kiosk, front and centre, and the posts still being assembled round the floor's rim. */
-const BOOK: [number, number] = [0.3, 4.6];
+/**
+ * The book's ring at the floor's centre: an oval plinth between the two busiest posts (its middle and half-widths), the
+ * kiosk on the stone at its front, and the posts still being assembled round the floor's rim.
+ */
+const RING = { x: 0, z: 2.3, rx: 4.7, rz: 2.05 };
+const BOOK: [number, number] = [0, 5.05];
+/** The pillars' places across the plinth in a shallow arc, the biggest in the middle, then out to either side (x). */
+const SLOTS = [0, -1.9, 1.9, -3.75, 3.75].slice(0, HOLDINGS);
+const slotAt = (k: number): [number, number] => [RING.x + SLOTS[k]!, RING.z - 0.55 + 0.075 * SLOTS[k]! * SLOTS[k]!];
+/** A pillar's height for its size against the biggest; the empty wire ones signed out. */
+const pillarH = (rel: number) => 0.8 + 2.9 * Math.sqrt(Math.max(0, Math.min(1, rel)));
+const EMPTY_H = 1.5;
 const SOON: [number, number][] = [
   [-9.8, 4.6],
   [-4.4, -10],
@@ -235,6 +253,51 @@ function drawBook(g: CanvasRenderingContext2D, w: number, h: number, b: HallBook
   grain(g, w, h);
 }
 
+/** A pillar's ticket: the side and its share of the book (the page's tag over it names the market); veiled while Hide is on. Never a figure. */
+function drawTicket(g: CanvasRenderingContext2D, w: number, h: number, t: HallHolding, rank: number, hide: boolean) {
+  g.clearRect(0, 0, w, h);
+  const bg = g.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, "#0e0d0a");
+  bg.addColorStop(1, "#060608");
+  g.fillStyle = bg;
+  g.fillRect(0, 0, w, h);
+  g.strokeStyle = "rgba(232,199,122,.8)";
+  g.lineWidth = 4;
+  g.strokeRect(6, 6, w - 12, h - 12);
+  g.fillStyle = "#c9a85c";
+  g.font = `500 22px ${MONO}`;
+  g.fillText(`POSITION ${String(rank + 1).padStart(2, "0")}`, 24, 42);
+  if (hide) {
+    g.fillStyle = "rgba(201,168,92,.16)";
+    for (let x = -h; x < w; x += 18) {
+      g.beginPath();
+      g.moveTo(x, h - 14);
+      g.lineTo(x + h, 60);
+      g.lineTo(x + h + 7, 60);
+      g.lineTo(x + 7, h - 14);
+      g.fill();
+    }
+    g.fillStyle = "#d8ccb0";
+    g.font = `600 52px ${COND}`;
+    g.fillText("HIDDEN", 24, h - 40);
+    grain(g, w, h);
+    return;
+  }
+  g.fillStyle = TONE_CSS[t.tone];
+  g.font = `600 38px ${COND}`;
+  g.fillText(wrap(g, t.side.toUpperCase(), w - 48, 1)[0] ?? "", 24, 92);
+  g.fillStyle = "#fff4dc";
+  g.font = `700 132px ${COND}`;
+  const sw = shareWord(t.share);
+  g.fillText(sw, 20, h - 28);
+  const x = 30 + g.measureText(sw).width;
+  g.fillStyle = "#b9ad92";
+  g.font = `500 24px ${MONO}`;
+  g.fillText("OF", x, h - 64);
+  g.fillText("BOOK", x, h - 34);
+  grain(g, w, h);
+}
+
 /** The marquee's run: each item its name, its odds, the day's move; or, until Polymarket answers, what it is waiting on. */
 function drawTape(g: CanvasRenderingContext2D, w: number, h: number, items: TapeItem[], idle: string): number {
   g.clearRect(0, 0, w, h);
@@ -373,6 +436,15 @@ function ring(out: number[], cx: number, y: number, cz: number, r: number, n = 2
   }
 }
 
+/** An oval of wire round a vertical axis. */
+function oval(out: number[], cx: number, y: number, cz: number, rx: number, rz: number, n = 48) {
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2;
+    const b = ((k + 1) / n) * Math.PI * 2;
+    out.push(cx + Math.cos(a) * rx, y, cz + Math.sin(a) * rz, cx + Math.cos(b) * rx, y, cz + Math.sin(b) * rz);
+  }
+}
+
 interface PostRig {
   g: Group;
   at: Vector3;
@@ -387,6 +459,28 @@ interface PostRig {
   sig: string;
   flash: number;
   lit: number;
+}
+
+interface HoldRig {
+  g: Group;
+  at: Vector3;
+  /** The column, scaled to its height; its solid and its wire. */
+  col: Group;
+  solid: Mesh;
+  wire: LineSegments;
+  strip: Mesh;
+  stripM: MeshBasicMaterial;
+  ticket: Mesh;
+  canvas: HTMLCanvasElement;
+  tex: CanvasTexture;
+  screen: MeshBasicMaterial;
+  pool: Sprite;
+  hit: Mesh;
+  hold: HallHolding | null;
+  sig: string;
+  h: number;
+  lit: number;
+  phase: number;
 }
 
 interface SoonRig {
@@ -633,7 +727,89 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
     return { g, at: new Vector3(x, 0.02, z), plane, band: bandM, phase: i * 2.1, y: 1.5 };
   });
 
-  // The book's kiosk: a low brass-rimmed podium with one angled screen.
+  // ---- the book's ring: a plinth at the floor's centre, its positions a ring of pillars ------------------------------
+  const plinth = new Mesh(keep(new CylinderGeometry(1, 1.03, 0.22, 72)), keep(new MeshStandardMaterial({ color: 0x111216, metalness: 0.6, roughness: 0.38 })));
+  plinth.scale.set(RING.rx, 1, RING.rz);
+  plinth.position.set(RING.x, 0.25, RING.z);
+  scene.add(skin(plinth, goldLine, 30));
+  const rimM = keep(new MeshBasicMaterial({ color: GOLD_HI, transparent: true, opacity: 0.85, toneMapped: false }));
+  const rimG = keep(new TorusGeometry(1, 0.006, 6, 120));
+  const rimIn = keep(new TorusGeometry(1, 0.008, 6, 96));
+  const ringGlowM = keep(new MeshBasicMaterial({ color: GOLD_HI, transparent: true, opacity: 0.5, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  const rimA = new Mesh(rimG, rimM);
+  rimA.rotation.x = Math.PI / 2;
+  rimA.position.set(RING.x, 0.37, RING.z);
+  rimA.scale.set(RING.rx - 0.18, RING.rz - 0.18, 3);
+  scene.add(rimA);
+  const rimB = new Mesh(rimIn, ringGlowM);
+  rimB.rotation.x = Math.PI / 2;
+  rimB.position.set(RING.x, 0.37, RING.z);
+  rimB.scale.set(RING.rx * 0.6, RING.rz * 0.45, 2);
+  scene.add(rimB);
+  // The ring's own light: a pool on the plinth, and a faint shaft rising out of the middle.
+  const ringPool = glow(GOLD_HI, 1, 0.22);
+  ringPool.scale.set(RING.rx * 2.4, RING.rz * 2.6, 1);
+  ringPool.position.set(RING.x, 0.42, RING.z);
+  scene.add(ringPool);
+  const shaft = glow(GOLD_HI, 1, 0.08);
+  shaft.scale.set(5, 9, 1);
+  shaft.position.set(RING.x, 4.2, RING.z - 0.6);
+  scene.add(shaft);
+  const ringLamp = PH ? null : new PointLight(0xffd9a0, 9, 9, 1.6);
+  if (ringLamp) {
+    ringLamp.position.set(RING.x, 4.6, RING.z + 0.4);
+    scene.add(ringLamp);
+  }
+
+  const unitG = keep(new BoxGeometry(1, 1, 1));
+  const unitEdges = keep(new EdgesGeometry(unitG));
+  const stripGeo = keep(new BoxGeometry(0.07, 1, 0.02));
+  const ticketG = keep(new PlaneGeometry(1.7, 1.08));
+  const tFrameG = keep(new BoxGeometry(1.78, 1.16, 0.04));
+  const pillarHitG = keep(new BoxGeometry(1.7, 1, 1.0));
+  const pillarM = keep(new MeshStandardMaterial({ color: 0x15161b, metalness: 0.55, roughness: 0.3, emissive: 0x0d0a04 }));
+  const holds: HoldRig[] = SLOTS.map((_, k) => {
+    const [x, z] = slotAt(k);
+    const g = new Group();
+    g.position.set(x, 0.36, z);
+    const col = new Group();
+    const solid = new Mesh(unitG, pillarM);
+    solid.scale.set(0.7, 1, 0.7);
+    solid.position.y = 0.5;
+    const wire = new LineSegments(unitEdges, goldLine);
+    wire.scale.set(0.72, 1, 0.72);
+    wire.position.y = 0.5;
+    const stripM = keep(new MeshBasicMaterial({ color: TONE.flat, transparent: true, opacity: 0.9, toneMapped: false }));
+    const strip = new Mesh(stripGeo, stripM);
+    strip.position.set(0, 0.5, 0.365);
+    col.add(solid, wire, strip);
+    col.scale.y = EMPTY_H;
+    g.add(col);
+    const cap = skin(new Mesh(keep(new BoxGeometry(0.9, 0.07, 0.9)), brass), goldLine, 30);
+    cap.name = "cap";
+    g.add(cap);
+    const cv = document.createElement("canvas");
+    cv.width = PH ? 256 : 448;
+    cv.height = PH ? 162 : 284;
+    const tex = keep(new CanvasTexture(cv));
+    tex.colorSpace = SRGBColorSpace;
+    tex.anisotropy = 4;
+    const screen = keep(new MeshBasicMaterial({ map: tex, toneMapped: false, transparent: true }));
+    const ticket = new Mesh(ticketG, screen);
+    const frame = skin(new Mesh(tFrameG, lacquer), goldWire, 30);
+    frame.position.z = -0.03;
+    ticket.add(frame);
+    g.add(ticket);
+    const pool = glow(TONE.flat, 2.6, 0);
+    pool.position.y = 0.06;
+    g.add(pool);
+    const hit = new Mesh(pillarHitG, hitMat);
+    g.add(hit);
+    scene.add(g);
+    return { g, at: new Vector3(x, 0.36, z), col, solid, wire, strip, stripM, ticket, canvas: cv, tex, screen, pool, hit, hold: null, sig: "", h: EMPTY_H, lit: 0, phase: k * 1.7 };
+  });
+
+  // The book's kiosk: a low brass-rimmed podium with one angled screen, at the ring's front lip.
   const kiosk = new Group();
   kiosk.position.set(BOOK[0], 0.02, BOOK[1]);
   const kBase = skin(new Mesh(keep(new BoxGeometry(1.6, 1.05, 0.9)), shell));
@@ -664,7 +840,9 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
   // ---- the nanites: tick bursts off the crowns, and the stream into the posts being built ----------------------------
   const NB = PH ? 90 : 240;
   const NS = (PH ? 26 : 70) * SOON.length;
-  const NN = NB + NS;
+  /** The nanites rising off the pillars' tops, a share each (or, signed out, drifting up the empty wire). */
+  const NH = (PH ? 12 : 30) * HOLDINGS;
+  const NN = NB + NS + NH;
   const np = new Float32Array(NN * 3);
   const nt = new Float32Array(NN * 3);
   const na = new Float32Array(NN);
@@ -672,7 +850,7 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
   const nz = new Float32Array(NN);
   for (let i = 0; i < NN; i++) {
     ng[i] = Math.floor(Math.random() * NG);
-    nz[i] = i < NB ? 0.7 + Math.random() * 0.5 : 0.45 + Math.random() * 0.4;
+    nz[i] = i < NB ? 0.7 + Math.random() * 0.5 : i < NB + NS ? 0.45 + Math.random() * 0.4 : 0.4 + Math.random() * 0.35;
   }
   const nGeo = keep(new BufferGeometry());
   nGeo.setAttribute("position", new BufferAttribute(np, 3));
@@ -699,6 +877,51 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
   };
   const streams = Array.from({ length: NS }, (_, i) => ({ post: i % SOON.length, a: Math.random() * Math.PI * 2, r: 2.4 + Math.random() * 2.2, k: Math.random(), w: 0.12 + Math.random() * 0.2, lift: 1 + Math.random() * 2.4 }));
   const goldC = new Color(GOLD_HI);
+  const climbs = Array.from({ length: NH }, (_, i) => ({ slot: i % HOLDINGS, k: Math.random(), w: 0.18 + Math.random() * 0.22, a: Math.random() * Math.PI * 2, r: 0.12 + Math.random() * 0.4, rise: 1.4 + Math.random() * 2.2 }));
+
+  // ---- the motes: a dense field of gold dust drifting up through the hall, moved on the GPU (one draw) -------------
+  const NM = PH ? 900 : 3200;
+  const mBase = new Float32Array(NM * 3);
+  const mSeed = new Float32Array(NM);
+  for (let i = 0; i < NM; i++) {
+    // Thickest over the floor's middle and round the ring, thinning toward the walls.
+    const near = Math.random() < 0.35;
+    const r = near ? Math.random() * 6 : Math.pow(Math.random(), 0.7) * 22;
+    const a = Math.random() * Math.PI * 2;
+    mBase.set([(near ? RING.x : 0) + Math.cos(a) * r * (near ? 1.1 : 1), Math.random() * 14, (near ? RING.z : -3) + Math.sin(a) * r * (near ? 0.5 : 0.75)], i * 3);
+    mSeed[i] = Math.random();
+  }
+  const mGeo = keep(new BufferGeometry());
+  mGeo.setAttribute("position", new BufferAttribute(mBase, 3));
+  mGeo.setAttribute("seed", new BufferAttribute(mSeed, 1));
+  const moteU = { t: { value: 0 }, px };
+  const motesM = keep(
+    new ShaderMaterial({
+      uniforms: moteU,
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      vertexShader: `attribute float seed; uniform float t, px; varying float vA; varying float vS;
+        void main(){ vec3 p = position; float sp = .12 + seed * .3;
+          p.y = mod(p.y + t * sp, 14.);
+          p.x += sin(t * .23 + seed * 31.) * (.25 + seed * .5);
+          p.z += cos(t * .19 + seed * 17.) * (.25 + seed * .4);
+          vec4 mv = modelViewMatrix * vec4(p, 1.);
+          float tw = .55 + .45 * sin(t * (1.1 + seed * 2.3) + seed * 40.);
+          vA = tw * smoothstep(0., 1.2, p.y) * (1. - smoothstep(10., 14., p.y)) * (1. - smoothstep(30., 60., -mv.z));
+          vS = seed;
+          gl_PointSize = (1.6 + seed * seed * 4.2) * px * (14. / -mv.z);
+          gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `varying float vA; varying float vS;
+        void main(){ vec2 q = gl_PointCoord - .5; float d = dot(q, q); if (d > .25) discard;
+          float a = vA * (1. - d * 4.); vec3 c = mix(vec3(.79, .62, .3), vec3(1., .9, .65), vS);
+          gl_FragColor = vec4(c, a * .8); }`,
+    }),
+  );
+  const moteField = new Points(mGeo, motesM);
+  moteField.frustumCulled = false;
+  moteField.renderOrder = 9;
+  scene.add(moteField);
 
   // ---- the edges come undone ----------------------------------------------------------------------------------------
   let stepUndone: ((t: number, r: WebGLRenderer) => void) | null = null;
@@ -718,6 +941,19 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
         wire.push(x + dx, 0, z + dz, x + dx, 13, z + dz);
       for (let y = 1; y < 13; y += 1.5) ring(wire, x, y, z, 0.66, 4);
     }
+    // The side walls' grid, the plinth's rings and the pillars' slots, so the ring and the hall's sides come undone too.
+    for (let z = -12; z <= 8; z += 2) for (const x of [-23.5, 23.5]) wire.push(x, 0, z, x, 14, z);
+    for (let y = 0; y <= 14; y += 2) for (const x of [-23.5, 23.5]) wire.push(x, y, -12, x, y, 8);
+    for (const [d, y] of [
+      [0.05, 0.38],
+      [0.6, 0.02],
+      [1.2, 0.02],
+    ] as const)
+      oval(wire, RING.x, y, RING.z, RING.rx + d, RING.rz + d, 56);
+    for (let k = 0; k < SLOTS.length; k++) {
+      const [x, z] = slotAt(k);
+      ring(wire, x, 0.4, z, 0.5, 4);
+    }
     for (const [x, z] of [...LIVE, ...SOON]) {
       ring(wire, x, 0.16, z, 1.8);
       ring(wire, x, 1.06, z, 1.84);
@@ -728,12 +964,13 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
       const b = th0 + ((k + 1) / 40) * MQ.arc;
       if (k < 40) for (const y of [MQ.y - MQ.h / 2 - 0.2, MQ.y + MQ.h / 2 + 0.2]) wire.push(Math.sin(a) * MQ.r, y, MQ.cz + Math.cos(a) * MQ.r, Math.sin(b) * MQ.r, y, MQ.cz + Math.cos(b) * MQ.r);
     }
-    const ND = PH ? 420 : 1200;
+    const ND = PH ? 640 : 2000;
     const dust = new Float32Array(ND * 3);
     for (let i = 0; i < ND; i++) {
       const u = Math.random();
       if (u < 0.6) dust.set([(Math.random() - 0.5) * 48, 0.05, -20 + Math.random() * 34], i * 3);
-      else if (u < 0.85) dust.set([(Math.random() - 0.5) * 56, Math.random() * 15, -12.8], i * 3);
+      else if (u < 0.78) dust.set([(Math.random() - 0.5) * 56, Math.random() * 15, -12.8], i * 3);
+      else if (u < 0.86) dust.set([Math.sign(Math.random() - 0.5) * 23.4, Math.random() * 14, -12 + Math.random() * 20], i * 3);
       else {
         const [x, z] = cols[Math.floor(Math.random() * cols.length)]!;
         dust.set([x + (Math.random() - 0.5), Math.random() * 13, z + (Math.random() - 0.5)], i * 3);
@@ -744,7 +981,7 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
       dust,
       atlas,
       px,
-      peel: PH ? 120 : 380,
+      peel: PH ? 200 : 640,
       keep,
       shape: [0.84, 1.28],
       drift: (x, y, z) => (y < 0.1 ? [(Math.random() - 0.5) * 0.3, 0.6 + Math.random() * 0.8, (Math.random() - 0.5) * 0.3] : z < -12 ? [(Math.random() - 0.5) * 0.4, 0.3 + Math.random() * 0.5, 0.4 + Math.random() * 0.6] : [-Math.sign(x) * (0.3 + Math.random() * 0.5), 0.2 + Math.random() * 0.5, (Math.random() - 0.5) * 0.3]),
@@ -783,6 +1020,27 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
     g.restore();
     bookTex.needsUpdate = true;
   };
+  const paintHold = (rig: HoldRig, k: number) => {
+    const g = rig.canvas.getContext("2d")!;
+    g.save();
+    if (PH) g.scale(256 / 448, 256 / 448);
+    if (rig.hold) drawTicket(g, 448, 284, rig.hold, k, !!view.book.hide);
+    else g.clearRect(0, 0, 448, 284);
+    g.restore();
+    rig.tex.needsUpdate = true;
+  };
+  const applyHolds = () => {
+    const list = view.book.state === "live" ? (view.book.holds ?? []) : [];
+    holds.forEach((rig, k) => {
+      const t = list[k] ?? null;
+      const sig = t ? `${t.name}|${t.side}|${t.share.toFixed(3)}|${t.tone}|${view.book.hide ? 1 : 0}` : "-";
+      rig.hold = t;
+      if (sig !== rig.sig) paintHold(rig, k);
+      rig.sig = sig;
+      rig.stripM.color.setHex(t ? TONE[t.tone] : GOLD);
+      (rig.pool.material as SpriteMaterial).color.setHex(t ? TONE[t.tone] : GOLD);
+    });
+  };
   const apply = (first: boolean) => {
     const was = new Map(posts.map((r) => [r.post?.id ?? "", r.post?.prob ?? -1]));
     posts.forEach((rig, i) => {
@@ -803,6 +1061,7 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
     paintTape();
     paintSoon();
     paintBook();
+    applyHolds();
   };
   apply(true);
 
@@ -824,7 +1083,8 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
   let yawTo = 0;
   let zoom = 1;
   let zoomTo = 1;
-  const look = new Vector3(0, 2.6, -4.2);
+  // Aimed a little forward of the floor's middle (#988), so the book's ring sits front and centre.
+  const look = new Vector3(0, 2.4, -2.9);
   // WASD swivels the view round the floor (not free roam): A/D within a set arc, W/S in and out within tight bounds,
   // both resisted past the soft edge and eased back inside it when the keys let go; Escape snaps home. Ignored while
   // typing, and Space is left alone for hold-to-talk (the shared helper's rules).
@@ -855,6 +1115,7 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
     ray.setFromCamera(ptr, cam);
     const list: [Object3D, string][] = posts.filter((p) => p.post).map((p) => [p.hit, p.post!.id]);
     list.push([kHit, "book"]);
+    for (const h of holds) if (h.hold) list.push([h.hit, h.hold.id]);
     const hit = ray.intersectObjects(
       list.map(([m]) => m),
       false,
@@ -942,6 +1203,60 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
         if (p) rig.light.color.setHex(rig.flash > 0.05 ? TONE[p.tone] : 0xffe2b0);
       }
     });
+    // The book's ring: each pillar grows to its share, its ticket turned to the view and bobbing a little; signed out
+    // (or with nothing open) the pillars stand empty in wire.
+    moteU.t.value = T;
+    const holdsOn = view.book.state === "live" && (view.book.holds?.length ?? 0) > 0;
+    rimM.opacity = 0.7 + (reduce ? 0 : 0.15 * Math.sin(T * 1.3));
+    ringGlowM.opacity = (holdsOn ? 0.45 : 0.25) + (reduce ? 0 : 0.15 * Math.sin(T * 0.7));
+    holds.forEach((rig) => {
+      const t = rig.hold;
+      const on = !!t;
+      rig.g.visible = on || !holdsOn;
+      if (!rig.g.visible) return;
+      const target = t ? pillarH(t.rel) : EMPTY_H;
+      rig.h = reduce ? target : damp(rig.h, target, 2.4, dt);
+      rig.col.scale.y = rig.h;
+      rig.solid.visible = on;
+      rig.strip.visible = on;
+      rig.wire.material = on ? goldLine : goldWire;
+      const cap = rig.g.getObjectByName("cap");
+      if (cap) {
+        cap.visible = on;
+        cap.position.y = rig.h + 0.035;
+      }
+      const lit = on && (t.id === focusId || t.id === hover);
+      rig.lit = damp(rig.lit, lit ? 1 : 0, 6, dt);
+      rig.ticket.visible = on;
+      rig.ticket.position.y = rig.h + 0.72 + (reduce ? 0 : Math.sin(T * 0.8 + rig.phase) * 0.05);
+      rig.ticket.rotation.y = Math.atan2(cam.position.x - rig.at.x, cam.position.z - rig.at.z);
+      rig.screen.color.setScalar(1 + 0.3 * rig.lit);
+      rig.stripM.opacity = 0.6 + 0.3 * rig.lit + (reduce ? 0 : 0.1 * Math.sin(T * 1.8 + rig.phase));
+      (rig.pool.material as SpriteMaterial).opacity = on ? 0.2 + 0.25 * rig.lit : 0.07;
+      rig.hit.scale.y = rig.h + 1.2;
+      rig.hit.position.y = (rig.h + 1.2) / 2;
+    });
+    for (let j = 0; j < NH; j++) {
+      const q = NB + NS + j;
+      const c = climbs[j]!;
+      const rig = holds[c.slot];
+      if (!rig || !rig.g.visible) {
+        na[q] = 0;
+        continue;
+      }
+      const on = !!rig.hold;
+      c.k += dt * c.w * (reduce ? 0 : on ? 1 : 0.5);
+      if (c.k >= 1) {
+        c.k -= 1;
+        c.a = Math.random() * Math.PI * 2;
+        ng[q] = Math.floor(Math.random() * NG);
+      }
+      const a = c.a + c.k * 1.6;
+      const r = c.r * (1 + c.k * 1.5);
+      np.set([rig.at.x + Math.cos(a) * r, rig.at.y + (on ? rig.h : 0.1) + c.k * c.rise * (on ? 1.3 : 0.9), rig.at.z + Math.sin(a) * r], q * 3);
+      nt.set([goldC.r, goldC.g, goldC.b], q * 3);
+      na[q] = Math.sin(Math.PI * Math.min(1, c.k)) * (on ? 0.8 : 0.4);
+    }
     // The posts being built: the solid rises slowly into its wire and the nanites stream in at the line.
     soon.forEach((s) => {
       const u = reduce ? 0.5 : 0.5 + 0.5 * Math.sin(T * 0.12 + s.phase);
@@ -1011,6 +1326,9 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
       if (rig.post) report(rig.post.id, tA.set(rig.at.x, rig.at.y + POST_H + 0.25, rig.at.z));
     });
     report("book", tA.set(BOOK[0], 2.35, BOOK[1]));
+    holds.forEach((rig) => {
+      if (rig.hold) report(rig.hold.id, tA.set(rig.at.x, rig.at.y + rig.h + 1.32, rig.at.z));
+    });
     soon.forEach((s, i) => report(`soon-${i}`, tA.set(s.at.x, POST_H + 0.4, s.at.z), s.g.visible));
   };
 

@@ -114,6 +114,13 @@
 [data-room="exchange"] .xc-tag.is-hot { border-color: var(--xh-gold); box-shadow: 0 0 0 1px rgba(232, 199, 122, 0.25), 0 0 22px -4px rgba(232, 199, 122, 0.55); outline: none; }
 [data-room="exchange"] .xc-tag.is-book { border-style: solid; }
 [data-room="exchange"] .xc-tag.is-book > span { color: var(--xh-gold); }
+/* Nikita's positions in the book's ring (#988): brighter gold, the side in the day's colour; signed in only. */
+[data-room="exchange"] .xc-tag.is-hold { max-width: 180px; border-color: rgba(232, 199, 122, 0.85); background: linear-gradient(180deg, rgba(34, 27, 14, 0.94), rgba(10, 9, 8, 0.94)); box-shadow: 0 10px 24px -12px #000, 0 0 18px -6px rgba(232, 199, 122, 0.5), inset 0 1px 0 rgba(232, 199, 122, 0.22); }
+[data-room="exchange"] .xc-tag.is-hold b { color: #fff4dc; }
+[data-room="exchange"] .xc-tag.is-hold > span { color: rgba(236, 228, 210, 0.7); }
+[data-room="exchange"] .xc-tag.is-hold i { font-family: var(--xh-mono); font-size: 11px; font-weight: 500; color: var(--xh-gold); }
+[data-room="exchange"] .xc-tag.is-hold.is-up i { color: var(--xh-up); }
+[data-room="exchange"] .xc-tag.is-hold.is-down i { color: var(--xh-down); }
 [data-room="exchange"] .xc-tag.is-soon { border-style: dashed; border-color: rgba(201, 168, 92, 0.42); background: rgba(8, 8, 10, 0.7); cursor: default; }
 [data-room="exchange"] .xc-tag.is-soon b { color: rgba(236, 228, 210, 0.8); }
 [data-room="exchange"] .xc-tag.is-soon > span { color: rgba(227, 201, 141, 0.75); }
@@ -194,6 +201,10 @@
   [data-room="exchange"] .xc-tag b { font-size: 12px; }
   [data-room="exchange"] .xc-tag em { font-size: 16px; }
   [data-room="exchange"] .xc-tag.is-soon { display: none; }
+  /* On a phone the tickets carry the shares; the tags name the three biggest, one line each. */
+  [data-room="exchange"] .xc-tag.is-hold { max-width: 120px; }
+  [data-room="exchange"] .xc-tag.is-hold > span,
+  [data-room="exchange"] .xc-tag.is-hold.is-minor { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

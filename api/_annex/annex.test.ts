@@ -255,14 +255,14 @@ describe("the Annex's endpoints", () => {
     const store = new MemoryAnnexStore();
     store.state.follows.elections = [87087];
     const res = await getAnnex(new Request("https://ceo.test/api/annex"), deps(civic(), store));
-    expect(await res.json()).toEqual({ popups: { elections: { status: "live", at: null } }, signedIn: false });
+    expect(await res.json()).toEqual({ popups: { elections: { status: "live", at: null }, jobs: { status: "live", at: null } }, signedIn: false });
     const post = await postAnnex(new Request("https://ceo.test/api/annex", { method: "POST", body: JSON.stringify({ popup: "elections", status: "archived" }) }), deps(civic(), store));
     expect(post.status).toBe(503);
     expect(store.state.popups.elections.status).toBe("live");
   });
 
   it("reads a stored record defensively", () => {
-    expect(readState({ popups: { elections: { status: "exploded" } }, follows: { elections: [1, 1, -2, "x", 3] } })).toEqual({ popups: { elections: { status: "live", at: null } }, follows: { elections: [1, 3] } });
+    expect(readState({ popups: { elections: { status: "exploded" } }, follows: { elections: [1, 1, -2, "x", 3] } })).toEqual({ popups: { elections: { status: "live", at: null }, jobs: { status: "live", at: null } }, follows: { elections: [1, 3], jobs: [] } });
     expect(readState("junk").popups.elections.status).toBe("live");
   });
 });
@@ -278,5 +278,7 @@ describe("the site gate", () => {
     expect(decide(new Request("https://ceo.test/api/annex"), c).allow).toBe(false);
     expect(decide(new Request("https://ceo.test/api/annex", { method: "POST", body: "{}" }), c).allow).toBe(false);
     expect(decide(new Request("https://ceo.test/api/annex-elections", { method: "POST", body: "{}" }), c).allow).toBe(false);
+    // The Job search (#1000) is private: never through the gate without a sign-in.
+    expect(decide(new Request("https://ceo.test/api/annex-jobs"), c).allow).toBe(false);
   });
 });

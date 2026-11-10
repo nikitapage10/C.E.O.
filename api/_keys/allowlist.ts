@@ -72,6 +72,8 @@ export const NEVER_SETTABLE: readonly (string | RegExp)[] = [
   /^kroger-/,
   // The Builder's read key (#800): opens private reads, so it never comes from the Desk.
   "builder-read-key",
+  // The Annex's Job search (#1000): set in Cloud Shell; the Function's identity has no write role on it.
+  "serpapi-key",
 ];
 
 const blocked = (name: string) => NEVER_SETTABLE.some((n) => (typeof n === "string" ? n === name : n.test(name)));

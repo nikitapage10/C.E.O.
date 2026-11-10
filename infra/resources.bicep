@@ -147,6 +147,9 @@ var secrets = [
   { setting: 'SWITCHBOT_TOKEN', secret: 'switchbot-token' }
   { setting: 'SWITCHBOT_SECRET', secret: 'switchbot-secret' }
   { setting: 'GOVEE_API_KEY', secret: 'govee-api-key' }
+  // The Annex's Job search (#1000, api/_annex/jobs.ts): SerpApi's private key for Google Jobs, typed by Nikita into the
+  // vault in Cloud Shell. Not on the Desk's Keys form (api/_keys/allowlist.ts) until the role paste covers it.
+  { setting: 'SERPAPI_KEY', secret: 'serpapi-key' }
   // MealMe's key (#664), stored before King Soopers replaced MealMe. Nothing reads it; kept so a deploy doesn't stop
   // on a setting made outside the template. Remove this line and the setting together to retire it.
   { setting: 'MEALME_API_KEY', secret: 'haven-mealme-key' }

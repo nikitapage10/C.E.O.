@@ -6,19 +6,22 @@ import { create } from "zustand";
  * change is kept on this device only (localStorage), and the server's record stands for everyone else.
  */
 
-export type PopupId = "elections";
+export type PopupId = "elections" | "jobs";
 export type PopupStatus = "live" | "ended" | "archived" | "graduated";
 
 export interface Popup {
   id: PopupId;
   name: string;
   line: string;
-  /** Until when it is meant to run (a date), shown beside its status. */
+  /** Until when it is meant to run (a date), shown beside its status; empty for one that runs until it is shelved. */
   until: string;
 }
 
 /** The pop-ups, newest first. Each is a small module of its own: an api route, a page section and a feed. */
-export const POPUPS: Popup[] = [{ id: "elections", name: "Election night", line: "Live 2026 midterm results: the Senate, governors, the House and ballot measures", until: "Nov 4, 2026" }];
+export const POPUPS: Popup[] = [
+  { id: "jobs", name: "Job search", line: "Google Jobs through SerpApi, searched once a day and ranked against your profile; private to your passkey", until: "" },
+  { id: "elections", name: "Election night", line: "Live 2026 midterm results: the Senate, governors, the House and ballot measures", until: "Nov 4, 2026" },
+];
 
 /**
  * What a running pop-up has grown so far, from its own feed (#829): the Glasshouse draws one crystal per part in its
@@ -90,8 +93,8 @@ let followTimer: ReturnType<typeof setTimeout> | undefined;
 export const useAnnex = create<AnnexStore>((set, get) => ({
   load: "idle",
   signedIn: false,
-  status: { elections: "live" },
-  follows: { elections: [] },
+  status: { elections: "live", jobs: "live" },
+  follows: { elections: [], jobs: [] },
   growth: {},
   setGrowth: (id, g) => {
     const was = get().growth[id];

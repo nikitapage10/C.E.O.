@@ -13,7 +13,7 @@
 import { pickBlob, type BlobBackend } from "../_blob.js";
 
 export const STATE_PATH = "desk/annex/state.json";
-export const POPUP_IDS = ["elections"] as const;
+export const POPUP_IDS = ["elections", "jobs"] as const;
 export type PopupId = (typeof POPUP_IDS)[number];
 export const POPUP_STATUSES = ["live", "ended", "archived", "graduated"] as const;
 export type PopupStatus = (typeof POPUP_STATUSES)[number];
@@ -26,7 +26,7 @@ export interface AnnexState {
   follows: Record<PopupId, number[]>;
 }
 
-export const defaultState = (): AnnexState => ({ popups: { elections: { status: "live", at: null } }, follows: { elections: [] } });
+export const defaultState = (): AnnexState => ({ popups: { elections: { status: "live", at: null }, jobs: { status: "live", at: null } }, follows: { elections: [], jobs: [] } });
 
 export const isPopup = (v: unknown): v is PopupId => (POPUP_IDS as readonly unknown[]).includes(v);
 export const isStatus = (v: unknown): v is PopupStatus => (POPUP_STATUSES as readonly unknown[]).includes(v);

@@ -1,0 +1,462 @@
+/*
+ * The Job search (#1000): laid out like a job board, best match first. Glass panes on the Glasshouse's dark, the app's
+ * gold for what matters (the match score, Search now, Applied), a soft green for Saved, and tabular figures for pay.
+ */
+.jb {
+  --jb-gold: #d8b45a;
+  --jb-gold-soft: rgba(216, 180, 90, 0.16);
+  --jb-green: #7fc8a9;
+  --jb-line: rgba(255, 255, 255, 0.1);
+  --jb-glass: rgba(16, 22, 30, 0.72);
+  --jb-ink: #f1f3f7;
+  --jb-sub: #a6afbf;
+  margin-top: 8px;
+  color: var(--jb-ink);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.jb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--jb-line);
+}
+.jb-title-h {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.jb-sub {
+  margin: 2px 0 0;
+  color: var(--jb-sub);
+  font-size: 13px;
+}
+.jb-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  color: var(--jb-sub);
+  font-size: 12.5px;
+}
+.jb-warn {
+  color: #f4b860;
+  font-weight: 600;
+}
+.jb-said {
+  color: var(--jb-gold);
+}
+
+.jb-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+.jb-stats > div {
+  padding: 12px 14px;
+  border: 1px solid var(--jb-line);
+  border-radius: 12px;
+  background: var(--jb-glass);
+  backdrop-filter: blur(6px);
+}
+.jb-stats dt {
+  color: var(--jb-sub);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.jb-stats dd {
+  margin: 4px 0 2px;
+  font-size: 26px;
+  font-weight: 600;
+}
+.jb-stats dd span {
+  color: var(--jb-sub);
+  font-size: 15px;
+  font-weight: 400;
+}
+.jb-stats .jb-dd-sm {
+  font-size: 17px;
+}
+.jb-stats small {
+  display: block;
+  color: var(--jb-sub);
+  font-size: 11.5px;
+}
+.jb-meter {
+  display: block;
+  height: 4px;
+  margin: 4px 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.jb-meter i {
+  display: block;
+  height: 100%;
+  background: var(--jb-gold);
+}
+
+.jb-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.jb-tab {
+  flex: none;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--jb-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--jb-sub);
+  font: 500 14px/1 var(--sans);
+  cursor: pointer;
+}
+.jb-tab b {
+  font-weight: 500;
+  opacity: 0.7;
+}
+.jb-tab[aria-selected="true"] {
+  border-color: var(--jb-gold);
+  background: var(--jb-gold);
+  color: #14100a;
+}
+
+.jb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.jb-search {
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+.jb-in {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--jb-line);
+  border-radius: 10px;
+  background: rgba(8, 12, 18, 0.7);
+  color: var(--jb-ink);
+  font: 14px/1.4 var(--sans);
+}
+.jb-in:focus {
+  outline: 2px solid var(--jb-gold);
+  outline-offset: 1px;
+}
+textarea.jb-in {
+  resize: vertical;
+}
+.jb-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--jb-sub);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.jb-check input {
+  accent-color: var(--jb-gold);
+}
+
+.jb-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--jb-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--jb-ink);
+  font: 500 13px/1 var(--sans);
+  cursor: pointer;
+}
+.jb-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.jb-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.jb-btn--go {
+  border-color: var(--jb-gold);
+  background: var(--jb-gold);
+  color: #14100a;
+}
+.jb-btn--quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--jb-sub);
+}
+.jb-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--jb-ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.jb-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jb-job {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--jb-line);
+  border-radius: 14px;
+  background: var(--jb-glass);
+  backdrop-filter: blur(6px);
+}
+.jb-job.is-saved {
+  border-color: rgba(127, 200, 169, 0.45);
+}
+.jb-job.is-applied {
+  border-color: rgba(216, 180, 90, 0.5);
+}
+.jb-job.is-hidden,
+.jb-job.is-dismissed {
+  opacity: 0.6;
+}
+.jb-score {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: 64px;
+  border-radius: 10px;
+  background: var(--jb-gold-soft);
+  overflow: hidden;
+}
+.jb-score b {
+  position: relative;
+  z-index: 1;
+  margin-top: 6px;
+  color: var(--jb-gold);
+  font-size: 18px;
+}
+.jb-score i {
+  position: absolute;
+  inset: auto 0 0;
+  background: linear-gradient(to top, rgba(216, 180, 90, 0.5), rgba(216, 180, 90, 0.08));
+}
+.jb-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.jb-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.jb-title a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--jb-gold);
+}
+.jb-co {
+  margin: 3px 0 0;
+  color: var(--jb-sub);
+  font-size: 14px;
+}
+.jb-co b {
+  color: var(--jb-ink);
+  font-weight: 500;
+}
+.jb-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--jb-line);
+  border-radius: 999px;
+  font-size: 11.5px;
+  vertical-align: 1px;
+}
+.jb-tag--saved {
+  border-color: var(--jb-green);
+  color: var(--jb-green);
+}
+.jb-tag--applied {
+  border-color: var(--jb-gold);
+  color: var(--jb-gold);
+}
+.jb-facts,
+.jb-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  color: var(--jb-sub);
+  font-size: 12.5px;
+}
+.jb-pay {
+  color: var(--jb-ink);
+  font-weight: 600;
+}
+.jb-why span::before {
+  content: "· ";
+  color: var(--jb-gold);
+}
+.jb-why .jb-hid {
+  color: #f4b860;
+}
+.jb-why .jb-hid::before {
+  content: "";
+}
+.jb-more {
+  margin-top: 10px;
+  color: #c9d0dc;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.jb-more ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.jb-more p {
+  margin: 0 0 6px;
+}
+.jb-apply a {
+  color: var(--jb-gold);
+}
+.jb-found {
+  color: var(--jb-sub);
+  font-size: 12px;
+}
+.jb-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.jb-more-btn {
+  display: block;
+  margin: 12px auto 0;
+}
+.jb-empty {
+  padding: 28px 16px;
+  border: 1px dashed var(--jb-line);
+  border-radius: 14px;
+  color: var(--jb-sub);
+  text-align: center;
+}
+
+.jb-runs {
+  margin-top: 16px;
+  color: var(--jb-sub);
+  font-size: 12.5px;
+}
+.jb-runs summary {
+  cursor: pointer;
+}
+.jb-runs ol {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.jb-runs li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--jb-line);
+}
+
+.jb-setup {
+  display: grid;
+  gap: 12px;
+}
+.jb-card {
+  padding: 16px;
+  border: 1px solid var(--jb-line);
+  border-radius: 14px;
+  background: var(--jb-glass);
+  backdrop-filter: blur(6px);
+}
+.jb-h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.jb-note {
+  margin: 0 0 10px;
+  color: var(--jb-sub);
+  font-size: 13px;
+}
+.jb-searches {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.jb-searches li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+.jb-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.jb-wide {
+  grid-column: 1 / -1;
+}
+.jb-field {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.jb-field > span:first-child {
+  font-size: 13px;
+  font-weight: 500;
+}
+.jb-field small {
+  color: var(--jb-sub);
+  font-size: 12px;
+}
+.jb-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+@media (max-width: 760px) {
+  .jb-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .jb-grid2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .jb-searches li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .jb-searches li > .jb-in {
+    grid-column: 1 / -1;
+  }
+  .jb-job {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+}

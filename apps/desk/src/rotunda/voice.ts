@@ -119,7 +119,8 @@ function register(a: HTMLAudioElement, by: string): void {
 
 export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   const lines = new Map<string, Promise<string | null>>();
-  const queue: (() => void)[] = [];
+  /** Lines waiting for a fetch slot, by key: prefetches in order, a line wanted now at the front (#973). */
+  const queue: { k: string; run: () => void }[] = [];
   let running = 0;
   let gone = false;
   let dead = false;
@@ -139,27 +140,32 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   const pump = () => {
     while (running < AT_ONCE && queue.length) {
       running++;
-      queue.shift()!();
+      queue.shift()!.run();
     }
   };
-  const get = (by: string, text: string): Promise<string | null> => {
+  /** A line's audio. `now`: it is wanted this moment, so a fetch still waiting for a slot goes ahead of the prefetches. */
+  const get = (by: string, text: string, now = false): Promise<string | null> => {
     const k = keyOf(by, text);
     let got = lines.get(k);
     if (got) {
       // Most recently used last, so the oldest is let go first.
       lines.delete(k);
       lines.set(k, got);
+      const i = now ? queue.findIndex((q) => q.k === k) : -1;
+      if (i > 0) queue.unshift(...queue.splice(i, 1));
       return got;
     }
     got = new Promise<string | null>((res) => {
-      queue.push(() => {
+      const run = () => {
         void fetchLine(by, text, doFetch).then((r) => {
           running--;
           if (r.gone) gone = true;
           res(r.url);
           pump();
         });
-      });
+      };
+      if (now) queue.unshift({ k, run });
+      else queue.push({ k, run });
       pump();
     });
     // A line that failed is asked again next time (the cap may have a new month).
@@ -218,7 +224,7 @@ export function createVoice(doFetch: Fetch = fetch): RotundaVoice {
   const voice: RotundaVoice = {
     async say(by, text) {
       if (!on() || !text) return false;
-      const url = await get(by, text);
+      const url = await get(by, text, true);
       if (!url || !on()) return false;
       finish(false);
       return new Promise<boolean>((res) => {

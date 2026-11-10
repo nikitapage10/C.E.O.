@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALWAYS_KEPT, KEEP, keptAfter, settleShown } from "./keptRooms.ts";
+import { ALWAYS_KEPT, KEEP, keptAfter, onSenateBuilt, senateBuilt, settleShown, waitsOnSenate } from "./keptRooms.ts";
 
 describe("kept rooms (#759, #934)", () => {
   it("always keeps the Senate, the Haven and Relay beside the room on screen", () => {
@@ -24,6 +24,24 @@ describe("kept rooms (#759, #934)", () => {
     expect(keptAfter(["green", "today"], "green", true, 2)).toEqual(["green", "today", "haven"]);
     expect(keptAfter(["green", "today", "haven"], "green", true, 3)).toEqual(["green", "today", "haven", "relay"]);
     expect(keptAfter(["relay"], "today", true, 1)).toEqual(["today", "relay"]);
+  });
+
+  it("holds the Haven and Relay until the Senate's chamber is built (#973)", () => {
+    expect(waitsOnSenate("today")).toBe(false);
+    expect(waitsOnSenate("haven")).toBe(true);
+    expect(waitsOnSenate("relay")).toBe(true);
+    expect(waitsOnSenate(undefined)).toBe(false);
+    const heard: string[] = [];
+    const off = onSenateBuilt(() => heard.push("a"));
+    onSenateBuilt(() => heard.push("b"));
+    off();
+    expect(heard).toEqual([]);
+    senateBuilt();
+    senateBuilt();
+    expect(heard).toEqual(["b"]);
+    // Asked after it is built: at once.
+    onSenateBuilt(() => heard.push("c"));
+    expect(heard).toEqual(["b", "c"]);
   });
 
   it("never keeps any other room once it is left", () => {

@@ -221,20 +221,27 @@ export function freshMurmur(kind: RiteKind | "idle", heard: (text: string) => bo
 /*
  * The pace (#755). Nikita, 2026-11-05: "things are kind of moving pretty quickly right now." With the sound on, a line
  * holds the floor for as long as it is spoken, then a short beat; with it off (or when a line can't be spoken), for its
- * reading time: about 250 ms a word, never under 2.5 s. Between moves and between items the gaps are longer than before.
+ * reading time: about 250 ms a word, never under 2.5 s.
+ * Livelier again since #973 (Nikita, 2026-11-06: "the gaps between speakers and between arguments are too long"): from
+ * one spoken line's end, the next speaker starts within about half a second (SPOKEN_BEAT_MS + TURN_GAP_MS), and the next
+ * argument or item within about two (SPOKEN_BEAT_MS + ITEM_END_MS + ITEM_GAP_MS). A member flies in while the one before
+ * is still speaking where it can (rotundaScene.ts), so a flight rarely adds to a gap; when it must, the member starts
+ * its line LAND_MS into the flight, as it settles.
  */
 export const READ_MS_PER_WORD = 250;
 export const READ_MIN_MS = 2_500;
 /** After a spoken line, before the next move. */
-export const SPOKEN_BEAT_MS = 700;
+export const SPOKEN_BEAT_MS = 200;
 /** Between one speaker and the next. */
-export const TURN_GAP_MS = 900;
+export const TURN_GAP_MS = 300;
 /** After an item's last word, before the chamber settles. */
-export const ITEM_END_MS = 2_400;
-/** Between items, once the pods are home. */
-export const ITEM_GAP_MS = 4_000;
+export const ITEM_END_MS = 800;
+/** Between items, once the pods are sent home. */
+export const ITEM_GAP_MS = 1_000;
 /** A pod's flight to the floor. */
-export const FLY_MS = 2_300;
+export const FLY_MS = 1_600;
+/** How far into its flight a pod that wasn't already on the floor starts its line. */
+export const LAND_MS = 700;
 
 /** How long a caption holds for reading. */
 export function readMs(text: string): number {

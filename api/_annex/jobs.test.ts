@@ -52,7 +52,7 @@ describe("the Job search (#1000)", () => {
 
   it("cleans a profile from the Desk", () => {
     const p = cleanProfile({ searches: [{ q: " PM ", location: "Denver", remote: "yes" }, { q: "" }, ...Array(10).fill({ q: "x" })], minSalary: "$180,000", prefer: "AI, platform", avoid: ["Crypto", "crypto"] });
-    expect(p.searches).toHaveLength(6);
+    expect(p.searches).toHaveLength(11);
     expect(p.searches[0]).toEqual({ q: "PM", location: "Denver", remote: false });
     expect(p.minSalary).toBe(180_000);
     expect(p.prefer).toEqual(["ai", "platform"]);
@@ -133,6 +133,19 @@ describe("the Job search (#1000)", () => {
     expect(store.resume).toContain("roadmap");
     expect(JSON.stringify(store.state)).not.toContain("roadmap planning");
     expect("state" in r && r.state.jobs[0]!.why).toContain("fits your resume");
+  });
+
+  it("rotates a long list, PER_RUN searches a run", async () => {
+    const store = new MemoryJobsStore();
+    store.state.profile = cleanProfile({ searches: Array.from({ length: 10 }, (_, i) => ({ q: `s${i}` })) });
+    const a = deps(store);
+    await runJobs(a.d, "hand");
+    const qs = (urls: string[]) => urls.filter((u) => u.includes("search.json")).map((u) => new URL(u).searchParams.get("q"));
+    expect(qs(a.urls)).toEqual(["s0", "s1", "s2", "s3", "s4", "s5", "s6"]);
+    const b = deps(store, [], { now: NOW + 3_600_000 });
+    await runJobs(b.d, "hand");
+    expect(qs(b.urls)).toEqual(["s7", "s8", "s9", "s0", "s1", "s2", "s3"]);
+    expect(store.state.used).toBe(14);
   });
 
   it("names the next daily run", () => {

@@ -144,7 +144,7 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
     <div className="jb-setup">
       <section className="jb-card">
         <h3 className="jb-h3">Searches</h3>
-        <p className="jb-note">Each search is one SerpApi search per run, six at most. Leave the place empty to search anywhere; tick Remote for work-from-home only.</p>
+        <p className="jb-note">Up to 16 searches. Each run does 7 of them in turn (one SerpApi search each), so a longer list comes round every few days. Leave the place empty to search anywhere; tick Remote for work-from-home only.</p>
         <ol className="jb-searches">
           {searches.map((s, i) => (
             <li key={i}>
@@ -159,7 +159,7 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
             </li>
           ))}
         </ol>
-        {searches.length < 6 && (
+        {searches.length < 16 && (
           <button type="button" className="jb-btn" onClick={() => setSearches((x) => [...x, { q: "", location: "", remote: false }])}>
             Add a search
           </button>
@@ -275,7 +275,8 @@ export function JobSearch() {
   const counts = (s: JobState) => view.jobs.filter((j) => j.state === s).length;
   const hiddenN = view.jobs.filter((j) => j.hidden && (j.state === "new" || j.state === "saved")).length;
   const newToday = last ? view.jobs.filter((j) => j.firstSeen === last.at).length : 0;
-  const perRun = view.profile.searches.length;
+  const saved = view.profile.searches.length;
+  const perRun = Math.min(7, saved);
   const left = view.budget - view.used;
 
   return (
@@ -333,7 +334,7 @@ export function JobSearch() {
         <div>
           <dt>Next daily run</dt>
           <dd className="jb-dd-sm">{view.nextRun ? new Date(view.nextRun).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : "Off"}</dd>
-          <small>{perRun ? `${perRun} ${perRun === 1 ? "search" : "searches"} a run` : "add a search"}</small>
+          <small>{perRun ? `${perRun} ${perRun === 1 ? "search" : "searches"} a run${saved > perRun ? `, of ${saved} in turn` : ""}` : "add a search"}</small>
         </div>
       </dl>
 

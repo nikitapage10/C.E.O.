@@ -64,6 +64,7 @@ export interface JobsView {
   runs: JobRun[];
   month: string;
   used: number;
+  cursor: number;
   budget: number;
   account: { perMonth: number | null; left: number | null; at: string } | null;
   configured: boolean;

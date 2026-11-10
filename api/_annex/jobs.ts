@@ -7,8 +7,8 @@
  * floor, the avoid list, the resume) is typed on the Desk, never written in the repo. Logs carry counts only.
  *
  * Light on quota. SerpApi counts every search against a monthly plan, so: one scheduled run a day at most, a run is one
- * search per saved query (at most MAX_SEARCHES), a hand run waits MANUAL_GAP_MS after the last, and nothing runs once
- * this month's searches reach the budget (JOBS_MONTHLY_SEARCHES, default 200). SerpApi's own account page (free, not
+ * search per saved query, rotating through up to MAX_SEARCHES of them PER_RUN at a time, a hand run waits MANUAL_GAP_MS after the last, and nothing runs once
+ * this month's searches reach the budget (JOBS_MONTHLY_SEARCHES, default 240). SerpApi's own account page (free, not
  * counted) is read after each run so the Desk shows the plan's real searches left. No Claude call anywhere: matches
  * are scored with plain rules against the profile and the resume's words.
  *
@@ -30,7 +30,9 @@ export const SERP_URL = "https://serpapi.com/search.json";
 export const SERP_ACCOUNT_URL = "https://serpapi.com/account.json";
 
 /** At most this many saved searches, so one run is at most this many SerpApi searches. */
-export const MAX_SEARCHES = 6;
+export const MAX_SEARCHES = 16;
+/** Searches in one run: a longer list is worked through in turns, PER_RUN a day, so each search comes round every few days. */
+export const PER_RUN = 7;
 /** Jobs kept at most; the oldest unsaved ones go first. */
 export const MAX_JOBS = 300;
 /** A job not seen again and not saved or applied to drops off after this long. */
@@ -39,7 +41,7 @@ export const STALE_MS = 21 * 86_400_000;
 export const SCHEDULE_GAP_MS = 20 * 3_600_000;
 /** A hand run waits this long after the last run of any kind. */
 export const MANUAL_GAP_MS = 30 * 60_000;
-export const DEFAULT_MONTHLY = 200;
+export const DEFAULT_MONTHLY = 240;
 export const MAX_RESUME = 20_000;
 
 export const JOB_STATES = ["new", "saved", "applied", "dismissed"] as const;
@@ -119,6 +121,8 @@ export interface JobsState {
   /** This month (UTC, YYYY-MM) and how many searches the runs used in it. */
   month: string;
   used: number;
+  /** Where the next run starts in the saved searches (they rotate when there are more than PER_RUN). */
+  cursor: number;
   account: JobsAccount | null;
 }
 
@@ -130,7 +134,7 @@ export interface JobsView extends JobsState {
 }
 
 export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true });
-export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, account: null });
+export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null });
 
 /* ── Reading things defensively ── */
 
@@ -174,6 +178,7 @@ export function readJobs(raw: unknown): JobsState {
   s.runs = Array.isArray(r.runs) ? r.runs.slice(0, 30) : [];
   s.month = typeof r.month === "string" ? r.month.slice(0, 7) : "";
   s.used = typeof r.used === "number" && r.used >= 0 ? r.used : 0;
+  s.cursor = typeof r.cursor === "number" && Number.isInteger(r.cursor) && r.cursor >= 0 ? r.cursor : 0;
   s.account = r.account && typeof r.account === "object" ? r.account : null;
   return s;
 }
@@ -410,6 +415,13 @@ export function tidy(jobs: Job[], profile: JobsProfile, resume: Set<string>, now
   return [...keep, ...rest].slice(0, Math.max(MAX_JOBS, keep.length));
 }
 
+/** The next run's searches: PER_RUN of them from the cursor, wrapping round the list. */
+export function batchOf<T>(searches: T[], cursor: number): T[] {
+  const n = searches.length;
+  if (n <= PER_RUN) return searches;
+  return Array.from({ length: PER_RUN }, (_, i) => searches[(cursor + i) % n]!);
+}
+
 export type RunResult = "ran" | "no-key" | "no-searches" | "budget" | "not-due" | "off" | "failed";
 
 /** One run of the saved searches. `by: "schedule"` keeps to the daily gap; a hand run to MANUAL_GAP_MS. */
@@ -423,7 +435,8 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
   const last = state.runs.find((r) => by === "hand" || r.by === "schedule");
   const gap = by === "schedule" ? SCHEDULE_GAP_MS : MANUAL_GAP_MS;
   if (last && deps.now - Date.parse(last.at) < gap) return { result: "not-due", state };
-  if (state.used + searches.length > deps.budget) return { result: "budget", state };
+  const batch = batchOf(searches, state.cursor);
+  if (state.used + batch.length > deps.budget) return { result: "budget", state };
 
   const nowIso = new Date(deps.now).toISOString();
   const byId = new Map(state.jobs.map((j) => [j.id, j]));
@@ -431,7 +444,7 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
   let added = 0;
   let used = 0;
   let error: string | null = null;
-  for (const s of searches) {
+  for (const s of batch) {
     used++;
     try {
       const res = await deps.fetcher(searchUrl(s, deps.key), { signal: AbortSignal.timeout(30_000) });
@@ -459,6 +472,7 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
     }
   }
   state.used += used;
+  state.cursor = searches.length ? (state.cursor + batch.length) % searches.length : 0;
   const resume = resumeWords(await deps.store.readResume().catch(() => ""));
   state.jobs = tidy([...byId.values()], state.profile, resume, deps.now);
   state.runs = [{ at: nowIso, by, searches: used, found, added, error }, ...state.runs].slice(0, 30);

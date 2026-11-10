@@ -192,7 +192,7 @@ test("signed in: the docket in the chamber, the Council's pods and the to-dos", 
 
   // The bar, and Ask Skippy bottom right.
   const bar = page.getByRole("navigation", { name: "Desk" });
-  await expect(bar.getByRole("link")).toHaveText(["Senate", "Haven", "Foundry", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Boiler Room"]);
+  await expect(bar.getByRole("link")).toHaveText(["Senate", "Haven", "Relay", "Green", "Exchange", "Archive", "Annex", "Spire", "Workshop", "Studio", "Foundry", "Boiler Room"]);
   await expect(page.getByRole("button", { name: "Ask Skippy", exact: true }).first()).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -230,9 +230,12 @@ test("the sound: off by default, on with a tap, remembered, and every line asked
   page.on("pageerror", (e) => errors.push(e.message));
   await stub(page, true);
   // ElevenLabs is "capped" here: no audio comes back, so the chamber falls back to reading pace without a sound.
+  // Only the voice's asks count: the recess asks the same function for its live arguments (`senate: "debate"`, #910)
+  // whatever the sound, and here it gets no argument back, so the chamber takes a written one.
   const asked: { room?: string; speak?: string; as?: string }[] = [];
   await page.route(`${BASE}/api/skippy-room`, (r) => {
-    const body = JSON.parse(r.request().postData() ?? "{}") as { room?: string; speak?: string; as?: string };
+    const body = JSON.parse(r.request().postData() ?? "{}") as { room?: string; speak?: string; as?: string; senate?: string };
+    if (body.senate) return r.fulfill({ json: { quiet: "model" } });
     asked.push(body);
     return r.fulfill({ json: { say: body.speak, kind: "spoken" } });
   });
@@ -266,9 +269,15 @@ test("on a phone the docket sits under the chamber, with no sideways scroll", as
   await page.setViewportSize({ width: 390, height: 844 });
   await stub(page, true);
   await page.goto(BASE + "/");
-  const stage = await page.locator(".rt-stage").boundingBox();
-  const dock = await page.locator(".rt-dock").boundingBox();
-  expect(stage && dock && dock.y >= stage.y + stage.height - 1).toBe(true);
+  // Read once both are laid out: straight after the load the dock can still be on its way in (#990).
+  await expect(page.locator(".rt-dock")).toBeVisible();
+  await expect
+    .poll(async () => {
+      const stage = await page.locator(".rt-stage").boundingBox();
+      const dock = await page.locator(".rt-dock").boundingBox();
+      return Boolean(stage && dock && dock.y >= stage.y + stage.height - 1);
+    })
+    .toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

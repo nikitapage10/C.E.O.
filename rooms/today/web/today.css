@@ -248,6 +248,9 @@
   .desk .td-cast>.td-cast-w{display:none}
   .desk .td-later-bar{flex-wrap:wrap;gap:12px;padding:14px 18px;border-radius:22px}
   .desk .td-later-k{flex:1 1 100%}
+  /* Since the floor (#977) the bar sits at the foot of the first screen, its second line level with Ask Skippy: that
+     line wraps short of the pill (about 145px wide, 12px in), as the icons and chevron already sit left of it. */
+  .desk .td-later-k small{max-width:calc(100% - 136px)}
 }
 
 /* ---------- still ---------- */

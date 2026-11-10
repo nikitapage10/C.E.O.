@@ -513,8 +513,8 @@
   .desk .wt-view {
     position: relative;
     inset: auto;
-    height: min(132vw, calc(100svh - 230px));
-    min-height: 440px;
+    /* The table fills the first screen, so the places start below the fold and never under Ask Skippy at rest (#706). */
+    height: max(440px, calc(100svh - 230px));
   }
   .desk .wt-head {
     position: relative;

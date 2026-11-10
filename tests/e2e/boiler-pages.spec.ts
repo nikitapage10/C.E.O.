@@ -91,10 +91,12 @@ async function stub(page: Page, broken: boolean) {
 async function noSideScroll(page: Page) {
   // The page as it reads once its loader (#752) has faded: the loader is a fixed cover whose motes gather from outside
   // its mark, so its own boxes overflow while it is up, without ever scrolling the page (rooms/boiler since #842).
+  // Each panel's gold corner ticks (#936) sit 3px outside its corners on purpose, inside the body's gutter, so a box
+  // may run up to 3px past its edge without the page ever scrolling sideways.
   await expect(page.locator(".room-loader")).toHaveCount(0);
   const wide = await page.evaluate(() => {
     const els = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".desk, .desk *")];
-    return els.filter((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== "auto" && getComputedStyle(e).overflowX !== "scroll" && getComputedStyle(e).overflowX !== "hidden").map((e) => e.className).slice(0, 3);
+    return els.filter((e) => e.scrollWidth > e.clientWidth + (e === document.documentElement ? 1 : 3) && getComputedStyle(e).overflowX !== "auto" && getComputedStyle(e).overflowX !== "scroll" && getComputedStyle(e).overflowX !== "hidden").map((e) => e.className).slice(0, 3);
   });
   expect(wide).toEqual([]);
 }
@@ -179,9 +181,13 @@ test("with nothing that needs you, the column is gone and the charts run full wi
     const bx = page.locator(".bx");
     await expect(bx).toHaveAttribute("data-needs", "full");
     await expect(bx.locator(".bx-needs")).toHaveCount(0);
+    // Full width: the charts fill the body inside its gutters (which grow with the screen since #936).
     const main = (await bx.locator(".bx-main").boundingBox())!;
-    const body = (await bx.locator(".bx-body").boundingBox())!;
-    expect(main.width).toBeGreaterThan(body.width - 40);
+    const inner = await bx.locator(".bx-body").evaluate((e) => {
+      const cs = getComputedStyle(e);
+      return e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    });
+    expect(main.width).toBeGreaterThan(inner - 2);
     if (p === "controls") await shot(page, "controls-desktop-clear");
   }
 });

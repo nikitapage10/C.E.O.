@@ -5,6 +5,8 @@ import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie, TEST_PASSKEY } from "../_desk/testing.ts";
 import { forgetKeptWrite, homeNow, keepLines, type HomeLook } from "../_haven/devices/homeread.ts";
 import type { DeviceReading } from "../_haven/devices/types.ts";
+import { PhoneKeys } from "../_haven/phones.ts";
+import { capture, type HavenDeps } from "../_haven/route.ts";
 import { PhoneTodos } from "../_haven/todos.ts";
 import { MemoryStoryStore } from "../_world/story.ts";
 import { callAnswer, chat, deepAnswer, phoneAnswer, roomAnswer, type Ask, type ChatDeps } from "../skippy.ts";
@@ -73,10 +75,21 @@ const uses = (name: string, input: Record<string, unknown>): Step => () => ({ co
  * A whole C.E.O. for one test: the home's rails (the thermostat at 71°F, a wet feeder that opens), the rooms' reads,
  * a scripted model that keeps every call and the time each tier is taken to cost, and the routes' deps around them.
  */
-async function world(opts: { steps?: Step[]; liveMs?: number; act?: (req: HomeAsk) => { ok: boolean; say: string } } = {}) {
+async function world(opts: { steps?: Step[]; liveMs?: number; act?: (req: HomeAsk) => { ok: boolean; say: string }; lightsDown?: boolean } = {}) {
   const blob = memoryBlob();
   const store = new MemoryAuthStore();
   const acts: HomeAsk[] = [];
+  /** The lights' switches as they reached the vendors (#1011): [id, on]. Two made-up lights. */
+  const switched: [string, boolean][] = [];
+  const lightsView = {
+    vendors: { switchbot: "live" as const, govee: "live" as const },
+    lights: [
+      { id: "aaaaaaaaaaaa", vendor: "switchbot" as const, name: "Study", type: "Bot", on: false, online: true },
+      { id: "bbbbbbbbbbbb", vendor: "govee" as const, name: "Sofa lamp", type: "H6008", on: false, online: true },
+    ],
+    scenes: [],
+    remotes: [],
+  };
   const calls: Params[] = [];
   const steps = [...(opts.steps ?? [])];
   let modelMs = 0;
@@ -112,9 +125,20 @@ async function world(opts: { steps?: Step[]; liveMs?: number; act?: (req: HomeAs
     fileIssue: null,
     skipTerms: [],
     now: NOW,
+    lights: {
+      view: async () => lightsView,
+      byName: async (words) => {
+        const want = words.toLowerCase().replace(/\b(?:the|light|lights|lamp)\b/g, " ").trim();
+        const hit = lightsView.lights.filter((l) => want && l.name.toLowerCase().includes(want));
+        return hit.length === 1 ? { kind: "light" as const, id: hit[0]!.id, name: hit[0]!.name } : null;
+      },
+      set: async (id, on) => (switched.push([id, on]), opts.lightsDown ? { ok: false as const, code: "vendor" as const, say: "SwitchBot didn't take that just now. Try again in a moment." } : { ok: true as const, say: "Done." }),
+      scene: async () => ({ ok: true, say: "Done." }),
+    },
   });
   const log = new MemoryRoomLog();
-  const chatDeps: ChatDeps = { deskKey: DESK, store, ledger: new MemoryChatLedger(), ask, host, pending: new MemoryPending(), log, world: async () => null, desk: async () => deskContext([], [], null, null), now: NOW, env: {} };
+  const pending = new MemoryPending();
+  const chatDeps: ChatDeps = { deskKey: DESK, store, ledger: new MemoryChatLedger(), ask, host, pending, log, world: async () => null, desk: async () => deskContext([], [], null, null), now: NOW, env: {} };
   const senateAsk: SenateAsk = async (system) => ({ answer: system === JOIN_SYSTEM ? JOIN : FLOOR, usage: { input_tokens: 500, output_tokens: 40 } });
   const room: RoomRouteDeps = {
     desk: { deskKey: DESK, store, now: NOW },
@@ -130,7 +154,7 @@ async function world(opts: { steps?: Step[]; liveMs?: number; act?: (req: HomeAs
   const crew = new MemoryCrewStore();
   const tools: ToolDeps = { deskKey: DESK, crew, sources, brain: (q, pk) => callAnswer(q, pk, chatDeps), log, now: NOW };
   const cookie = await signedInCookie(DESK, NOW, store);
-  return { blob, acts, calls, chatDeps, room, tools, crew, cookie, log, modelMs: () => modelMs, models: () => calls.map((c) => c.model) };
+  return { blob, acts, switched, pending, calls, chatDeps, room, tools, crew, cookie, log, modelMs: () => modelMs, models: () => calls.map((c) => c.model) };
 }
 type World = Awaited<ReturnType<typeof world>>;
 
@@ -145,6 +169,21 @@ async function onCall(w: World, method: "GET" | "POST", query: string, body?: un
   const token = await issueToolToken(w.crew, DESK, "conv_sample_01", NOW + 10 * 60_000, NOW, passkey);
   const res = await handle(new Request(`${ORIGIN}${PATH}?${query}`, { method, headers: { [TOOL_HEADER]: token!, "Content-Type": "application/json" }, ...(body !== undefined && { body: JSON.stringify(body) }) }), w.tools);
   return (await res.json()) as { ok?: boolean; answered?: boolean; text: string; turn?: string };
+}
+
+/** The iPhone's "Skippy" shortcut (#627): POST /api/capture with the phone's key, through the real route and turn. */
+const PEPPER = Buffer.alloc(32, 7);
+async function shortcut(w: World, text: string, key?: string | null) {
+  const phones = new PhoneKeys(w.blob, PEPPER);
+  const made = key === undefined ? (await phones.add("Sample phone", NOW))!.key : key;
+  const deps: HavenDeps = { desk: { deskKey: DESK, store: w.chatDeps.store, now: NOW }, blob: w.blob, pepper: async () => PEPPER, todos: (b) => new PhoneTodos(b), skippy: (t, id, h) => phoneAnswer(t, id, h, w.chatDeps), voice: null, log: () => undefined, random: () => 0 };
+  const res = await capture(new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { "Content-Type": "application/json", ...(made !== null && { "x-ceo-phone-key": made }) }, body: JSON.stringify({ text }) }), deps);
+  return { status: res.status, body: (await res.json()) as { say?: string; quiet?: boolean; error?: string } };
+}
+
+/** What is waiting for a Yes on the Desk, if anything (a tap that would never come from the phone). */
+async function waiting(w: World): Promise<boolean> {
+  return w.pending.items.length > 0;
 }
 
 beforeEach(() => {
@@ -348,5 +387,59 @@ describe("the tiers' latency (#926), the model's time mocked", () => {
     const deep = await world({ steps: [said({ reply: "Three meals a day, bowl two at noon.", needs: "none" })] });
     expect(await deepAnswer("plan the cat's feeding for next week", "hard", deep.chatDeps)).toBe("Three meals a day, bowl two at noon.");
     expect(deep.models()).toEqual([HARD_MODEL]);
+  });
+});
+
+describe("the phone shortcut runs a plain order at once, with no Yes on the Desk (#1011)", () => {
+  it("'turn on the lights' switches every light from the phone and says so only after they took it", async () => {
+    const w = await world();
+    const got = await shortcut(w, "Turn on the lights.");
+    expect(got.status).toBe(200);
+    expect(got.body).toEqual({ say: "The lights are on.", quiet: true });
+    expect(w.switched).toEqual([["aaaaaaaaaaaa", true], ["bbbbbbbbbbbb", true]]);
+    expect(got.body.say).not.toMatch(/Desk|Yes|tap/i);
+    expect(await waiting(w)).toBe(false);
+    expect(w.calls).toEqual([]);
+  });
+
+  it("a light the model switches on Nikita's words runs too, without a Desk proposal", async () => {
+    const w = await world({ steps: [uses("lights_set", { name: "Study", on: true }), said({ reply: "Study's on.", room: "haven", deeper: "no" })] });
+    const got = await shortcut(w, "put the study light on for me");
+    expect(got.status).toBe(200);
+    expect(got.body.say).toBe("Study's on.");
+    expect(w.switched).toEqual([["aaaaaaaaaaaa", true]]);
+    expect(await waiting(w)).toBe(false);
+  });
+
+  it("a failed switch is said out loud, never 'done'", async () => {
+    const w = await world({ lightsDown: true });
+    const got = await shortcut(w, "turn off the lights");
+    expect(got.status).toBe(200);
+    expect(got.body.quiet).toBe(false);
+    expect(got.body.say).toMatch(/didn't switch off/);
+    expect(got.body.say).not.toMatch(/are off|done/i);
+  });
+
+  it("a question about the lights never switches them, even when the model reaches for the switch", async () => {
+    const w = await world({ steps: [uses("lights_set", { name: "all", on: true }), said({ reply: "Both are off.", room: "haven", deeper: "no" })] });
+    const got = await shortcut(w, "are the lights on?");
+    expect(got.status).toBe(200);
+    expect(w.switched).toEqual([]);
+    expect(await waiting(w)).toBe(false);
+  });
+
+  it("an unauthenticated caller never runs a device: no key, a wrong key, a revoked one", async () => {
+    const w = await world();
+    for (const key of [null, "", `skp_${"A".repeat(43)}`, "Bearer nope"]) {
+      const got = await shortcut(w, "turn on the lights", key);
+      expect(got.status, String(key)).toBe(401);
+      expect(got.body).toEqual({ error: "unauthorized" });
+    }
+    const phones = new PhoneKeys(w.blob, PEPPER);
+    const made = (await phones.add("Revoked phone", NOW))!;
+    await phones.revoke(made.phone.id, NOW);
+    expect((await shortcut(w, "open the wet food feeder", made.key)).status).toBe(401);
+    expect(w.switched).toEqual([]);
+    expect(w.acts).toEqual([]);
   });
 });

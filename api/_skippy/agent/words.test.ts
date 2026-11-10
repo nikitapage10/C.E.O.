@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { directAsk, infoQuestion, scheduleAsk, spokenAsked } from "./words.ts";
+import { ALL_LIGHTS, directAsk, infoQuestion, lightsAsk, scheduleAsk, spokenAsked, spokenLights } from "./words.ts";
 
 describe("a schedule question reads that device's schedule, on every surface (#952)", () => {
   it("knows which device's schedule is asked about", () => {
@@ -46,5 +46,33 @@ describe("a question never runs a home device (2026-11-06)", () => {
     expect(spokenAsked("Yeah, I didn't want that. Send the vacuum back.", { action: "vacuum.dock" })).toBe(true);
     expect(directAsk("what's in the wet feeder?")).toEqual({ tool: "home_status", input: { about: "wet-feeder" } });
     expect(directAsk("what's the temperature in the apartment?")?.tool).toBe("home_status");
+  });
+});
+
+describe("a plain order switches the lights, said anywhere (#1011)", () => {
+  it("reads the order, which way and which lights", () => {
+    expect(directAsk("Turn on the lights.")).toEqual({ tool: "lights_set", input: { name: ALL_LIGHTS, on: true } });
+    expect(directAsk("hey Skippy, turn off all the lights")).toEqual({ tool: "lights_set", input: { name: ALL_LIGHTS, on: false } });
+    expect(directAsk("lights off")).toEqual({ tool: "lights_set", input: { name: ALL_LIGHTS, on: false } });
+    expect(directAsk("can you switch the study lamp on please")).toEqual({ tool: "lights_set", input: { name: "study lamp", on: true } });
+    expect(directAsk("kill the lights")).toEqual({ tool: "lights_set", input: { name: ALL_LIGHTS, on: false } });
+    expect(lightsAsk("turn the kitchen lights on")).toEqual({ name: "kitchen lights", on: true });
+    expect(lightsAsk("turn on the vacuum")).toBeNull();
+    expect(lightsAsk("turn on the charm")).toBeNull();
+  });
+  it("a question about the lights never switches them", () => {
+    expect(directAsk("are the lights on?")).toBeNull();
+    expect(directAsk("is the porch light off")).toBeNull();
+    expect(directAsk("did I leave the lights on")).toBeNull();
+    expect(spokenLights("are the lights on?", "lights_set", { name: "all", on: true })).toBe(false);
+  });
+  it("the model's switch runs only on Nikita's own words for it", () => {
+    expect(spokenLights("turn on the lights", "lights_set", { name: "all", on: true })).toBe(true);
+    expect(spokenLights("turn on the lights", "lights_set", { name: "all", on: false })).toBe(false);
+    expect(spokenLights("switch the beamer on", "lights_set", { name: "Beamer", on: true })).toBe(true);
+    expect(spokenLights("what's for dinner", "lights_set", { name: "Porch", on: true })).toBe(false);
+    expect(spokenLights("movie night", "lights_scene", { name: "Movie night" })).toBe(true);
+    expect(spokenLights("turn on the lights", "lights_scene", { name: "Turn off lights" })).toBe(false);
+    expect(spokenLights(undefined, "lights_set", { name: "all", on: true })).toBe(false);
   });
 });

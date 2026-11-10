@@ -9,8 +9,9 @@
  *   - a tool that sends, spends or deletes, or asks for it, is kept as a pending call with exactly its input
  *     (./pending.ts) and runs only on Nikita's Yes tap (`confirmTool`). The spoken surfaces (a room's mic, hold Space,
  *     the phone, a call), which can't show a button, get every tool too (#926: Skippy never says he can't do what a
- *     tool does): a home device runs there when Nikita's own words asked for that very action (`spokenAsked`, the
- *     phone's rule since #632), and anything else that waits for the tap says so, by name;
+ *     tool does): a home device, a light or a lights scene runs there at once when Nikita's own words asked for that
+ *     very action (`spokenAsked`, the phone's rule since #632; `spokenLights` since #1011: "turn on the lights" from the
+ *     phone switches them, with no Yes on the Desk), and anything else that waits for the tap says so, by name;
  *   - what a tool writes goes through the privacy check (and the memory's own rules) first.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -33,7 +34,7 @@ import type { Lights } from "../../_haven/lights/lights.js";
 import { LIGHT_WHERE, type LightWhere } from "../../_haven/planShape.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
-import { spokenAsked } from "./words.js";
+import { allLightsName, spokenAsked, spokenLights } from "./words.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, mealNamed, readEdit, ROLES, weekWords, type Day, type EditResult, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
@@ -162,8 +163,36 @@ async function lightsText(host: ToolHost): Promise<string> {
 async function lightNamed(host: ToolHost, i: Record<string, unknown>, scene: boolean): Promise<{ ok: true; id: string; name: string } | { ok: false; text: string }> {
   if (!host.lights) return { ok: false, text: "The lights aren't set up on this copy yet." };
   const got = await host.lights.byName(str(i.name));
-  if (!got || (got.kind === "scene") !== scene) return { ok: false, text: `I don't know ${scene ? "a scene" : "a light"} called ${plainLine(str(i.name), 60)}. Read lights_list for the names.` };
+  if (!got || (got.kind === "scene") !== scene) {
+    // The names it does know, so a spoken answer (#1011) and the model alike can say which one he meant.
+    const v = await host.lights.view().catch(() => null);
+    const names = v ? (scene ? v.scenes : [...v.lights, ...(v.groups ?? []), ...v.remotes]).map((x) => x.name).filter(Boolean).slice(0, 12) : [];
+    return { ok: false, text: `I don't know ${scene ? "a scene" : "a light"} called ${plainLine(str(i.name), 60)}.${names.length ? ` ${scene ? "The scenes are" : "The lights are"}: ${names.join(", ")}.` : ""}` };
+  }
   return { ok: true, id: got.id, name: got.name };
+}
+
+/** Whether a lights_set call means every light (#1011): "all", "the lights", unless a light is called just that. */
+async function everyLight(host: ToolHost, i: Record<string, unknown>): Promise<boolean> {
+  if (!host.lights || !allLightsName(str(i.name))) return false;
+  const got = await host.lights.byName(str(i.name)).catch(() => null);
+  return !got || got.kind === "scene";
+}
+
+/** Every light that answers, on or off at once (#1011), each through the lights' own switch; says what didn't take. */
+async function switchEvery(host: ToolHost, on: boolean): Promise<Ran> {
+  const v = await host.lights!.view();
+  const all = v.lights.length ? v.lights : (v.groups ?? []);
+  const live = all.filter((l) => !("online" in l) || l.online !== false);
+  if (!live.length) return { ok: false, text: all.length ? "None of the lights are online just now." : "No lights found to switch." };
+  const got = await Promise.all(live.map(async (l) => ({ name: l.name || "a light", ok: (await host.lights!.set(l.id, on).catch(() => ({ ok: false }))).ok })));
+  const done = got.filter((g) => g.ok).map((g) => g.name);
+  const failed = got.filter((g) => !g.ok).map((g) => g.name);
+  const way = on ? "on" : "off";
+  if (!done.length) return { ok: false, text: `The lights didn't switch ${way}: ${failed.join(", ")} didn't answer.` };
+  const offline = all.length - live.length;
+  const rest = [failed.length ? `${failed.join(", ")} didn't take it` : "", offline ? `${offline} ${offline === 1 ? "is" : "are"} offline` : ""].filter(Boolean).join("; ");
+  return { ok: true, text: rest ? `Lights ${way}: ${done.join(", ")}; ${rest}.` : `The lights are ${way}.`, did: `Lights ${way}`, ...(rest && { warned: true }) };
 }
 
 /** The issue "Implement it" files: the model's title and pitch, both through the privacy check and shown on the Yes button first. */
@@ -469,10 +498,12 @@ const EXECUTORS: Record<string, Executor> = {
   lights_list: { run: async (_i, host) => ({ ok: true, text: await lightsText(host) }) },
   lights_set: {
     prepare: async (i, host) => {
+      if (await everyLight(host, i)) return { ok: true, label: i.on ? "Turn them on" : "Turn them off", summary: `Turn every light ${i.on ? "on" : "off"}` };
       const l = await lightNamed(host, i, false);
       return l.ok ? { ok: true, label: i.on ? "Turn it on" : "Turn it off", summary: `Turn ${l.name} ${i.on ? "on" : "off"}` } : l;
     },
     run: async (i, host) => {
+      if (await everyLight(host, i)) return switchEvery(host, i.on === true);
       const l = await lightNamed(host, i, false);
       if (!l.ok) return l;
       const r = await host.lights!.set(l.id, i.on === true);
@@ -562,6 +593,12 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
           const ran = await ex.run({ ...checked.value, via: opts.via ?? "desk", said: opts.said }, host);
           return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), ...(ran.warned && { warned: true }), tool } : { ok: false, text: ran.text, tool };
         }
+        // Spoken: the lights too (#1011), on Nikita's own words for that switch or scene, with no Yes on the Desk.
+        if (name === "lights_set" || name === "lights_scene") {
+          if (!spokenLights(opts.said, name, checked.value)) return { ok: false, text: `Nothing ran: the lights switch on Nikita's own words for them. Ask him to say it plainly ("${name === "lights_scene" ? `run ${plainLine(str(checked.value.name), 40)}` : `turn ${checked.value.on ? "on" : "off"} the lights`}") and it runs.`, tool };
+          const ran = await ex.run(checked.value, host);
+          return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), ...(ran.warned && { warned: true }), tool } : { ok: false, text: ran.text, tool };
+        }
         return { ok: false, text: `Nothing ran: "${tool.title}" waits for Nikita's Yes tap, so it goes from Skippy's chat on the Desk. Say that in one line.`, tool };
       }
       if (!opts.pending) return { ok: false, text: "Taps aren't set up on this copy.", tool };
@@ -621,10 +658,13 @@ function apiProp(p: RoomTool["input"]["properties"][string]): Record<string, unk
  * registry outgrew both (29 tools, 30 optional fields), so every model call came back 400 before it began. Every call's
  * input is checked in code instead (`checkInput` in `callTool`), and a bad one goes back to the model as a tool error.
  */
+/** The tapped tools a spoken surface runs at once on Nikita's own words (#632, #1011): the home devices and the lights. */
+export const SPOKEN_RUNS: ReadonlySet<string> = new Set(["home_device", "lights_set", "lights_scene"]);
+
 export function apiTools(tools: readonly RoomTool[]) {
   return tools.map((t) => ({
     name: t.name,
-    description: needsConfirm(t) ? `${t.description} (Waits for Nikita's Yes tap on the Desk.)` : t.description,
+    description: needsConfirm(t) ? `${t.description} (${SPOKEN_RUNS.has(t.name) ? "Typed on the Desk it waits for Nikita's Yes tap; said out loud (the phone, a mic, a call) it runs at once on his own words for it." : "Waits for Nikita's Yes tap on the Desk."})` : t.description,
     input_schema: { type: "object" as const, properties: Object.fromEntries(Object.entries(t.input.properties).map(([k, p]) => [k, apiProp(p)])), required: [...t.input.required], additionalProperties: false },
   }));
 }

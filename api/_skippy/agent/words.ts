@@ -12,8 +12,12 @@
  *             food feeder", "feed the cat two portions", "vacuum the kitchen", "run the litter box", "what's in the wet
  *             feeder?". Hyphens and a possessive are smoothed first ("wet-food", "the cat's wet food feeder").
  *
- * `spokenAsked` is the words check a spoken surface runs before a home device acts on the model's call: Nikita's own
- * words must ask for that very action (the phone's rule), so a model's guess or a page's text never runs one.
+ *   lights    a plain order to switch the lights (#1011): "turn on the lights", "lights off", "switch the study lamp
+ *             on". "The lights" means every light at once (`ALL_LIGHTS`); a name goes to the lights' own name match.
+ *
+ * `spokenAsked` (and `spokenLights` for the lights) is the words check a spoken surface runs before a home device acts
+ * on the model's call: Nikita's own words must ask for that very action (the phone's rule), so a model's guess or a
+ * page's text never runs one.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -22,7 +26,7 @@ import { deviceAsk } from "../../_haven/classify.js";
 
 /** A tool call the rules settled, with exactly the input the tool's schema takes. */
 export interface DirectAsk {
-  tool: "home_status" | "home_device";
+  tool: "home_status" | "home_device" | "lights_set";
   input: Record<string, unknown>;
 }
 
@@ -112,7 +116,11 @@ export function directAsk(text: string): DirectAsk | null {
   const when = scheduleAsk(t);
   if (when) return { tool: "home_status", input: { about: when } };
   const d = deviceAsk(t);
-  if (!d) return null;
+  if (!d) {
+    // The lights (#1011): only an order switches them; a question about them is the model's, with lights_list.
+    const l = infoQuestion(text) ? null : lightsAsk(t);
+    return l ? { tool: "lights_set", input: l } : null;
+  }
   if (d.action === "wet.status") return { tool: "home_status", input: { about: "wet-feeder" } };
   // A question about a device reads its status; only an order runs it.
   if (infoQuestion(text)) return null;
@@ -154,4 +162,66 @@ export function spokenAsked(said: string | undefined, input: Record<string, unkn
   if (ruled?.tool === "home_device") return ruled.input.action === input.action;
   const words = LOOSE[String(input.action)];
   return !!words && words.every((w) => w.test(t));
+}
+
+/** The lights' words (#931, #1011): a light, a lamp, the lights, or the projector's remote. */
+const LIGHT_THING = /\b(?:lights?|lamps?|bulbs?|lighting|leds?|projector|beamer)\b/i;
+const ON_WORD = /\bon\b/i;
+const OFF_WORD = /\b(?:off|out)\b/i;
+const KILL_WORD = /\b(?:kill|shut)\b/i;
+
+/** The name lights_set takes for every light at once (#1011): "turn on the lights". */
+export const ALL_LIGHTS = "all";
+const EVERY = /^(?:(?:all|every|each)(?: of)?(?: the| my| our)? )?(?:the |my |our )?(?:lights?|lamps?|lighting|everything|all)$/i;
+
+/** Whether a light's name means every light: "all", "the lights", "all the lamps", "everything". */
+export function allLightsName(name: string): boolean {
+  return EVERY.test(name.replace(/\s+/g, " ").trim());
+}
+
+/**
+ * A plain order to switch lights (#1011), or null: "turn on the lights", "switch the study lamp off", "lights off",
+ * "kill the lights". The name is what he called them ("study lamp"), or `ALL_LIGHTS` for the lights as a whole. Never
+ * a question; that is checked by the caller.
+ */
+export function lightsAsk(text: string): { name: string; on: boolean } | null {
+  const t = smooth(text)
+    .replace(FILLER, "")
+    .replace(/[.!?]+$/, "")
+    .replace(/^(?:please|can you|could you|would you|will you|go and|go)\s+/i, "")
+    .replace(/[,\s]+please$/i, "")
+    .trim();
+  if (!t || t.length > 60) return null;
+  const lead = /^(?:turn|switch|flip|put|shut|kill|cut)\s+(on|off|out)\s+(.+)$/i.exec(t);
+  const tail = /^(?:turn|switch|flip|put|shut|kill|cut)\s+(.+?)\s+(on|off|out)$/i.exec(t) ?? /^(.+?)\s+(on|off)$/i.exec(t);
+  const kill = /^(?:kill|cut)\s+(.+)$/i.exec(t);
+  const on = lead ? lead[1]!.toLowerCase() === "on" : tail ? tail[2]!.toLowerCase() === "on" : false;
+  let thing = lead?.[2] ?? tail?.[1] ?? kill?.[1];
+  if (!thing) return null;
+  if (on && /^shut|^kill|^cut/i.test(t)) return null;
+  thing = thing.replace(/^(?:the|my|our)\s+/i, "").trim();
+  if (!thing || !LIGHT_THING.test(thing) || thing.split(" ").length > 5) return null;
+  return { name: allLightsName(thing) ? ALL_LIGHTS : thing, on };
+}
+
+/** A light's or scene's name in what he said: its own words (not "the", "lights" or "turn"), every one of them. */
+function nameSaid(t: string, name: string): boolean {
+  const words = name.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !/^(?:the|a|an|of|and|my|turn|switch|lights?|lamps?|scene|all)$/.test(w));
+  if (!words.length) return LIGHT_THING.test(t);
+  return words.every((w) => new RegExp(`\\b${w}\\b`, "i").test(t));
+}
+
+/**
+ * Whether Nikita's own words asked for this switch or scene (#1011), the lights' `spokenAsked`: never a question; a
+ * switch needs its direction (on or off) and the lights or the light's name in what he said; a scene needs its name's
+ * own words ("all off" for "turn everything off").
+ */
+export function spokenLights(said: string | undefined, tool: string, input: Record<string, unknown>): boolean {
+  if (!said || infoQuestion(said)) return false;
+  const t = smooth(said).replace(FILLER, "").trim();
+  const name = typeof input.name === "string" ? input.name : "";
+  if (tool === "lights_scene") return nameSaid(t, name);
+  if (tool !== "lights_set") return false;
+  const way = input.on === true ? ON_WORD.test(t) && !OFF_WORD.test(t) && !KILL_WORD.test(t) : (OFF_WORD.test(t) || KILL_WORD.test(t)) && !ON_WORD.test(t);
+  return way && (LIGHT_THING.test(t) || (!allLightsName(name) && nameSaid(t, name)));
 }

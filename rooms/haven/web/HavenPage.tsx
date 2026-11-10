@@ -21,7 +21,9 @@ import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import { sectionOf } from "@ceo/engine/web/sections.ts";
 import { navigateTo, routeOf, usePathname } from "../../../apps/world/src/route.ts";
 import { SECTIONS } from "../sections.ts";
+import { SheetSigils } from "./SheetSigils.tsx";
 import "./haven.css";
+import "./sheetdeck.css";
 
 /**
  * The Haven (#616): home and health on the Desk. Nikita's round-6 pick: the house in 3D, night-lit behind frosted
@@ -455,6 +457,7 @@ export function Haven() {
 
       {open && signedIn && (
         <div className="hv-sheet" role="dialog" aria-modal="false" aria-label={sheetTitle} style={{ ["--hv-top" as string]: `${top}px` }}>
+          <SheetSigils />
           <div className="hv-sheetIn">
             <div className="hv-sheetBar">
               <button type="button" className="hv-back" onClick={() => setOpen(null)}>

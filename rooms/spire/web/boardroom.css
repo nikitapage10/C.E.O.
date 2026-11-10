@@ -1,0 +1,200 @@
+/*
+ * The boardroom (#825): the Spire's top floor in 3D (boardroomScene.ts) fills the screen under the bar, gold on black.
+ * Over it sit the board's word and the invoices' counts (top left, foot), a tag riding each seat, pile and the easel,
+ * and the agenda in a panel on the right, solid with gold hairlines and a tick at each corner. The Desk's Bodoni for
+ * the headline and the figures, Jost for the rest. Under 1000px the agenda drops below the room. Scoped to the Spire.
+ */
+
+[data-room="spire"] .sp-board {
+  --sb-gold: #e3c98d;
+  --sb-gl: rgba(201, 168, 92, 0.28);
+  --sb-late: #f08a9a;
+  --sb-disp: "Bodoni Moda Variable", "Bodoni Moda", Didot, Georgia, serif;
+  --sb-text: "Jost Variable", Jost, Futura, system-ui, sans-serif;
+  position: relative;
+  height: max(640px, calc(100svh - 64px));
+  overflow: hidden;
+  isolation: isolate;
+  background: #050507;
+  border-bottom: 1px solid var(--sb-gl);
+  font-family: var(--sb-text);
+}
+[data-room="spire"] .sp-board::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  z-index: 4;
+  background: linear-gradient(90deg, transparent, rgba(232, 199, 122, 0.9) 50%, transparent);
+  box-shadow: 0 0 18px rgba(232, 199, 122, 0.35);
+}
+[data-room="spire"] .sp-board-stage { position: absolute; inset: 0; }
+[data-room="spire"] .sp-board-host { position: absolute; inset: 0; }
+/* Until the 3D is up (and without WebGL): the glass wall's mullions and the floor's gold grid stand in. */
+[data-room="spire"] .sp-board-host::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(46% 30% at 46% 62%, rgba(232, 199, 122, 0.16), transparent 70%),
+    linear-gradient(180deg, transparent 0 58%, rgba(201, 168, 92, 0.05) 58% 100%),
+    repeating-linear-gradient(90deg, rgba(201, 168, 92, 0.1) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, transparent 0 63px, rgba(201, 168, 92, 0.06) 63px 64px);
+  -webkit-mask-image: radial-gradient(80% 70% at 50% 55%, #000, transparent);
+  mask-image: radial-gradient(80% 70% at 50% 55%, #000, transparent);
+  transition: opacity 0.6s ease;
+}
+[data-room="spire"] .sp-board[data-gl="on"] .sp-board-host::before { opacity: 0; }
+[data-room="spire"] .sp-board-gl { position: relative; display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: grab; opacity: 0; transition: opacity 0.6s ease; }
+[data-room="spire"] .sp-board[data-gl="on"] .sp-board-gl { opacity: 1; }
+[data-room="spire"] .sp-board-veil { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(5, 5, 7, 0.85) 0, rgba(5, 5, 7, 0.3) 16%, transparent 28%, transparent 76%, rgba(5, 5, 7, 0.82) 100%); }
+
+/* ── the head: the board's word ── */
+[data-room="spire"] .sp-hud {
+  position: absolute;
+  left: clamp(16px, 3vw, 44px);
+  top: clamp(18px, 3.2vh, 38px);
+  z-index: 3;
+  max-width: min(600px, calc(100% - min(380px, 32vw) - 120px));
+  pointer-events: none;
+}
+[data-room="spire"] .sp-eyb { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(236, 228, 210, 0.62); }
+[data-room="spire"] .sp-eyb span { color: var(--sb-gold); }
+[data-room="spire"] .sp-eyb i { width: 28px; height: 1px; background: linear-gradient(90deg, var(--sb-gold), transparent); }
+[data-room="spire"] .sp-h1 { margin: 0; font-family: var(--sb-disp); font-weight: 400; font-size: clamp(34px, 3.3vw, 54px); line-height: 1.04; letter-spacing: -0.01em; color: #f4ecda; text-shadow: 0 2px 24px #000; }
+[data-room="spire"] .sp-h1 em { font-style: italic; background: linear-gradient(180deg, #f3dea3, #d6bc72 60%, #a98a45); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-room="spire"] .sp-say { margin: 12px 0 0; max-width: 46ch; font-family: var(--sb-disp); font-style: italic; font-size: 17px; line-height: 1.4; color: rgba(236, 228, 210, 0.8); text-shadow: 0 1px 12px #000; }
+
+/* ── the foot: the counts ── */
+[data-room="spire"] .sp-foot-hud { position: absolute; left: clamp(16px, 3vw, 44px); bottom: clamp(18px, 3.2vh, 34px); z-index: 3; max-width: calc(100% - min(380px, 32vw) - 120px); pointer-events: none; }
+[data-room="spire"] .sp-counts { display: flex; flex-wrap: wrap; margin: 0; }
+[data-room="spire"] .sp-counts > div { position: relative; padding: 10px 26px 0 0; margin-right: 26px; border-top: 1px solid var(--sb-gl); }
+[data-room="spire"] .sp-counts > div::before { content: ""; position: absolute; left: 0; top: -1px; width: 18px; height: 1px; background: var(--sb-gold); box-shadow: 0 0 8px rgba(232, 199, 122, 0.6); }
+[data-room="spire"] .sp-counts > div:last-child { margin-right: 0; padding-right: 0; }
+[data-room="spire"] .sp-counts dt { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(236, 228, 210, 0.55); }
+[data-room="spire"] .sp-counts dd { margin: 4px 0 0; font-family: var(--sb-disp); font-weight: 500; font-size: clamp(30px, 2.5vw, 42px); line-height: 1; color: #fff4dc; font-variant-numeric: lining-nums tabular-nums; }
+[data-room="spire"] .sp-counts .is-hot dd { color: var(--sb-gold); }
+[data-room="spire"] .sp-counts .is-late dd { color: var(--sb-late); }
+
+/* ── the tags: one riding each seat, pile and the easel ── */
+[data-room="spire"] .sp-tags { position: absolute; inset: 0; z-index: 2; margin: 0; padding: 0; list-style: none; pointer-events: none; }
+[data-room="spire"] .sp-tag {
+  position: absolute;
+  left: var(--gx, 0);
+  top: var(--gy, 0);
+  display: grid;
+  gap: 2px;
+  max-width: 210px;
+  padding: 5px 10px 6px;
+  border: 1px solid rgba(201, 168, 92, 0.5);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(18, 16, 12, 0.92), rgba(8, 8, 10, 0.92));
+  box-shadow: 0 10px 24px -12px #000, inset 0 1px 0 rgba(232, 199, 122, 0.12);
+  color: #f1e8d4;
+  font: inherit;
+  text-align: left;
+  transform: translate(-50%, calc(-100% - 10px));
+  pointer-events: auto;
+  cursor: pointer;
+  visibility: hidden;
+  transition: opacity 0.25s ease, border-color 0.2s, box-shadow 0.2s;
+}
+[data-room="spire"] .sp-tag[style] { visibility: visible; }
+[data-room="spire"] .sp-tag::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 10px; background: linear-gradient(rgba(232, 199, 122, 0.8), transparent); }
+[data-room="spire"] .sp-tag.is-away { opacity: 0; pointer-events: none; }
+[data-room="spire"] .sp-tag b { overflow: hidden; font-weight: 600; font-size: 11.5px; letter-spacing: 0.14em; line-height: 1.2; text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; color: var(--sb-gold); }
+[data-room="spire"] .sp-tag > span { font-family: var(--sb-disp); font-style: italic; font-size: 14px; line-height: 1.25; color: rgba(236, 228, 210, 0.82); }
+[data-room="spire"] .sp-tag em { font-style: normal; font-weight: 600; font-size: 17px; color: #fff4dc; font-variant-numeric: lining-nums tabular-nums; }
+[data-room="spire"] .sp-tag.is-pile { padding: 3px 8px 4px; }
+[data-room="spire"] .sp-tag.is-pile b { font-size: 10px; color: rgba(236, 228, 210, 0.7); }
+[data-room="spire"] .sp-tag.is-overdue b { color: var(--sb-late); }
+[data-room="spire"] .sp-tag.is-easel { cursor: default; border-style: dashed; background: rgba(8, 8, 10, 0.72); }
+[data-room="spire"] .sp-tag:hover,
+[data-room="spire"] .sp-tag:focus-visible,
+[data-room="spire"] .sp-tag.is-hot { border-color: var(--sb-gold); box-shadow: 0 0 0 1px rgba(232, 199, 122, 0.25), 0 0 22px -4px rgba(232, 199, 122, 0.55); outline: none; }
+
+/* ── the agenda ── */
+[data-room="spire"] .sp-agenda {
+  position: absolute;
+  right: clamp(12px, 1.6vw, 26px);
+  top: clamp(14px, 2.4vh, 28px);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, 32vw);
+  max-height: calc(100% - 2 * clamp(14px, 2.4vh, 28px));
+  overflow-y: auto;
+  border: 1px solid var(--sb-gl);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(16, 14, 11, 0.88), rgba(8, 8, 10, 0.9));
+  box-shadow: 0 30px 60px -30px #000, inset 0 1px 0 rgba(232, 199, 122, 0.1);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  scrollbar-width: thin;
+}
+[data-room="spire"] .sp-agenda::before,
+[data-room="spire"] .sp-frame::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  background:
+    linear-gradient(#c9a85c, #c9a85c) 0 0 / 10px 1px, linear-gradient(#c9a85c, #c9a85c) 0 0 / 1px 10px,
+    linear-gradient(#c9a85c, #c9a85c) 100% 0 / 10px 1px, linear-gradient(#c9a85c, #c9a85c) 100% 0 / 1px 10px,
+    linear-gradient(#c9a85c, #c9a85c) 0 100% / 10px 1px, linear-gradient(#c9a85c, #c9a85c) 0 100% / 1px 10px,
+    linear-gradient(#c9a85c, #c9a85c) 100% 100% / 10px 1px, linear-gradient(#c9a85c, #c9a85c) 100% 100% / 1px 10px;
+  background-repeat: no-repeat;
+}
+[data-room="spire"] .sp-agenda-h { display: grid; gap: 8px; padding: 16px 18px 12px; border-bottom: 1px solid var(--sb-gl); }
+[data-room="spire"] .sp-k { margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(236, 228, 210, 0.55); }
+[data-room="spire"] .sp-k span { color: var(--sb-gold); }
+[data-room="spire"] .sp-state { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 13px; color: rgba(236, 228, 210, 0.85); }
+[data-room="spire"] .sp-state i { width: 7px; height: 7px; border-radius: 50%; background: rgba(236, 228, 210, 0.35); }
+[data-room="spire"] .sp-state[data-state="live"] i { background: #8fd18a; box-shadow: 0 0 8px rgba(143, 209, 138, 0.7); }
+[data-room="spire"] .sp-state[data-state="error"] i,
+[data-room="spire"] .sp-state[data-state="failed"] i { background: var(--sb-late); }
+[data-room="spire"] .sp-state b { margin-left: auto; padding: 1px 7px; border: 1px solid var(--sb-gl); border-radius: 2px; font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sb-gold); }
+[data-room="spire"] .sp-items { margin: 0; padding: 4px 18px; list-style: none; }
+[data-room="spire"] .sp-items li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 13px 0; border-top: 1px solid rgba(201, 168, 92, 0.14); }
+[data-room="spire"] .sp-items li:first-child { border-top: 0; }
+[data-room="spire"] .sp-item-n { font-family: var(--sb-disp); font-style: italic; font-size: 18px; line-height: 1.2; color: var(--sb-gold); }
+[data-room="spire"] .sp-items b { display: block; font-family: var(--sb-disp); font-weight: 500; font-size: 17px; line-height: 1.2; color: #f4ecda; }
+[data-room="spire"] .sp-items p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: rgba(236, 228, 210, 0.66); }
+[data-room="spire"] .sp-agenda-do { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 18px 4px; }
+[data-room="spire"] .sp-fine { margin: 0; padding: 8px 18px 14px; font-size: 11.5px; color: rgba(236, 228, 210, 0.45); }
+
+/* ── without WebGL: the tags sit in a row over the grid ── */
+[data-room="spire"] .sp-board.is-flat .sp-tags { inset: auto min(420px, 36vw) 120px clamp(16px, 3vw, 44px); display: flex; flex-wrap: wrap; gap: 10px; }
+[data-room="spire"] .sp-board.is-flat .sp-tag { position: static; visibility: visible; transform: none; }
+[data-room="spire"] .sp-board.is-flat .sp-tag::after { display: none; }
+
+/* ── narrower: the agenda drops below the room ── */
+@media (max-width: 1000px) {
+  [data-room="spire"] .sp-board { height: auto; }
+  [data-room="spire"] .sp-board-stage { position: relative; height: max(480px, 68svh); }
+  [data-room="spire"] .sp-hud, [data-room="spire"] .sp-foot-hud { max-width: calc(100% - 32px); }
+  [data-room="spire"] .sp-agenda { position: relative; inset: auto; width: auto; max-height: none; margin: 0 16px 20px; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  [data-room="spire"] .sp-board.is-flat .sp-tags { inset: auto 16px 110px 16px; }
+}
+@media (max-width: 600px) {
+  [data-room="spire"] .sp-board-stage { height: max(460px, 72svh); }
+  [data-room="spire"] .sp-hud { top: 14px; }
+  [data-room="spire"] .sp-h1 { font-size: 32px; }
+  [data-room="spire"] .sp-say { font-size: 14.5px; }
+  [data-room="spire"] .sp-eyb { gap: 8px; font-size: 9.5px; letter-spacing: 0.16em; white-space: nowrap; }
+  [data-room="spire"] .sp-eyb i { width: 14px; }
+  [data-room="spire"] .sp-foot-hud { bottom: 12px; }
+  [data-room="spire"] .sp-counts > div { padding-right: 12px; margin-right: 12px; }
+  [data-room="spire"] .sp-counts dd { font-size: 26px; }
+  [data-room="spire"] .sp-tag { max-width: 150px; padding: 4px 8px 5px; }
+  [data-room="spire"] .sp-tag > span { font-size: 12.5px; }
+  [data-room="spire"] .sp-tag.is-pile, [data-room="spire"] .sp-tag.is-easel { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-room="spire"] .sp-tag,
+  [data-room="spire"] .sp-board-gl,
+  [data-room="spire"] .sp-board-host::before { transition: none; }
+}

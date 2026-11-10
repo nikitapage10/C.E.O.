@@ -606,7 +606,7 @@ every edition. He runs long. It says so.
 
 **The Desk's rooms.** On the C.E.O.'s Desk, beyond the Veil, each room keeps a page of its own, drawn in its own
 look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as a war table
-(a drowned world in silver and black since the Undertow: its places are ruins half under the water, glass stasis monoliths with sleepers inside and a glass-lit lab, threads of light run between them toward a planet's limb, and the Tide's shattered isle is still only wire until its feed comes in), the Spire as a gilded ledger, the Exchange
+(a drowned world in silver and black since the Undertow: its places are ruins half under the water, glass stasis monoliths with sleepers inside and a glass-lit lab, threads of light run between them toward a planet's limb, and the Tide's shattered isle is still only wire until its feed comes in), the Spire as a boardroom at the top of the tower (below), the Exchange
 as a trade floor in black and gold under a curved marquee of live odds, the Green as the bowl (a football stadium under the lights, below), and the
 Workshop as one long bench with the C.E.O.'s four stages along it, from a picture to a print, and the one printer at
 the end of the line. A room whose real line isn't connected
@@ -627,6 +627,19 @@ the two busiest posts, the C.E.O.'s open positions standing on it as lacquered p
 the book, a lit ticket over it and nanites rising off its top. The pillars are only solid to the one who holds the
 key; to anyone else they stand empty, wire to the floor. Gold dust drifts up through the whole hall now, which the
 Bookie says is what money looks like when nobody is allowed to count it.
+
+**The boardroom.** Since #825 the Spire's page is its top floor, the way the C.E.O. sees it through the Veil: black
+stone inlaid with gold, a horseshoe table in black lacquer with a gold rim (the Senate's ring, cut open toward the
+C.E.O.), high-backed chairs round it, and a curved wall of glass behind with the city's lights a long way down and the
+other towers' tops sunk in the haze. Over the middle of the table a gilded model of the Spire turns in a column of
+light. Ledger sits on the Executive's left in the suit, forearms on the table over the drafts, and looks down at them
+twice every few seconds; Memo floats over the chair across from him, above the overdue pile, and has never once sat
+down; the Executive hovers at the head on its can-throne, one open hand out to the easel. The table carries the room's
+real numbers and nothing else: a pile of folders for each state, one folder per invoice, and the open-invoice count on
+the easel. Never a client and never a sum, the same as the Lattice sees. The right of the glass, its ceiling beams and
+the two chairs beside it are still gold wire with sigil nanites streaming in, and toward the edges the stone and the
+glass come undone into gold wire and code, the Senate's edges. The Executive pitches the pipeline to the wire chairs
+anyway. Ledger counted the stairs up. Twice.
 
 **The bowl.** Since #824 the Green's page is a stadium: a bowl of solid stands round a lit field at night, floodlight
 towers at the corners, a ribbon board scrolling the score along the fascia and a jumbotron hung over midfield on

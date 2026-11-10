@@ -4,7 +4,7 @@ import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { FAKE_PLAN } from "./plan.fixture.ts";
 import { FEED_TOKEN, LOG_TOKEN } from "../_site/roomkeys.ts";
-import { PLAN_BODY_MAX, PLAN_PATH, planGet, planPost, PlanStore, planPut, readPlan, type PlanDeps } from "./plan.ts";
+import { PLAN_BODY_MAX, PLAN_PATH, placeLight, planGet, planPost, PlanStore, planPut, readPlan, spotIn, type PlanDeps } from "./plan.ts";
 
 /** The Haven's floor plan (#616): the shape it takes, and the passkey-only store. The plan here is made up. */
 
@@ -157,5 +157,43 @@ describe("PUT /api/haven-plan with the feed key (#655)", () => {
       expect([401, 403]).toContain(res.status);
       expect(await res.text()).not.toContain(FAKE_PLAN.rooms[0]!.name);
     }
+  });
+});
+
+describe("placing a light on the plan (#974)", () => {
+  it("sets, moves and takes off one light's spot, matched by name whatever its case", () => {
+    const a = placeLight(FAKE_PLAN, "Test Lamp", { x: 100, y: 200 })!;
+    expect(a.lights).toEqual([{ name: "Test Lamp", x: 100, y: 200 }]);
+    const b = placeLight(a, "test lamp", { x: 5000, y: 300 })!;
+    expect(b.lights).toEqual([{ name: "test lamp", x: FAKE_PLAN.w, y: 300 }]);
+    expect(placeLight(b, "TEST LAMP", null)!.lights).toBeUndefined();
+    expect(placeLight(FAKE_PLAN, "  ", { x: 1, y: 1 })).toBeNull();
+  });
+
+  it("says where in a room by its name: the middle, a wall or a corner, a little in from the walls", () => {
+    const [x, y, w, h] = FAKE_PLAN.rooms.find((r) => r.id === "bedroom")!.parts[0]!;
+    expect(spotIn(FAKE_PLAN, "the bedroom", "middle")).toEqual({ x: x + w / 2, y: y + h / 2 });
+    const sw = spotIn(FAKE_PLAN, "Bedroom", "sw")!;
+    expect(sw.x).toBeGreaterThan(x);
+    expect(sw.x).toBeLessThan(x + w / 4);
+    expect(sw.y).toBeGreaterThan(y + (h * 3) / 4);
+    expect(sw.y).toBeLessThan(y + h);
+    expect(spotIn(FAKE_PLAN, "Garage", "middle")).toBeNull();
+  });
+
+  it("saves a tap's spot to the stored plan for a passkey session, and logs no name or spot", async () => {
+    const d = deps();
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    expect((await planPost(post({ action: "light", name: "Test Lamp", x: 10, y: 20 }, cookie), d)).status).toBe(409);
+    await planPost(post({ action: "save", plan: FAKE_PLAN }, cookie), d);
+    expect((await planPost(post({ action: "light", name: "Test Lamp", x: 10, y: 20 }), d)).status).toBe(401);
+    const res = await planPost(post({ action: "light", name: "Test Lamp", x: 10, y: 20 }, cookie), d);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { plan: { lights: unknown } }).plan.lights).toEqual([{ name: "Test Lamp", x: 10, y: 20 }]);
+    expect((await new PlanStore(d.blob).read())!.lights).toEqual([{ name: "Test Lamp", x: 10, y: 20 }]);
+    expect((await planPost(post({ action: "light", name: "Test Lamp", clear: true }, cookie), d)).status).toBe(200);
+    expect((await new PlanStore(d.blob).read())!.lights).toBeUndefined();
+    expect((await planPost(post({ action: "light", name: "Test Lamp" }, cookie), d)).status).toBe(400);
+    expect(d.lines.join("\n")).not.toMatch(/Test Lamp|\b10\b|\b20\b/);
   });
 });

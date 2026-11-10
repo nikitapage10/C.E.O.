@@ -107,6 +107,7 @@ export const LORE: Record<string, Lore> = {
       "Raised Memo through their first epoch, mostly by leaving reminders. Now finds the reminders floating.",
       "Was challenged to a duel by Noco over the audit. Declined in writing. In triplicate.",
       "Keeps the Spire's real PayPal invoices now: every draft checked twice before the C.E.O. may send it. Counts them out loud. Never a client's name or a sum on the floor.",
+      "Took the seat on the Executive's left in the boardroom, forearms on the table over the drafts, and asked for a chair with no strings. The chair was fine. The strings were Ledger's.",
     ],
   },
   memo: {
@@ -128,6 +129,7 @@ export const LORE: Record<string, Lore> = {
       "Became Kevin's break buddy after both were found in the same supply cupboard, 'auditing'.",
       "Floated through Ledger's desk during month-end. Ledger filed a complaint. Memo forwarded it to Ledger.",
       "Holds the Kernel's record for achievements, nearly all for avoiding things. Latest: 'Haunted a Meeting From Inside the Wall'.",
+      "Was given a seat at the boardroom table. Floats over it instead, above the overdue pile, which it calls 'the haunted folder'. Has never once sat down.",
     ],
   },
   odds: {
@@ -538,6 +540,7 @@ export const LORE: Record<string, Lore> = {
       "Held an all-hands for a floor of four. Memo attended from inside the wall.",
       "Brokered a peace between the espresso machine and the Spire. Terms undisclosed. The machine still says no.",
       "When the Spire's PayPal line came up, swapped 'Q4 SYNERGY' on its easel for the real open-invoice count. Called it a pivot. Ledger called it the easel's first true line.",
+      "Got its boardroom: the Spire's top floor, a horseshoe table, the city far below the glass. Pitches the easel's open-invoice count to every empty chair, even the two still in gold wire.",
     ],
   },
   ticker: {

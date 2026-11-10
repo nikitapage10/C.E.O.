@@ -6,6 +6,9 @@
  *   GET  /api/haven/lights                       { vendors, lights, scenes, remotes } (./lights.ts LightsView)
  *   POST /api/haven/lights { op: "set", id, on }  one light or IR remote on or off      → { ok, say }
  *   POST /api/haven/lights { op: "scene", id }    runs one SwitchBot manual scene         → { ok, say }
+ *   POST /api/haven/lights { op: "look", id, rgb | kelvin | brightness | mood }
+ *                                                a Govee light's colour ("#rrggbb"), white (kelvin), brightness (1 to
+ *                                                100) or mood by its name (#974)              → { ok, say }
  *
  * 503 until the keys are set (SWITCHBOT_TOKEN and SWITCHBOT_SECRET, or GOVEE_API_KEY, with HOME_TOKEN_KEY for the
  * ids), 404 for an id it doesn't know, 502 when the vendor refused. Every answer is `private, no-store`.
@@ -14,7 +17,7 @@
  */
 
 import { requireSession, withCookie, type DeskDeps } from "../../_desk/session.js";
-import { LIGHT_ID, type Lights } from "./lights.js";
+import { LIGHT_ID, type Lights, type LookChange } from "./lights.js";
 
 const BODY_MAX = 1024;
 
@@ -55,9 +58,27 @@ export async function lightsPost(request: Request, deps: LightsRouteDeps): Promi
     return send({ error: "bad-request" }, 400);
   }
   const id = typeof body.id === "string" && LIGHT_ID.test(body.id) ? body.id : null;
-  if (!id || (body.op !== "set" && body.op !== "scene") || (body.op === "set" && typeof body.on !== "boolean")) return send({ error: "bad-request" }, 400);
+  const look = body.op === "look" ? lookOf(body) : null;
+  if (!id || (body.op !== "set" && body.op !== "scene" && body.op !== "look") || (body.op === "set" && typeof body.on !== "boolean") || (body.op === "look" && !look)) return send({ error: "bad-request" }, 400);
   const lights = deps.lights();
   if (!lights) return send({ error: "not-set-up", say: "The lights aren't set up on this copy yet." }, 503);
-  const r = body.op === "set" ? await lights.set(id, body.on as boolean) : await lights.scene(id);
+  const r = body.op === "set" ? await lights.set(id, body.on as boolean) : look ? await lights.look(id, look) : await lights.scene(id);
   return send(r, r.ok ? 200 : r.code === "unknown" ? 404 : r.code === "vendor" ? 502 : 503);
+}
+
+/** Exactly one look change, checked: a "#rrggbb" colour, a kelvin, a brightness or a mood's name. */
+export function lookOf(body: Record<string, unknown>): LookChange | null {
+  const keys = ["rgb", "kelvin", "brightness", "mood"].filter((k) => body[k] !== undefined);
+  if (keys.length !== 1) return null;
+  if (typeof body.rgb === "string") return /^#[0-9a-f]{6}$/i.test(body.rgb) ? { rgb: parseInt(body.rgb.slice(1), 16) } : null;
+  const n = (v: unknown, lo: number, hi: number) => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v) : null);
+  if (body.kelvin !== undefined) {
+    const k = n(body.kelvin, 1000, 10000);
+    return k === null ? null : { kelvin: k };
+  }
+  if (body.brightness !== undefined) {
+    const b = n(body.brightness, 1, 100);
+    return b === null ? null : { brightness: b };
+  }
+  return typeof body.mood === "string" && body.mood.trim() && body.mood.length <= 40 ? { mood: body.mood.trim() } : null;
 }

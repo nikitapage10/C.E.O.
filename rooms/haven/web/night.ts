@@ -10,7 +10,8 @@ import * as THREE from "three";
  *
  * Nothing is downloaded. The plain, the lights and the dome fade out towards the canvas's edges, so the scene melts
  * into the page round it. Reduced motion: no twinkle (the page draws a frame only when something changes). Phones
- * get fewer lights.
+ * get fewer lights. Every light and star is at least about a pixel and a half across (#974): smaller, they flickered
+ * as the house turned (a point's core falling on a pixel centre one frame and between them the next).
  */
 
 export interface Night {
@@ -50,9 +51,13 @@ void main(){
   vec4 w=modelMatrix*vec4(position,1.);
   float d=length(w.xyz-cameraPosition);
   float tw=0.8+0.2*sin(uT*(0.6+aSeed.z*2.)+aSeed.z*60.);
-  vB=min(1.,aSeed.x*tw*(1.-0.75*smoothstep(120.,520.,d))*mix(1.5,1.,smoothstep(20.,90.,d)));
+  float want=uPx*mix(3.4,1.5,smoothstep(20.,180.,d));
+  // Never under 3 device pixels (#974): a smaller sprite lands its bright core on a pixel centre one frame and between
+  // them the next, so while the house turns it pops on and off. The light it would have had is spread, not lost.
+  float px=max(want,3.);
+  vB=min(1.,aSeed.x*tw*(1.-0.75*smoothstep(120.,520.,d))*mix(1.5,1.,smoothstep(20.,90.,d)))*(want*want)/(px*px)*0.8;
   vWarm=aSeed.y;
-  gl_PointSize=uPx*mix(3.4,1.5,smoothstep(20.,180.,d));
+  gl_PointSize=px;
   gl_Position=projectionMatrix*viewMatrix*w;
 }`;
 const LIGHTS_FS = `${GLSL_COMMON}
@@ -60,7 +65,8 @@ varying float vB;
 varying float vWarm;
 void main(){
   float r=length(gl_PointCoord-0.5);
-  float a=clamp(smoothstep(0.5,0.05,r)*0.7+smoothstep(0.25,0.,r),0.,1.)*vB*edgeA();
+  // A smooth falloff over the whole sprite, so what a light shows doesn't hang on where its centre falls in a pixel.
+  float a=clamp(exp(-r*r*18.)*1.2+exp(-r*r*6.)*0.2,0.,1.)*vB*edgeA();
   vec3 c=mix(vec3(1.,0.68,0.38),vec3(0.95,0.92,0.84),step(0.72,vWarm));
   gl_FragColor=vec4(c,a);
 }`;
@@ -87,14 +93,14 @@ float hills(float a){
   float r=0.008+0.004*sin(9.*a+2.)+0.003*sin(19.*a+0.3)+0.002*abs(sin(41.*a+1.1))+0.0012*abs(sin(131.*a+0.6))+0.0006*abs(sin(307.*a));
   return 0.6*(0.002+env*r);
 }
-vec3 dots(vec2 q,float cell,float n,float dens,float scale){
+vec3 dots(vec2 q,float cell,float n,float dens,float scale,float k,float peak){
   vec2 c=floor(q/cell);
   vec2 cw=vec2(mod(c.x,n),c.y);
   float k=h1(cw);
   if(k>dens)return vec3(0.);
   vec2 o=(vec2(h1(cw+7.1),h1(cw+3.7))*0.8+0.1)*cell;
   float d=length(q-c*cell-o)*scale;
-  return vec3(exp(-d*d*1.6),h1(cw+1.9),h1(cw+5.3));
+  return vec3(exp(-d*d*k)*peak,h1(cw+1.9),h1(cw+5.3));
 }
 void main(){
   vec3 dir=normalize(vW-cameraPosition);
@@ -106,9 +112,11 @@ void main(){
   float mask=smoothstep(0.015,0.09,alt);
   vec2 q=vec2(a*cos(min(up,1.2)),alt);
   float px=1./uPix;
-  vec3 s=dots(q,0.011,floor(TAU/0.011),0.16,px);
+  // The small stars about a pixel wide (#974): narrower, one was sampled at its peak one frame and its rim the next, and
+  // twinkled with every turn of the house. The same light, spread (a third the peak over three times the area).
+  vec3 s=dots(q,0.011,floor(TAU/0.011),0.16,px,0.55,0.36);
   col+=vec3(0.82,0.87,1.)*s.x*(0.12+0.88*pow(s.y,4.))*(0.72+0.28*sin(uT*(1.+3.*s.z)+s.z*40.))*mask;
-  vec3 s2=dots(q+0.37,0.043,floor(TAU/0.043),0.09,px*0.55);
+  vec3 s2=dots(q+0.37,0.043,floor(TAU/0.043),0.09,px*0.55,1.6,1.);
   col+=vec3(1.,0.95,0.86)*s2.x*s2.y*0.9*mask*(0.85+0.15*sin(uT*2.+s2.z*30.));
   vec2 dm=vec2(wrapA(a+0.32),alt-0.075);
   float R=0.0085,ld=length(dm);

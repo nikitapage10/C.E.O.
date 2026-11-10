@@ -82,6 +82,20 @@ describe("Skippy's lights tools (#931)", () => {
     expect(await callTool("lights_scene", { name: "Study" }, h, { pending, surface: "desk" })).toMatchObject({ ok: false });
   });
 
+  it("puts a light on the map by room and corner, or by x and y, without a tap, and never a scene (#974)", async () => {
+    const placed: [string, unknown][] = [];
+    const h = { ...host(), placeLight: async (name: string, at: unknown) => (placed.push([name, at]), { ok: true, say: `${name} is on the map.` }) };
+    expect(toolNamed("lights_place")?.confirm).toBeFalsy();
+    expect(await callTool("lights_place", { name: "the study", room: "Study", where: "sw" }, h, { pending: null, surface: "spoken" })).toMatchObject({ ok: true, text: "Study is on the map." });
+    expect(await callTool("lights_place", { name: "Porch", x: 120, y: 40 }, h, { pending: null, surface: "desk" })).toMatchObject({ ok: true });
+    expect(await callTool("lights_place", { name: "Porch", clear: true }, h, { pending: null, surface: "desk" })).toMatchObject({ ok: true });
+    expect(placed).toEqual([["Study", { room: "Study", where: "sw" }], ["Porch", { x: 120, y: 40 }], ["Porch", null]]);
+    expect(await callTool("lights_place", { name: "All off", room: "Study" }, h, { pending: null, surface: "desk" })).toMatchObject({ ok: false, text: expect.stringMatching(/scene/) });
+    expect(await callTool("lights_place", { name: "Garage", room: "Study" }, h, { pending: null, surface: "desk" })).toMatchObject({ ok: false });
+    expect(await callTool("lights_place", { name: "Porch" }, h, { pending: null, surface: "desk" })).toMatchObject({ ok: false });
+    expect(placed.length).toBe(3);
+  });
+
   it("says so when the lights aren't set up", async () => {
     const h = { ...host(), lights: null };
     expect(await callTool("lights_list", {}, h, { pending: null, surface: "desk" })).toMatchObject({ ok: true, text: expect.stringMatching(/aren't set up/) });

@@ -54,7 +54,10 @@ import type { BowlMan, BowlView } from "./bowlView.ts";
  * field.
  *
  * The Senate's look (#856, #878): solid models with a gold wire skin and the frame's edges coming undone into gold wire
- * and code (`@ceo/engine/sigils/undone.ts`). A/D (or a drag) swivel the view round the field within a set arc, W/S
+ * and code (`@ceo/engine/sigils/undone.ts`). The second pass (#987) keeps the design and fills it in: denser wire on
+ * the stands, every solid edge traced in brighter gold, the facades and the masts cross-braced, a shimmer sweeping the
+ * wire, sigil nanites orbiting the rims and skimming the field's boundary, the edges dissolving upward into nanites,
+ * motes in the floodlights, and sparks off a starter's pillar when his points go up in a live game. A/D (or a drag) swivel the view round the field within a set arc, W/S
  * dolly in and out a little, Escape snaps back (wasdPan's orbit mode). Phones get fewer particles and 30 frames a
  * second; reduced motion holds it still. Lazy loaded with three.js, never in the Desk's first load.
  */
@@ -385,6 +388,16 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   const atlas = keep(await sigilAtlas());
   const NG = SIGIL_GLYPHS.length;
   const rnd = rng(824);
+  /** The scene's clock for the shader-driven layers (wire shimmer, nanite streams, motes): stops under reduced motion. */
+  const clock = { value: 0 };
+  /** Phones and small machines get fewer of every particle (#987). */
+  const LITE = PH || (typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 8) <= 4);
+  /** The glyph points' material for the bowl's distances: like the engine's, but sized to stay legible across the far stands. */
+  const farGlyphs = (size: number) => {
+    const m = glyphMaterial(atlas, px, size);
+    m.vertexShader = m.vertexShader.replace(/gl_PointSize = [^;]+;/, `gl_PointSize = min(sz * ${size.toFixed(1)} * px * (6. / pow(-mv.z, .7)), 40. * px);`);
+    return m;
+  };
 
   // ---- light: the floodlights' warm white over a cold night ------------------------------------------------------
   scene.add(new HemisphereLight(0x9aa6c4, 0x0a0a0c, 0.8));
@@ -552,10 +565,57 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   const rakers = (t: typeof LOWER, arcs: [number, number][], step: number, out: number[]) => {
     for (const [a, l] of arcs) for (let th = a; th <= a + l + 1e-6; th += step) out.push(...ell(t.r0, th, t.y0), ...ell(t.r1, th, t.y1));
   };
-  rowRings(LOWER, LOWER_ARCS, 6, skin);
-  rowRings(UPPER, UPPER_ARCS, 6, skin);
-  rakers(LOWER, LOWER_ARCS, 0.18, skin);
-  rakers(UPPER, UPPER_ARCS, 0.18, skin);
+  rowRings(LOWER, LOWER_ARCS, 9, skin);
+  rowRings(UPPER, UPPER_ARCS, 9, skin);
+  rakers(LOWER, LOWER_ARCS, 0.12, skin);
+  rakers(UPPER, UPPER_ARCS, 0.12, skin);
+  // The solid edges traced in brighter gold (#987): every tier's lip and top row, the back walls' crowns and feet, the
+  // cut ends of the upper deck, the fascia's ribbon, the field's boundary and goal lines.
+  const rims: number[] = [];
+  const ring = (r: number, y: number, arcs: [number, number][], out: number[]) => {
+    for (const [a, l] of arcs) {
+      const n = Math.max(4, Math.round((l / TAU) * 160));
+      for (let i = 0; i < n; i++) out.push(...ell(r, a + (l * i) / n, y), ...ell(r, a + (l * (i + 1)) / n, y));
+    }
+  };
+  for (const [t, arcs] of [
+    [LOWER, LOWER_ARCS],
+    [UPPER, UPPER_ARCS],
+  ] as const) {
+    ring(t.r0, t.y0, arcs, rims);
+    ring(t.r1, t.y1, arcs, rims);
+    ring(t.r1 + 0.012, t.y1 + 0.35, arcs, rims);
+    ring(t.r1 + 0.012, 0.03, arcs, rims);
+  }
+  ring(LOWER.r0, LOWER.y0 + 0.1, LOWER_ARCS, rims);
+  ring(UPPER.r0 - 0.006, UPPER.y0 + 0.11, UPPER_ARCS, rims);
+  ring(UPPER.r0 - 0.006, UPPER.y0 - 0.51, UPPER_ARCS, rims);
+  for (const [a, l] of UPPER_ARCS)
+    for (const th of [a, a + l]) {
+      rims.push(...ell(UPPER.r0, UPPER.y0, th), ...ell(UPPER.r1, UPPER.y1, th));
+      rims.push(...ell(UPPER.r1 + 0.012, UPPER.y1 + 0.35, th), ...ell(UPPER.r1 + 0.012, 0.03, th));
+      rims.push(...ell(UPPER.r0, UPPER.y0, th), ...ell(UPPER.r0, LOWER.y1, th));
+      rims.push(...ell(UPPER.r1, UPPER.y1, th), ...ell(UPPER.r1 + 0.012, UPPER.y1 + 0.35, th));
+    }
+  rims.push(-FL / 2, 0.035, -FW / 2, FL / 2, 0.035, -FW / 2, FL / 2, 0.035, -FW / 2, FL / 2, 0.035, FW / 2);
+  rims.push(FL / 2, 0.035, FW / 2, -FL / 2, 0.035, FW / 2, -FL / 2, 0.035, FW / 2, -FL / 2, 0.035, -FW / 2);
+  for (const s of [-1, 1]) rims.push((s * FL * 5) / 12, 0.035, -FW / 2, (s * FL * 5) / 12, 0.035, FW / 2);
+  // The facade: the outer walls cross-braced in gold, the upper deck's all round and the lower bowl's under the gap.
+  const truss: number[] = [];
+  const brace = (r: number, top: number, arcs: [number, number][], step: number) => {
+    for (const [a, l] of arcs) {
+      const n = Math.max(1, Math.round(l / step));
+      for (let i = 0; i < n; i++) {
+        const t0 = a + (l * i) / n;
+        const t1 = a + (l * (i + 1)) / n;
+        truss.push(...ell(r, t0, 0.03), ...ell(r, t1, top), ...ell(r, t1, 0.03), ...ell(r, t0, top));
+        truss.push(...ell(r, t0, 0.03), ...ell(r, t0, top));
+        truss.push(...ell(r, t0, top * 0.5), ...ell(r, t1, top * 0.5));
+      }
+    }
+  };
+  brace(UPPER.r1 + 0.02, UPPER.y1 + 0.35, UPPER_ARCS, 0.09);
+  brace(LOWER.r1 + 0.02, LOWER.y1 + 0.35, [[-NEAR_GAP / 2, NEAR_GAP]], 0.07);
   const raiseArc: [number, number][] = [[RAISE[0], RAISE[1] - RAISE[0]]];
   rowRings(UPPER, raiseArc, 14, raised);
   rakers(UPPER, raiseArc, 0.06, raised);
@@ -576,7 +636,36 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
     scene.add(l);
     return l;
   };
-  lines(skin, GOLD, 0.38);
+  // The wire shimmers (#987): a bright band sweeps round the bowl and a fainter pulse climbs the rows. Held still under
+  // reduced motion (the clock stops).
+  const shimmer = (arr: number[], rgb: string, base: number, peak: number) => {
+    const g = keep(new BufferGeometry());
+    g.setAttribute("position", new BufferAttribute(new Float32Array(arr), 3));
+    const l = new LineSegments(
+      g,
+      keep(
+        new ShaderMaterial({
+          uniforms: { t: clock },
+          transparent: true,
+          depthWrite: false,
+          blending: AdditiveBlending,
+          vertexShader: `varying vec3 vW; void main(){ vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+          fragmentShader: `uniform float t; varying vec3 vW;
+            void main(){ float a = atan(vW.x / ${SX.toFixed(2)}, vW.z / ${SZ.toFixed(2)}) / 6.28318;
+              float s = fract(a - t * .04); float b1 = exp(-pow(min(s, 1. - s) * 11., 2.));
+              float s2 = fract(a + t * .025 + .5); float b2 = exp(-pow(min(s2, 1. - s2) * 16., 2.)) * .6;
+              float up = fract(vW.y * .09 - t * .16); float climb = smoothstep(0., .04, up) * (1. - smoothstep(.04, .16, up));
+              float band = b1 + b2;
+              gl_FragColor = vec4(vec3(${rgb}) * (1. + band * 1.4 + climb * .4), ${base.toFixed(3)} + band * ${peak.toFixed(3)} + climb * .08); }`,
+        }),
+      ),
+    );
+    scene.add(l);
+    return l;
+  };
+  shimmer(skin, ".79, .66, .36", 0.3, 0.4);
+  shimmer(truss, ".79, .66, .36", 0.2, 0.35);
+  shimmer(rims, ".91, .78, .48", 0.55, 0.45);
   const raisedLines = lines(raised, GOLD_HI, 0.55);
 
   // ---- floodlight towers at the corners, their beams on the field ---------------------------------------------------
@@ -618,6 +707,17 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
       g.add(f);
       scene.add(g);
       towers.push(...[x, 0, z, x, H + 1.5, z]);
+      // A lattice mast: three rails wound round it, zigzag braces between them (#987).
+      for (let k = 0; k < 3; k++) {
+        const a0 = (k / 3) * TAU;
+        const a1 = ((k + 1) / 3) * TAU;
+        for (let y = 0; y < H; y += 1.2) {
+          const r0 = 0.62 - (y / H) * 0.3;
+          const r1 = 0.62 - ((y + 1.2) / H) * 0.3;
+          towers.push(x + Math.cos(a0) * r0, y, z + Math.sin(a0) * r0, x + Math.cos(a0) * r1, y + 1.2, z + Math.sin(a0) * r1);
+          towers.push(x + Math.cos(a0) * r0, y, z + Math.sin(a0) * r0, x + Math.cos(a1) * r1, y + 1.2, z + Math.sin(a1) * r1);
+        }
+      }
       // Beams: open cones from the bank to spots on the field.
       for (const [tx, tz] of [
         [x * 0.28, z * 0.12],
@@ -632,7 +732,7 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
         scene.add(cone);
       }
     }
-    lines(towers, GOLD, 0.35);
+    lines(towers, GOLD, 0.3);
   }
 
   // ---- the jumbotron, hung over midfield on cables to the four towers: the score on each of its four faces ----------
@@ -762,7 +862,7 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   };
 
   // ---- the crowd: sigils in the stands; the section going up streams nanites off the ground --------------------------
-  const crowdN = PH ? 900 : 2600;
+  const crowdN = LITE ? 1300 : 4200;
   const cPos = new Float32Array(crowdN * 3);
   const cTint = new Float32Array(crowdN * 3);
   const cAlpha = new Float32Array(crowdN);
@@ -799,11 +899,11 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   crowdGeo.setAttribute("alpha", new BufferAttribute(cAlpha, 1));
   crowdGeo.setAttribute("glyph", new BufferAttribute(cGlyph, 1));
   crowdGeo.setAttribute("sz", new BufferAttribute(cSz, 1));
-  const crowd = new Points(crowdGeo, keep(glyphMaterial(atlas, px, 26)));
+  const crowd = new Points(crowdGeo, keep(farGlyphs(22)));
   crowd.frustumCulled = false;
   scene.add(crowd);
 
-  const riseN = PH ? 160 : 420;
+  const riseN = LITE ? 240 : 720;
   const rPos = new Float32Array(riseN * 3);
   const rTint = new Float32Array(riseN * 3);
   const rAlpha = new Float32Array(riseN);
@@ -834,14 +934,232 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   riseGeo.setAttribute("alpha", new BufferAttribute(rAlpha, 1));
   riseGeo.setAttribute("glyph", new BufferAttribute(rGlyph, 1));
   riseGeo.setAttribute("sz", new BufferAttribute(rSz, 1));
-  const rising = new Points(riseGeo, keep(glyphMaterial(atlas, px, 26)));
+  const rising = new Points(riseGeo, keep(farGlyphs(24)));
   rising.frustumCulled = false;
   scene.add(rising);
+
+  // ---- the nanites alive round the bowl (#987): streams orbiting the rims, the edges dissolving upward, a stream
+  // round the field's boundary, motes in the floodlights, and sparks off a starter when his points go up. All but the
+  // sparks move on the GPU from a clock (one draw each, no per-frame uploads); the clock stops under reduced motion.
+  const NGf = NG.toFixed(1);
+  const flowFrag = `uniform sampler2D atlas; varying vec2 vCell; varying vec3 vC; varying float vA;
+    void main(){ if (vA < .01) discard; vec2 uv = (vCell + gl_PointCoord) / 8.; uv.y = 1. - uv.y; float m = texture2D(atlas, uv).a; if (m < .05) discard; gl_FragColor = vec4(vC, m * vA); }`;
+  /** A glyph stream: `a` and `d` carry each sigil's own numbers, `body` sets its place `p`, alpha `al` and size `sz`. */
+  const flow = (n: number, size: number, fill: (i: number, a: Float32Array, d: Float32Array) => void, body: string) => {
+    const a = new Float32Array(n * 4);
+    const d = new Float32Array(n * 3);
+    const gl = new Float32Array(n);
+    const rn = new Float32Array(n);
+    const tint = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      fill(i, a, d);
+      gl[i] = Math.floor(rnd() * NG);
+      rn[i] = rnd();
+      tint.set(rnd() < 0.78 ? [0.91, 0.78, 0.48] : rnd() < 0.6 ? [1, 0.93, 0.76] : [0.79, 0.66, 0.36], i * 3);
+    }
+    const g = keep(new BufferGeometry());
+    g.setAttribute("position", new BufferAttribute(new Float32Array(n * 3), 3));
+    g.setAttribute("a", new BufferAttribute(a, 4));
+    g.setAttribute("d", new BufferAttribute(d, 3));
+    g.setAttribute("glyph", new BufferAttribute(gl, 1));
+    g.setAttribute("rnd", new BufferAttribute(rn, 1));
+    g.setAttribute("tint", new BufferAttribute(tint, 3));
+    const pts = new Points(
+      g,
+      keep(
+        new ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          blending: AdditiveBlending,
+          uniforms: { atlas: { value: atlas }, px, t: clock },
+          vertexShader: `attribute vec4 a; attribute vec3 d, tint; attribute float glyph, rnd; uniform float t, px; varying vec2 vCell; varying vec3 vC; varying float vA;
+            void main(){ vec3 p = vec3(0.); float al = 0.; float sz = 1.; ${body}
+              float g = mod(glyph + floor(t * .5 + rnd * 9.), ${NGf}); vCell = vec2(mod(g, 8.), floor(g / 8.)); vC = tint;
+              vec4 mv = modelViewMatrix * vec4(p, 1.); vA = al * smoothstep(5., 10., -mv.z);
+              gl_PointSize = min(sz * ${size.toFixed(1)} * px * (6. / pow(-mv.z, .7)), 40. * px); gl_Position = projectionMatrix * mv; }`,
+          fragmentShader: flowFrag,
+        }),
+      ),
+    );
+    pts.frustumCulled = false;
+    scene.add(pts);
+    return pts;
+  };
+  // Orbiting streams skimming the rake of each deck and a low ring round the apron, the bands turning opposite ways.
+  const bands = [
+    { r: [1.5, 1.9], y: [0.4, 1.5], v: 0.035, share: 0.42, over: UPPER },
+    { r: [1, 1.42], y: [0.3, 1.2], v: -0.05, share: 0.38, over: LOWER },
+    { r: [0.8, 0.97], y: [0.25, 1.3], v: 0.06, share: 0.2, over: null },
+  ];
+  flow(
+    LITE ? 520 : 1700,
+    26,
+    (i, a) => {
+      let u = rnd();
+      const b = bands.find((x) => (u -= x.share) < 0) ?? bands[0]!;
+      const r = b.r[0]! + rnd() * (b.r[1]! - b.r[0]!);
+      // Over a tier the stream skims its rake: the seats' height at that radius, plus its lift.
+      const t = b.over;
+      const y = (t ? t.y0 + ((r - t.r0) / (t.r1 - t.r0)) * (t.y1 - t.y0) : 0) + b.y[0]! + rnd() * (b.y[1]! - b.y[0]!);
+      a.set([rnd() * TAU, r, y, b.v * (0.6 + rnd() * 0.8)], i * 4);
+    },
+    `float th = a.x + t * a.w; p = vec3(sin(th) * a.y * ${SX.toFixed(2)}, a.z + sin(t * .7 + rnd * 20.) * .3, cos(th) * a.y * ${SZ.toFixed(2)});
+     al = (.5 + .35 * sin(t * 2.1 + rnd * 40.)); sz = .55 + rnd * .55;`,
+  );
+  // The edges dissolving: sigils born on the rims (the same lines traced in gold) peel off upward and fade.
+  {
+    const segs = rims.length / 6;
+    flow(
+      LITE ? 380 : 1200,
+      24,
+      (i, a, d) => {
+        const k = Math.floor(rnd() * segs) * 6;
+        const f = rnd();
+        const x = rims[k]! + (rims[k + 3]! - rims[k]!) * f;
+        const y = rims[k + 1]! + (rims[k + 4]! - rims[k + 1]!) * f;
+        const z = rims[k + 2]! + (rims[k + 5]! - rims[k + 2]!) * f;
+        const r = Math.hypot(x, z) || 1;
+        const out = y < 0.1 ? 0.25 : (rnd() - 0.35) * 0.6;
+        a.set([x, y, z, 0.05 + rnd() * 0.07], i * 4);
+        d.set([(x / r) * out + (rnd() - 0.5) * 0.25, 0.9 + rnd() * 1.6, (z / r) * out + (rnd() - 0.5) * 0.25], i * 3);
+      },
+      `float ph = fract(t * a.w + rnd * 7.31); p = a.xyz + d * ph * (1. + ph * .7);
+       al = smoothstep(0., .1, ph) * (1. - smoothstep(.45, 1., ph)) * .95; sz = (.5 + rnd * .45) * (1. - ph * .4);`,
+    );
+  }
+  // The field's own stream: sigils skimming round the boundary, two lanes the opposite way round.
+  flow(
+    LITE ? 260 : 760,
+    28,
+    (i, a) => {
+      const lane = rnd() < 0.5 ? 0 : 1;
+      a.set([rnd(), 0.08 + rnd() * 0.5, (lane ? 1 : -1) * (0.012 + rnd() * 0.012), 0.35 + lane * 0.45 + rnd() * 0.2], i * 4);
+    },
+    `float L = ${FL.toFixed(2)} + a.w * 2.; float W = ${FW.toFixed(3)} + a.w * 2.; float s = fract(a.x + t * a.z) * (L + W) * 2.; vec2 q;
+     if (s < L) q = vec2(-L * .5 + s, W * .5); else if (s < L + W) q = vec2(L * .5, W * .5 - (s - L));
+     else if (s < L * 2. + W) q = vec2(L * .5 - (s - L - W), -W * .5); else q = vec2(-L * .5, -W * .5 + (s - L * 2. - W));
+     p = vec3(q.x, a.y + sin(t * 1.3 + rnd * 30.) * .06, q.y); al = .8 + .2 * sin(t * 2.6 + rnd * 50.); sz = .5 + rnd * .45;`,
+  );
+  // Motes: soft warm specks drifting up through the floodlights over the field.
+  {
+    const n = LITE ? 300 : 950;
+    const base = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) base.set([(rnd() - 0.5) * (FL + 8), rnd() * 9, (rnd() - 0.5) * (FW + 7), rnd()], i * 4);
+    const g = keep(new BufferGeometry());
+    g.setAttribute("position", new BufferAttribute(new Float32Array(n * 3), 3));
+    g.setAttribute("a", new BufferAttribute(base, 4));
+    const motes = new Points(
+      g,
+      keep(
+        new ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          blending: AdditiveBlending,
+          uniforms: { px, t: clock },
+          vertexShader: `attribute vec4 a; uniform float t, px; varying float vA; varying float vW;
+            void main(){ float r = a.w; float y = mod(a.y + t * (.12 + r * .2), 9.) + .25;
+              vec3 p = vec3(a.x + sin(t * .17 + r * 31.) * 1.2, y, a.z + cos(t * .13 + r * 17.) * .9);
+              vec4 mv = modelViewMatrix * vec4(p, 1.); vW = r;
+              vA = smoothstep(.25, 1.4, y) * (1. - smoothstep(7.2, 9.2, y)) * (.45 + .4 * sin(t * 1.9 + r * 60.)) * smoothstep(4., 9., -mv.z);
+              gl_PointSize = min((2.4 + r * 3.6) * px * (30. / -mv.z), 14. * px); gl_Position = projectionMatrix * mv; }`,
+          fragmentShader: `varying float vA; varying float vW; void main(){ vec2 q = gl_PointCoord - .5; float m = exp(-dot(q, q) * 22.); if (m * vA < .01) discard;
+            gl_FragColor = vec4(mix(vec3(1., .94, .8), vec3(.91, .78, .48), vW), m * vA); }`,
+        }),
+      ),
+    );
+    motes.frustumCulled = false;
+    scene.add(motes);
+  }
+  // A slow gold sweep across the turf, the glow of the scan over the field.
+  {
+    const sweep = new Mesh(
+      keep(new PlaneGeometry(FL + 1.2, FW + 1.2)),
+      keep(
+        new ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          blending: AdditiveBlending,
+          uniforms: { t: clock },
+          vertexShader: `varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+          fragmentShader: `uniform float t; varying vec2 vU;
+            void main(){ float s = fract(t * .045); float d = vU.x - (s * 1.4 - .2); float band = exp(-d * d * 260.);
+              float edge = smoothstep(.04, 0., min(min(vU.x, 1. - vU.x), min(vU.y, 1. - vU.y)));
+              gl_FragColor = vec4(.91, .78, .48, band * .07 + edge * (.08 + .05 * sin(t * 1.5))); }`,
+        }),
+      ),
+    );
+    sweep.rotation.x = -Math.PI / 2;
+    sweep.position.y = 0.04;
+    scene.add(sweep);
+  }
+  // Sparks: a burst off a starter's pillar when his points go up in a live game (the board's own numbers, never made up).
+  const SPK = reduce ? 0 : LITE ? 160 : 420;
+  const sPos = new Float32Array(Math.max(1, SPK) * 3);
+  const sVel = new Float32Array(Math.max(1, SPK) * 3);
+  const sLife = new Float32Array(Math.max(1, SPK));
+  const sAlpha = new Float32Array(Math.max(1, SPK));
+  const sTint = new Float32Array(Math.max(1, SPK) * 3);
+  const sGlyph = new Float32Array(Math.max(1, SPK));
+  const sSz = new Float32Array(Math.max(1, SPK));
+  const sparkGeo = keep(new BufferGeometry());
+  sparkGeo.setAttribute("position", new BufferAttribute(sPos, 3));
+  sparkGeo.setAttribute("alpha", new BufferAttribute(sAlpha, 1));
+  sparkGeo.setAttribute("tint", new BufferAttribute(sTint, 3));
+  sparkGeo.setAttribute("glyph", new BufferAttribute(sGlyph, 1));
+  sparkGeo.setAttribute("sz", new BufferAttribute(sSz, 1));
+  const sparks = new Points(sparkGeo, keep(farGlyphs(30)));
+  sparks.frustumCulled = false;
+  sparks.visible = false;
+  scene.add(sparks);
+  let sNext = 0;
+  let sAlive = 0;
+  const burst = (x: number, y: number, z: number, mine: boolean, n: number) => {
+    if (!SPK) return;
+    const c = mine ? [0.91, 0.78, 0.48] : [0.75, 0.79, 0.86];
+    for (let k = 0; k < n; k++) {
+      const i = sNext;
+      sNext = (sNext + 1) % SPK;
+      const a = rnd() * TAU;
+      const up = 1.6 + rnd() * 2.6;
+      const out = 0.6 + rnd() * 1.6;
+      sPos.set([x, y, z], i * 3);
+      sVel.set([Math.cos(a) * out, up, Math.sin(a) * out], i * 3);
+      sLife[i] = 1;
+      sTint.set(rnd() < 0.25 ? [1, 0.95, 0.84] : c, i * 3);
+      sGlyph[i] = Math.floor(rnd() * NG);
+      sSz[i] = 0.6 + rnd() * 0.6;
+    }
+    sAlive = 1.6;
+    sparks.visible = true;
+    sparkGeo.attributes.tint!.needsUpdate = true;
+    sparkGeo.attributes.glyph!.needsUpdate = true;
+    sparkGeo.attributes.sz!.needsUpdate = true;
+  };
+  const stepSparks = (dt: number) => {
+    if (sAlive <= 0) return;
+    sAlive -= dt;
+    for (let i = 0; i < SPK; i++) {
+      if (sLife[i]! <= 0) {
+        sAlpha[i] = 0;
+        continue;
+      }
+      const i3 = i * 3;
+      sLife[i] = Math.max(0, sLife[i]! - dt * 0.75);
+      sVel[i3 + 1] = sVel[i3 + 1]! - dt * 2.4;
+      sPos[i3] = sPos[i3]! + sVel[i3]! * dt;
+      sPos[i3 + 1] = Math.max(0.05, sPos[i3 + 1]! + sVel[i3 + 1]! * dt);
+      sPos[i3 + 2] = sPos[i3 + 2]! + sVel[i3 + 2]! * dt;
+      sAlpha[i] = Math.min(1, sLife[i]! * 1.6) * 0.95;
+    }
+    sparkGeo.attributes.position!.needsUpdate = true;
+    sparkGeo.attributes.alpha!.needsUpdate = true;
+    if (sAlive <= 0) sparks.visible = false;
+  };
 
   // ---- the frame's edges come undone: the stands, the ground and the field turn to gold wire and code --------------
   let stepUndone: ((t: number, r: WebGLRenderer) => void) | null = null;
   {
-    const wire: number[] = [...skin];
+    const wire: number[] = [...skin, ...rims];
     // The field's lines, lifted a touch: every ten yards and the sidelines.
     for (let yd = 0; yd <= 100; yd += 10) {
       const x = fieldX((10 + yd) / 120);
@@ -851,7 +1169,7 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
     // The ground outside the bowl: rings and spokes out into the dark.
     for (let r = UPPER.r1 + 0.2; r < 4.4; r += 0.32) for (let i = 0; i < 96; i++) wire.push(...ell(r, (i / 96) * TAU, 0.03), ...ell(r, ((i + 1) / 96) * TAU, 0.03));
     for (let i = 0; i < 64; i++) wire.push(...ell(UPPER.r1 + 0.1, (i / 64) * TAU, 0.03), ...ell(4.4, (i / 64) * TAU, 0.03));
-    const ND = PH ? 420 : 1200;
+    const ND = LITE ? 600 : 2000;
     const dust = new Float32Array(ND * 3);
     for (let i = 0; i < ND; i++) {
       const th = rnd() * TAU;
@@ -866,7 +1184,7 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
       dust,
       atlas,
       px,
-      peel: PH ? 120 : 380,
+      peel: LITE ? 200 : 700,
       keep,
       drift: (x, y, z) => {
         const r = Math.hypot(x, z) || 1;
@@ -932,7 +1250,17 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   cv.addEventListener("pointerleave", onUp);
 
   // ---- the state: men to pillars, the ball, the boards --------------------------------------------------------------
+  /** What each starter had banked when last seen, so a rise in a live game throws sparks off his pillar. */
+  const seen = new Map<string, number>();
   const apply = (snap: boolean) => {
+    if (!snap && view.live) {
+      for (const m of view.men.slice(0, MAX_MEN)) {
+        const was = seen.get(m.id);
+        if (was !== undefined && m.banked > was + 0.05) burst(fieldX(m.along), Math.max(0.3, height(m.banked)) + 0.2, fieldZ(m.across), m.mine, LITE ? 28 : 64);
+      }
+    }
+    seen.clear();
+    for (const m of view.men) seen.set(m.id, m.banked);
     repaintField();
     repaintRibbon();
     repaintBoard();
@@ -1049,6 +1377,8 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
     const lk = ph ? 3 : 1;
     cam.lookAt(Math.sin(th) * -lk, ph ? 1.2 : 3, Math.cos(th) * -lk);
     sky.position.copy(cam.position);
+    clock.value = T;
+    stepSparks(dt);
     stepUndone?.(T, renderer);
     renderer.render(scene, cam);
     // The anchors: each starter's pillar top, and the ball.

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { readPlan } from "../../../api/_haven/planShape.ts";
 import { gymBeyond } from "./gymFill.ts";
-import { placeLights, type Light } from "./lights.ts";
+import { deskRoom, fixtureOf, placeLights, type Light } from "./lights.ts";
+import { colourOf, drawList } from "./realLights.ts";
+import { dayLevel, sunAt } from "./daylight.ts";
 
 /** Where the lights go on the house (#931), on the made-up plan: nothing here is anyone's real home. */
 
@@ -46,5 +48,39 @@ describe("placing the lights (#931)", () => {
     expect(got.lights![0]!.name).toBe("bDesk/b");
     expect(got.lights!).toHaveLength(30);
     expect(readPlan(FAKE_PLAN)).not.toHaveProperty("lights");
+  });
+});
+
+describe("the real lights on the house (#974)", () => {
+  it("draws a floor lamp as an LED line, an under-light low, anything else from the ceiling", () => {
+    expect(fixtureOf("Floor Lamp Left")).toBe("floor");
+    expect(fixtureOf("Corner uplight")).toBe("floor");
+    expect(fixtureOf("Counter Underlights")).toBe("under");
+    expect(fixtureOf("Under cabinet glow")).toBe("under");
+    expect(fixtureOf("Kitchen")).toBe("ceiling");
+  });
+
+  it("takes the page's spots over the plan's, and adds the Studio's light only on a desktop, with a Studio", () => {
+    const studio = readPlan({ ...FAKE_PLAN, rooms: FAKE_PLAN.rooms.map((r) => (r.id === "study" ? { ...r, name: "Studio" } : r)) })!;
+    expect(deskRoom(plan)).toBeNull();
+    expect(deskRoom(studio)?.id).toBe("study");
+    const list = drawList(studio, [light("Test Floor Lamp")], [{ name: "test floor lamp", x: 700, y: 500 }], true);
+    expect(list.map((d) => [d.light.name, d.fixture, d.virtual, d.x, d.y])).toEqual([
+      ["Test Floor Lamp", "floor", false, 700, 500],
+      ["Studio", "ceiling", true, 810, 630],
+    ]);
+    expect(drawList(studio, [], undefined, false)).toEqual([]);
+  });
+
+  it("colours a light from the vendor's colour, else a warm white", () => {
+    expect(colourOf({ rgb: "#39ff7a" })).toBe(0x39ff7a);
+    expect(colourOf({ rgb: null })).not.toBe(0);
+  });
+
+  it("knows day from night over Denver", () => {
+    expect(dayLevel(sunAt(new Date("2026-06-21T19:00:00Z")).alt)).toBe(1);
+    expect(dayLevel(sunAt(new Date("2026-06-21T07:00:00Z")).alt)).toBe(0);
+    expect(dayLevel(sunAt(new Date("2026-11-07T01:00:00Z")).alt)).toBe(0);
+    expect(dayLevel(sunAt(new Date("2026-11-06T18:00:00Z")).alt)).toBe(1);
   });
 });

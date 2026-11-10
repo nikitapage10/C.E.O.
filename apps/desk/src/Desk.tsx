@@ -44,13 +44,14 @@ const PAGES: Partial<Record<DeskPage, ComponentType<PageProps>>> = Object.fromEn
 const SkippyChat = lazy(() => loaders.skippy().then((m) => ({ default: m.SkippyChat })));
 
 // The rooms' 3D scenes (#759): Today's Rotunda, the Haven's house, the Foundry's furnace (#813), the Archive's war table
-// (#826) and the Exchange's trade floor (#823), with the shared three.js chunk they pull in.
+// (#826), the Exchange's trade floor (#823) and the Spire's boardroom (#825), with the shared three.js chunk they pull in.
 const scenes = [
   () => import("./rotunda/rotundaScene.ts"),
   () => import("../../../rooms/haven/web/house.ts"),
   () => import("../../../rooms/foundry/web/furnaceScene.ts"),
   () => import("../../../rooms/archive/web/warTableScene.ts"),
   () => import("../../../rooms/exchange/web/hallScene.ts"),
+  () => import("../../../rooms/spire/web/boardroomScene.ts"),
 ];
 
 const idle = (run: () => void, timeout: number) => {

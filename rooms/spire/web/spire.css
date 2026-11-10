@@ -1,49 +1,114 @@
-/* ---------- the Spire: a gilded ledger ---------- */
-.desk .rm-spire{--gold:#d6bc72;--gold-hi:#f3dea3;--gold-line:rgba(214,188,114,.26)}
-.desk .rm-spire .wv-eyb{color:color-mix(in srgb,var(--gold) 70%,var(--wv-mute))}
-.desk .rm-spire .wv-h1 em{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 60%,#a98a45);-webkit-background-clip:text;background-clip:text;color:transparent}
-.desk .sp-ledger{min-height:300px;border:1px solid var(--gold-line);border-radius:3px;background:linear-gradient(180deg,#15130f,#0f0e0b);box-shadow:inset 0 0 0 5px #0f0e0b,inset 0 0 0 6px rgba(214,188,114,.14)}
-.desk .sp-ledger::before{content:"";position:absolute;left:64px;top:6px;bottom:6px;width:1px;background:rgba(214,188,114,.22)}
-.desk .sp-ledger-in{position:relative;z-index:1;padding:20px 28px 22px 88px}
-.desk .sp-ledger-k{margin:0;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:color-mix(in srgb,var(--gold) 75%,var(--wv-mute))}
-.desk .sp-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:28px 0 0}
-.desk .sp-cols div{padding:0 18px;border-left:1px solid var(--gold-line)}
-.desk .sp-cols div:first-child{border-left:0;padding-left:0}
-.desk .sp-cols dt{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--wv-mute)}
-.desk .sp-cols dd{margin:6px 0 0;font-family:var(--wv-serif);font-size:96px;line-height:.9;background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,#8a7038);-webkit-background-clip:text;background-clip:text;color:transparent;opacity:.55}
-.desk .sp-ledger-note{margin:34px 0 0;max-width:62ch;font-family:var(--wv-codex);font-style:italic;font-size:17px;line-height:1.4;color:var(--wv-soft)}
-.desk .sp-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;margin-top:44px}
-.desk .sp-scout{padding-top:4px;border-top:2px solid var(--gold-line)}
-.desk .sp-scout .wv-eyb{margin-top:14px}
-.desk .sp-scout blockquote{margin:6px 0 12px;font-family:var(--wv-serif);font-style:italic;font-size:34px;line-height:1.1;color:color-mix(in srgb,var(--gold) 55%,var(--wv-faint))}
-.desk .sp-waits{padding-top:4px;border-top:2px solid var(--gold-line)}
-.desk .sp-waits .rm-h2{margin-top:14px}
-.desk .sp-waits li b{font-family:var(--wv-serif);font-weight:400;font-size:18px}
-.desk .sp-waits li em{color:var(--gold)}
-.desk .sp-shelf{margin-top:56px}
-.desk .sp-shelf ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--gold-line);border-bottom:1px solid var(--gold-line)}
-.desk .sp-shelf li{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-height:150px;padding:14px 14px 16px;border-left:1px solid var(--gold-line);background:linear-gradient(180deg,rgba(214,188,114,.05),transparent 40%);transition:background .4s}
-.desk .sp-shelf li:first-child{border-left:0}
-.desk .sp-shelf li::before{content:"";position:absolute;left:14px;right:14px;top:14px;height:3px;border-top:1px solid var(--gold-line);border-bottom:1px solid var(--gold-line)}
-.desk .sp-shelf li:hover{background:linear-gradient(180deg,rgba(214,188,114,.1),transparent 70%)}
-.desk .sp-shelf b{font-family:var(--wv-serif);font-weight:400;font-size:18px;line-height:1.15;color:var(--gold-hi)}
-.desk .sp-shelf span{font-size:12px;line-height:1.4;color:var(--wv-mute)}
-@media (max-width:1060px){
-  .desk .sp-shelf ul{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .desk .sp-shelf li:nth-child(5){border-left:0}
-  .desk .sp-shelf li:nth-child(n+5){border-top:1px solid var(--gold-line)}
+/*
+ * The Spire below the boardroom (#825): the sections sit on the engine's gold wire grid with nanites rising out of it
+ * (UndoneField), each in a gold-framed panel dark enough to read and clear enough to see the grid through, with a tick
+ * at each corner. Each is a thing you'd find in the boardroom: the ledger book (the invoices), the pitch card on a
+ * brass easel (the scout), memos clipped in brass (what the room waits on) and binders on a shelf (the ideas for
+ * later). Scoped to the Spire's page.
+ */
+
+[data-room="spire"] {
+  --gold: #d6bc72;
+  --gold-hi: #f3dea3;
+  --gold-line: rgba(214, 188, 114, 0.26);
+  --fl-accent: 214, 188, 114;
 }
-@media (max-width:640px){
-  .desk .sp-ledger-in{padding:16px 16px 18px 34px}
-  .desk .sp-ledger::before{left:22px}
-  .desk .sp-cols div{padding:0 10px}
-  .desk .sp-cols dd{font-size:56px}
-  .desk .sp-cols dt{font-size:10.5px;letter-spacing:.08em}
-  .desk .sp-ledger-note{font-size:15.5px;margin-top:24px}
-  .desk .sp-row{grid-template-columns:minmax(0,1fr);gap:28px}
-  .desk .sp-scout blockquote{font-size:28px}
-  .desk .sp-shelf ul{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .desk .sp-shelf li{min-height:110px;border-left:1px solid var(--gold-line)!important;border-top:1px solid var(--gold-line)}
-  .desk .sp-shelf li:nth-child(odd){border-left:0!important}
-  .desk .sp-shelf li:nth-child(-n+2){border-top:0}
+[data-room="spire"] .sp-deck { position: relative; isolation: isolate; padding: 1px 0 var(--fl-s5); background: linear-gradient(180deg, #0b0b0d 0, #09090b 200px, #080808 100%); }
+[data-room="spire"] .sp-deck > .sp-deck-sig { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; -webkit-mask-image: linear-gradient(180deg, #000 0, #000 75%, transparent); mask-image: linear-gradient(180deg, #000 0, #000 75%, transparent); }
+[data-room="spire"] .sp-deck > :not(.sp-deck-sig) { position: relative; z-index: 1; }
+[data-room="spire"] .sp-wrap { max-width: 1180px; margin-left: auto; margin-right: auto; padding: 0 var(--fl-pad); }
+@media (min-width: 1280px) { [data-room="spire"] .sp-wrap { padding: 0; } }
+[data-room="spire"] .sp-keeper { --rc: #e3c98d; margin-bottom: var(--fl-s5); }
+[data-room="spire"] .fl-k > span { color: var(--gold-hi); }
+
+/* ── the frame every section shares: see-through, gold hairline, a tick at each corner ── */
+[data-room="spire"] .sp-frame {
+  position: relative;
+  margin-top: var(--fl-s5);
+  padding: clamp(20px, 2.4vw, 32px);
+  border: 1px solid rgba(201, 168, 92, 0.28);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(20, 17, 13, 0.82), rgba(9, 9, 10, 0.78));
+  box-shadow: 0 40px 80px -40px #000, inset 0 1px 0 rgba(232, 199, 122, 0.1);
+  transition: border-color 0.25s ease;
+}
+[data-room="spire"] .sp-frame:hover,
+[data-room="spire"] .sp-frame:focus-within { border-color: rgba(232, 199, 122, 0.5); }
+
+/* ── the ledger book: the invoices, ruled, with the margin line down the left ── */
+[data-room="spire"] .sp-book { margin-top: 0; padding-left: clamp(44px, 5vw, 76px); background: repeating-linear-gradient(180deg, transparent 0 33px, rgba(201, 168, 92, 0.07) 33px 34px), linear-gradient(180deg, rgba(22, 19, 14, 0.86), rgba(10, 10, 11, 0.82)); }
+[data-room="spire"] .sp-book::after { content: ""; position: absolute; top: 10px; bottom: 10px; left: clamp(26px, 3vw, 48px); width: 3px; border-left: 1px solid rgba(201, 168, 92, 0.4); border-right: 1px solid rgba(201, 168, 92, 0.2); pointer-events: none; }
+[data-room="spire"] .sp-book .iv { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; }
+[data-room="spire"] .sp-book .iv-title { font-family: var(--fl-disp); font-size: clamp(24px, 2.2vw, 32px); }
+[data-room="spire"] .sp-book .iv-item { border-radius: 2px; border-color: rgba(201, 168, 92, 0.2); background: rgba(8, 8, 9, 0.6); }
+
+[data-room="spire"] .sp-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--fl-s5); margin-top: var(--fl-s5); }
+[data-room="spire"] .sp-row > .sp-frame { margin-top: 0; }
+
+/* ── the pitch: a card on a brass easel ── */
+[data-room="spire"] .sp-pitch { padding-bottom: 76px; }
+[data-room="spire"] .sp-card { position: relative; margin: var(--fl-s3) auto 0; max-width: 460px; padding: 22px 24px 20px; border: 1px solid rgba(232, 199, 122, 0.55); background: linear-gradient(180deg, #17140f, #0d0c0a); box-shadow: inset 0 0 0 5px #0d0c0a, inset 0 0 0 6px rgba(232, 199, 122, 0.2), 0 24px 40px -24px #000; transform: perspective(900px) rotateX(4deg); transform-origin: 50% 100%; }
+[data-room="spire"] .sp-card blockquote { margin: 0 0 10px; font-family: var(--fl-disp); font-style: italic; font-size: clamp(26px, 2.4vw, 34px); line-height: 1.1; color: color-mix(in srgb, var(--gold) 62%, var(--wv-faint)); }
+[data-room="spire"] .sp-card p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--wv-mute); }
+[data-room="spire"] .sp-legs { position: absolute; left: 50%; bottom: 14px; width: 180px; height: 62px; transform: translateX(-50%); pointer-events: none; }
+[data-room="spire"] .sp-legs i { position: absolute; top: -6px; bottom: 0; left: 50%; width: 3px; border-radius: 2px; background: linear-gradient(180deg, #c9a85c, #6f5a2c); transform-origin: 50% 0; }
+[data-room="spire"] .sp-legs i:nth-child(1) { transform: rotate(24deg); }
+[data-room="spire"] .sp-legs i:nth-child(2) { transform: rotate(-24deg); }
+[data-room="spire"] .sp-legs i:nth-child(3) { opacity: 0.45; }
+
+/* ── the memos: each wait on its own slip, clipped in brass ── */
+[data-room="spire"] .sp-waits { margin: 0; }
+[data-room="spire"] .sp-waits .rm-h2 { margin: 0 0 var(--fl-s3); font-family: var(--fl-disp); font-weight: 500; }
+[data-room="spire"] .sp-waits ol { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
+[data-room="spire"] .sp-waits li { position: relative; display: grid; gap: 4px; padding: 16px 16px 12px; border: 1px solid rgba(201, 168, 92, 0.22); background: linear-gradient(180deg, rgba(236, 228, 210, 0.06), rgba(236, 228, 210, 0.02)); transform: rotate(-0.6deg); }
+[data-room="spire"] .sp-waits li:nth-child(even) { transform: rotate(0.5deg); }
+[data-room="spire"] .sp-waits li::before { content: ""; position: absolute; top: -7px; left: 22px; width: 26px; height: 12px; border: 2px solid #c9a85c; border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 0 8px rgba(232, 199, 122, 0.3); }
+[data-room="spire"] .sp-waits li b { font-family: var(--fl-disp); font-weight: 500; font-size: 18px; color: #f4ecda; }
+[data-room="spire"] .sp-waits li span { font-size: 13.5px; line-height: 1.45; color: var(--wv-mute); }
+[data-room="spire"] .sp-waits li em { justify-self: start; font-style: normal; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+
+/* ── the shelf: seven binders standing on a brass plank ── */
+[data-room="spire"] .sp-shelf-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; margin-bottom: var(--fl-s4); }
+[data-room="spire"] .sp-shelf-h .fl-k { margin-bottom: 6px; }
+[data-room="spire"] .sp-note { margin: 0; max-width: 40ch; font-family: var(--fl-disp); font-style: italic; font-size: 15px; color: var(--wv-mute); }
+[data-room="spire"] .sp-binders { display: flex; align-items: flex-end; gap: 6px; margin: 0; padding: 0 6px; list-style: none; overflow-x: auto; scrollbar-width: thin; }
+[data-room="spire"] .sp-binders li {
+  --h: calc(200px + (var(--i) * 37px) % 46px);
+  position: relative;
+  flex: 1 0 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: var(--h);
+  padding: 22px 12px 26px;
+  border: 1px solid rgba(201, 168, 92, 0.42);
+  border-radius: 3px 3px 1px 1px;
+  background:
+    linear-gradient(180deg, transparent 0 14px, rgba(232, 199, 122, 0.55) 14px 16px, transparent 16px 19px, rgba(232, 199, 122, 0.3) 19px 20px, transparent 20px),
+    linear-gradient(0deg, transparent 0 14px, rgba(232, 199, 122, 0.55) 14px 16px, transparent 16px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.35), transparent 22%, transparent 80%, rgba(0, 0, 0, 0.4)),
+    linear-gradient(180deg, #1d1912, #120f0b);
+  box-shadow: inset 0 1px 0 rgba(232, 199, 122, 0.15), 0 14px 24px -16px #000;
+  transition: transform 0.35s var(--fl-ease), border-color 0.25s;
+}
+[data-room="spire"] .sp-binders li:nth-child(3n + 2) { background-color: #161a17; }
+[data-room="spire"] .sp-binders li:hover { transform: translateY(-10px); border-color: rgba(232, 199, 122, 0.8); }
+[data-room="spire"] .sp-binders b { font-family: var(--fl-disp); font-weight: 500; font-size: 17px; line-height: 1.15; color: var(--gold-hi); }
+[data-room="spire"] .sp-binders span { font-size: 12px; line-height: 1.4; color: var(--wv-mute); }
+[data-room="spire"] .sp-plank { height: 10px; margin: 0 -6px; border-radius: 1px; background: linear-gradient(180deg, #c9a85c, #6f5a2c); box-shadow: 0 8px 18px -6px #000, 0 0 14px rgba(232, 199, 122, 0.2); }
+
+[data-room="spire"] .rm-guard { margin-top: var(--fl-s5); }
+
+@media (max-width: 860px) {
+  [data-room="spire"] .sp-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  [data-room="spire"] .sp-book { padding-left: 34px; }
+  [data-room="spire"] .sp-book::after { left: 16px; }
+  [data-room="spire"] .sp-binders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; overflow: visible; padding: 0; }
+  [data-room="spire"] .sp-binders li { --h: 150px; }
+  [data-room="spire"] .sp-plank { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="spire"] .sp-binders li, [data-room="spire"] .sp-frame { transition: none; }
 }

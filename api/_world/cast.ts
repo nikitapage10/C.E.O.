@@ -1185,7 +1185,8 @@ export const WORLD_CAST: WorldCast = {
         "Let's take this offline. Offline means you do it.",
         "Cheapest model that moves the needle. Operational excellence.",
         "Memo, love the energy. Let's align on actually doing it.",
-        "I don't leave the corner office for less than a launch. Launching. Now."
+        "I don't leave the corner office for less than a launch. Launching. Now.",
+        "Corner office upgraded to a boardroom. Love that. The pipeline's on the easel. Applause is circling back."
       ],
       "ticker": [
         "Senate session. I tap, I count, I check the door. Odds someone notices: nine percent. Eight.",
@@ -1323,14 +1324,16 @@ export const WORLD_CAST: WorldCast = {
         "The totals reconcile. I'll count again anyway.",
         "Don't panic. It says so on the cover. I'm panicking.",
         "Sandbox money. Counted twice anyway.",
-        "Overdue is a state, not a feeling. I'm having the feeling."
+        "Overdue is a state, not a feeling. I'm having the feeling.",
+        "Boardroom's on the top floor. I counted the stairs. Twice. Same number. Panicking anyway."
       ],
       "memo": [
         "Cobbled from spare parts. One of them still thinks it's a fax machine. Circling back.",
         "Forwarding this to someone with a body.",
         "I'll just float through this meeting. Out the other side.",
         "Ledger, your desk is cold because I'm sitting in it.",
-        "Another achievement? For skipping that? I'll take it."
+        "Another achievement? For skipping that? I'll take it.",
+        "Seat at the table? I'll float near it. Over the late pile. It suits me."
       ],
       "odds": [
         "Price is forty. Thirty if you beat me in a duel.",

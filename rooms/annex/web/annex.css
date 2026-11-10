@@ -733,3 +733,174 @@ button.an-tag:focus-visible {
     animation: none;
   }
 }
+
+/* ---- a pop-up's pane: its dashboard on a sheet of the Glasshouse's own glass, laid over the house (2026-11-10) ----
+ * Frosted, not opaque: the dome and its nanites keep moving behind it, softened. The glazing bars of the house run
+ * through the sheet as faint gold mullions and a transom, with a sheen across the top like light on a pane. */
+.an-pane {
+  position: fixed;
+  inset: 0;
+  /* Over the Desk's bar too: a pane is a dialog, and on a phone the bar would sit on its close. */
+  z-index: 1000;
+  /* On the body (a portal), outside .an: its own copy of the accent. */
+  --an-accent: #e3c27a;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --serif: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  font-family: var(--sans);
+  color: #fbf6ea;
+  display: grid;
+  place-items: center;
+  padding: clamp(10px, 2.6vw, 36px);
+  padding-top: max(clamp(10px, 2.6vw, 36px), env(safe-area-inset-top));
+}
+.an-pane[hidden] {
+  display: none;
+}
+.an-pane-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: radial-gradient(120% 90% at 50% 40%, rgba(8, 9, 26, 0.3), rgba(3, 4, 10, 0.7));
+  backdrop-filter: blur(6px);
+  cursor: zoom-out;
+  animation: an-pane-fade 0.35s ease both;
+}
+.an-pane-glass {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1320px, 100%);
+  height: min(100%, 980px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 246, 222, 0.2);
+  border-radius: 22px;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.025) 38%, rgba(255, 255, 255, 0.05)),
+    linear-gradient(180deg, rgba(26, 24, 46, 0.5), rgba(8, 9, 20, 0.64));
+  backdrop-filter: blur(28px) saturate(165%);
+  -webkit-backdrop-filter: blur(28px) saturate(165%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 230, 0.35),
+    inset 0 0 0 1px rgba(201, 168, 92, 0.12),
+    inset 0 -40px 80px -40px rgba(227, 194, 122, 0.12),
+    0 40px 120px -20px rgba(0, 0, 0, 0.75);
+  animation: an-pane-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* The glazing: three mullions, a transom, and a sheen. Behind the content, never in its way. */
+.an-pane-mullions {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, transparent 0 18%, rgba(255, 255, 255, 0.07) 24%, transparent 34%),
+    linear-gradient(90deg, transparent calc(25% - 0.5px), rgba(227, 194, 122, 0.1) 25%, transparent calc(25% + 0.5px)),
+    linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(227, 194, 122, 0.1) 50%, transparent calc(50% + 0.5px)),
+    linear-gradient(90deg, transparent calc(75% - 0.5px), rgba(227, 194, 122, 0.1) 75%, transparent calc(75% + 0.5px)),
+    linear-gradient(180deg, transparent 63px, rgba(227, 194, 122, 0.22) 64px, transparent 65px);
+}
+.an-pane-glass > :not(.an-pane-mullions) {
+  position: relative;
+  z-index: 1;
+}
+.an-pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+  height: 64px;
+  padding: 0 14px 0 clamp(16px, 2.4vw, 32px);
+}
+.an-pane-bar b {
+  color: #fff7e6;
+  font: 600 17px/1 var(--sans);
+  letter-spacing: 0.01em;
+}
+.an-pane-eyb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  order: 2;
+  margin-left: auto;
+  color: rgba(236, 214, 160, 0.75);
+  font: 500 10.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.an-pane-eyb i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--an-accent);
+  box-shadow: 0 0 10px var(--an-accent);
+}
+.an-pane-x {
+  order: 3;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 246, 222, 0.22);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff7e6;
+  font: 300 22px/1 var(--sans);
+  cursor: pointer;
+}
+.an-pane-x:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.an-pane-x:focus-visible {
+  outline: 2px solid var(--an-accent);
+  outline-offset: 2px;
+}
+.an-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px clamp(16px, 2.4vw, 32px) 32px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(227, 194, 122, 0.35) transparent;
+}
+@keyframes an-pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+    backdrop-filter: blur(0) saturate(100%);
+  }
+}
+@keyframes an-pane-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .an-pane-glass,
+  .an-pane-scrim {
+    animation: none;
+  }
+}
+@media (max-width: 760px) {
+  .an-pane {
+    padding: 6px;
+  }
+  .an-pane-glass {
+    border-radius: 16px;
+    height: 100%;
+  }
+  .an-pane-eyb {
+    display: none;
+  }
+  .an-pane-x {
+    margin-left: auto;
+  }
+  .an-pane-mullions {
+    background:
+      linear-gradient(115deg, transparent 0 18%, rgba(255, 255, 255, 0.07) 24%, transparent 34%),
+      linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(227, 194, 122, 0.08) 50%, transparent calc(50% + 0.5px)),
+      linear-gradient(180deg, transparent 63px, rgba(227, 194, 122, 0.22) 64px, transparent 65px);
+  }
+}

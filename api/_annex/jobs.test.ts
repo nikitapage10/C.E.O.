@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { yearsAskedIn, changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, searchUrl, type JobsDeps } from "./jobs.ts";
+import { logoOf, appliedBefore, appliedOf, tidy, yearsAskedIn, changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, searchUrl, type JobsDeps } from "./jobs.ts";
 
 const NOW = Date.parse("2026-11-10T22:00:00Z");
 
@@ -162,6 +162,27 @@ describe("the Job search (#1000)", () => {
     await runJobs(b.d, "hand");
     expect(qs(b.urls)).toEqual(["s7", "s8", "s9", "s0", "s1", "s2", "s3"]);
     expect(store.state.used).toBe(14);
+  });
+
+  it("files roles already applied to under Applied, never as new", () => {
+    const applied = appliedOf("Anthropic: Technical Program Manager, Security\nPrivacy only line\nElevenLabs: Privacy Program Manager");
+    expect(applied).toHaveLength(2);
+    expect(appliedBefore({ company: "Anthropic", title: "Technical Program Manager, Security" }, applied)).toBe(true);
+    expect(appliedBefore({ company: "ElevenLabs", title: "Privacy Program Manager, EMEA" }, applied)).toBe(true);
+    // Same company, a different TPM role: still a match to look at.
+    expect(appliedBefore({ company: "Anthropic", title: "Technical Program Manager, Safeguards" }, applied)).toBe(false);
+    expect(appliedBefore({ company: "Figma", title: "Privacy Program Manager" }, applied)).toBe(false);
+    const j = normaliseJob(serpJob("x", "Privacy Program Manager", { company_name: "ElevenLabs" }), "q", new Date(NOW).toISOString())!;
+    const out = tidy([j], cleanProfile({ applied }), new Set(), NOW);
+    expect(out[0]!.state).toBe("applied");
+  });
+
+  it("keeps a logo only as an https image or a small inline raster", () => {
+    expect(logoOf("https://encrypted-tbn0.gstatic.com/images?q=x")).toBe("https://encrypted-tbn0.gstatic.com/images?q=x");
+    expect(logoOf("data:image/png;base64,iVBORw0KGgo=")).toBe("data:image/png;base64,iVBORw0KGgo=");
+    expect(logoOf("data:image/svg+xml;base64,PHN2Zz4=")).toBeNull();
+    expect(logoOf("http://x.test/a.png")).toBeNull();
+    expect(logoOf("javascript:alert(1)")).toBeNull();
   });
 
   it("names the next daily run", () => {

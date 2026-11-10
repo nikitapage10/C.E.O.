@@ -70,6 +70,8 @@ export interface JobsProfile {
   daily: boolean;
   /** Your years of experience: a job is ranked by how its asked-for years compare, never by its title's level. */
   years: number | null;
+  /** Roles already applied to (outside C.E.O. too): a found job matching one is filed under Applied, never a new match. */
+  applied: { company: string; title: string }[];
 }
 
 export interface Job {
@@ -89,6 +91,8 @@ export interface Job {
   apply: { title: string; link: string }[];
   snippet: string;
   highlights: string[];
+  /** The company's logo as SerpApi gave it: an https image or a small inline data image; null when none. */
+  logo?: string | null;
   /** The years of experience the posting asks for, read from its text; null when it names none. */
   yearsAsked?: number | null;
   /** Which saved search found it first. */
@@ -137,7 +141,7 @@ export interface JobsView extends JobsState {
   nextRun: string | null;
 }
 
-export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null });
+export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [] });
 export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null });
 
 /* ── Reading things defensively ── */
@@ -149,6 +153,25 @@ const words = (v: unknown): string[] =>
     : typeof v === "string"
       ? words(v.split(/[,\n]/))
       : [];
+/** Like words, but keeping the casing as typed (company names are shown); matched without case. */
+const names = (v: unknown): string[] => {
+  const list = Array.isArray(v) ? v : typeof v === "string" ? v.split(/[,\n]/) : [];
+  const seen = new Set<string>();
+  return list
+    .map((w) => str(w, 60))
+    .filter((w) => w && !seen.has(w.toLowerCase()) && seen.add(w.toLowerCase()))
+    .slice(0, 40);
+};
+/** A logo SerpApi sends: an https URL, or an inline raster image (never SVG, which can carry script) under 40 KB. */
+export function logoOf(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  if (/^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(v)) return v.length <= 40_000 ? v : null;
+  try {
+    return new URL(v).protocol === "https:" && v.length <= 2_000 ? v : null;
+  } catch {
+    return null;
+  }
+}
 const httpsLink = (v: unknown): string | null => {
   const s = str(v, 2000);
   try {
@@ -175,6 +198,40 @@ export function yearsAskedIn(text: string): number | null {
   return found.length ? Math.max(...found) : null;
 }
 
+/** "Company: Title" lines or { company, title } objects; an entry needs both, since a company alone would file away every opening there. */
+export function appliedOf(v: unknown): { company: string; title: string }[] {
+  const list = Array.isArray(v) ? v : typeof v === "string" ? v.split("\n") : [];
+  return list
+    .map((x) => {
+      if (typeof x === "string") {
+        const at = x.indexOf(":");
+        return at > 0 ? { company: str(x.slice(0, at), 80), title: str(x.slice(at + 1), 160) } : { company: "", title: "" };
+      }
+      const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+      return { company: str(o.company, 80), title: str(o.title, 160) };
+    })
+    .filter((x) => x.company && x.title)
+    .slice(0, 400);
+}
+
+const tokens = (t: string) => new Set(t.toLowerCase().replace(/&/g, " and ").match(/[a-z0-9]+/g)?.filter((w) => !STOP.has(w) && w !== "and") ?? []);
+
+/** Whether a found job is one already applied to: the same company (either name inside the other) and a title that
+ * shares most of its words (or one title's words all in the other). */
+export function appliedBefore(job: Pick<Job, "company" | "title">, applied: { company: string; title: string }[]): boolean {
+  const co = job.company.toLowerCase();
+  const jt = tokens(job.title);
+  return applied.some((a) => {
+    const ac = a.company.toLowerCase();
+    if (!(co.includes(ac) || ac.includes(co))) return false;
+    const at = tokens(a.title);
+    if (!at.size || !jt.size) return false;
+    let both = 0;
+    for (const w of at) if (jt.has(w)) both++;
+    return both / Math.min(at.size, jt.size) >= 0.99 || both / Math.max(at.size, jt.size) >= 0.8;
+  });
+}
+
 export function cleanProfile(raw: unknown): JobsProfile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof JobsProfile, unknown>>;
   const searches = (Array.isArray(r.searches) ? r.searches : [])
@@ -185,7 +242,7 @@ export function cleanProfile(raw: unknown): JobsProfile {
     .filter((s) => s.q)
     .slice(0, MAX_SEARCHES);
   const n = typeof r.minSalary === "number" ? r.minSalary : typeof r.minSalary === "string" ? Number(r.minSalary.replace(/[^\d.]/g, "")) : NaN;
-  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: words(r.companies), daily: r.daily !== false, years: yearsOf(r.years) };
+  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: names(r.companies), daily: r.daily !== false, years: yearsOf(r.years), applied: appliedOf(r.applied) };
 }
 
 const isState = (v: unknown): v is JobState => (JOB_STATES as readonly unknown[]).includes(v);
@@ -228,6 +285,7 @@ interface SerpJob {
   location?: unknown;
   via?: unknown;
   share_link?: unknown;
+  thumbnail?: unknown;
   description?: unknown;
   extensions?: unknown;
   detected_extensions?: Record<string, unknown>;
@@ -269,6 +327,7 @@ export function normaliseJob(raw: SerpJob, search: string, nowIso: string): Job 
     link: apply[0]?.link ?? httpsLink(raw.share_link),
     apply,
     snippet: str(raw.description, 700),
+    logo: logoOf(raw.thumbnail),
     yearsAsked: yearsAskedIn(`${str(raw.description, 20_000)} ${highlights.join(" ")}`),
     highlights,
     search,
@@ -433,6 +492,8 @@ function rollMonth(state: JobsState, now: number): void {
 
 /** Every job scored again against the profile and resume, best first, the stale ones dropped, and capped. */
 export function tidy(jobs: Job[], profile: JobsProfile, resume: Set<string>, now: number): Job[] {
+  // A role already applied to elsewhere goes straight to Applied, so it never comes up as new.
+  jobs = jobs.map((j) => (j.state === "new" && appliedBefore(j, profile.applied) ? { ...j, state: "applied" as const, stateAt: new Date(now).toISOString() } : j));
   const kept = jobs.filter((j) => j.state === "saved" || j.state === "applied" || now - Date.parse(j.lastSeen) < STALE_MS);
   const scored = kept.map((j) => scoreJob(j, profile, resume));
   scored.sort((a, b) => (a.state === "dismissed" ? 1 : 0) - (b.state === "dismissed" ? 1 : 0) || b.score - a.score || b.lastSeen.localeCompare(a.lastSeen));

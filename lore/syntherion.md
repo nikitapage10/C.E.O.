@@ -608,8 +608,8 @@ every edition. He runs long. It says so.
 look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as a war table
 (a drowned world in silver and black since the Undertow: its places are ruins half under the water, glass stasis monoliths with sleepers inside and a glass-lit lab, threads of light run between them toward a planet's limb, and the Tide's shattered isle is still only wire until its feed comes in), the Spire as a gilded ledger, the Exchange
 as a trade floor in black and gold under a curved marquee of live odds, the Green as the bowl (a football stadium under the lights, below), and the
-Workshop as a print farm: printers on a long bench, one waiting on the C.E.O.'s network and three open bays the farm
-keeps to grow into, and a turntable out front where a design turns for its check before it prints. A room whose real line isn't connected
+Workshop as one long bench with the C.E.O.'s four stages along it, from a picture to a print, and the one printer at
+the end of the line. A room whose real line isn't connected
 yet says so plainly and shows nothing made up. Each room's keeper stands at the top of its page and says what they
 are waiting on.
 
@@ -863,13 +863,17 @@ better hat. The Artiste, the Workshop's own submind, conducts the line from its 
 halfway through every sentence, and suffers for the work; Daub adores it, and Chisel calls it darling in the tone
 that means stop. Daub once painted Kevin asleep; it took a week, and Kevin did not move once.
 
-On the C.E.O.'s Desk the Workshop's page is the **print farm** (#827): the printers stand on a long walnut bench,
-solid in the light and fraying at the edges of sight into gold wire and nanites, the way the Senate does. Only one bay
-holds a real printer, and it waits on the network with its plate empty and its head parked; the three open bays are
-printers not yet made, mostly wire, with nanites still gathering into their frames. Step inside a chamber and you see
-the plate as the nozzle would. At the front a brass turntable spins the Workshop's check piece, a small ivory pawn,
-under a scanning ring that measures it against the plate before anything is sent to print. The Artiste insists the
-pawn is a placeholder for the vision. Chisel says it is the only thing in the room that has never once argued.
+On the C.E.O.'s Desk the Workshop's page is **the flow** (#989; it was a print farm, #827, until the C.E.O. pointed
+out he owns exactly one printer). One long walnut bench runs across the room, solid in the light and fraying at the
+edges of sight into gold wire and nanites, the way the Senate does, with a gold line inlaid along its front edge and
+four stops on it, left to right. At the first, an easel: a standing screen where the design shows, an image drawn
+the way the C.E.O. draws them in ChatGPT; it is blank, and says so. At the second, the mould: a hex plinth under an
+empty gold cage where the picture is meant to become a mesh; nanites settle on its wires and fade, and nothing takes
+shape inside until Meshy is let in. At the third, the slicer's plate, where a model is stood, checked for supports and
+cut into layers: the Workshop's check piece, a small ivory pawn, turns on it with its layers drawn as gold rings and a
+preview ring running up and down it. At the last, the one Bambu Lab printer, its chamber lit, its plate empty and its
+head parked, waiting on the network. Daub has claimed the easel and Chisel the cage; the Artiste insists the pawn is a
+placeholder for the vision. Chisel says it is the only thing in the room that has never once argued.
 
 ## The Studio
 

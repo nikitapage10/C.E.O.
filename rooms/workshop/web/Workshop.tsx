@@ -1,77 +1,68 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Keeper, type Wait } from "@ceo/desk/rooms/parts.tsx";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
-import { BAYS, PAWN, preflight, viewKey, type FarmView } from "./farm.ts";
-import type { Farm } from "./farmScene.ts";
+import { LAYER_MM, PAWN, preflight, slice, STAGES, viewKey, type FlowView, type Stage } from "./flow.ts";
+import type { Flow } from "./flowScene.ts";
 import { PlateSigils } from "./PlateSigils.tsx";
 import "@ceo/desk/rooms/rooms.css";
 import "./workshop.css";
 
 /**
- * The Workshop (#225, #827, #932): from a sentence to a thing on the shelf, as a print farm. The farm fills the screen
- * (farmScene.ts): printers on a long bench in 3D, solid in the middle and coming undone into gold wire and sigil nanites
- * at the frame's edges, a gold vault running off into the depth behind them. What each printer is doing rides on it as
- * a job plate, and the turntable's plate carries the pre-print check (farm.ts). Pick a plate (or the printer) and the
- * camera steps inside its chamber, with its card beside it; pick the turntable and it comes round to the check. Nothing
- * is connected yet, so the one printer waits, the open bays stay open, nothing is printing, and nothing ever prints
- * without a tap. Under the farm, one console on a build plate: the line from a sentence to a print, and what it waits on.
+ * The Workshop (#225, #827, #989): Nikita's own way from an idea to a thing on the shelf, as one line with one printer.
+ * The line fills the screen (flowScene.ts): a long bench in 3D with the four stages along it, left to right, the design
+ * on an easel, the mesh in a cage, the slicer's plate and the printer, solid in the middle and coming undone into gold
+ * wire and sigil nanites at the frame's edges, the gold vault behind. Each station carries a tag with its real state
+ * (flow.ts); pick one and the camera steps up to it, with its card beside it. Nothing is connected yet, so the easel is
+ * blank, the cage is empty, the slicer holds the Workshop's own check piece and the printer waits; nothing ever prints
+ * without a tap. Under the line, one console on a build plate: the four stages and what they wait on.
  */
 
-const STATIONS = [
-  { k: "01", t: "Style", s: "A preset and your prompt", w: "Ready when the rest is", ok: true },
-  { k: "02", t: "Picture", s: "Front and side, from OpenAI", w: "Waits on the image model", ok: false },
-  { k: "03", t: "Model", s: "Meshy turns it into 3D", w: "Waits on a Meshy key", ok: false },
-  { k: "04", t: "Check", s: "On the turntable, against the plate", w: "Checks the test piece for now", ok: true },
-  { k: "05", t: "Slice", s: "Bambu Studio or OrcaSlicer, on the Mac", w: "Waits on the hub", ok: false },
-  { k: "06", t: "Print", s: "The Bambu Lab printer, over the LAN", w: "Waits on the printer", ok: false },
-];
-
 const WAITS: Wait[] = [
-  { what: "A Meshy API key", why: "Turns the front and side pictures into a model. Kept on the server." },
-  { what: "The printer's serial and LAN access code", why: "So the hub on the Mac can send a sliced file and read back progress and the camera. Kept on the Mac, never here." },
-  { what: "The hub on the MacBook", why: "Slices with Bambu Studio or OrcaSlicer, and talks to the printer on your network." },
-  { what: "OpenAI for the pictures", why: "One prompt, two views: front and side, in the chosen style." },
+  { what: "OpenAI images", why: "Stage 1: the design, made as an image the way it's made in ChatGPT. Kept on the server." },
+  { what: "A Meshy API key", why: "Stage 2: turns the image into a meshed 3D model. Kept on the server." },
+  { what: "The hub on the MacBook", why: "Stage 3: slices with Bambu Studio or OrcaSlicer, and talks to the printer on your network." },
+  { what: "The printer's serial and LAN access code", why: "Stage 4: so the hub can send a sliced file and read back progress and the camera. Kept on the Mac, never here." },
 ];
 
-const FARM: FarmView = { k: "farm" };
-const TABLE: FarmView = { k: "table" };
+const FLOW: FlowView = { k: "flow" };
 const reduced = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-/** Where the plates stand over the flat bench (percent of the hall), before the 3D is up or without WebGL. */
-const FLAT: Record<string, [number, number]> = { "bay-1": [22, 58], "bay-2": [41, 58], "bay-3": [60, 58], "bay-4": [79, 58], table: [50, 84] };
-/** Laid out first to last: the printer that's real, the turntable, then the open bays. */
-const ORDER = ["bay-1", "table", "bay-2", "bay-3", "bay-4"];
+/** Where the tags stand over the flat bench (percent of the hall), before the 3D is up or without WebGL. */
+const FLAT_X = [17, 39, 61, 83];
+const FLAT_Y = 56;
+const STATE: Record<Stage["state"], string> = { idle: "idle", check: "check piece", waiting: "waiting" };
 const TABS = [
-  { id: "line", k: "The line", b: "Six stations" },
+  { id: "line", k: "The flow", b: "Four stages" },
   { id: "waits", k: "Waits on", b: `${WAITS.length} keys and links` },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
+const two = (n: number) => String(n).padStart(2, "0");
 
 export function Workshop() {
   const hall = useRef<HTMLElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const farm = useRef<Farm | null>(null);
+  const flow = useRef<Flow | null>(null);
   const plates = useRef<Record<string, HTMLButtonElement | null>>({});
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const at = useRef(new Map<string, [number, number, boolean]>());
   const settle = useRef(0);
-  const [view, setView] = useState<FarmView>(FARM);
+  const [view, setView] = useState<FlowView>(FLOW);
   const [gl, setGl] = useState<"wait" | "on" | "none">("wait");
   const [tab, setTab] = useState<Tab>("line");
   const ready = useRoomReady(false);
   const checks = useMemo(() => preflight(PAWN), []);
+  const cut = useMemo(() => slice(PAWN), []);
   const passed = checks.filter((c) => c.ok).length;
-  const printers = BAYS.filter((b) => b.state !== "open").length;
-  const open = BAYS.length - printers;
+  const allOk = passed === checks.length;
 
-  // The plates ride their printers but never cover one another: the real printer first, then the turntable, then the
-  // open bays; one that would cover a plate already placed is lifted just above it.
+  // The tags ride their stations but never cover one another; one that would is lifted just above the one before.
   const spread = useCallback(() => {
     settle.current = 0;
     const boxes: { l: number; r: number; t: number; b: number }[] = [];
     const W = hall.current?.clientWidth ?? window.innerWidth;
-    for (const id of ORDER) {
+    for (const s of STAGES) {
+      const id = `stage-${s.n}`;
       const el = plates.current[id];
       const p = at.current.get(id);
       if (!el) continue;
@@ -111,11 +102,11 @@ export function Workshop() {
 
   useEffect(() => {
     let gone = false;
-    void import("./farmScene.ts")
-      .then(async ({ createFarm, canDraw3D }) => {
+    void import("./flowScene.ts")
+      .then(async ({ createFlow, canDraw3D }) => {
         if (gone || !host.current || !canvas.current) return;
         if (!canDraw3D()) throw new Error("no webgl");
-        const f = await createFarm(host.current, canvas.current, {
+        const f = await createFlow(host.current, canvas.current, {
           phone: window.innerWidth < 760,
           reduce: reduced(),
           onPick: (v) => setView(v),
@@ -124,8 +115,7 @@ export function Workshop() {
             const box = hall.current?.getBoundingClientRect();
             const hd = head.current?.getBoundingClientRect();
             if (!box || !hd || !box.height) return 0;
-            const share = Math.max(0, Math.min(0.6, (hd.bottom - box.top + 20) / box.height));
-            return share;
+            return Math.max(0, Math.min(0.6, (hd.bottom - box.top + 20) / box.height));
           },
           onReady: () => {
             setGl("on");
@@ -133,7 +123,7 @@ export function Workshop() {
           },
         });
         if (gone) return f.dispose();
-        farm.current = f;
+        flow.current = f;
       })
       .catch(() => {
         if (gone) return;
@@ -143,29 +133,28 @@ export function Workshop() {
     return () => {
       gone = true;
       cancelAnimationFrame(settle.current);
-      farm.current?.dispose();
-      farm.current = null;
+      flow.current?.dispose();
+      flow.current = null;
     };
   }, [onPlace, ready]);
 
-  useEffect(() => farm.current?.setView(view), [view, gl]);
+  useEffect(() => flow.current?.setView(view), [view, gl]);
 
-  // Escape steps back out to the farm.
+  // Escape steps back out to the whole flow.
   useEffect(() => {
-    if (view.k === "farm") return;
-    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setView(FARM);
+    if (view.k === "flow") return;
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setView(FLOW);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [view]);
 
-  const bay = view.k === "bay" ? BAYS.find((b) => b.n === view.n) : undefined;
-  const allOk = passed === checks.length;
-  const flat = (id: string) => ({ "--fx": `${FLAT[id]![0]}%`, "--fy": `${FLAT[id]![1]}%` }) as CSSProperties;
+  const stage = view.k === "stage" ? STAGES.find((s) => s.n === view.n) : undefined;
+  const flat = (n: number) => ({ "--fx": `${FLAT_X[n - 1]}%`, "--fy": `${FLAT_Y}%` }) as CSSProperties;
   const plateRef = (id: string) => (el: HTMLButtonElement | null) => {
     plates.current[id] = el;
     if (el && at.current.size && !settle.current) settle.current = requestAnimationFrame(spread);
   };
-  const onFarm = view.k === "farm";
+  const onFlow = view.k === "flow";
   // The console's tabs: the arrows move between them, Home and End jump to the ends.
   const onTabKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
     const n = TABS.length;
@@ -178,13 +167,13 @@ export function Workshop() {
 
   return (
     <div className="wv-page rm rm-workshop ws-page" data-room="workshop">
-      <section ref={hall} className="ws-hall" aria-label="The print farm" data-view={viewKey(view)} data-gl={gl}>
+      <section ref={hall} className="ws-hall" aria-label="The Workshop's flow" data-view={viewKey(view)} data-gl={gl}>
         <div className="ws-flat" aria-hidden="true">
           <i className="ws-flat-bench" />
-          {BAYS.map((b) => (
-            <i key={b.n} className="ws-flat-bay" data-state={b.state} style={{ left: `${FLAT[`bay-${b.n}`]![0]}%` }} />
+          <i className="ws-flat-line" />
+          {STAGES.map((s) => (
+            <i key={s.n} className="ws-flat-st" data-id={s.id} style={{ left: `${FLAT_X[s.n - 1]}%` }} />
           ))}
-          <i className="ws-flat-table" />
         </div>
         <div className="ws-stage" ref={host}>
           <canvas ref={canvas} className="ws-cv" aria-hidden="true" />
@@ -193,24 +182,24 @@ export function Workshop() {
 
         <header ref={head} className="ws-head">
           <p className="ws-eyb">
-            The Workshop <i /> the print farm
+            The Workshop <i /> one printer, four stages
           </p>
           <h1 className="ws-h1 desk__title">
-            From a sentence <em>to a thing on the shelf.</em>
+            From a picture <em>to a print.</em>
           </h1>
-          <p className="ws-sub">A prompt becomes a picture, a model, a check on the turntable, a slice and a print, on your tap. Nothing is connected yet, so nothing is printing.</p>
+          <p className="ws-sub">An image designed in ChatGPT, meshed into a 3D model, made ready in the slicer, printed on the one printer. Nothing is connected yet, so nothing is moving through it.</p>
           <dl className="ws-stats">
             <div>
-              <dt>Printers</dt>
-              <dd>{printers}</dd>
+              <dt>Stages</dt>
+              <dd>{STAGES.length}</dd>
+            </div>
+            <div>
+              <dt>In the flow</dt>
+              <dd>0</dd>
             </div>
             <div>
               <dt>Printing</dt>
               <dd>0</dd>
-            </div>
-            <div>
-              <dt>Open bays</dt>
-              <dd>{open}</dd>
             </div>
             <div data-ok={allOk ? "1" : "0"}>
               <dt>Check</dt>
@@ -222,85 +211,62 @@ export function Workshop() {
           </dl>
         </header>
 
-        {gl === "none" && <p className="ws-nogl">This browser can't draw the farm in 3D, so it's drawn flat; every bay and the check are here all the same.</p>}
+        {gl === "none" && <p className="ws-nogl">This browser can't draw the bench in 3D, so it's drawn flat; every stage and the check are here all the same.</p>}
 
-        <ol className="ws-plates" aria-label="On the bench">
-          {BAYS.map((b) => {
-            const id = `bay-${b.n}`;
+        <ol className="ws-plates" aria-label="Along the bench">
+          {STAGES.map((s) => {
+            const id = `stage-${s.n}`;
             return (
-              <li key={b.n}>
+              <li key={s.n}>
                 <button
                   type="button"
                   ref={plateRef(id)}
-                  className={`ws-plate${b.state === "open" ? " is-open" : ""}`}
-                  data-state={b.state}
-                  style={flat(id)}
-                  tabIndex={onFarm ? 0 : -1}
-                  aria-label={`Bay ${b.n}: ${b.name}, ${b.line}. Step inside its chamber.`}
-                  onClick={() => setView({ k: "bay", n: b.n })}
+                  className="ws-plate"
+                  data-state={s.state}
+                  style={flat(s.n)}
+                  tabIndex={onFlow ? 0 : -1}
+                  aria-label={`Stage ${s.n}, ${s.name}: ${s.now}. ${s.wait}. Step up to it.`}
+                  onClick={() => setView({ k: "stage", n: s.n })}
                 >
                   <span className="ws-plate-k">
                     <i aria-hidden="true" />
-                    Bay {b.n}
-                    <span>{b.state === "waiting" ? "waiting" : "open"}</span>
+                    {two(s.n)} {s.name}
+                    <span>{STATE[s.state]}</span>
                   </span>
-                  {b.state === "open" ? (
-                    <small>{b.line}</small>
-                  ) : (
+                  <strong>{s.now}</strong>
+                  {s.id === "slice" ? (
+                    <span className="ws-plate-checks" aria-hidden="true">
+                      {checks.map((c) => (
+                        <i key={c.id} data-ok={c.ok ? "1" : "0"} title={c.label} />
+                      ))}
+                      <span>
+                        {passed}/{checks.length} · {cut.layers} layers
+                      </span>
+                    </span>
+                  ) : s.id === "print" ? (
                     <>
-                      <strong>{b.name}</strong>
                       <span className="ws-plate-job">
                         <span>Job</span> none <span>Layer</span> none
                       </span>
                       <span className="ws-plate-bar" aria-hidden="true">
                         <i style={{ width: "0%" }} />
                       </span>
-                      <small>{b.line}</small>
                     </>
-                  )}
+                  ) : null}
+                  <small>{s.wait}</small>
                 </button>
               </li>
             );
           })}
-          <li>
-            <button
-              type="button"
-              ref={plateRef("table")}
-              className="ws-plate is-table"
-              data-state="table"
-              style={flat("table")}
-              tabIndex={onFarm ? 0 : -1}
-              aria-label={`The turntable: the 40 mm check piece, ${passed} of ${checks.length} checks pass. Bring it round.`}
-              onClick={() => setView(TABLE)}
-            >
-              <span className="ws-plate-k">
-                <i aria-hidden="true" />
-                Turntable
-                <span>{allOk ? "checked" : "check"}</span>
-              </span>
-              <strong>The check piece, a 40 mm pawn</strong>
-              <span className="ws-plate-checks" aria-hidden="true">
-                {checks.map((c) => (
-                  <i key={c.id} data-ok={c.ok ? "1" : "0"} title={c.label} />
-                ))}
-                <span>
-                  {passed} of {checks.length} pass
-                </span>
-              </span>
-            </button>
-          </li>
         </ol>
 
         <nav className="ws-views" aria-label="Where to look">
-          <button type="button" aria-pressed={view.k === "farm"} onClick={() => setView(FARM)}>
-            The farm
+          <button type="button" aria-pressed={view.k === "flow"} onClick={() => setView(FLOW)}>
+            The flow
           </button>
-          <button type="button" aria-pressed={view.k === "table"} onClick={() => setView(TABLE)}>
-            Turntable
-          </button>
-          {BAYS.map((b) => (
-            <button key={b.n} type="button" className="ws-views-bay" aria-pressed={view.k === "bay" && view.n === b.n} aria-label={`Inside bay ${b.n}`} onClick={() => setView({ k: "bay", n: b.n })}>
-              {b.n}
+          {STAGES.map((s) => (
+            <button key={s.n} type="button" aria-pressed={view.k === "stage" && view.n === s.n} onClick={() => setView({ k: "stage", n: s.n })}>
+              <b>{s.n}</b> {s.name}
             </button>
           ))}
           <span className="ws-keys" aria-hidden="true">
@@ -308,13 +274,16 @@ export function Workshop() {
           </span>
         </nav>
 
-        {!onFarm && (
-          <aside className="ws-card" aria-live="polite" aria-label={bay ? `Inside bay ${bay.n}` : "The turntable"}>
-            {view.k === "table" && (
+        {stage && (
+          <aside className="ws-card" aria-live="polite" aria-label={`Stage ${stage.n}, ${stage.name}`}>
+            <p className="ws-card-k">
+              Stage {two(stage.n)} of {two(STAGES.length)} · {STATE[stage.state]}
+            </p>
+            <h2 className="ws-card-h">{stage.name}</h2>
+            <p className="ws-card-tool">{stage.tool}</p>
+            <p className="ws-note">{stage.inside}</p>
+            {stage.id === "slice" ? (
               <>
-                <p className="ws-card-k">The turntable · pre-print check</p>
-                <h2 className="ws-card-h">The check piece, a 40 mm pawn.</h2>
-                <p className="ws-note">The Workshop's own test piece turns here until Meshy hands over a real design; each check is measured from its shape.</p>
                 <ul className="ws-checks">
                   {checks.map((c) => (
                     <li key={c.id} data-ok={c.ok ? "1" : "0"}>
@@ -323,43 +292,56 @@ export function Workshop() {
                       <em>{c.detail}</em>
                     </li>
                   ))}
+                  <li data-ok="1">
+                    <span aria-hidden="true">≡</span>
+                    <b>Sliced</b>
+                    <em>
+                      {cut.layers} layers at {LAYER_MM.toFixed(2)} mm
+                    </em>
+                  </li>
                 </ul>
-                <p className="ws-note ws-quiet">Ready to slice once the hub is on the Mac. Nothing prints without your tap.</p>
+                <p className="ws-note ws-quiet">{stage.wait}. Nothing prints without your tap.</p>
               </>
-            )}
-            {bay && (
-              <>
-                <p className="ws-card-k">
-                  Inside bay {bay.n} · {bay.state === "waiting" ? "waiting" : "open"}
-                </p>
-                <h2 className="ws-card-h">{bay.name}</h2>
-                <p className="ws-note">{bay.inside}</p>
-                {bay.state === "waiting" && (
-                  <dl className="ws-chamber">
+            ) : (
+              <dl className="ws-chamber">
+                <div>
+                  <dt>Now</dt>
+                  <dd>{stage.now}</dd>
+                </div>
+                {stage.id === "print" ? (
+                  <>
                     <div>
                       <dt>Job</dt>
-                      <dd>None</dd>
-                    </div>
-                    <div>
-                      <dt>Layer</dt>
                       <dd>None</dd>
                     </div>
                     <div>
                       <dt>Camera</dt>
                       <dd>Waits on the LAN</dd>
                     </div>
-                  </dl>
+                  </>
+                ) : (
+                  <div className="ws-chamber-w">
+                    <dt>Waits on</dt>
+                    <dd>{stage.wait.replace(/^Waits on /, "")}</dd>
+                  </div>
                 )}
-              </>
+              </dl>
             )}
-            <button type="button" className="ws-back" onClick={() => setView(FARM)}>
-              Back to the farm
-            </button>
+            <div className="ws-card-nav">
+              <button type="button" className="ws-back" onClick={() => setView(FLOW)}>
+                Back to the flow
+              </button>
+              {stage.n < STAGES.length && (
+                <button type="button" className="ws-back ws-next" onClick={() => setView({ k: "stage", n: (stage.n + 1) as Stage["n"] })}>
+                  Next: {STAGES[stage.n]!.name} →
+                </button>
+              )}
+            </div>
           </aside>
         )}
       </section>
 
-      {/* Under the farm, one console on a build plate (#932): the line and what it waits on, one at a time. */}
+      {/* Under the line, one console on a build plate (#932): the four stages and what they wait on, one at a time. */}
       <section className="ws-deck" aria-label="The Workshop's console">
         <PlateSigils />
         <div className="ws-deck-top">
@@ -388,14 +370,15 @@ export function Workshop() {
         <div className="ws-deck-p" role="tabpanel" id="ws-panel" aria-labelledby={`ws-tab-${tab}`}>
           {tab === "line" ? (
             <ol className="ws-line">
-              {STATIONS.map((s) => (
-                <li key={s.k} data-ok={s.ok ? "1" : "0"}>
+              {STAGES.map((s) => (
+                <li key={s.n} data-ok={s.state === "check" ? "1" : "0"}>
                   <span className="ws-gc" aria-hidden="true">
-                    N{s.k}
+                    N{two(s.n)}
                   </span>
-                  <b className="ws-line-t">{s.t}</b>
-                  <span className="ws-line-s">{s.s}</span>
-                  <em>{s.w}</em>
+                  <b className="ws-line-t">{s.name}</b>
+                  <span className="ws-line-s">{s.tool}</span>
+                  <span className="ws-line-now">{s.id === "slice" ? `${s.now}: ${passed}/${checks.length} checks, ${cut.layers} layers` : s.now}</span>
+                  <em>{s.wait}</em>
                 </li>
               ))}
             </ol>

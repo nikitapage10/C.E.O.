@@ -30,6 +30,8 @@ export interface LightsPanelProps {
   placed: ReadonlySet<string>;
   /** The light being placed, by id. */
   placing: string | null;
+  /** Placing a run (#1007): the first tap is where it starts, the second where it ends; null for a single spot. */
+  placingStep?: "start" | "end" | null;
   /** Placing is possible (the house is drawn). */
   canPlace: boolean;
   busy: string | null;
@@ -40,7 +42,7 @@ export interface LightsPanelProps {
   onPlace: (id: string | null) => void;
 }
 
-export function LightsPanel({ view, placed, placing, canPlace, busy, note, onSet, onScene, onLook, onPlace }: LightsPanelProps) {
+export function LightsPanel({ view, placed, placing, placingStep = null, canPlace, busy, note, onSet, onScene, onLook, onPlace }: LightsPanelProps) {
   const [open, setOpen] = useState<string | null>(null);
   const [edit, setEdit] = useState(false);
   const groups = view.groups ?? [];
@@ -128,7 +130,7 @@ export function LightsPanel({ view, placed, placing, canPlace, busy, note, onSet
       </div>
       {placingName && (
         <p className="hv-lt-note is-placing" role="status">
-          Tap where {placingName} stands on the house.
+          {placingStep === "start" ? `Tap where ${placingName} starts on the house.` : placingStep === "end" ? `Now tap where ${placingName} ends.` : `Tap where ${placingName} stands on the house.`}
         </p>
       )}
       {rooms.length > 0 && (

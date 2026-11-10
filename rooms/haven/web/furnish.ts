@@ -24,7 +24,8 @@ import { KIND_STYLE } from "./style.ts";
  *                 chair, speakers either side, a tall shelf at its other end), two low sofas meeting in an L along the
  *                 south and west walls, a coffee table on a rug in front of them, and the DJ decks in the north-east
  *                 corner (STUDIO_WALLS). No printer.
- *   Kitchen       what the plan has, with the fridge at the left end of the cabinet run (looking at it), the espresso
+ *   Kitchen       what the plan has, with the fridge at the left end of the cabinet run (looking at it), the hob
+ *                 centre-left on the run, about a third of the way from the fridge's end (#1007), the espresso
  *                 machine on the counter, no sideboard or cabinet of bottles, and on the wall across from the
  *                 cabinets five tall black-and-white canvases side by side, one picture of trees and mountains; a tub
  *                 chair in a free corner of the dining area.
@@ -370,9 +371,28 @@ function kitchen(r: PlanRoom, R: Rect, items: PlanItem[], plan: HavenPlan): Plan
       });
     }
   }
-  // The espresso machine on the counter, toward the end away from the fridge, clear of the sink and the hob.
+  // The hob centre-left on the run (#1007), about a third of the way along from the fridge's end, leaving the stretch
+  // toward the coffee maker clear (the kitchen's backlight glows there, fixtures.ts). A sink in the way moves to the
+  // hob's fridge side, or failing that to where the hob was.
   const nr = boxOf(list[ri]!);
   const [n0, n1] = A(nr), xs = X(nr);
+  const onRun = (i: PlanItem) => band(i) && inBox(...mid(i), [nr[0] - 2, nr[1] - 2, nr[2] + 2, nr[3] + 2]);
+  const hob = list.findIndex((i) => i.k === "range" && onRun(i));
+  if (hob >= 0) {
+    const h = list[hob]!, [h0, h1] = A(boxOf(h)), hL = h1 - h0;
+    const want = clampLen(leftLow ? n0 + (n1 - n0) * 0.36 - hL / 2 : n1 - (n1 - n0) * 0.36 - hL / 2, n0 + 4, n1 - 4 - hL);
+    const put = (it: PlanItem, at: number): PlanItem => (along ? { ...it, x: Math.round(at) } : { ...it, y: Math.round(at) });
+    list[hob] = put(h, want);
+    const sinkAt = list.findIndex((i) => i.k === "sink" && onRun(i));
+    if (sinkAt >= 0) {
+      const s = list[sinkAt]!, [s0, s1] = A(boxOf(s)), sL = s1 - s0;
+      if (s0 < want + hL + 6 && s1 > want - 6) {
+        const beside = leftLow ? want - 10 - sL : want + hL + 10;
+        list[sinkAt] = put(s, beside >= n0 + 4 && beside + sL <= n1 - 4 ? beside : h0);
+      }
+    }
+  }
+  // The espresso machine on the counter, toward the end away from the fridge, clear of the sink and the hob.
   const busy = list.filter((i) => (i.k === "sink" || i.k === "range") && inBox(...mid(i), nr)).map((i) => A(boxOf(i)));
   const len = 30, dep = Math.max(10, Math.min(26, xs[1] - xs[0] - 4));
   const at = wall === "n" || wall === "w" ? xs[0] + 2 : xs[1] - 2 - dep;

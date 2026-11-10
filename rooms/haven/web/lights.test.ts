@@ -95,12 +95,15 @@ describe("the lights Nikita uses, and the rooms the switches light (#1002)", () 
     expect(HIDDEN_LIGHTS).toContain("Island Lights");
   });
 
-  it("lights the whole room for a SwitchBot switch, the laundry's as the hall's", () => {
+  it("lights the whole room for a SwitchBot switch, unless it's one of the home's fixtures (#1007)", () => {
     const of = (l: Light) => roomLightOf(plan, l)?.id ?? null;
     expect(of(light("Living Room"))).toBe("living");
-    expect(of(light("Kitchen"))).toBe("kitchen");
     expect(of(light("Dining Room"))).toBe("nook");
-    expect(of(light("Laundry"))).toBe("hall");
+    expect(of(light("Hall Lights"))).toBe("hall");
+    // The kitchen's backlight, the laundry's fitting and the living room's spot rows are drawn as what they are.
+    expect(of(light("Kitchen"))).toBeNull();
+    expect(of(light("Laundry"))).toBeNull();
+    expect(of(light("Left Living Room"))).toBeNull();
     // A Govee lamp lights round itself, not the room; so does a switch with no room to its name or spot.
     expect(of(govee("Kitchen"))).toBeNull();
     expect(of(light("Porch"))).toBeNull();
@@ -108,13 +111,13 @@ describe("the lights Nikita uses, and the rooms the switches light (#1002)", () 
     expect(roomLightOf(plan, light("Porch"), { x: hx + 10, y: hy + 10 })?.id).toBe("hall");
   });
 
-  it("places the laundry's switch in the hall, and draws each switch as its room's lights, off when it's off", () => {
+  it("places the laundry's switch in the hall, and draws a plain switch as its room's lights, off when it's off", () => {
     expect(placeLights(plan, [light("Laundry")]).loose).toEqual([]);
-    const list = drawList(plan, [light("Laundry"), { ...light("Kitchen"), on: true }, govee("Floor Lamp Left")], [{ name: "floor lamp left", x: 300, y: 600 }], false);
+    const list = drawList(plan, [light("Hall"), { ...light("Dining"), on: true }, govee("Floor Lamp Left")], [{ name: "floor lamp left", x: 300, y: 600 }], false);
     const hall = boxOf(plan.rooms.find((r) => r.id === "hall")!);
     expect(list.map((d) => [d.light.name, d.fixture, d.light.on])).toEqual([
-      ["Laundry", "room", false],
-      ["Kitchen", "room", true],
+      ["Hall", "room", false],
+      ["Dining", "room", true],
       ["Floor Lamp Left", "floor", false],
     ]);
     expect(list[0]!.room).toEqual(hall);

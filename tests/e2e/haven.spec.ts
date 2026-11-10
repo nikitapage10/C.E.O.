@@ -6,6 +6,7 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
 import { DEFAULT_GYM_PLAN } from "../../api/_haven/gymShape.ts";
+import { SENATE_WAIT_MS } from "@ceo/desk/keptRooms.ts";
 import { fakeMeals } from "../../api/_haven/meals.fixture.ts";
 import { allComponents, applyEdit, readEdit, type MealsFile } from "../../api/_haven/mealShape.ts";
 
@@ -230,7 +231,9 @@ test("signed in: the kept Haven warms up behind the Desk, and coming back to it 
   // The Senate on screen; the Haven and Relay mount behind it, hidden, soon after the first paint.
   const haven = page.locator('main.desk__main[data-room="haven"]');
   await expect(haven).toBeHidden();
-  await expect(page.locator('main.desk__main[data-room="relay"]')).toHaveCount(1, { timeout: 30_000 });
+  // Since #973 the Haven and Relay wait for the Senate's chamber to report built, or SENATE_WAIT_MS at most: on a slow
+  // software-GL runner that alone can take the whole half minute, then each mounts in an idle slot of its own.
+  await expect(page.locator('main.desk__main[data-room="relay"]')).toHaveCount(1, { timeout: SENATE_WAIT_MS + 30_000 });
   const tab = (path: string) => page.evaluate((p) => (document.querySelector(`.wv-tab[href="${p}"]`) as HTMLElement).click(), path);
   // The one-shot CSS animations running in the Haven's page now.
   const replaying = () =>
@@ -367,7 +370,7 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   // The hold below is timed, so first let the kept rooms behind the Haven finish warming (#934, #958): the Senate's
   // chamber builds while hidden, and on the software renderer that holds the main thread for seconds, which would land
   // the three-second send late (#967). Relay is the last one kept.
-  await expect(page.locator('main.desk__main[data-room="relay"]')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.locator('main.desk__main[data-room="relay"]')).toHaveCount(1, { timeout: SENATE_WAIT_MS + 30_000 });
   await expect(page.locator(".rt-stage")).toHaveAttribute("data-gl", /^(on|off)$/, { timeout: 60_000 });
   // The arrow keys turn it a degree at a time, and it sends once, through the control's own action.
   await dial.focus();

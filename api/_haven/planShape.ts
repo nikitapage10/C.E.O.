@@ -87,7 +87,16 @@ export interface PlanLight {
   name: string;
   x: number;
   y: number;
+  /** A run's far end (#1007): a row of ceiling spots or a backlight strip runs from (x, y) to here. */
+  x2?: number;
+  y2?: number;
+  /** What the light is, when the plan says (#1007); else the Desk goes by its name (rooms/haven/web/fixtures.ts). */
+  kind?: LightKind;
 }
+
+/** What a home's light fixture is (#1007): a row of ceiling spots, a backlight strip on a wall, a single fitting's glow. */
+export const LIGHT_KINDS = ["spots", "backlight", "glow"] as const;
+export type LightKind = (typeof LIGHT_KINDS)[number];
 
 export interface HavenPlan {
   v: 1;
@@ -191,7 +200,9 @@ export function readPlan(v: unknown): HavenPlan | null {
   const lights: PlanLight[] = [];
   for (const l of arr(b.lights, LIMITS.lights).map(o)) {
     const x = n(l.x), y = n(l.y), nm = lightName(l.name);
-    if (x !== null && y !== null && nm) lights.push({ name: nm, x, y });
+    if (x === null || y === null || !nm) continue;
+    const x2 = n(l.x2), y2 = n(l.y2);
+    lights.push({ name: nm, x, y, ...(x2 !== null && y2 !== null ? { x2, y2 } : {}), ...(LIGHT_KINDS.includes(l.kind as LightKind) ? { kind: l.kind as LightKind } : {}) });
   }
   const path: [number, number][] = [];
   for (const p of arr(b.path, LIMITS.path)) {
@@ -229,11 +240,12 @@ export function lightKey(v: string): string {
 }
 
 /**
- * The plan with one light's spot set (#974: a tap on the house, or Skippy's lights_place), or taken off with `at` null.
+ * The plan with one light's spot set (#974: a tap on the house, or Skippy's lights_place), or taken off with `at` null;
+ * with `x2`, `y2` the spot is a run (#1007).
  * Its old spot goes, whatever case it was written in; the spot is clamped to the plan. Null when the name is empty or
  * the plan already holds as many spots as it can and this one is new.
  */
-export function placeLight(plan: HavenPlan, name: string, at: { x: number; y: number } | null): HavenPlan | null {
+export function placeLight(plan: HavenPlan, name: string, at: { x: number; y: number; x2?: number; y2?: number } | null): HavenPlan | null {
   const nm = lightName(name);
   if (!nm) return null;
   const rest = (plan.lights ?? []).filter((l) => lightKey(l.name) !== lightKey(nm));
@@ -244,7 +256,11 @@ export function placeLight(plan: HavenPlan, name: string, at: { x: number; y: nu
   if (rest.length >= LIMITS.lights) return null;
   const x = n(at.x, 0, plan.w), y = n(at.y, 0, plan.h);
   if (x === null || y === null) return null;
-  return { ...plan, lights: [...rest, { name: nm, x, y }] };
+  // A run's far end (#1007: two taps for a row of spots or a backlight strip), clamped the same way; a kind saved
+  // before is kept.
+  const x2 = typeof at.x2 === "number" ? n(at.x2, 0, plan.w) : null, y2 = typeof at.y2 === "number" ? n(at.y2, 0, plan.h) : null;
+  const kind = (plan.lights ?? []).find((l) => lightKey(l.name) === lightKey(nm))?.kind;
+  return { ...plan, lights: [...rest, { name: nm, x, y, ...(x2 !== null && y2 !== null ? { x2, y2 } : {}), ...(kind ? { kind } : {}) }] };
 }
 
 /** Where in a room a light stands, said in words (#974, Skippy's lights_place): its middle, a wall's middle or a corner. */

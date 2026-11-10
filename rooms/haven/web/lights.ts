@@ -1,6 +1,7 @@
 import type { Light, LightsView } from "../../../api/_haven/lights/lights.ts";
 import { readPlan, type PlanLight } from "../../../api/_haven/planShape.ts";
 import { roomAt, type HavenPlan, type PlanRoom } from "./data.ts";
+import { kindOf } from "./fixtures.ts";
 
 export type { Group, Light, LightLook, LightsView, Remote, Scene } from "../../../api/_haven/lights/lights.ts";
 
@@ -15,6 +16,8 @@ export type { Group, Light, LightLook, LightsView, Remote, Scene } from "../../.
  * #1002: the lights Nikita doesn't use are left out of the Haven (`HIDDEN_LIGHTS`, still switchable by Skippy), and a
  * SwitchBot switch is a room's own lights: the whole room is lit while it's on and dark while it's off (`roomLightOf`).
  * The laundry's switch counts as the hall's.
+ * #1007: a light with a fixture kind (fixtures.ts: the living room's two rows of ceiling spots, the kitchen's backlight,
+ * the laundry's fitting) is drawn as that fixture where it really is, not as a whole room's lights.
  */
 
 const PATH = "/api/haven/lights";
@@ -53,9 +56,11 @@ export async function postLights(body: LightsPost, f: typeof fetch = fetch): Pro
  * One light's spot on the private plan (#974), or off it (`at` null): the plan's light spots as saved, or what to say.
  * Passkey only, like the plan.
  */
-export async function placeLightAt(name: string, at: { x: number; y: number } | null, f: typeof fetch = fetch): Promise<{ ok: true; spots: PlanLight[] } | { ok: false; say: string }> {
+export async function placeLightAt(name: string, at: { x: number; y: number; x2?: number; y2?: number } | null, f: typeof fetch = fetch): Promise<{ ok: true; spots: PlanLight[] } | { ok: false; say: string }> {
   try {
-    const body = at ? { action: "light", name, x: Math.round(at.x), y: Math.round(at.y) } : { action: "light", name, clear: true };
+    // A run (#1007: a row of spots, a backlight) sends its far end too.
+    const far = at && typeof at.x2 === "number" && typeof at.y2 === "number" ? { x2: Math.round(at.x2), y2: Math.round(at.y2) } : {};
+    const body = at ? { action: "light", name, x: Math.round(at.x), y: Math.round(at.y), ...far } : { action: "light", name, clear: true };
     const res = await f("/api/haven-plan", { method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body) });
     if (res.status === 401) return { ok: false, say: "Your session ended. Sign in again." };
     if (res.status === 409) return { ok: false, say: "Save the floor plan first." };
@@ -113,8 +118,8 @@ function roomNamed(plan: HavenPlan, name: string): PlanRoom | null {
  * the kitchen, the dining room, the hall), so it lights the room its name says, else the room its spot is in. A floor
  * lamp or an under-light, or a Govee light, lights only round itself: null.
  */
-export function roomLightOf(plan: HavenPlan, light: Pick<Light, "vendor" | "name">, at?: { x: number; y: number }): PlanRoom | null {
-  if (light.vendor !== "switchbot" || fixtureOf(light.name) !== "ceiling") return null;
+export function roomLightOf(plan: HavenPlan, light: Pick<Light, "vendor" | "name">, at?: { x: number; y: number; spot?: PlanLight }): PlanRoom | null {
+  if (light.vendor !== "switchbot" || fixtureOf(light.name) !== "ceiling" || kindOf(light.name, at?.spot) !== null) return null;
   const r = roomNamed(plan, words(light.name)) ?? (at ? roomAt(plan, at.x, at.y) : null);
   return r && !r.detached ? r : null;
 }
@@ -124,6 +129,8 @@ export interface PlacedLight {
   light: Light;
   x: number;
   y: number;
+  /** The plan's own spot for it, when it has one (#1007: a run's far end and its kind live there). */
+  spot?: PlanLight;
 }
 
 const words = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
@@ -136,7 +143,7 @@ export function placeLights(plan: HavenPlan, lights: readonly Light[], spots: re
     const name = words(light.name);
     const spot = spots?.find((s) => words(s.name) === name);
     if (spot) {
-      placed.push({ light, x: spot.x, y: spot.y });
+      placed.push({ light, x: spot.x, y: spot.y, spot });
       continue;
     }
     // The room whose name the light's holds, the longest name first ("Living room" before "Room"); "Laundry" the hall.

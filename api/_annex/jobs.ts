@@ -7,8 +7,8 @@
  * floor, the avoid list, the resume) is typed on the Desk, never written in the repo. Logs carry counts only.
  *
  * Light on quota. SerpApi counts every search against a monthly plan, so: one scheduled run a day at most, a run is one
- * search per saved query (at most MAX_SEARCHES), a hand run waits MANUAL_GAP_MS after the last, and nothing runs once
- * this month's searches reach the budget (JOBS_MONTHLY_SEARCHES, default 200). SerpApi's own account page (free, not
+ * search per saved query, rotating through up to MAX_SEARCHES of them PER_RUN at a time, a hand run waits MANUAL_GAP_MS after the last, and nothing runs once
+ * this month's searches reach the budget (JOBS_MONTHLY_SEARCHES, default 240). SerpApi's own account page (free, not
  * counted) is read after each run so the Desk shows the plan's real searches left. No Claude call anywhere: matches
  * are scored with plain rules against the profile and the resume's words.
  *
@@ -30,7 +30,9 @@ export const SERP_URL = "https://serpapi.com/search.json";
 export const SERP_ACCOUNT_URL = "https://serpapi.com/account.json";
 
 /** At most this many saved searches, so one run is at most this many SerpApi searches. */
-export const MAX_SEARCHES = 6;
+export const MAX_SEARCHES = 16;
+/** Searches in one run: a longer list is worked through in turns, PER_RUN a day, so each search comes round every few days. */
+export const PER_RUN = 7;
 /** Jobs kept at most; the oldest unsaved ones go first. */
 export const MAX_JOBS = 300;
 /** A job not seen again and not saved or applied to drops off after this long. */
@@ -39,7 +41,7 @@ export const STALE_MS = 21 * 86_400_000;
 export const SCHEDULE_GAP_MS = 20 * 3_600_000;
 /** A hand run waits this long after the last run of any kind. */
 export const MANUAL_GAP_MS = 30 * 60_000;
-export const DEFAULT_MONTHLY = 200;
+export const DEFAULT_MONTHLY = 240;
 export const MAX_RESUME = 20_000;
 
 export const JOB_STATES = ["new", "saved", "applied", "dismissed"] as const;
@@ -66,6 +68,8 @@ export interface JobsProfile {
   companies: string[];
   /** Whether the daily run is on. */
   daily: boolean;
+  /** Your years of experience: a job is ranked by how its asked-for years compare, never by its title's level. */
+  years: number | null;
 }
 
 export interface Job {
@@ -85,6 +89,8 @@ export interface Job {
   apply: { title: string; link: string }[];
   snippet: string;
   highlights: string[];
+  /** The years of experience the posting asks for, read from its text; null when it names none. */
+  yearsAsked?: number | null;
   /** Which saved search found it first. */
   search: string;
   score: number;
@@ -119,6 +125,8 @@ export interface JobsState {
   /** This month (UTC, YYYY-MM) and how many searches the runs used in it. */
   month: string;
   used: number;
+  /** Where the next run starts in the saved searches (they rotate when there are more than PER_RUN). */
+  cursor: number;
   account: JobsAccount | null;
 }
 
@@ -129,8 +137,8 @@ export interface JobsView extends JobsState {
   nextRun: string | null;
 }
 
-export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true });
-export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, account: null });
+export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null });
+export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null });
 
 /* ── Reading things defensively ── */
 
@@ -150,6 +158,23 @@ const httpsLink = (v: unknown): string | null => {
   }
 };
 
+const yearsOf = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 && n < 60 ? Math.round(n) : null;
+};
+
+/**
+ * The years of experience a posting asks for: "8+ years", "5-7 years of experience", "at least 10 years". The
+ * largest number next to "years" (the main ask; a range counts by its low end, and "3 years in AI" beside "8+ years"
+ * stays 8); null when it names none.
+ */
+export function yearsAskedIn(text: string): number | null {
+  const found = [...text.toLowerCase().matchAll(/(\d{1,2})\s*(?:\+|plus)?\s*(?:(?:-|–|to)\s*\d{1,2}\s*\+?\s*)?(?:years?|yrs?)\b/g)]
+    .map((m) => Number(m[1]))
+    .filter((n) => n >= 1 && n <= 30);
+  return found.length ? Math.max(...found) : null;
+}
+
 export function cleanProfile(raw: unknown): JobsProfile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof JobsProfile, unknown>>;
   const searches = (Array.isArray(r.searches) ? r.searches : [])
@@ -160,7 +185,7 @@ export function cleanProfile(raw: unknown): JobsProfile {
     .filter((s) => s.q)
     .slice(0, MAX_SEARCHES);
   const n = typeof r.minSalary === "number" ? r.minSalary : typeof r.minSalary === "string" ? Number(r.minSalary.replace(/[^\d.]/g, "")) : NaN;
-  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: words(r.companies), daily: r.daily !== false };
+  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: words(r.companies), daily: r.daily !== false, years: yearsOf(r.years) };
 }
 
 const isState = (v: unknown): v is JobState => (JOB_STATES as readonly unknown[]).includes(v);
@@ -174,6 +199,7 @@ export function readJobs(raw: unknown): JobsState {
   s.runs = Array.isArray(r.runs) ? r.runs.slice(0, 30) : [];
   s.month = typeof r.month === "string" ? r.month.slice(0, 7) : "";
   s.used = typeof r.used === "number" && r.used >= 0 ? r.used : 0;
+  s.cursor = typeof r.cursor === "number" && Number.isInteger(r.cursor) && r.cursor >= 0 ? r.cursor : 0;
   s.account = r.account && typeof r.account === "object" ? r.account : null;
   return s;
 }
@@ -243,6 +269,7 @@ export function normaliseJob(raw: SerpJob, search: string, nowIso: string): Job 
     link: apply[0]?.link ?? httpsLink(raw.share_link),
     apply,
     snippet: str(raw.description, 700),
+    yearsAsked: yearsAskedIn(`${str(raw.description, 20_000)} ${highlights.join(" ")}`),
     highlights,
     search,
     score: 0,
@@ -257,8 +284,6 @@ export function normaliseJob(raw: SerpJob, search: string, nowIso: string): Job 
 
 /* ── Scoring: plain rules, no model ── */
 
-const SENIOR = /\b(senior|sr\.?|staff|principal|lead|group|director|head of)\b/i;
-const JUNIOR = /\b(junior|jr\.?|associate|intern|entry[- ]level|apprentice)\b/i;
 const STOP = new Set("a an and are as at be by for from has have in is it of on or our that the this to was we were will with you your".split(" "));
 
 /** The resume's distinct words of four letters or more, for overlap with a job's text. */
@@ -282,8 +307,14 @@ export function scoreJob(job: Job, profile: JobsProfile, resume: Set<string>): J
     score += n;
     why.push(w);
   };
-  if (SENIOR.test(job.title)) lift(12, "senior level");
-  if (JUNIOR.test(job.title)) lift(-20, "junior level");
+  // Experience asked for, not the title's level: a Director at one company is a Senior at another (Nikita, 2026-11-10).
+  const asked = job.yearsAsked ?? null;
+  if (asked !== null && profile.years) {
+    if (asked > profile.years + 2) lift(-15, `asks ${asked}+ years`);
+    else if (asked >= profile.years - 4) lift(14, `asks ${asked}+ years, fits`);
+    else if (asked <= profile.years - 7) lift(-8, `asks only ${asked}+ years`);
+    else lift(6, `asks ${asked}+ years`);
+  }
   const fav = profile.companies.find((w) => hasWord(job.company, w));
   if (fav) lift(18, "on your company list");
   const pref = profile.prefer.filter((w) => hasWord(hay, w));
@@ -410,6 +441,13 @@ export function tidy(jobs: Job[], profile: JobsProfile, resume: Set<string>, now
   return [...keep, ...rest].slice(0, Math.max(MAX_JOBS, keep.length));
 }
 
+/** The next run's searches: PER_RUN of them from the cursor, wrapping round the list. */
+export function batchOf<T>(searches: T[], cursor: number): T[] {
+  const n = searches.length;
+  if (n <= PER_RUN) return searches;
+  return Array.from({ length: PER_RUN }, (_, i) => searches[(cursor + i) % n]!);
+}
+
 export type RunResult = "ran" | "no-key" | "no-searches" | "budget" | "not-due" | "off" | "failed";
 
 /** One run of the saved searches. `by: "schedule"` keeps to the daily gap; a hand run to MANUAL_GAP_MS. */
@@ -423,7 +461,8 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
   const last = state.runs.find((r) => by === "hand" || r.by === "schedule");
   const gap = by === "schedule" ? SCHEDULE_GAP_MS : MANUAL_GAP_MS;
   if (last && deps.now - Date.parse(last.at) < gap) return { result: "not-due", state };
-  if (state.used + searches.length > deps.budget) return { result: "budget", state };
+  const batch = batchOf(searches, state.cursor);
+  if (state.used + batch.length > deps.budget) return { result: "budget", state };
 
   const nowIso = new Date(deps.now).toISOString();
   const byId = new Map(state.jobs.map((j) => [j.id, j]));
@@ -431,7 +470,7 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
   let added = 0;
   let used = 0;
   let error: string | null = null;
-  for (const s of searches) {
+  for (const s of batch) {
     used++;
     try {
       const res = await deps.fetcher(searchUrl(s, deps.key), { signal: AbortSignal.timeout(30_000) });
@@ -459,6 +498,7 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
     }
   }
   state.used += used;
+  state.cursor = searches.length ? (state.cursor + batch.length) % searches.length : 0;
   const resume = resumeWords(await deps.store.readResume().catch(() => ""));
   state.jobs = tidy([...byId.values()], state.profile, resume, deps.now);
   state.runs = [{ at: nowIso, by, searches: used, found, added, error }, ...state.runs].slice(0, 30);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, searchUrl, type JobsDeps } from "./jobs.ts";
+import { yearsAskedIn, changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, searchUrl, type JobsDeps } from "./jobs.ts";
 
 const NOW = Date.parse("2026-11-10T22:00:00Z");
 
@@ -52,19 +52,35 @@ describe("the Job search (#1000)", () => {
 
   it("cleans a profile from the Desk", () => {
     const p = cleanProfile({ searches: [{ q: " PM ", location: "Denver", remote: "yes" }, { q: "" }, ...Array(10).fill({ q: "x" })], minSalary: "$180,000", prefer: "AI, platform", avoid: ["Crypto", "crypto"] });
-    expect(p.searches).toHaveLength(6);
+    expect(p.searches).toHaveLength(11);
     expect(p.searches[0]).toEqual({ q: "PM", location: "Denver", remote: false });
     expect(p.minSalary).toBe(180_000);
     expect(p.prefer).toEqual(["ai", "platform"]);
     expect(p.avoid).toEqual(["crypto"]);
   });
 
-  it("hides jobs under the pay floor or with an avoided word, and lifts senior ones", () => {
+  it("reads the years of experience a posting asks for", () => {
+    expect(yearsAskedIn("You have 8+ years of program management experience and 3 years in AI")).toBe(8);
+    expect(yearsAskedIn("5-7 years of experience")).toBe(5);
+    expect(yearsAskedIn("at least 10 yrs in security")).toBe(10);
+    expect(yearsAskedIn("Founded 20 years ago")).toBe(20);
+    expect(yearsAskedIn("No numbers here")).toBeNull();
+  });
+
+  it("ranks by experience asked, not the title's level", () => {
+    const j = normaliseJob(serpJob("d", "Director, Technical Programs", { description: "8+ years leading programs" }), "q", "t")!;
+    expect(j.yearsAsked).toBe(8);
+    const p = cleanProfile({ years: 10 });
+    expect(scoreJob(j, p, new Set()).why).toContain("asks 8+ years, fits");
+    expect(scoreJob(j, p, new Set()).hidden).toBeNull();
+    expect(scoreJob({ ...j, yearsAsked: 15 }, p, new Set()).why).toContain("asks 15+ years");
+  });
+
+  it("hides jobs under the pay floor or with an avoided word", () => {
     const j = normaliseJob(serpJob("a", "Senior Product Manager"), "Product Manager", "t")!;
     const p = cleanProfile({ searches: [{ q: "Product Manager" }], minSalary: 250_000, prefer: ["roadmap"] });
     const s = scoreJob(j, p, new Set());
     expect(s.hidden).toBe("pay under your floor");
-    expect(s.why).toContain("senior level");
     expect(scoreJob(j, cleanProfile({ avoid: ["example"] }), new Set()).hidden).toBe('has "example"');
     // Whole words only: "lab" never hides "Labs", "ai" never lifts "maintain".
     expect(scoreJob(j, cleanProfile({ avoid: ["lab"] }), new Set()).hidden).toBeNull();
@@ -133,6 +149,19 @@ describe("the Job search (#1000)", () => {
     expect(store.resume).toContain("roadmap");
     expect(JSON.stringify(store.state)).not.toContain("roadmap planning");
     expect("state" in r && r.state.jobs[0]!.why).toContain("fits your resume");
+  });
+
+  it("rotates a long list, PER_RUN searches a run", async () => {
+    const store = new MemoryJobsStore();
+    store.state.profile = cleanProfile({ searches: Array.from({ length: 10 }, (_, i) => ({ q: `s${i}` })) });
+    const a = deps(store);
+    await runJobs(a.d, "hand");
+    const qs = (urls: string[]) => urls.filter((u) => u.includes("search.json")).map((u) => new URL(u).searchParams.get("q"));
+    expect(qs(a.urls)).toEqual(["s0", "s1", "s2", "s3", "s4", "s5", "s6"]);
+    const b = deps(store, [], { now: NOW + 3_600_000 });
+    await runJobs(b.d, "hand");
+    expect(qs(b.urls)).toEqual(["s7", "s8", "s9", "s0", "s1", "s2", "s3"]);
+    expect(store.state.used).toBe(14);
   });
 
   it("names the next daily run", () => {

@@ -135,16 +135,17 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
   const [avoid, setAvoid] = useState(joinWords(profile.avoid));
   const [companies, setCompanies] = useState(joinWords(profile.companies));
   const [daily, setDaily] = useState(profile.daily);
+  const [years, setYears] = useState(profile.years ? String(profile.years) : "");
   const [resume, setResume] = useState("");
   const edit = (i: number, patch: Partial<(typeof searches)[number]>) => setSearches((s) => s.map((x, n) => (n === i ? { ...x, ...patch } : x)));
   const save = () =>
-    onSave({ searches: searches.filter((s) => s.q.trim()), minSalary: floor ? Number(floor.replace(/[^\d]/g, "")) || null : null, prefer: splitWords(prefer), avoid: splitWords(avoid), companies: splitWords(companies), daily });
+    onSave({ searches: searches.filter((s) => s.q.trim()), minSalary: floor ? Number(floor.replace(/[^\d]/g, "")) || null : null, prefer: splitWords(prefer), avoid: splitWords(avoid), companies: splitWords(companies), daily, years: Number(years) || null });
 
   return (
     <div className="jb-setup">
       <section className="jb-card">
         <h3 className="jb-h3">Searches</h3>
-        <p className="jb-note">Each search is one SerpApi search per run, six at most. Leave the place empty to search anywhere; tick Remote for work-from-home only.</p>
+        <p className="jb-note">Up to 16 searches. Each run does 7 of them in turn (one SerpApi search each), so a longer list comes round every few days. Leave the place empty to search anywhere; tick Remote for work-from-home only.</p>
         <ol className="jb-searches">
           {searches.map((s, i) => (
             <li key={i}>
@@ -159,7 +160,7 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
             </li>
           ))}
         </ol>
-        {searches.length < 6 && (
+        {searches.length < 16 && (
           <button type="button" className="jb-btn" onClick={() => setSearches((x) => [...x, { q: "", location: "", remote: false }])}>
             Add a search
           </button>
@@ -170,6 +171,11 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
           <span>Pay floor, a year</span>
           <input className="jb-in" inputMode="numeric" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="e.g. 180000" />
           <small>Hides jobs whose listed pay tops out below it. Jobs with no pay listed still show.</small>
+        </label>
+        <label className="jb-field">
+          <span>Your years of experience</span>
+          <input className="jb-in" inputMode="numeric" value={years} onChange={(e) => setYears(e.target.value.replace(/[^\d]/g, ""))} placeholder="e.g. 10" />
+          <small>Jobs rank by the years they ask for, not by their title's level.</small>
         </label>
         <label className="jb-field">
           <span>Daily run</span>
@@ -275,7 +281,8 @@ export function JobSearch() {
   const counts = (s: JobState) => view.jobs.filter((j) => j.state === s).length;
   const hiddenN = view.jobs.filter((j) => j.hidden && (j.state === "new" || j.state === "saved")).length;
   const newToday = last ? view.jobs.filter((j) => j.firstSeen === last.at).length : 0;
-  const perRun = view.profile.searches.length;
+  const saved = view.profile.searches.length;
+  const perRun = Math.min(7, saved);
   const left = view.budget - view.used;
 
   return (
@@ -333,7 +340,7 @@ export function JobSearch() {
         <div>
           <dt>Next daily run</dt>
           <dd className="jb-dd-sm">{view.nextRun ? new Date(view.nextRun).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : "Off"}</dd>
-          <small>{perRun ? `${perRun} ${perRun === 1 ? "search" : "searches"} a run` : "add a search"}</small>
+          <small>{perRun ? `${perRun} ${perRun === 1 ? "search" : "searches"} a run${saved > perRun ? `, of ${saved} in turn` : ""}` : "add a search"}</small>
         </div>
       </dl>
 

@@ -21,6 +21,7 @@ export interface JobsProfile {
   avoid: string[];
   companies: string[];
   daily: boolean;
+  years: number | null;
 }
 
 export interface Job {
@@ -39,6 +40,7 @@ export interface Job {
   apply: { title: string; link: string }[];
   snippet: string;
   highlights: string[];
+  yearsAsked?: number | null;
   search: string;
   score: number;
   why: string[];
@@ -64,6 +66,7 @@ export interface JobsView {
   runs: JobRun[];
   month: string;
   used: number;
+  cursor: number;
   budget: number;
   account: { perMonth: number | null; left: number | null; at: string } | null;
   configured: boolean;

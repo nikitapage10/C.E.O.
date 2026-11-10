@@ -1,0 +1,30 @@
+/*
+ * The Boiler Room's deck as its own hardware (#977, after the Foundry's, Workshop's, Annex's and Studio's, #932): over
+ * the gold wire and the room's brass pipe runs (PipeSigils.ts), each card is a riveted gauge plate with its brass
+ * nameplate on top and each reading behind its own glass window, and each fold below is a run of pipe with its valve
+ * wheel, a quarter turn open. The same readings and words as before; only the room they sit in changes.
+ */
+/* The plate: a riveted steel face, a rivet at each corner. */
+[data-room="boiler"] .bx-deck .bx-card{background:radial-gradient(circle at 12px 12px,#8a7448 0 2px,#2a2419 2.5px 3.5px,transparent 4px),radial-gradient(circle at calc(100% - 12px) 12px,#8a7448 0 2px,#2a2419 2.5px 3.5px,transparent 4px),radial-gradient(circle at 12px calc(100% - 12px),#8a7448 0 2px,#2a2419 2.5px 3.5px,transparent 4px),radial-gradient(circle at calc(100% - 12px) calc(100% - 12px),#8a7448 0 2px,#2a2419 2.5px 3.5px,transparent 4px),repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px),linear-gradient(180deg,rgba(24,21,16,.94),rgba(10,10,11,.94))}
+/* Its brass nameplate: the line's name stamped on a strip. */
+[data-room="boiler"] .bx-deck .bx-card>.bx-eyb{align-self:flex-start;padding:5px 10px;border:1px solid rgba(201,168,92,.4);border-radius:2px;background:linear-gradient(180deg,#2c261b,#17140f 55%,#211c14);box-shadow:inset 0 1px 0 rgba(255,236,190,.12),0 2px 6px #000;color:#e3c98d;letter-spacing:.16em}
+/* Each reading behind a window of glass in a gold bezel. */
+[data-room="boiler"] .bx-deck .bx-card .bx-readout{gap:10px;border-top:0;padding-top:0}
+[data-room="boiler"] .bx-deck .bx-card .bx-readout>div{position:relative;padding:10px 12px 12px;border:1px solid rgba(201,168,92,.3);border-radius:3px;background:radial-gradient(120% 80% at 30% 0,rgba(255,255,255,.05),transparent 60%),#060607;box-shadow:inset 0 2px 8px rgba(0,0,0,.9),0 0 0 2px #0c0b09,0 0 0 3px rgba(201,168,92,.12)}
+[data-room="boiler"] .bx-deck .bx-card .bx-readout>div:first-child{padding-left:12px;border-left:1px solid rgba(201,168,92,.3)}
+[data-room="boiler"] .bx-deck .bx-card .bx-readout dt{font-size:9.5px;color:rgba(227,201,141,.6)}
+[data-room="boiler"] .bx-deck .bx-card .bx-readout dd:not(.is-sm){color:#f4e6c4;text-shadow:0 0 14px rgba(255,154,42,.28)}
+
+/* The folds: each a run of pipe along its foot, with a valve wheel for its open and shut. */
+[data-room="boiler"] .bx-deck .bx-folds{border-top:0;margin-top:var(--fl-s4)}
+[data-room="boiler"] .bx-deck .bx-more{position:relative;border-bottom:0;background:linear-gradient(180deg,transparent calc(100% - 6px),rgba(0,0,0,.55) calc(100% - 6px)),linear-gradient(180deg,transparent calc(100% - 7px),rgba(201,168,92,.22) calc(100% - 7px) calc(100% - 6px),transparent calc(100% - 6px) calc(100% - 1px),rgba(201,168,92,.22) calc(100% - 1px))}
+[data-room="boiler"] .bx-deck .bx-more::before{content:"";position:absolute;left:24%;bottom:-3px;width:4px;height:12px;background:rgba(201,168,92,.4);box-shadow:8px 0 0 rgba(201,168,92,.25),calc(50vw - 40px) 0 0 rgba(201,168,92,.3)}
+[data-room="boiler"] .bx-deck .bx-more>summary::after{content:"";width:26px;height:26px;border-radius:50%;background:radial-gradient(circle,#c9a85c 0 3px,transparent 3.5px),repeating-conic-gradient(from 0deg,rgba(201,168,92,.75) 0 6deg,transparent 6deg 60deg);box-shadow:inset 0 0 0 2px rgba(201,168,92,.75),0 0 0 2px #0a0a0b;transition:transform .5s var(--fl-ease)}
+[data-room="boiler"] .bx-deck .bx-more[open]>summary::after{content:"";transform:rotate(90deg);box-shadow:inset 0 0 0 2px #e8c77a,0 0 0 2px #0a0a0b,0 0 14px rgba(255,154,42,.4)}
+[data-room="boiler"] .bx-deck .bx-more>summary:hover::after{transform:rotate(30deg)}
+[data-room="boiler"] .bx-deck .bx-more[open]>summary:hover::after{transform:rotate(60deg)}
+[data-room="boiler"] .bx-deck .bx-more>summary .bx-eyb{color:rgba(227,201,141,.7)}
+
+@media (prefers-reduced-motion:reduce){
+  [data-room="boiler"] .bx-deck .bx-more>summary::after{transition:none}
+}

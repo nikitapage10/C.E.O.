@@ -1,0 +1,49 @@
+/*
+ * The codex on the mast's deck (#977): the sections under the Thread match it, the way the Foundry's, Workshop's,
+ * Annex's and Studio's match their rooms (#932). The blue wire and white nanites under it (CodexDeck.tsx); over them
+ * the week's numbers as a row of signal readouts, each line (Email, Texts, Groups) a see-through channel panel with its
+ * tuning ruler and lamp, and Settings as the panel's back plate. Gold frames the panels; the spine stays blue.
+ * Kept out of thread.css on purpose: only the codex is styled here, and only by adding to what thread.css says.
+ */
+.cx-all#cx-codex{--cx-gold:#e3c98d;--cx-brass:#c9a85c;--cx-gl:rgba(201,168,92,.24);isolation:isolate;padding-left:0;padding-right:0;background:linear-gradient(180deg,#070912,#05060b 380px)}
+.cx-all#cx-codex::after{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(134,182,255,.9) var(--spine),transparent);box-shadow:0 0 18px rgba(10,124,255,.45)}
+.cx-deck-sig{position:absolute;inset:0;z-index:0;width:100%;height:100%;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 0,#000 75%,transparent);mask-image:linear-gradient(180deg,#000 0,#000 75%,transparent)}
+.cx-all#cx-codex>:not(.cx-deck-sig){position:relative;z-index:1}
+
+/* The week in numbers: a row of signal readouts, each a framed window with its figure lit white over the blue. */
+.cx-all#cx-codex .cx-line{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;max-width:640px;margin-top:22px;border:1px solid var(--cx-gl);border-radius:3px;background:rgba(6,8,15,.78);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 24px 50px -30px #000}
+.cx-all#cx-codex .cx-line>span{display:grid;align-content:start;gap:6px;padding:12px 14px 12px;border-left:1px solid rgba(201,168,92,.16);font-size:9.5px;letter-spacing:.14em}
+.cx-all#cx-codex .cx-line>span:first-child{border-left:0}
+.cx-all#cx-codex .cx-line>span b{order:-1;display:block;margin:0;font-size:30px;line-height:1;color:#fff;text-shadow:0 0 16px rgba(134,182,255,.55)}
+/* "oldest" says its word first: the readout keeps its figure on top all the same. */
+.cx-all#cx-codex .cx-line>span::before{content:"";order:-2;display:block;width:6px;height:6px;margin-bottom:4px;border-radius:50%;background:rgba(134,182,255,.25)}
+.cx-all#cx-codex .cx-line>span:first-child::before{background:var(--cx-hi);box-shadow:0 0 8px var(--cx-blue)}
+
+/* Each line a channel panel: gold wire frame, a tuning ruler along its top, its lamp beside the name. */
+.cx-all#cx-codex .cx-sec>.cx-body{position:relative;padding:18px 20px 16px;margin-left:var(--gut);margin-right:16px;max-width:640px;border:1px solid var(--cx-gl);border-radius:3px;background:linear-gradient(180deg,rgba(9,12,22,.84),rgba(5,6,11,.88));box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 30px 60px -30px rgba(0,0,0,.8)}
+.cx-all#cx-codex .cx-sec>.cx-body::before{content:"";position:absolute;left:12px;right:12px;top:0;height:8px;background:repeating-linear-gradient(90deg,rgba(201,168,92,.35) 0 1px,transparent 1px 12px);-webkit-mask-image:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent)}
+.cx-all#cx-codex .cx-sec>.cx-body::after,.cx-all#cx-codex .cx-line::after{content:"";position:absolute;inset:-4px;pointer-events:none;background:linear-gradient(var(--cx-brass),var(--cx-brass)) 0 0/12px 1px,linear-gradient(var(--cx-brass),var(--cx-brass)) 0 0/1px 12px,linear-gradient(var(--cx-brass),var(--cx-brass)) 100% 0/12px 1px,linear-gradient(var(--cx-brass),var(--cx-brass)) 100% 0/1px 12px,linear-gradient(var(--cx-brass),var(--cx-brass)) 0 100%/12px 1px,linear-gradient(var(--cx-brass),var(--cx-brass)) 0 100%/1px 12px,linear-gradient(var(--cx-brass),var(--cx-brass)) 100% 100%/12px 1px,linear-gradient(var(--cx-brass),var(--cx-brass)) 100% 100%/1px 12px;background-repeat:no-repeat}
+.cx-all#cx-codex .cx-line{position:relative}
+.cx-all#cx-codex .cx-sec .cx-mar .cx-lab{display:inline-flex;align-items:center;gap:8px;padding:4px 9px;border:1px solid rgba(134,182,255,.3);border-radius:2px;background:rgba(6,8,15,.85);color:var(--cx-soft)}
+.cx-all#cx-codex .cx-sec .cx-mar .cx-lab::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--cx-hi);box-shadow:0 0 8px var(--cx-blue)}
+.cx-all#cx-codex .cx-rows li+li{border-top-color:rgba(201,168,92,.1)}
+.cx-all#cx-codex .cx-rows em{color:var(--cx-gold)}
+.cx-all#cx-codex .cx-rows li[data-cur]{background:linear-gradient(90deg,rgba(10,124,255,.12),transparent 70%)}
+
+/* Settings: the back plate, folded until it's wanted. */
+.cx-all#cx-codex .cx-settings>summary .cx-body{display:inline-block;justify-self:start;width:max-content;max-width:calc(100% - 32px);padding:10px 16px;margin-left:var(--gut);border:1px dashed var(--cx-gl);border-radius:3px;background:rgba(6,8,15,.7);color:var(--cx-soft)}
+.cx-all#cx-codex .cx-settings[open]>summary .cx-body{border-style:solid;color:var(--cx-gold)}
+.cx-all#cx-codex .cx-settings>.cx-sec>.cx-body{max-width:1000px}
+
+@media (max-width:1100px){
+  .cx-all#cx-codex .cx-sec>.cx-body,.cx-all#cx-codex .cx-settings>summary .cx-body{margin-left:0}
+  .cx-all#cx-codex .cx-line{margin-right:16px}
+}
+@media (max-width:560px){
+  .cx-all#cx-codex .cx-line{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .cx-all#cx-codex .cx-line>span:nth-child(4){border-left:0}
+  .cx-all#cx-codex .cx-line>span:nth-child(n+4){border-top:1px solid rgba(201,168,92,.16)}
+  .cx-all#cx-codex .cx-line>span{padding:10px}
+  .cx-all#cx-codex .cx-line>span b{font-size:24px}
+  .cx-all#cx-codex .cx-sec>.cx-body{padding:14px 12px 12px}
+}

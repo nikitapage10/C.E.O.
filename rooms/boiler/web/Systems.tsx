@@ -37,6 +37,8 @@ import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { UndoneField } from "@ceo/engine/sigils/UndoneField.tsx";
 import "@ceo/desk/rooms/rooms.css";
 import "./boiler.css";
+import "./plates.css";
+import { boilerPipes } from "./PipeSigils.ts";
 import { describeRun, useVisualQa } from "@ceo/desk/visualqa/feed.ts";
 
 /**
@@ -239,7 +241,7 @@ export function Systems({ now }: { now: number }) {
       <PipeBoard sections={sections} model={model} now={now} signedIn={signedIn} tabs={<SystemsNav scores={scores} className="bp-tabs" />} onOpenRoom={openLine} />
 
       <div className="bx-deck">
-        <UndoneField className="bx-deck-sig" />
+        <UndoneField className="bx-deck-sig" under={boilerPipes} />
         {row && (
           <div className="bx-detail fl-below" key={row.id} ref={detail}>
             {isFlow(row.id) ? <SystemsGraph nodes={model.nodes} flows={model.flows} mode={row.id} setMode={(m) => setOpen(m === "overview" ? null : m)} /> : <RoomDetail r={row} onClose={() => setOpen(null)} />}

@@ -18,6 +18,7 @@ import { useSkippy } from "../skippy/chat.ts";
 import { useTalk } from "../skippy/talk.ts";
 import { floorCancel, floorEnd, floorStart, setFloorScene, useFloor } from "./senateFloor.ts";
 import { createRecess } from "./liveTalk.ts";
+import { senateBuilt } from "../keptRooms.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import "./rotunda.css";
 
@@ -71,6 +72,10 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   const [gl, setGl] = useState<GL>("idle");
   // Today's room loader (#752, #759) holds until the chamber's first real frame (or its flat fallback, without WebGL).
   useRoomReady(gl === "on" || gl === "off");
+  // Built: the Desk's warm-up may mount the Haven and Relay now (#973, keptRooms.ts).
+  useEffect(() => {
+    if (gl === "on" || gl === "off") senateBuilt();
+  }, [gl]);
   const [hot, setHot] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [phone, setPhone] = useState(isPhone);

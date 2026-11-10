@@ -682,7 +682,7 @@ const DIRECT_ROOM = "haven";
 
 /**
  * The quick tier's answer (#926): the tool's own words (the thermostat's line, the device's spoken confirmation, or
- * what failed), shaped like any reply. Typed on the Desk, a device waits for the Yes tap as it always has. A finished
+ * what failed), shaped like any reply. A device runs on every surface, typed on the Desk too (#1015). A finished
  * device action from the phone is quiet (#652): a notification, not a voice.
  */
 function directReply(got: CallResult, surface: Surface): Record<string, unknown> {

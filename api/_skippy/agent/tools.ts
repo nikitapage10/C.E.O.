@@ -9,9 +9,10 @@
  *   - a tool that sends, spends or deletes, or asks for it, is kept as a pending call with exactly its input
  *     (./pending.ts) and runs only on Nikita's Yes tap (`confirmTool`). The spoken surfaces (a room's mic, hold Space,
  *     the phone, a call), which can't show a button, get every tool too (#926: Skippy never says he can't do what a
- *     tool does): a home device, a light or a lights scene runs there at once when Nikita's own words asked for that
- *     very action (`spokenAsked`, the phone's rule since #632; `spokenLights` since #1011: "turn on the lights" from the
- *     phone switches them, with no Yes on the Desk), and anything else that waits for the tap says so, by name;
+ *     tool does), and anything else that waits for the tap says so, by name. A home device, a light or a lights
+ *     scene (`WORDS_RUN`) runs at once on every surface, typed in the Desk's chat too (#1015), when Nikita's own words
+ *     ordered that very action (`spokenAsked`, the phone's rule since #632; `spokenLights` since #1011); typed words
+ *     that didn't order it get the Yes card, said ones run nothing;
  *   - what a tool writes goes through the privacy check (and the memory's own rules) first.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -586,19 +587,20 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
       return ran.ok ? { ok: true, text: ran.text, ...(ran.action && { action: ran.action }), tool } : { ok: false, text: ran.text, tool };
     }
     if (needsConfirm(tool)) {
-      if (opts.surface !== "desk" && !opts.direct) {
-        // Spoken: a home device runs on Nikita's own words for it, through its rails, as the phone always has.
-        if (name === "home_device") {
-          if (!spokenAsked(opts.said, checked.value)) return { ok: false, text: `Nothing ran: the home devices act on Nikita's own words for them. Ask him to say it plainly ("${homeLine(checked.value).toLowerCase()}") and it runs.`, tool };
-          const ran = await ex.run({ ...checked.value, via: opts.via ?? "desk", said: opts.said }, host);
+      // A home device or the lights, ordered in Nikita's own words, runs at once on every surface, typed in the Desk's
+      // chat or said out loud (#632, #1011, #1015), through its rails; a question never counts as an order.
+      if (!opts.direct && WORDS_RUN.has(name)) {
+        const asked = name === "home_device" ? spokenAsked(opts.said, checked.value) : spokenLights(opts.said, name, checked.value);
+        if (asked) {
+          const ran = await ex.run(name === "home_device" ? { ...checked.value, via: opts.via ?? "desk", said: opts.said } : checked.value, host);
           return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), ...(ran.warned && { warned: true }), tool } : { ok: false, text: ran.text, tool };
         }
-        // Spoken: the lights too (#1011), on Nikita's own words for that switch or scene, with no Yes on the Desk.
-        if (name === "lights_set" || name === "lights_scene") {
-          if (!spokenLights(opts.said, name, checked.value)) return { ok: false, text: `Nothing ran: the lights switch on Nikita's own words for them. Ask him to say it plainly ("${name === "lights_scene" ? `run ${plainLine(str(checked.value.name), 40)}` : `turn ${checked.value.on ? "on" : "off"} the lights`}") and it runs.`, tool };
-          const ran = await ex.run(checked.value, host);
-          return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), ...(ran.warned && { warned: true }), tool } : { ok: false, text: ran.text, tool };
+        if (opts.surface !== "desk") {
+          const plain = name === "home_device" ? homeLine(checked.value).toLowerCase() : name === "lights_scene" ? `run ${plainLine(str(checked.value.name), 40)}` : `turn ${checked.value.on ? "on" : "off"} the lights`;
+          return { ok: false, text: `Nothing ran: ${name === "home_device" ? "the home devices act" : "the lights switch"} on Nikita's own words for them. Ask him to say it plainly ("${plain}") and it runs.`, tool };
         }
+        // Typed, but his words didn't order it (a guess from a question or the page): the Yes card, so nothing runs unasked.
+      } else if (opts.surface !== "desk" && !opts.direct) {
         return { ok: false, text: `Nothing ran: "${tool.title}" waits for Nikita's Yes tap, so it goes from Skippy's chat on the Desk. Say that in one line.`, tool };
       }
       if (!opts.pending) return { ok: false, text: "Taps aren't set up on this copy.", tool };
@@ -658,13 +660,16 @@ function apiProp(p: RoomTool["input"]["properties"][string]): Record<string, unk
  * registry outgrew both (29 tools, 30 optional fields), so every model call came back 400 before it began. Every call's
  * input is checked in code instead (`checkInput` in `callTool`), and a bad one goes back to the model as a tool error.
  */
-/** The tapped tools a spoken surface runs at once on Nikita's own words (#632, #1011): the home devices and the lights. */
-export const SPOKEN_RUNS: ReadonlySet<string> = new Set(["home_device", "lights_set", "lights_scene"]);
+/**
+ * The device tools that run at once on Nikita's own words for them, typed or said (#632, #1011, #1015): the home devices
+ * and the lights. Every other tapped tool (remember, implement_it, the King Soopers cart) waits for the Yes.
+ */
+export const WORDS_RUN: ReadonlySet<string> = new Set(["home_device", "lights_set", "lights_scene"]);
 
 export function apiTools(tools: readonly RoomTool[]) {
   return tools.map((t) => ({
     name: t.name,
-    description: needsConfirm(t) ? `${t.description} (${SPOKEN_RUNS.has(t.name) ? "Typed on the Desk it waits for Nikita's Yes tap; said out loud (the phone, a mic, a call) it runs at once on his own words for it." : "Waits for Nikita's Yes tap on the Desk."})` : t.description,
+    description: needsConfirm(t) ? `${t.description} (${WORDS_RUN.has(t.name) ? "It runs at once when Nikita's own words order it, typed or said; a question never runs it." : "Waits for Nikita's Yes tap on the Desk."})` : t.description,
     input_schema: { type: "object" as const, properties: Object.fromEntries(Object.entries(t.input.properties).map(([k, p]) => [k, apiProp(p)])), required: [...t.input.required], additionalProperties: false },
   }));
 }

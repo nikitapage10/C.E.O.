@@ -6,8 +6,8 @@ const DAY = { type: "string", enum: ["mon", "tue", "wed", "thu", "fri", "sat", "
  * The Haven's tools for Skippy (#646): the Kitchen list, the meal planner's edits (#678: the same closed set of edits
  * the Kitchen's buttons make, api/_haven/mealShape.ts; Talk to edit drives these), the home's read (#926: the thermostat
  * first, api/_haven/devices/homeread.ts) and the home devices through their own rails (the feed cap, the litter gate,
- * named rooms; api/_haven/devices/home.ts) and the lights. Typed, a device or a light acts only after Nikita's Yes tap;
- * spoken (the phone, a mic, a call), at once when his own words asked for it (api/_skippy/agent/tools.ts, #1011). Data only.
+ * named rooms; api/_haven/devices/home.ts) and the lights. A device or a light acts at once when Nikita's own words
+ * ordered it, typed in the Desk's chat or said (api/_skippy/agent/tools.ts, #1011, #1015). Data only.
  */
 export const TOOLS: readonly RoomTool[] = [
   {
@@ -151,7 +151,7 @@ export const TOOLS: readonly RoomTool[] = [
     room: "haven",
     title: "Run a home device",
     description:
-      "Ask a home device to do something: vacuum.start, vacuum.rooms (with rooms by name), vacuum.pause, vacuum.dock, feeder.feed (portions, under the daily cap), wet.open ('open the wet food tray': opens the bowl in front for two hours, then it closes itself; asked again while open, the two hours start over; a scheduled meal inside the window takes over the closing), wet.rotate, wet.close (closes it now and cancels the auto-close), litter.clean. Typed on the Desk it runs after Nikita taps Yes; spoken (a room's mic, hold Space, the phone, a call) it runs when his own words asked for that device, as the phone always has. Either way the device's own rails apply (the feed cap, the litter gate). Tell Nikita the time it closes from the reply.",
+      "Ask a home device to do something: vacuum.start, vacuum.rooms (with rooms by name), vacuum.pause, vacuum.dock, feeder.feed (portions, under the daily cap), wet.open ('open the wet food tray': opens the bowl in front for two hours, then it closes itself; asked again while open, the two hours start over; a scheduled meal inside the window takes over the closing), wet.rotate, wet.close (closes it now and cancels the auto-close), litter.clean. Typed in the Desk's chat or spoken (a room's mic, hold Space, the phone, a call), it runs when his own words asked for that device. Either way the device's own rails apply (the feed cap, the litter gate). Tell Nikita the time it closes from the reply.",
     input: {
       type: "object",
       properties: {
@@ -169,8 +169,7 @@ export const TOOLS: readonly RoomTool[] = [
     confirm: true,
   },
   // The lights (#931): SwitchBot and Govee, through api/_haven/lights. Reading is free; a switch or a scene changes
-  // the home, so typed on the Desk it waits for Nikita's Yes like the other devices, and said out loud it runs on his
-  // own words for it (#1011).
+  // the home, so like the other devices it runs on Nikita's own words for it, typed or said (#1011, #1015).
   {
     name: "lights_list",
     room: "haven",

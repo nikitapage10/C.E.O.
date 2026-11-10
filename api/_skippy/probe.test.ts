@@ -99,10 +99,10 @@ describe("a dry run (#955): no device moves, nothing is kept, no words come back
     expect(got.json.turns?.[0]).toMatchObject({ status: 200, tier: "rules", wouldRun: ["home.feeder.feed"], flags: [] });
     expect(got.text).not.toContain("Dry run");
   });
-  it("keeps a typed order's Yes button out of the Desk's own store", async () => {
+  it("runs a typed order at once on the dry host (#1015): recorded, never sent, no Yes button in the Desk's store", async () => {
     const f = fixture();
     const got = await f.post({ asks: ["feed the cat one portion"], surface: "desk" });
-    expect(got.json.turns?.[0]).toMatchObject({ taps: 1, wouldRun: ["home.feeder.feed"] });
+    expect(got.json.turns?.[0]).toMatchObject({ taps: 0, wrote: ["home_device"], wouldRun: ["home.feeder.feed"] });
     expect(f.pending.items).toEqual([]);
     expect(f.acts).toEqual([]);
   });

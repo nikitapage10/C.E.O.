@@ -135,10 +135,11 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
   const [avoid, setAvoid] = useState(joinWords(profile.avoid));
   const [companies, setCompanies] = useState(joinWords(profile.companies));
   const [daily, setDaily] = useState(profile.daily);
+  const [years, setYears] = useState(profile.years ? String(profile.years) : "");
   const [resume, setResume] = useState("");
   const edit = (i: number, patch: Partial<(typeof searches)[number]>) => setSearches((s) => s.map((x, n) => (n === i ? { ...x, ...patch } : x)));
   const save = () =>
-    onSave({ searches: searches.filter((s) => s.q.trim()), minSalary: floor ? Number(floor.replace(/[^\d]/g, "")) || null : null, prefer: splitWords(prefer), avoid: splitWords(avoid), companies: splitWords(companies), daily });
+    onSave({ searches: searches.filter((s) => s.q.trim()), minSalary: floor ? Number(floor.replace(/[^\d]/g, "")) || null : null, prefer: splitWords(prefer), avoid: splitWords(avoid), companies: splitWords(companies), daily, years: Number(years) || null });
 
   return (
     <div className="jb-setup">
@@ -170,6 +171,11 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
           <span>Pay floor, a year</span>
           <input className="jb-in" inputMode="numeric" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="e.g. 180000" />
           <small>Hides jobs whose listed pay tops out below it. Jobs with no pay listed still show.</small>
+        </label>
+        <label className="jb-field">
+          <span>Your years of experience</span>
+          <input className="jb-in" inputMode="numeric" value={years} onChange={(e) => setYears(e.target.value.replace(/[^\d]/g, ""))} placeholder="e.g. 10" />
+          <small>Jobs rank by the years they ask for, not by their title's level.</small>
         </label>
         <label className="jb-field">
           <span>Daily run</span>

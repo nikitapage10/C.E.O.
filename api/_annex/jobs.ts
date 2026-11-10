@@ -68,6 +68,8 @@ export interface JobsProfile {
   companies: string[];
   /** Whether the daily run is on. */
   daily: boolean;
+  /** Your years of experience: a job is ranked by how its asked-for years compare, never by its title's level. */
+  years: number | null;
 }
 
 export interface Job {
@@ -87,6 +89,8 @@ export interface Job {
   apply: { title: string; link: string }[];
   snippet: string;
   highlights: string[];
+  /** The years of experience the posting asks for, read from its text; null when it names none. */
+  yearsAsked?: number | null;
   /** Which saved search found it first. */
   search: string;
   score: number;
@@ -133,7 +137,7 @@ export interface JobsView extends JobsState {
   nextRun: string | null;
 }
 
-export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true });
+export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null });
 export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null });
 
 /* ── Reading things defensively ── */
@@ -154,6 +158,23 @@ const httpsLink = (v: unknown): string | null => {
   }
 };
 
+const yearsOf = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 && n < 60 ? Math.round(n) : null;
+};
+
+/**
+ * The years of experience a posting asks for: "8+ years", "5-7 years of experience", "at least 10 years". The
+ * largest number next to "years" (the main ask; a range counts by its low end, and "3 years in AI" beside "8+ years"
+ * stays 8); null when it names none.
+ */
+export function yearsAskedIn(text: string): number | null {
+  const found = [...text.toLowerCase().matchAll(/(\d{1,2})\s*(?:\+|plus)?\s*(?:(?:-|–|to)\s*\d{1,2}\s*\+?\s*)?(?:years?|yrs?)\b/g)]
+    .map((m) => Number(m[1]))
+    .filter((n) => n >= 1 && n <= 30);
+  return found.length ? Math.max(...found) : null;
+}
+
 export function cleanProfile(raw: unknown): JobsProfile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof JobsProfile, unknown>>;
   const searches = (Array.isArray(r.searches) ? r.searches : [])
@@ -164,7 +185,7 @@ export function cleanProfile(raw: unknown): JobsProfile {
     .filter((s) => s.q)
     .slice(0, MAX_SEARCHES);
   const n = typeof r.minSalary === "number" ? r.minSalary : typeof r.minSalary === "string" ? Number(r.minSalary.replace(/[^\d.]/g, "")) : NaN;
-  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: words(r.companies), daily: r.daily !== false };
+  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: words(r.companies), daily: r.daily !== false, years: yearsOf(r.years) };
 }
 
 const isState = (v: unknown): v is JobState => (JOB_STATES as readonly unknown[]).includes(v);
@@ -248,6 +269,7 @@ export function normaliseJob(raw: SerpJob, search: string, nowIso: string): Job 
     link: apply[0]?.link ?? httpsLink(raw.share_link),
     apply,
     snippet: str(raw.description, 700),
+    yearsAsked: yearsAskedIn(`${str(raw.description, 20_000)} ${highlights.join(" ")}`),
     highlights,
     search,
     score: 0,
@@ -262,8 +284,6 @@ export function normaliseJob(raw: SerpJob, search: string, nowIso: string): Job 
 
 /* ── Scoring: plain rules, no model ── */
 
-const SENIOR = /\b(senior|sr\.?|staff|principal|lead|group|director|head of)\b/i;
-const JUNIOR = /\b(junior|jr\.?|associate|intern|entry[- ]level|apprentice)\b/i;
 const STOP = new Set("a an and are as at be by for from has have in is it of on or our that the this to was we were will with you your".split(" "));
 
 /** The resume's distinct words of four letters or more, for overlap with a job's text. */
@@ -287,8 +307,14 @@ export function scoreJob(job: Job, profile: JobsProfile, resume: Set<string>): J
     score += n;
     why.push(w);
   };
-  if (SENIOR.test(job.title)) lift(12, "senior level");
-  if (JUNIOR.test(job.title)) lift(-20, "junior level");
+  // Experience asked for, not the title's level: a Director at one company is a Senior at another (Nikita, 2026-11-10).
+  const asked = job.yearsAsked ?? null;
+  if (asked !== null && profile.years) {
+    if (asked > profile.years + 2) lift(-15, `asks ${asked}+ years`);
+    else if (asked >= profile.years - 4) lift(14, `asks ${asked}+ years, fits`);
+    else if (asked <= profile.years - 7) lift(-8, `asks only ${asked}+ years`);
+    else lift(6, `asks ${asked}+ years`);
+  }
   const fav = profile.companies.find((w) => hasWord(job.company, w));
   if (fav) lift(18, "on your company list");
   const pref = profile.prefer.filter((w) => hasWord(hay, w));

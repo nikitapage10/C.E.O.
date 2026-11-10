@@ -209,4 +209,25 @@ export const TOOLS: readonly RoomTool[] = [
     effect: "write",
     confirm: true,
   },
+  {
+    name: "lights_place",
+    room: "haven",
+    title: "Put a light on the map",
+    description:
+      "Say where a light stands, so the Haven's house draws it there (its glow, and a floor lamp's LED line): by its name from lights_list, the room by its name and where in it (middle, a wall's middle n, s, e or w, or a corner ne, nw, se, sw; north is the top of the plan), or x and y in plan units when Nikita gives them. clear true takes it off the map. Lights only: scenes and groups are never placed. It goes in the private floor plan only.",
+    input: {
+      type: "object",
+      properties: {
+        name: { type: "string", maxLength: 60, description: "The light's name, as lights_list gives it." },
+        room: { type: "string", maxLength: 40, description: "The room it stands in, by its name on the plan." },
+        where: { type: "string", enum: ["middle", "n", "s", "e", "w", "ne", "nw", "se", "sw"], description: "Where in the room: middle unless he says." },
+        x: { type: "integer", minimum: 0, maximum: 5000, description: "Plan units from the left, only when he gives them." },
+        y: { type: "integer", minimum: 0, maximum: 5000, description: "Plan units from the top." },
+        clear: { type: "boolean", description: "Take it off the map." },
+      },
+      required: ["name"],
+      additionalProperties: false,
+    },
+    effect: "write",
+  },
 ];

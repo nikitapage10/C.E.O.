@@ -7,8 +7,9 @@ import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, t
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
-import { LightsPanel } from "./LightsPanel.tsx";
-import { loadLights, placeLights, postLights, type LightsLoad } from "./lights.ts";
+import { LightsPanel, type Look } from "./LightsPanel.tsx";
+import { loadLights, placeLightAt, placeLights, postLights, type LightsLoad } from "./lights.ts";
+import type { PlanLight } from "../../../api/_haven/planShape.ts";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
 import { Plinth } from "./Plinth.tsx";
@@ -190,8 +191,22 @@ export function Haven() {
     // A scene can switch anything: read the lights again once it has settled.
     if (r.ok) window.setTimeout(() => void loadLights().then((l) => l.state === "ready" && setLights(l)), 2_500);
   }, []);
-  // The lights the house can't place (no spot in the plan, no room in their name): listed apart.
-  const looseLights = useMemo(() => (thePlanOf(plan) && lightView ? placeLights(thePlanOf(plan)!, lightView.lights).loose : (lightView?.lights ?? [])), [plan, lightView]);
+  // A Govee light's colour, white, brightness or mood (#974): Skippy's line back when it didn't take.
+  const setLook = useCallback(async (id: string, look: Look) => {
+    setLightBusy(id);
+    setLightNote(null);
+    const r = await postLights({ op: "look", id, ...look });
+    setLightBusy(null);
+    if (!r.ok) setLightNote(r.say);
+    else window.setTimeout(() => void loadLights().then((l) => l.state === "ready" && setLights(l)), 1_500);
+  }, []);
+  // Where the lights stand (#974): the plan's spots, kept here so placing one doesn't rebuild the house.
+  const [spots, setSpots] = useState<PlanLight[] | null>(null);
+  useEffect(() => setSpots(null), [plan]);
+  const theSpots = useMemo(() => spots ?? thePlanOf(plan)?.lights ?? [], [spots, plan]);
+  const placedIds = useMemo(() => new Set(thePlanOf(plan) && lightView ? placeLights(thePlanOf(plan)!, lightView.lights, theSpots).placed.map((p) => p.light.id) : []), [plan, lightView, theSpots]);
+  // Placing a light: tap it in the panel, then its spot on the house.
+  const [placing, setPlacing] = useState<string | null>(null);
 
   const devices = signedIn ? (home?.devices ?? null) : null;
   // The Nest (#637): live from the thermostat's reading once it's connected; waiting before, and always signed out.
@@ -275,16 +290,28 @@ export function Haven() {
     h.setLit(lit, facts, tags);
   }, [lit, devices, thePlan, gl, climate]);
 
-  // The lights on the house (#931): a lamp over each placed light; a tap switches it.
+  // The lights on the house (#931, #974): each placed light drawn and lit as it really is; a tap on its marker
+  // switches it. Until the lights are read (or without their keys), the rooms' activity glow stands in.
   useEffect(() => {
-    house.current?.setLights(
-      lightView?.lights ?? [],
-      (id) => {
-        const l = lightView?.lights.find((x) => x.id === id);
-        if (l && l.online && lightBusy === null) void setLight(id, l.on !== true);
-      },
-    );
-  }, [gl, lightView, lightBusy, setLight]);
+    house.current?.setLights(lightView?.lights ?? null, theSpots, (id) => {
+      const l = lightView?.lights.find((x) => x.id === id);
+      if (l && l.online && lightBusy === null) void setLight(id, l.on !== true);
+    });
+  }, [gl, lightView, lightBusy, setLight, theSpots]);
+  useEffect(() => {
+    const name = placing ? lightView?.lights.find((l) => l.id === placing)?.name : null;
+    house.current?.setPlacing(name ?? null, (x, y) => {
+      if (!name) return;
+      setPlacing(null);
+      void placeLightAt(name, { x, y }).then((r) => (r.ok ? (setSpots(r.spots), setLightNote(`${name} is on the map.`)) : setLightNote(r.say)));
+    });
+  }, [placing, lightView, gl]);
+  useEffect(() => {
+    if (!placing) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setPlacing(null);
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [placing]);
 
   // Myshka in the house (#729): a feed (the dry feeder's last meal, or the wet tray opened from here) and the
   // Litter-Robot's cycle, nothing else; the house decides where he walks.
@@ -403,7 +430,9 @@ export function Haven() {
               </nav>
             )}
             <HavenLists />
-            {signedIn && lightView && <LightsPanel view={lightView} loose={looseLights} busy={lightBusy} note={lightNote} onSet={(id, on) => void setLight(id, on)} onScene={(id) => void runScene(id)} />}
+            {signedIn && lightView && (
+              <LightsPanel view={lightView} placed={placedIds} placing={placing} canPlace={gl === "on"} busy={lightBusy} note={lightNote} onSet={(id, on) => void setLight(id, on)} onScene={(id) => void runScene(id)} onLook={(id, look) => void setLook(id, look)} onPlace={setPlacing} />
+            )}
           </header>
           {!signedIn && (
             <div className="hv-out">

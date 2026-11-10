@@ -119,6 +119,12 @@ export function dryHost(live: ToolHost, rec: DryRecord): ToolHost {
           },
         }
       : null,
+    placeLight: live.placeLight
+      ? async () => {
+          note("lights.place");
+          return { ok: true, say: "Dry run: the floor plan didn't change." };
+        }
+      : null,
     fileIssue: live.fileIssue
       ? async () => {
           note("issue.file");

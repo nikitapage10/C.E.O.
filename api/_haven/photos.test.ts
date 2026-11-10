@@ -5,7 +5,7 @@ import { BlobPreconditionError, prefixed, type BlobBackend } from "../_blob.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { FEED_TOKEN, isFeedWrite, LOG_TOKEN } from "../_site/roomkeys.ts";
-import { finalImageOf, generateImage, IMAGE_COST_USD, IMAGES_CAP_USD, IMAGES_URL, ImageLedger, ledgerPath, type GenDeps } from "./photoGen.ts";
+import { finalImageOf, generateImage, IMAGE_COST_USD, IMAGES_CAP_USD, IMAGES_URL, ImageLedger, ledgerPath, STEP_PLAN, type GenDeps } from "./photoGen.ts";
 import { decodeImage, decodePng, kindOf, shrink, smallJpeg } from "./photoImage.ts";
 import {
   CATALOG_PATH,
@@ -24,6 +24,7 @@ import {
   smallPath,
   STYLE_PLATE,
   STYLE_PREP,
+  STYLE_STEP,
   type MealToShoot,
   type PhotoDeps,
 } from "./photos.ts";
@@ -433,5 +434,41 @@ describe("/api/haven-photos", () => {
     expect(isFeedWrite(new Request(`${ORIGIN}/api/haven-photos`, { method: "PUT" }))).toBe(true);
     expect(isFeedWrite(new Request(`${ORIGIN}/api/haven-photos?id=a`, { method: "PUT" }))).toBe(false);
     expect(isFeedWrite(new Request(`${ORIGIN}/api/haven-photos`, { method: "POST" }))).toBe(false);
+  });
+});
+
+describe("cook mode's step pictures (#1010)", () => {
+  const STEP = (n: number, description: string, components: string[]): MealToShoot => ({ meal: "sausage-pasta", name: "Sausage pasta", description, components, style: "step" });
+  const run = (s: ReturnType<typeof setup>) => runQueue({ library: s.library, gen: s.gen(), now: () => NOW, log: (l) => s.lines.push(l) });
+
+  it("keys each step by its words, so two steps of one meal are two pictures, and the meal's own key is untouched", () => {
+    const a = STEP(1, "Brown the sausage.", ["Italian sausage"]);
+    const b = STEP(2, "Cook the rigatoni.", ["Italian sausage"]);
+    expect(keyOf(a)).not.toBe(keyOf(b));
+    expect(keyOf(a)).toBe(keyOf({ ...a, description: "BROWN the sausage." }));
+    expect(keyOf({ ...a, style: "plate" })).toBe(keyOf({ ...a, style: "plate", description: "anything else" }));
+    expect(readMealToShoot(a)?.style).toBe("step");
+  });
+
+  it("writes the step in the meal photos' daylight, what it does and what it uses, nobody in it", () => {
+    const p = promptFor(STEP(1, "Brown the Italian sausage in a wide pan.", ["Italian sausage"]));
+    expect(p.startsWith(STYLE_STEP)).toBe(true);
+    expect(p).toContain("Dish: Sausage pasta. Step: Brown the Italian sausage in a wide pan. Using: Italian sausage.");
+    expect(p).toContain("no people, no hands");
+  });
+
+  it("makes a step small and at low quality, once, counted at the step's price", async () => {
+    const s = setup(["ok"]);
+    const [t] = await s.library.enqueue([STEP(1, "Brown the sausage.", ["Italian sausage"])], NOW);
+    expect(await run(s)).toEqual({ made: 1, failed: 0, budget: false });
+    expect(s.ai.calls.map((c) => [c.body.size, c.body.quality])).toEqual([["1024x1024", "low"]]);
+    expect((await new ImageLedger(s.state).read(NOW)).usd).toBe(STEP_PLAN.cost.low);
+    expect((await s.library.catalog()).photos.find((p) => p.id === t!.id)?.status).toBe("ready");
+    // A failed step isn't tried at medium: one attempt, handed back.
+    const f = setup([500]);
+    await f.library.enqueue([STEP(2, "Toss it.", [])], NOW);
+    expect(await run(f)).toEqual({ made: 0, failed: 1, budget: false });
+    expect(f.ai.calls).toHaveLength(1);
+    expect((await new ImageLedger(f.state).read(NOW)).usd).toBe(0);
   });
 });

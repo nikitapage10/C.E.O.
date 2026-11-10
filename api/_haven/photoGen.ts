@@ -35,6 +35,21 @@ export const IMAGE_TIMEOUT_MS = 150_000;
 
 export type Quality = "medium" | "low";
 
+/** How one photo is made: its size, the qualities tried in order, and what each attempt is counted as. */
+export interface GenPlan {
+  size: string;
+  qualities: readonly Quality[];
+  cost: Partial<Record<Quality, number>>;
+}
+
+/** The meal photos' plan: the demo's 1024 × 1536, medium then low once. */
+export const PHOTO_PLAN: GenPlan = { size: IMAGE_SIZE, qualities: ["medium", "low"], cost: IMAGE_COST_USD };
+/**
+ * A cook step's picture (#1010): square 1024 × 1024 at low quality, one try, counted at $0.02 (above the list price
+ * of a low square image), so a five-step recipe counts about $0.10 against the cap.
+ */
+export const STEP_PLAN: GenPlan = { size: "1024x1024", qualities: ["low"], cost: { low: 0.02 } };
+
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
 /** The month a time falls in, UTC, as YYYY-MM. */
@@ -65,10 +80,9 @@ export class ImageLedger {
     return { month, images, usd: round(usd), capUsd: this.capUsd, left, reached: usd + IMAGE_COST_USD.low > this.capUsd + 1e-9 };
   }
 
-  /** Counts one attempt at `quality` if it fits under the cap; false (nothing counted) when it doesn't. */
-  async reserve(quality: Quality, now: number): Promise<boolean> {
+  /** Counts one attempt at `quality` (at `cost`) if it fits under the cap; false (nothing counted) when it doesn't. */
+  async reserve(quality: Quality, now: number, cost = IMAGE_COST_USD[quality]): Promise<boolean> {
     const month = monthOf(now);
-    const cost = IMAGE_COST_USD[quality];
     return updateJson<Partial<Ledger>, boolean>(this.blob, ledgerPath(month), {}, (cur) => {
       const usd = typeof cur.usd === "number" ? cur.usd : 0;
       if (usd + cost > this.capUsd + 1e-9) return { next: null, result: false };
@@ -77,10 +91,10 @@ export class ImageLedger {
   }
 
   /** Hands an attempt back (OpenAI answered with an error status, so it billed nothing). */
-  async refund(quality: Quality, now: number): Promise<void> {
+  async refund(quality: Quality, now: number, cost = IMAGE_COST_USD[quality]): Promise<void> {
     const month = monthOf(now);
     await updateJson<Partial<Ledger>, void>(this.blob, ledgerPath(month), {}, (cur) => ({
-      next: { month, images: Math.max(0, (cur.images ?? 0) - 1), usd: round(Math.max(0, (cur.usd ?? 0) - IMAGE_COST_USD[quality])) },
+      next: { month, images: Math.max(0, (cur.images ?? 0) - 1), usd: round(Math.max(0, (cur.usd ?? 0) - cost)) },
       result: undefined,
     }));
   }
@@ -118,9 +132,10 @@ export function finalImageOf(stream: string): Uint8Array | null {
 }
 
 /** One attempt at one quality: the image, or why not. */
-async function attempt(prompt: string, quality: Quality, deps: GenDeps): Promise<GenResult> {
-  if (!(await deps.ledger.reserve(quality, deps.now()))) return { ok: false, error: "budget" };
-  const body = JSON.stringify({ model: IMAGE_MODEL, prompt, size: IMAGE_SIZE, quality, n: 1, stream: true, partial_images: 1 });
+async function attempt(prompt: string, quality: Quality, deps: GenDeps, plan: GenPlan): Promise<GenResult> {
+  const cost = plan.cost[quality] ?? IMAGE_COST_USD[quality];
+  if (!(await deps.ledger.reserve(quality, deps.now(), cost))) return { ok: false, error: "budget" };
+  const body = JSON.stringify({ model: IMAGE_MODEL, prompt, size: plan.size, quality, n: 1, stream: true, partial_images: 1 });
   let res: Response;
   try {
     res = await deps.fetch(IMAGES_URL, {
@@ -135,7 +150,7 @@ async function attempt(prompt: string, quality: Quality, deps: GenDeps): Promise
   }
   if (!res.ok) {
     await res.body?.cancel().catch(() => undefined);
-    await deps.ledger.refund(quality, deps.now()).catch(() => undefined);
+    await deps.ledger.refund(quality, deps.now(), cost).catch(() => undefined);
     return { ok: false, error: "failed", detail: `openai ${res.status}` };
   }
   const text = await res.text().catch(() => "");
@@ -143,14 +158,19 @@ async function attempt(prompt: string, quality: Quality, deps: GenDeps): Promise
   return bytes ? { ok: true, bytes, quality } : { ok: false, error: "failed", detail: "no image" };
 }
 
-/** A photo for this prompt: medium first, low once when medium fails or no longer fits under the cap. */
-export async function generateImage(prompt: string, deps: GenDeps): Promise<GenResult> {
+/**
+ * A photo for this prompt: each of the plan's qualities in turn until one gives an image (the meal photos: medium
+ * first, low once when medium fails or no longer fits under the cap).
+ */
+export async function generateImage(prompt: string, deps: GenDeps, plan: GenPlan = PHOTO_PLAN): Promise<GenResult> {
   if (!deps.key) return { ok: false, error: "no-key" };
-  const first = await attempt(prompt, "medium", deps);
-  if (first.ok) return first;
-  const second = await attempt(prompt, "low", deps);
-  if (second.ok) return second;
-  if (second.error === "budget" && first.error === "budget") return second;
-  const detail = first.detail ?? second.detail;
+  const tries: GenResult[] = [];
+  for (const q of plan.qualities) {
+    const got = await attempt(prompt, q, deps, plan);
+    if (got.ok) return got;
+    tries.push(got);
+  }
+  if (tries.length && tries.every((t) => !t.ok && t.error === "budget")) return { ok: false, error: "budget" };
+  const detail = tries.map((t) => (t.ok ? undefined : t.detail)).find(Boolean);
   return { ok: false, error: "failed", ...(detail && { detail }) };
 }

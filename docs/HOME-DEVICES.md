@@ -390,16 +390,28 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   `PUT /api/haven-meals { meals, merge: "lunches" }` (feed key) adds only the file's lunches to the planner that's
   there (`addLunches`: new quick lunches, the lunch days, and a lunch plan when the week has none), leaving the
   dinners and every edit alone, with Undo; a second run changes nothing. Counts back.
-- **Cook mode (#705).** "Cook mode" in a night's drawer (not on a HelloFresh night) opens the dinner full screen, one
-  step at a time in big type ([`CookMode.tsx`](../rooms/haven/web/CookMode.tsx), built by `cookOf` in
-  [`cook.ts`](../rooms/haven/web/cook.ts) from `slotDish`, so it is the night as customized). A step that
-  names a swapped part names the new one, marked in gold; a step for a part left out (No carb, No side) says to skip
-  it. Beside it (a panel behind "Ingredients" on a phone): the parts tonight, how many portions go in the pan
-  (`portionsOf`: for two, a lunch left over), the heat, and the amounts for all of them. Next and Back are wide
-  buttons at the bottom; the arrow and Page keys, Home and End, a sideways swipe or the step marks move too, and
-  Escape or Close leaves (the Kitchen stays open). The screen is kept awake with the browser's Wake Lock while it's
-  open ("Screen stays on"), taken again when the tab comes back; where the browser lacks it or refuses, the note just
-  isn't there. Screen code only: nothing new is read, sent or stored.
+- **Cook mode (#705; phone-first since #1010).** "Cook mode" in a night's drawer or on the Cook step's recipes (not on
+  a HelloFresh night) opens the dinner full screen ([`CookMode.tsx`](../rooms/haven/web/CookMode.tsx), built by
+  `cookOf` in [`cook.ts`](../rooms/haven/web/cook.ts) from `slotDish`, so it is the night as customized). Every step
+  is on one scrolling list: the one you're on opened up in big type, the ones ahead readable below it ("Coming up"
+  on the next), the ones done dimmed above; tapping any step goes to it. A step that names a swapped part names the
+  new one, marked in gold; a step for a part left out (No carb, No side) says to skip it. Each step shows the
+  ingredients it uses with tonight's amounts ("8 oz Rigatoni"): the recipes carry no per-step amounts, so `usesOf`
+  finds them by name in the step's words (an ingredient's whole name or its part's, plural or not, then a telling
+  word only one ingredient has, so "sear the chicken" finds the chicken breast and "pepper" with two peppers finds
+  neither). Beside the steps (a sheet from the bottom behind "Ingredients" on a phone): the parts tonight, how many
+  portions go in the pan (`portionsOf`: for two, a lunch left over), the heat, and the amounts for all of them, each
+  one tickable as it comes out (kept while the page is open, never stored). Back, Ingredients and Next are wide
+  buttons at the bottom, clear of the phone's home bar; the arrow and Page keys, Home and End and a sideways swipe
+  on the step move too, and Escape or Close leaves (the Kitchen stays open). The screen is kept awake with the
+  browser's Wake Lock while it's open ("Screen stays on"), taken again when the tab comes back; where the browser
+  lacks it or refuses, the note just isn't there.
+- **Step pictures (#1010).** The first time a recipe is opened in cook mode it asks the meal photo library (below)
+  for one picture per step (`stepShotsOf` in [`mealPhotos.ts`](../rooms/haven/web/mealPhotos.ts), style `step`: the
+  step's words as cooked and the ingredients it uses), then reads their states every 8 s for a few minutes. A step
+  shows a quiet numbered stand-in ("Picture on its way") until its picture is ready, and nothing at all when it
+  failed, the month's cap is reached or the library isn't there, so cook mode never waits on it. A step for a part
+  left out gets none. Opening the same recipe again makes nothing new.
 - **Talking to it (#698).** Nikita edits the week by talking to Skippy: his chat on the Desk, a room's mic (the Haven's
   Steward, or Skippy on Today) or Hands-free. The Haven's tools (rooms/haven/tools.ts, run in
   `api/_skippy/agent/tools.ts`) make the same edits, each through `readEdit` first, so a tool can only make an edit the
@@ -452,6 +464,11 @@ marked `stepsBy: "desk"`; "Watch a demo" opens a YouTube search, never an embed.
   `image_generation.completed` event's image is kept), then low once if medium fails. The prompt is the demo's two
   styles (plated on off-white ceramic in daylight; meal-prep containers on grey stone) with the dish's name,
   description and components after Customize ([`api/_haven/photoGen.ts`](../api/_haven/photoGen.ts)).
+- **Step pictures (#1010).** Style `step`, for cook mode: 1024 × 1024 at low quality, one try (no medium), counted at
+  $0.02 each, in the same food-blog daylight as the plates (off-white ceramic, light stone or wood, no people or
+  hands). Its key adds the step's words to the meal, components and style, so each step is its own picture and a
+  step that names a swapped part gets a new one; the other styles' keys are unchanged. A five-step recipe counts
+  about $0.10 against the cap, once.
 - **The cap.** The project's OpenAI images cap, **$10 a month**, in the ledger `openai/images-<YYYY-MM>.json` in the
   private store. Each attempt is counted before the call at $0.10 (medium) or $0.03 (low), above list price, and
   handed back only when OpenAI answered with an error status. About 100 photos a month; past the cap nothing is
@@ -475,7 +492,7 @@ Every call is the Desk's passkey session except the feed key's PUT. A meal to ph
 ```
 
 `meal` is the planner's meal id (`/^[a-z0-9][a-z0-9-]{1,47}$/`), `components` the component names as customized (up to
-8), `style` `plate` or `prep`. Text is taken as untrusted: control characters and `<>{}` are dropped and each field
+8), `style` `plate`, `prep` or `step` (a cook-mode step: `description` is the step's words, `components` what it uses). Text is taken as untrusted: control characters and `<>{}` are dropped and each field
 capped.
 
 | Call | Answer |

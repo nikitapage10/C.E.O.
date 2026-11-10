@@ -62,7 +62,7 @@ const DRAWERS = 6;
  * One bed under its cloche (#932): the pop-up growing in it, its crystals as the bed's glow, and its plaque with its
  * state, its line, how long it runs and Shelve. An empty bed is a cloche with nothing under it.
  */
-function Bed({ popup, status, note, lit, onSet, n }: { popup?: Popup; status?: PopupStatus; note?: string; lit: boolean; onSet?: (s: PopupStatus) => void; n: number }) {
+function Bed({ popup, status, note, lit, onSet, onOpen, n }: { popup?: Popup; status?: PopupStatus; note?: string; lit: boolean; onSet?: (s: PopupStatus) => void; onOpen?: () => void; n: number }) {
   if (!popup || !status || !onSet)
     return (
       <li className="an-bed is-free">
@@ -84,6 +84,11 @@ function Bed({ popup, status, note, lit, onSet, n }: { popup?: Popup; status?: P
       <b>{popup.name}</b>
       <span className="an-bed-line">{popup.line}</span>
       <span className="an-until">{note || (popup.until ? `Runs to ${popup.until}` : "Runs until shelved")}</span>
+      {onOpen && (
+        <button type="button" className="an-btn an-btn--go" onClick={onOpen} title="Open its own dashboard">
+          Open
+        </button>
+      )}
       <button type="button" className="an-btn" onClick={() => onSet("archived")} title="Back to seed on the Shelf: stops its reads and timers, keeps its code and settings">
         Shelve
       </button>
@@ -117,7 +122,16 @@ export function Annex() {
   // The console's tabs: each running (or graduated) pop-up's own section, then the beds and the Shelf.
   const shown = [...running, ...out];
   const tabList = [...shown.map((p) => ({ id: p.id, k: p.name, b: growth[p.id]?.note || STATUS_WORD[status[p.id]] })), { id: "beds", k: "Beds and Shelf", b: `${running.length} growing · ${shelf.length} ${shelf.length === 1 ? "seed" : "seeds"}` }];
-  const [tabWant, setTab] = useState<string | null>(null);
+  // A pop-up's dashboard can be linked (/annex#jobs); the tab open is kept in the address.
+  const [tabWant, setTabWant] = useState<string | null>(() => (typeof window !== "undefined" && window.location.hash.length > 1 ? decodeURIComponent(window.location.hash.slice(1)) : null));
+  const setTab = (id: string) => {
+    setTabWant(id);
+    try {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#${encodeURIComponent(id)}`);
+    } catch {
+      // The address is a nicety; the tab still opens.
+    }
+  };
   const tab = tabList.some((t) => t.id === tabWant) ? tabWant! : tabList[0]!.id;
 
   const view: GlassView = useMemo(
@@ -130,8 +144,15 @@ export function Annex() {
     [status, follows, growth],
   );
   const notes = useMemo(() => Object.fromEntries(POPUPS.map((p) => [p.id, growth[p.id]?.note ?? ""])), [growth]);
-  // A tag or a bed in the Glasshouse opens the console on its pop-up's row, lit.
+  // Opens a running pop-up's own dashboard: its tab in the console, scrolled into view.
+  const open = (id: string) => {
+    setTab(id);
+    window.setTimeout(() => deck.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" }), 30);
+  };
+  // A tag or a bed in the Glasshouse opens its pop-up's dashboard when it is growing (or out the door); a seed on the
+  // Shelf opens the console on its row, lit, with Re-spin.
   const pick = (id: string) => {
+    if (shown.some((p) => p.id === id)) return open(id);
     setTab("beds");
     setLit(id);
     window.setTimeout(() => {
@@ -160,7 +181,7 @@ export function Annex() {
           <h1 className="an-h1 desk__title">
             Pop-ups, <em>grown under glass.</em>
           </h1>
-          <p className="an-sub">Short-run projects on the C.E.O. engine. Running ones grow in the beds; a shelved one drops to seed in the vault under the floor; one that earns it is transplanted out the door to a room of its own. Kept by Skippy, the Stagehand.</p>
+          <p className="an-sub">Short-run projects on the C.E.O. engine. Running ones grow in the beds; a shelved one drops to seed in the vault under the floor; one that earns it is transplanted out the door to a room of its own. Tap a bed to open its dashboard. Kept by Skippy, the Stagehand.</p>
           <dl className="an-stats">
             <div>
               <dt>In the beds</dt>
@@ -218,7 +239,7 @@ export function Annex() {
               <ol className="an-cloches">
                 {Array.from({ length: Math.max(BED_COUNT, running.length) }, (_, i) => {
                   const p = running[i];
-                  return p ? <Bed key={p.id} n={i + 1} popup={p} status={status[p.id]} note={growth[p.id]?.note} lit={lit === p.id} onSet={onSet(p)} /> : <Bed key={`free-${i}`} n={i + 1} lit={false} />;
+                  return p ? <Bed key={p.id} n={i + 1} popup={p} status={status[p.id]} note={growth[p.id]?.note} lit={lit === p.id} onSet={onSet(p)} onOpen={() => open(p.id)} /> : <Bed key={`free-${i}`} n={i + 1} lit={false} />;
                 })}
               </ol>
               {!running.length && <p className="an-note">Every bed is free. Re-spin a seed from the Shelf to grow it here again.</p>}

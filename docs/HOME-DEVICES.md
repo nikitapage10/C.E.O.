@@ -313,10 +313,14 @@ only (`api/_haven/lights/`).
   by email). Key Vault references in `infra/resources.bicep` (`SWITCHBOT_TOKEN`, `SWITCHBOT_SECRET`,
   `GOVEE_API_KEY`), settable on the Desk's Keys form (Boiler Room → Controls → Keys). Either vendor alone is enough;
   the ids also need `HOME_TOKEN_KEY`, which the other devices already use.
-- **What the Haven shows** (passkey only): the Lights panel under the lists, with each SwitchBot manual scene as a
-  one-tap button ("Turn off lights"), each light as a switch with its state, the infrared remotes (the projector) as
-  On and Off, and the lights it couldn't place on the house, listed with their type. On the house, a small lamp hangs
-  over each placed light: glowing on, dim off, hollow when its state is unknown; a tap switches it.
+- **What the Haven shows** (passkey only): the Lights panel under the lists, plain by default (#1002): the Rooms
+  (SwitchBot's switches) and the Lamps (Govee's lights) as one switch each with its state, then the Scenes row (each
+  SwitchBot manual scene as a one-tap button, "Turn off lights", and the infrared remotes, the projector, as On and
+  Off). "Edit" opens a Govee light's colour, Place or Move, and the apps' groups. The lights Nikita doesn't use
+  (`HIDDEN_LIGHTS` in `rooms/haven/web/lights.ts`) are left out of the panel and the house; Skippy can still switch
+  them. On the house, a small lamp hangs over each placed light: glowing on, dim off, hollow when its state is
+  unknown; a tap switches it. A SwitchBot switch is its room's own lights: the whole room glows while it's on and is
+  dark at night while it's off, and the laundry's switch counts as the hall's.
 - **Where a light hangs**: the private plan's `lights` (`[{ "name": "Kitchen", "x": …, "y": … }]`, matched to the
   app's name ignoring case), else the room its name names ("Kitchen"; "Left Living Room" on the left half of the
   living room), else it is listed apart. Positions live in the private plan only, never the repo.

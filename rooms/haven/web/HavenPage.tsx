@@ -8,7 +8,7 @@ import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
 import { LightsPanel, type Look } from "./LightsPanel.tsx";
-import { loadLights, placeLightAt, placeLights, postLights, type LightsLoad } from "./lights.ts";
+import { loadLights, placeLightAt, placeLights, postLights, shownLights, type LightsLoad } from "./lights.ts";
 import type { PlanLight } from "../../../api/_haven/planShape.ts";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
@@ -167,7 +167,8 @@ export function Haven() {
       window.clearInterval(t);
     };
   }, [signedIn]);
-  const lightView = lights.state === "ready" ? lights.view : null;
+  // The lights Nikita uses (#1002): the ones he doesn't (lights.ts HIDDEN_LIGHTS) are left out of the panel and the house.
+  const lightView = useMemo(() => (lights.state === "ready" ? { ...lights.view, lights: shownLights(lights.view.lights) } : null), [lights]);
   const setLight = useCallback(async (id: string, on: boolean) => {
     setLightBusy(id);
     setLightNote(null);

@@ -185,6 +185,27 @@ describe("the Job search (#1000)", () => {
     expect(logoOf("javascript:alert(1)")).toBeNull();
   });
 
+  it("ranks close-to-home and hybrid above remote", () => {
+    const p = cleanProfile({ near: ["Denver", "Boulder"] });
+    const at = (location: string, extra: Record<string, unknown> = {}) => scoreJob(normaliseJob(serpJob("n", "Program Manager", { location, ...extra }), "q", "t")!, p, new Set());
+    const denver = at("Denver, CO");
+    const hybrid = at("Boulder, CO", { description: "Hybrid, three days in office" });
+    const remote = at("Anywhere", { detected_extensions: { work_from_home: true } });
+    expect(denver.why).toContain("near you");
+    expect(hybrid.why).toEqual(expect.arrayContaining(["near you", "hybrid"]));
+    expect(hybrid.score).toBeGreaterThan(denver.score);
+    expect(denver.score).toBeGreaterThan(remote.score);
+  });
+
+  it("ranks big companies, then rising ones, then the rest", () => {
+    const p = cleanProfile({ big: ["Microsoft", "Example Labs"], rising: ["Northwind"] });
+    const of = (company: string) => scoreJob(normaliseJob(serpJob("c", "Program Manager", { company_name: company }), "q", "t")!, p, new Set());
+    expect(of("Example Labs").why).toContain("big company");
+    expect(of("Northwind").why).toContain("rising company");
+    expect(of("Example Labs").score).toBeGreaterThan(of("Northwind").score);
+    expect(of("Northwind").score).toBeGreaterThan(of("Tailspin").score);
+  });
+
   it("names the next daily run", () => {
     const s = { ...new MemoryJobsStore().state, profile: cleanProfile({ searches: [{ q: "a" }] }) };
     expect(nextRunAt(s, NOW)).toBe("2026-11-11T13:00:00.000Z");

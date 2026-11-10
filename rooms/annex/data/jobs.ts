@@ -23,6 +23,9 @@ export interface JobsProfile {
   daily: boolean;
   years: number | null;
   applied: { company: string; title: string }[];
+  near: string[];
+  big: string[];
+  rising: string[];
 }
 
 export interface Job {

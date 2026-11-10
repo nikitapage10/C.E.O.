@@ -376,6 +376,7 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
   const [prefer, setPrefer] = useState(joinWords(profile.prefer));
   const [avoid, setAvoid] = useState(joinWords(profile.avoid));
   const [companies, setCompanies] = useState(joinWords(profile.companies));
+  const [near, setNear] = useState(joinWords(profile.near));
   const [daily, setDaily] = useState(profile.daily);
   const [years, setYears] = useState(profile.years ? String(profile.years) : "");
   const [applied, setApplied] = useState(profile.applied.map((a) => `${a.company}: ${a.title}`).join("\n"));
@@ -388,6 +389,7 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
       prefer: splitWords(prefer),
       avoid: splitWords(avoid),
       companies: splitWords(companies),
+      near: splitWords(near),
       daily,
       years: Number(years) || null,
       applied: applied.split("\n").flatMap((l) => {
@@ -468,6 +470,11 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
         <label className="jb-field jb-wide">
           <span>Companies you'd most like</span>
           <textarea className="jb-in" rows={2} value={companies} onChange={(e) => setCompanies(e.target.value)} placeholder="Comma-separated; their jobs rise to the top" />
+        </label>
+        <label className="jb-field jb-wide">
+          <span>Close to home</span>
+          <input className="jb-in" value={near} onChange={(e) => setNear(e.target.value)} placeholder="Comma-separated places, e.g. Denver, Boulder, Colorado" />
+          <small>Jobs here rank first, then hybrid ones, then remote.</small>
         </label>
         <label className="jb-field jb-wide">
           <span>Already applied to</span>

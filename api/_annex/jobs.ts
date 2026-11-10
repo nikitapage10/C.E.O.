@@ -72,6 +72,8 @@ export interface JobsProfile {
   years: number | null;
   /** Roles already applied to (outside C.E.O. too): a found job matching one is filed under Applied, never a new match. */
   applied: { company: string; title: string }[];
+  /** Places close to home (whole words in a job's location): those jobs, and hybrid ones, rank above remote ones. */
+  near: string[];
 }
 
 export interface Job {
@@ -141,7 +143,7 @@ export interface JobsView extends JobsState {
   nextRun: string | null;
 }
 
-export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [] });
+export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [], near: [] });
 export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null });
 
 /* ── Reading things defensively ── */
@@ -242,7 +244,7 @@ export function cleanProfile(raw: unknown): JobsProfile {
     .filter((s) => s.q)
     .slice(0, MAX_SEARCHES);
   const n = typeof r.minSalary === "number" ? r.minSalary : typeof r.minSalary === "string" ? Number(r.minSalary.replace(/[^\d.]/g, "")) : NaN;
-  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: names(r.companies), daily: r.daily !== false, years: yearsOf(r.years), applied: appliedOf(r.applied) };
+  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: names(r.companies), daily: r.daily !== false, years: yearsOf(r.years), applied: appliedOf(r.applied), near: words(r.near) };
 }
 
 const isState = (v: unknown): v is JobState => (JOB_STATES as readonly unknown[]).includes(v);
@@ -379,7 +381,11 @@ export function scoreJob(job: Job, profile: JobsProfile, resume: Set<string>): J
   const pref = profile.prefer.filter((w) => hasWord(hay, w));
   if (pref.length) lift(Math.min(24, pref.length * 8), `mentions ${pref.slice(0, 3).join(", ")}`);
   if (profile.searches.some((s) => s.q && titleL.includes(s.q.toLowerCase()))) lift(10, "title matches a search");
-  if (job.remote) lift(6, "remote");
+  // Close to home first, then hybrid, then remote (Nikita, 2026-11-10: remote roles are harder to land).
+  const near = profile.near.some((w) => hasWord(job.location, w));
+  if (near) lift(16, "near you");
+  if (/\bhybrid\b/i.test(`${job.title} ${job.location} ${job.snippet}`)) lift(near ? 6 : 3, "hybrid");
+  else if (job.remote && !near) lift(profile.near.length ? 1 : 6, "remote");
   let hidden: string | null = avoid ? `has "${avoid}"` : null;
   if (profile.minSalary && job.payMax !== null) {
     if (job.payMax < profile.minSalary) hidden ??= "pay under your floor";

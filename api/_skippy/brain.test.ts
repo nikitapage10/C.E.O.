@@ -186,6 +186,12 @@ async function waiting(w: World): Promise<boolean> {
   return w.pending.items.length > 0;
 }
 
+/** Skippy's chat on the Desk, typed (POST /api/skippy), signed in unless `cookie` says otherwise. */
+async function typed(w: World, message: string, cookie: string | null = w.cookie) {
+  const res = await chat(new Request(`${ORIGIN}/api/skippy`, { method: "POST", headers: { "Content-Type": "application/json", ...(cookie !== null && { Cookie: cookie }) }, body: JSON.stringify({ message, history: [] }) }), w.chatDeps);
+  return { status: res.status, ...((await res.json()) as { reply?: string; confirm?: { summary: string }[]; error?: string; wrote?: string[] }) };
+}
+
 beforeEach(() => {
   forgetKeptWrite();
   forgetTaken();
@@ -219,13 +225,13 @@ describe("Nikita's asks, on every surface, through the one brain (#926)", () => 
     expect(w.calls).toEqual([]);
   });
 
-  it("the Desk, typed: a device waits for the Yes tap, as it always has", async () => {
+  it("the Desk, typed: a device ordered in plain words runs at once, with no Yes tap (#1015)", async () => {
     const w = await world();
-    const res = await chat(new Request(`${ORIGIN}/api/skippy`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: w.cookie }, body: JSON.stringify({ message: "open the wet food feeder", history: [] }) }), w.chatDeps);
-    const body = (await res.json()) as { reply: string; confirm?: unknown[] };
-    expect(body.confirm).toHaveLength(1);
-    expect(body.reply).toMatch(/^Tap Yes/);
-    expect(w.acts).toEqual([]);
+    const body = await typed(w, "open the wet food feeder");
+    expect(body.confirm).toBeUndefined();
+    expect(body.reply).toMatch(/lid is open/);
+    expect(w.acts).toEqual([{ action: "wet.open", via: "desk", said: "open the wet food feeder" }]);
+    expect(w.pending.items).toEqual([]);
   });
 
   it("the Senate, hold Space: 'can you dispense one portion of dry food?' is Skippy's, and the feeder runs", async () => {
@@ -439,6 +445,58 @@ describe("the phone shortcut runs a plain order at once, with no Yes on the Desk
     const made = (await phones.add("Revoked phone", NOW))!;
     await phones.revoke(made.phone.id, NOW);
     expect((await shortcut(w, "open the wet food feeder", made.key)).status).toBe(401);
+    expect(w.switched).toEqual([]);
+    expect(w.acts).toEqual([]);
+  });
+});
+
+describe("the Desk's chat runs a plain device order at once, with no Yes tap (#1015)", () => {
+  it("'turn on the lights' typed switches every light and says so only after they took it", async () => {
+    const w = await world();
+    const body = await typed(w, "turn on the lights");
+    expect(body.status).toBe(200);
+    expect(body.reply).toBe("The lights are on.");
+    expect(body.confirm).toBeUndefined();
+    expect(body.wrote).toEqual(["lights_set"]);
+    expect(w.switched).toEqual([["aaaaaaaaaaaa", true], ["bbbbbbbbbbbb", true]]);
+    expect(w.pending.items).toEqual([]);
+    expect(w.calls).toEqual([]);
+  });
+
+  it("a switch the model makes on Nikita's typed words runs; a failed one says what failed", async () => {
+    const w = await world({ steps: [uses("lights_set", { name: "Study", on: true }), said({ reply: "Study's on.", room: "haven", deeper: "no" })] });
+    const body = await typed(w, "put the study light on for me");
+    expect(body.reply).toBe("Study's on.");
+    expect(body.confirm).toBeUndefined();
+    expect(w.switched).toEqual([["aaaaaaaaaaaa", true]]);
+    const down = await world({ lightsDown: true });
+    const failed = await typed(down, "turn off the lights");
+    expect(failed.reply).toMatch(/didn't switch off/);
+    expect(failed.reply).not.toMatch(/are off|done/i);
+  });
+
+  it("a typed question never runs a device: the model's reach for the switch gets the Yes card at most", async () => {
+    const w = await world({ steps: [uses("lights_set", { name: "all", on: true }), said({ reply: "Both are off.", room: "haven", deeper: "no" })] });
+    const body = await typed(w, "are the lights on?");
+    expect(body.status).toBe(200);
+    expect(w.switched).toEqual([]);
+    expect(w.acts).toEqual([]);
+  });
+
+  it("remember and the other tapped tools still wait for the Yes", async () => {
+    const w = await world({ steps: [uses("implement_it", { title: "A sample idea", pitch: "A sample pitch.", size: "small" }), said({ reply: "Waiting on your Yes.", room: "foundry", deeper: "no" })] });
+    const body = await typed(w, "implement it: a sample idea");
+    expect(body.confirm).toHaveLength(1);
+    expect(w.pending.items.map((p) => p.tool)).toEqual(["implement_it"]);
+  });
+
+  it("signed out, the chat runs nothing: no cookie or a forged one is refused before the body is read", async () => {
+    const w = await world();
+    for (const cookie of [null, "ceo_session=forged", `${w.cookie.split("=")[0]}=x`]) {
+      const body = await typed(w, "turn on the lights", cookie);
+      expect(body.status, String(cookie)).toBe(401);
+    }
+    expect((await typed(w, "open the wet food feeder", null)).status).toBe(401);
     expect(w.switched).toEqual([]);
     expect(w.acts).toEqual([]);
   });

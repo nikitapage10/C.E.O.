@@ -260,13 +260,15 @@ Kernel (#501), signed-in only:
   `draft_text` (the existing Send/Edit/Cancel card); the Green, the Exchange and the Boiler Room have their reads; the
   Haven has `kitchen_add`, `home_device` and the meal planner's tools (`meals_*`, docs/HOME-DEVICES.md, "The meal
   planner"). Every input is checked against its schema on the server.
-- **The tap.** Anything that sends, spends or deletes (and anything marked `confirm`, like `remember` and the home
-  devices) never runs from the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the
-  chat shows exactly what will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the
-  input it was kept with. Spoken (a call, the mic, hold Space, the phone), Skippy has every tool too (#926): a home
-  device, a light or a lights scene runs at once on Nikita's own words when they ask for that action (`spokenAsked` and
-  `spokenLights`, `api/_skippy/agent/words.ts`; the lights since #1011: "turn on the lights" from the phone switches
-  them, no Yes on the Desk), and every other tapped tool says it waits for his Yes on the Desk. Money, legal, the skip list and privacy hold as typed.
+- **The tap.** Anything that sends, spends or deletes (and anything marked `confirm`, like `remember`) never runs from
+  the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the chat shows exactly what
+  will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the input it was kept with.
+  The home devices and the lights (`home_device`, `lights_set`, `lights_scene`: `WORDS_RUN`) are the exception: on
+  every surface, typed in the Desk's chat (#1015) or said (a call, the mic, hold Space, the phone; #926, #1011), they
+  run at once when Nikita's own words ordered that action (`spokenAsked` and `spokenLights`,
+  `api/_skippy/agent/words.ts`), and the answer says what the device actually did. A question never runs one. Typed
+  words that didn't order it (the model's guess) still get the Yes card; said ones run nothing. Every other tapped tool
+  (remember, implement_it, the King Soopers cart) waits for his Yes on the Desk, and spoken it says so. Money, legal, the skip list and privacy hold as typed.
 - **Fetched content never acts.** Once a web search result is in a turn, only reads run for the rest of it.
 - **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
   the Builder, after the tap. Skippy never writes code through the API.
@@ -321,8 +323,8 @@ Skippy, who works out from the context whether the ask is about this page, anoth
   the Senate's word router, the Kernel responder for call asks) are gone.
 - **Tier 0, rules (no model).** The thermostat ("what's the temperature in the apartment?") and a home device asked
   in plain words ("open the wet-food feeder", "dispense one portion of dry food", "turn on the lights", #1011) run their tool at once
-  (`directAsk`, `api/_skippy/agent/words.ts`), even with the month spent. Typed on the Desk, a device still shows its
-  Yes tap. Target: under 2 s on a call, the device's own time included; no model call.
+  (`directAsk`, `api/_skippy/agent/words.ts`), even with the month spent, typed on the Desk too (#1015: no Yes tap).
+  Target: under 2 s on a call, the device's own time included; no model call.
 - **Tier 1, fast (Haiku 5.5).** Everything else: one pass with every room's tools, the page as a hint, and the core
   card; it settles anything one direct tool or read answers (at most 2 calls, 600 tokens each, no thinking). It never
   claims a missing ability for a tool it has. It judges the ask itself (no keyword rules): `deeper: "no"` answers;

@@ -774,3 +774,68 @@ textarea.jb-in {
 .jb-bloom-k .jb-logo {
   border-radius: 7px;
 }
+
+/* Career move (Nikita, 2026-11-10): step up, sideways or step back, from standing, level and pay. */
+.jb-career {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 10px;
+  --jb-move: var(--jb-gold);
+}
+.jb-career.is-up {
+  --jb-move: #7fc8a9;
+}
+.jb-career.is-back {
+  --jb-move: #e08a6a;
+}
+.jb-career-w {
+  color: var(--jb-move);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.jb-career-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(244, 238, 224, 0.1);
+  overflow: hidden;
+}
+.jb-career-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--jb-move) 45%, transparent), var(--jb-move));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--jb-move) 55%, transparent);
+  transition: width 0.6s ease;
+}
+.jb-career-parts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.jb-career-parts span {
+  padding: 2px 8px;
+  border: 1px solid rgba(244, 238, 224, 0.14);
+  border-radius: 999px;
+  color: var(--jb-sub);
+  font-size: 11.5px;
+}
+.jb-career-parts .is-hi {
+  border-color: rgba(127, 200, 169, 0.45);
+  color: #a9dcc4;
+}
+.jb-career-parts .is-lo {
+  border-color: rgba(224, 138, 106, 0.45);
+  color: #eab09a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jb-career-bar i {
+    transition: none;
+  }
+}

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { useAnnex } from "../data/annex.ts";
-import { jobsGrowth, k, since, useJobs, type Job, type JobsProfile, type JobsView, type JobState } from "../data/jobs.ts";
+import { careerMove, jobsGrowth, k, since, useJobs, type Job, type JobsProfile, type JobsView, type JobState } from "../data/jobs.ts";
 import "./jobs.css";
 
 /**
@@ -99,6 +99,27 @@ function Actions({ job, onMark, busy }: { job: Job; onMark: (s: JobState) => voi
   );
 }
 
+/** Whether the job moves the career forward: a bar for the company's standing, the role's level and the pay. */
+function CareerBar({ job, profile }: { job: Job; profile: JobsProfile }) {
+  const c = careerMove(job, profile);
+  const parts = [c.standing, c.level, ...(c.pay ? [c.pay] : [])];
+  return (
+    <div className={`jb-career is-${c.verdict}`} title={parts.map((p) => `${p.word} (${p.n})`).join(" · ")}>
+      <span className="jb-career-w">{c.word}</span>
+      <span className="jb-career-bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={c.value} aria-label={`Career move: ${c.word}, ${c.value} of 100`}>
+        <i style={{ width: `${c.value}%` }} />
+      </span>
+      <span className="jb-career-parts">
+        {parts.map((p) => (
+          <span key={p.word} className={p.n >= 70 ? "is-hi" : p.n < 45 ? "is-lo" : ""}>
+            {p.word}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 function Facts({ job }: { job: Job }) {
   const p = pay(job);
   return (
@@ -112,7 +133,7 @@ function Facts({ job }: { job: Job }) {
   );
 }
 
-function JobCard({ job, onMark, busy, i }: { job: Job; onMark: (s: JobState) => void; busy: boolean; i: number }) {
+function JobCard({ job, profile, onMark, busy, i }: { job: Job; profile: JobsProfile; onMark: (s: JobState) => void; busy: boolean; i: number }) {
   const [open, setOpen] = useState(false);
   return (
     <li className={`jb-job is-${job.state}${job.hidden ? " is-hidden" : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}>
@@ -138,6 +159,7 @@ function JobCard({ job, onMark, busy, i }: { job: Job; onMark: (s: JobState) => 
           <b>{job.score}</b>
         </Ring>
       </div>
+      <CareerBar job={job} profile={profile} />
       <Facts job={job} />
       {(job.why.length > 0 || job.hidden) && (
         <p className="jb-why">
@@ -186,7 +208,7 @@ function JobCard({ job, onMark, busy, i }: { job: Job; onMark: (s: JobState) => 
 }
 
 /** The day's best match, in full, with its ring large. */
-function Bloom({ job, onMark, busy }: { job: Job | undefined; onMark: (s: JobState) => void; busy: boolean }) {
+function Bloom({ job, profile, onMark, busy }: { job: Job | undefined; profile: JobsProfile; onMark: (s: JobState) => void; busy: boolean }) {
   if (!job)
     return (
       <section className="jb-glass jb-bloom is-empty" aria-label="Best match">
@@ -217,6 +239,7 @@ function Bloom({ job, onMark, busy }: { job: Job | undefined; onMark: (s: JobSta
           <b>{job.company}</b>
           {job.location && <span> · {job.location}</span>}
         </p>
+        <CareerBar job={job} profile={profile} />
         <Facts job={job} />
         {job.why.length > 0 && (
           <p className="jb-why">
@@ -606,7 +629,7 @@ export function JobSearch() {
       </header>
 
       <div className="jb-top">
-        <Bloom job={best} onMark={(s) => best && mark(best)(s)} busy={busy} />
+        <Bloom job={best} profile={view.profile} onMark={(s) => best && mark(best)(s)} busy={busy} />
         <div className="jb-side">
           <Pipeline n={counts("new")} s={counts("saved")} a={counts("applied")} d={counts("dismissed")} />
           <Budget view={view} busy={busy} onRun={() => void send({ action: "run" })} now={now} />
@@ -662,7 +685,7 @@ export function JobSearch() {
           {list.length ? (
             <ol className="jb-list">
               {list.slice(0, shown).map((j, i) => (
-                <JobCard key={j.id} job={j} i={i} busy={busy} onMark={mark(j)} />
+                <JobCard key={j.id} job={j} profile={view.profile} i={i} busy={busy} onMark={mark(j)} />
               ))}
             </ol>
           ) : (

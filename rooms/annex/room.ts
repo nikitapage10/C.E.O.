@@ -20,14 +20,15 @@ export default defineRoom({
     "annex-jobs": ["site", "passkey"],
   },
   keys: ["SERPAPI_KEY"],
-  usesClaude: false,
-  threat: ["TB1"],
+  usesClaude: true,
+  threat: ["TB1", "TB2"],
   budgetKb: 64,
   purpose: {
     goal: "Stages short-run pop-ups on the engine (Election night on civicAPI, a private daily Job search on SerpApi) so a new agent feature can be tried before it earns a room.",
     agents: [
       { name: "civicAPI", use: "Election night's live results" },
       { name: "SerpApi", use: "The Job search's Google Jobs results, once a day" },
+      { name: "Claude Sonnet", use: "The Job search's fit check: whether each job's requirements line up with the resume" },
     ],
     measure: "pop-ups live, races followed on Election night, and jobs saved and applied to",
   },

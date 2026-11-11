@@ -839,3 +839,102 @@ textarea.jb-in {
     transition: none;
   }
 }
+
+/* The AI fit check (#1025): the ring is the AI's fit; a provisional score is dimmed and says "not checked yet". */
+.jb-match {
+  display: inline-grid;
+  flex: none;
+  justify-items: center;
+  gap: 4px;
+}
+.jb-match-w {
+  color: var(--jb-sub);
+  font: 500 9.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.jb-match.is-strong .jb-match-w {
+  color: #a9dcc4;
+}
+.jb-match.is-weak .jb-match-w {
+  color: #eab09a;
+}
+.jb-match.is-unchecked .jb-ring {
+  opacity: 0.55;
+  filter: saturate(0.3);
+}
+.jb-fit {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.jb-fit p {
+  margin: 0 0 4px;
+}
+.jb-fit-why {
+  color: var(--jb-ink);
+}
+.jb-fit-miss {
+  color: #eab09a;
+}
+.jb-fit-miss b,
+.jb-fit-met b {
+  font-weight: 600;
+}
+.jb-fit-met {
+  color: #a9dcc4;
+}
+.jb-fit-btn {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.jb-fitspend {
+  margin-top: 10px;
+}
+
+/* Sort and filters: a row of small selects, two to a line on a phone. */
+.jb-sorts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 10px;
+  margin: -4px 0 16px;
+}
+.jb-sel {
+  display: grid;
+  gap: 4px;
+  min-width: 128px;
+}
+.jb-sel > span {
+  color: var(--jb-sub);
+  font: 500 10px var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.jb-sel select.jb-in {
+  padding: 8px 10px;
+  font-size: 13.5px;
+  appearance: auto;
+}
+.jb-sel select.jb-in option {
+  background: #1d1a14;
+  color: var(--jb-ink);
+}
+@media (max-width: 560px) {
+  .jb-sorts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .jb-sel {
+    min-width: 0;
+  }
+  .jb-sorts .jb-check,
+  .jb-sorts .jb-btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .jb-sel select.jb-in {
+    min-height: 40px;
+  }
+}

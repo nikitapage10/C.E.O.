@@ -61,6 +61,11 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
   **$60** by default (`SKIPPY_BUDGET_USD`, warns at $50; ledgers `desk/skippy/spend.json` and
   `desk/skippy/kernel-agent-spend.json`, `api/_skippy/budget.ts`, docs/SKIPPY.md). Past it Skippy says so in one line
   until the month turns.
+- **Annex job fit check (Sonnet, ≤$15/mo cap)** (#1025, Nikita 2026-11-11): Claude Sonnet reads the resume against
+  each Job search posting, once per job per resume, mostly as Message Batches at half price, under its own hard cap of
+  **$15 a month** (`FIT_CAP_USD`, ledger in the private `desk/annex/jobs.json`, `api/_annex/fit.ts`). Past it, or with
+  no key, the jobs keep their rules-only provisional score and the Job search pane says "AI check paused". Its spend is
+  shown only on that passkey-only pane.
 - The Desk's **Usage** panel shows the world's spend this month, how many hours Claude wrote and how many were
   scripted, and counts it against the shared cap meter.
 

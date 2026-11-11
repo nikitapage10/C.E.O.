@@ -28,6 +28,31 @@ export interface JobsProfile {
   rising: string[];
 }
 
+export type Fit = "strong" | "possible" | "weak";
+export type FitLevel = "up" | "level" | "down";
+export type Work = "near" | "hybrid" | "remote" | "elsewhere";
+
+/** The AI fit check's answer (api/_annex/fit.ts): Claude Sonnet reading the resume against the posting. */
+export interface JobFit {
+  fit: Fit;
+  score: number;
+  met: string[];
+  missing: string[];
+  reason: string;
+  level: FitLevel;
+  resume: string;
+  at: string;
+}
+
+/** The fit check's month, shown only on this passkey-only pane. */
+export interface FitCheckView {
+  paused: "no-key" | "cap" | "no-resume" | null;
+  usd: number;
+  cap: number;
+  checks: number;
+  pending: number;
+}
+
 export interface Job {
   id: string;
   title: string;
@@ -47,7 +72,12 @@ export interface Job {
   logo?: string | null;
   yearsAsked?: number | null;
   search: string;
+  /** The rules' provisional score; the match score is `fit.score` once the AI has checked the job (#1025). */
   score: number;
+  fit?: JobFit | null;
+  fitTries?: number;
+  work?: Work;
+  region?: string | null;
   why: string[];
   hidden: string | null;
   firstSeen: string;
@@ -77,6 +107,8 @@ export interface JobsView {
   configured: boolean;
   hasResume: boolean;
   nextRun: string | null;
+  /** Absent from a server that predates #1025. */
+  fitCheck?: FitCheckView;
 }
 
 export const RUN_WORD: Record<string, string> = {
@@ -187,10 +219,18 @@ export interface CareerMove {
 const LEAD_TITLE = /\b(director|head of|vp|vice president|principal|staff|chief|group (product|program) manager|senior manager)\b/i;
 const LOW_TITLE = /\b(associate|junior|jr|entry|intern|coordinator|assistant|analyst ii?|specialist i{1,2})\b/i;
 
+/** The AI's read of the role's level against the resume (#1025), as careerMove's level part. */
+const AI_LEVEL: Record<FitLevel, { word: string; n: number }> = {
+  up: { word: "A step up in scope", n: 92 },
+  level: { word: "At your level", n: 65 },
+  down: { word: "Below your level", n: 25 },
+};
+
 /**
  * Whether a job moves the career forward (Nikita, 2026-11-10): the company's standing from your own lists (big
- * companies are industry leaders, rising ones are startups on the up, the rest unknown), the role's level from the
- * years it asks and its title against your years, and its pay against your floor. Plain rules, no model.
+ * companies are industry leaders, rising ones are startups on the up, the rest unknown), the role's level and its pay
+ * against your floor. The level is the AI fit check's when it has run (#1025: Sonnet compares the role with the
+ * resume's latest one), else read from the years asked and the title against your years.
  */
 export function careerMove(job: Job, profile: JobsProfile): CareerMove {
   const on = (list: string[]) => list.some((w) => wordIn(job.company, w));
@@ -212,7 +252,7 @@ export function careerMove(job: Job, profile: JobsProfile): CareerMove {
   else if (LOW_TITLE.test(job.title)) lvl -= 25;
   else if (/\bsenior|sr\.?\b/i.test(job.title)) lvl += 5;
   lvl = Math.max(0, Math.min(100, lvl));
-  const level = { word: lvl >= 80 ? "Senior / lead role" : lvl >= 55 ? "At your level" : "Junior to you", n: lvl };
+  const level = job.fit?.level ? AI_LEVEL[job.fit.level] : { word: lvl >= 80 ? "Senior / lead role" : lvl >= 55 ? "At your level" : "Junior to you", n: lvl };
 
   const top = job.payMax ?? job.payMin;
   const floor = profile.minSalary ?? 180_000;
@@ -230,4 +270,102 @@ export function careerMove(job: Job, profile: JobsProfile): CareerMove {
   const value = Math.round(pay ? standing.n * 0.5 + level.n * 0.3 + pay.n * 0.2 : standing.n * 0.6 + level.n * 0.4);
   const verdict: CareerVerdict = value >= 70 ? "up" : value >= 48 ? "level" : "back";
   return { value, verdict, word: verdict === "up" ? "Step up" : verdict === "level" ? "Sideways" : "Step back", standing, level, pay };
+}
+
+/* ── Sort and filter (#1025), kept per viewer in this browser ── */
+
+/** The match score: the AI fit when it has checked the job, else the rules' provisional score. */
+export const matchOf = (j: Pick<Job, "score" | "fit">) => j.fit?.score ?? j.score;
+
+export type Tier = "list" | "big" | "rising" | "other";
+
+/** The company's tier from your own lists: your list first, then big companies, then rising ones. */
+export function tierOf(job: Pick<Job, "company">, profile: JobsProfile): Tier {
+  const on = (list: string[]) => list.some((w) => wordIn(job.company, w));
+  return on(profile.companies) ? "list" : on(profile.big) ? "big" : on(profile.rising) ? "rising" : "other";
+}
+
+export const SORTS = [
+  { id: "fit", label: "AI fit" },
+  { id: "new", label: "Newest" },
+  { id: "pay", label: "Pay" },
+  { id: "level", label: "Level (step up first)" },
+  { id: "company", label: "Company" },
+] as const;
+export type Sort = (typeof SORTS)[number]["id"];
+
+export interface JobFilters {
+  sort: Sort;
+  level: CareerVerdict | "";
+  work: Work | "";
+  payClears: boolean;
+  region: string;
+  fit: Fit | "unchecked" | "";
+  tier: Tier | "";
+}
+
+export const NO_FILTERS: JobFilters = { sort: "fit", level: "", work: "", payClears: false, region: "", fit: "", tier: "" };
+
+const VERDICT_ORDER: Record<CareerVerdict, number> = { up: 0, level: 1, back: 2 };
+
+/** The jobs in the chosen order. Ties fall back to the match score, then the newest. */
+export function sortJobs(jobs: Job[], sort: Sort, profile: JobsProfile): Job[] {
+  const moves = new Map(jobs.map((j) => [j.id, careerMove(j, profile)]));
+  const move = (j: Job) => moves.get(j.id)!;
+  const byMatch = (a: Job, b: Job) => matchOf(b) - matchOf(a) || b.firstSeen.localeCompare(a.firstSeen);
+  const cmp: Record<Sort, (a: Job, b: Job) => number> = {
+    // Checked jobs lead: an AI score is a real read, a provisional one only a guess.
+    fit: (a, b) => Number(!!b.fit) - Number(!!a.fit) || byMatch(a, b),
+    new: (a, b) => b.firstSeen.localeCompare(a.firstSeen) || byMatch(a, b),
+    pay: (a, b) => (b.payMax ?? b.payMin ?? -1) - (a.payMax ?? a.payMin ?? -1) || byMatch(a, b),
+    level: (a, b) => VERDICT_ORDER[move(a).verdict] - VERDICT_ORDER[move(b).verdict] || move(b).value - move(a).value || byMatch(a, b),
+    company: (a, b) => a.company.localeCompare(b.company, undefined, { sensitivity: "base" }) || byMatch(a, b),
+  };
+  return [...jobs].sort(cmp[sort]);
+}
+
+/** Whether a job passes the filters. */
+export function passes(j: Job, f: JobFilters, profile: JobsProfile): boolean {
+  if (f.level && careerMove(j, profile).verdict !== f.level) return false;
+  if (f.work && j.work !== f.work) return false;
+  if (f.payClears && !(profile.minSalary && (j.payMax ?? 0) >= profile.minSalary)) return false;
+  if (f.region && j.region !== f.region) return false;
+  if (f.fit && (f.fit === "unchecked" ? !!j.fit : j.fit?.fit !== f.fit)) return false;
+  if (f.tier && tierOf(j, profile) !== f.tier) return false;
+  return true;
+}
+
+const PREFS_KEY = "ceo.annex.jobs.view";
+
+const pick = <T extends string>(v: unknown, ok: readonly T[], d: T): T => (ok.includes(v as T) ? (v as T) : d);
+
+/** The viewer's last sort and filters; the defaults when the browser keeps nothing (a private window, blocked storage). */
+export function loadFilters(): JobFilters {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(PREFS_KEY) ?? "null") as Partial<JobFilters> | null;
+    if (!raw || typeof raw !== "object") return NO_FILTERS;
+    return {
+      sort: pick(
+        raw.sort,
+        SORTS.map((s) => s.id),
+        "fit",
+      ),
+      level: pick(raw.level, ["", "up", "level", "back"] as const, ""),
+      work: pick(raw.work, ["", "near", "hybrid", "remote", "elsewhere"] as const, ""),
+      payClears: raw.payClears === true,
+      region: typeof raw.region === "string" && /^[A-Z]{2}$/.test(raw.region) ? raw.region : "",
+      fit: pick(raw.fit, ["", "strong", "possible", "weak", "unchecked"] as const, ""),
+      tier: pick(raw.tier, ["", "list", "big", "rising", "other"] as const, ""),
+    };
+  } catch {
+    return NO_FILTERS;
+  }
+}
+
+export function saveFilters(f: JobFilters): void {
+  try {
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify(f));
+  } catch {
+    // Storage blocked: the choice lasts this visit only.
+  }
 }

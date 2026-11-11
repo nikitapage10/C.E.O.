@@ -31,7 +31,7 @@ are still played by the simulator until their room goes real. The list lives in 
 | Archive | The Historian | violet | Simulated for now | (simulated for now) |
 | Break Room | The Life of the Party | pink | Simulated for now | (simulated for now) |
 | Workshop | The Artiste | teal | Simulated for now | Image model, Meshy, import (when the pipeline is real) |
-| Annex | The Stagehand | highlighter yellow | **Active** (Desk-only, `DESK_SUBMINDS`; civicAPI live since #618); its thread when Nikita opens one | Which pop-ups run, sit on the Shelf or graduate, and which public source each one reads (Election night: civicAPI) |
+| Annex | The Stagehand | highlighter yellow | **Active** (Desk-only, `DESK_SUBMINDS`; civicAPI live since #618); its thread when Nikita opens one | Which pop-ups run, sit on the Shelf or graduate, and which public source each one reads (Election night: civicAPI; the Job search: SerpApi, with a Claude Sonnet fit check against the resume under its own $15 a month cap, #1025) |
 | Haven | The Steward | lamplight gold | **Active** (Desk-only, `DESK_SUBMINDS`; Roborock, Petlibro and Whisker live since #632, the Haven page since #616); its thread when Nikita opens one | The home devices' actions (always through the rails: the feed cap, the litter gate, named rooms), the Kitchen list, and which rooms light up; the Nest (#637) and the King Soopers cart (#664, on Nikita's tap only), and training when it connects |
 | Studio | The Director | tally-light red | Simulated for now | OpenAI images (style presets) or Claude-drawn vector art past the cap, ElevenLabs voices, the render job (when the line is real, #311) |
 

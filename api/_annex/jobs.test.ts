@@ -71,22 +71,22 @@ describe("the Job search (#1000)", () => {
     const j = normaliseJob(serpJob("d", "Director, Technical Programs", { description: "8+ years leading programs" }), "q", "t")!;
     expect(j.yearsAsked).toBe(8);
     const p = cleanProfile({ years: 10 });
-    expect(scoreJob(j, p, new Set()).why).toContain("asks 8+ years, fits");
-    expect(scoreJob(j, p, new Set()).hidden).toBeNull();
-    expect(scoreJob({ ...j, yearsAsked: 15 }, p, new Set()).why).toContain("asks 15+ years");
+    expect(scoreJob(j, p).why).toContain("asks 8+ years, fits");
+    expect(scoreJob(j, p).hidden).toBeNull();
+    expect(scoreJob({ ...j, yearsAsked: 15 }, p).why).toContain("asks 15+ years");
   });
 
   it("hides jobs under the pay floor or with an avoided word", () => {
     const j = normaliseJob(serpJob("a", "Senior Product Manager"), "Product Manager", "t")!;
     const p = cleanProfile({ searches: [{ q: "Product Manager" }], minSalary: 250_000, prefer: ["roadmap"] });
-    const s = scoreJob(j, p, new Set());
+    const s = scoreJob(j, p);
     expect(s.hidden).toBe("pay under your floor");
-    expect(scoreJob(j, cleanProfile({ avoid: ["example"] }), new Set()).hidden).toBe('has "example"');
+    expect(scoreJob(j, cleanProfile({ avoid: ["example"] })).hidden).toBe('has "example"');
     // Whole words only: "lab" never hides "Labs", "ai" never lifts "maintain".
-    expect(scoreJob(j, cleanProfile({ avoid: ["lab"] }), new Set()).hidden).toBeNull();
-    expect(scoreJob({ ...j, snippet: "maintain" }, cleanProfile({ prefer: ["ai"] }), new Set()).why.join()).not.toContain("mentions");
-    expect(scoreJob(j, cleanProfile({ companies: ["example labs"] }), new Set()).why).toContain("on your company list");
-    expect(scoreJob(j, cleanProfile({ minSalary: 150_000 }), new Set()).hidden).toBeNull();
+    expect(scoreJob(j, cleanProfile({ avoid: ["lab"] })).hidden).toBeNull();
+    expect(scoreJob({ ...j, snippet: "maintain" }, cleanProfile({ prefer: ["ai"] })).why.join()).not.toContain("mentions");
+    expect(scoreJob(j, cleanProfile({ companies: ["example labs"] })).why).toContain("on your company list");
+    expect(scoreJob(j, cleanProfile({ minSalary: 150_000 })).hidden).toBeNull();
   });
 
   it("sends the key to SerpApi only, with work-from-home as ltype", () => {
@@ -148,7 +148,8 @@ describe("the Job search (#1000)", () => {
     expect("state" in r && r.hasResume).toBe(true);
     expect(store.resume).toContain("roadmap");
     expect(JSON.stringify(store.state)).not.toContain("roadmap planning");
-    expect("state" in r && r.state.jobs[0]!.why).toContain("fits your resume");
+    // The resume no longer moves the rules' score: only the AI fit check reads it (fit.test.ts).
+    expect("state" in r && r.state.jobs[0]!.why).not.toContain("fits your resume");
   });
 
   it("rotates a long list, PER_RUN searches a run", async () => {
@@ -173,7 +174,7 @@ describe("the Job search (#1000)", () => {
     expect(appliedBefore({ company: "Anthropic", title: "Technical Program Manager, Safeguards" }, applied)).toBe(false);
     expect(appliedBefore({ company: "Figma", title: "Privacy Program Manager" }, applied)).toBe(false);
     const j = normaliseJob(serpJob("x", "Privacy Program Manager", { company_name: "ElevenLabs" }), "q", new Date(NOW).toISOString())!;
-    const out = tidy([j], cleanProfile({ applied }), new Set(), NOW);
+    const out = tidy([j], cleanProfile({ applied }), NOW);
     expect(out[0]!.state).toBe("applied");
   });
 
@@ -187,19 +188,19 @@ describe("the Job search (#1000)", () => {
 
   it("ranks close-to-home and hybrid above remote", () => {
     const p = cleanProfile({ near: ["Denver", "Boulder"] });
-    const at = (location: string, extra: Record<string, unknown> = {}) => scoreJob(normaliseJob(serpJob("n", "Program Manager", { location, ...extra }), "q", "t")!, p, new Set());
+    const at = (location: string, extra: Record<string, unknown> = {}) => scoreJob(normaliseJob(serpJob("n", "Program Manager", { location, ...extra }), "q", "t")!, p);
     const denver = at("Denver, CO");
     const hybrid = at("Boulder, CO", { description: "Hybrid, three days in office" });
     const remote = at("Anywhere", { detected_extensions: { work_from_home: true } });
     expect(denver.why).toContain("near you");
-    expect(hybrid.why).toEqual(expect.arrayContaining(["near you", "hybrid"]));
+    expect(hybrid.why).toEqual(expect.arrayContaining(["near you, hybrid"]));
     expect(hybrid.score).toBeGreaterThan(denver.score);
     expect(denver.score).toBeGreaterThan(remote.score);
   });
 
   it("ranks big companies, then rising ones, then the rest", () => {
     const p = cleanProfile({ big: ["Microsoft", "Example Labs"], rising: ["Northwind"] });
-    const of = (company: string) => scoreJob(normaliseJob(serpJob("c", "Program Manager", { company_name: company }), "q", "t")!, p, new Set());
+    const of = (company: string) => scoreJob(normaliseJob(serpJob("c", "Program Manager", { company_name: company }), "q", "t")!, p);
     expect(of("Example Labs").why).toContain("big company");
     expect(of("Northwind").why).toContain("rising company");
     expect(of("Example Labs").score).toBeGreaterThan(of("Northwind").score);

@@ -5,7 +5,8 @@
  * recipe in cook mode only ever reads them. The library's own run makes them after the answer, one at a time, recipes'
  * photos first; the ten-minute timer (azure/src/index.ts, `haven_photos_tick`) picks up whatever a run left. A step
  * already in the library is never made again (same recipe as cooked, same key), and one that failed or hit the cap is
- * tried once more on the next finalize.
+ * tried once more on the next finalize. A week finalized before this shipped gets its steps from the hourly backfill
+ * (#1026, `backfillStepPhotos` in api/_haven/meals.ts), which only queues steps the library has never seen.
  *
  * Nothing here logs a meal, a step or a prompt: counts only.
  *

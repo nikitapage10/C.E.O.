@@ -846,6 +846,8 @@ export async function createBoard(host: HTMLElement, canvas: HTMLCanvasElement, 
     if (playing) mixer.clipAction(idle).play();
     const nodder = neck ?? head;
     const rest = nodder?.quaternion.clone() ?? null;
+    // Only trust the clip to reset the neck when it has a track for that bone; otherwise the nod piles up and the head spins.
+    const driven = !!idle && playing && !!nodder && idle.tracks.some((tr) => tr.name.startsWith(`${nodder.name}.`));
     const p = at(SEAT.ledger, CHAIR_R + 0.04);
     const g = new Group();
     g.position.set(p.x, 0.58 - hipY, p.z);
@@ -867,8 +869,8 @@ export async function createBoard(host: HTMLElement, canvas: HTMLCanvasElement, 
         const c = (t % 7) / 7;
         const look = c < 0.18 ? Math.sin((c / 0.18) * Math.PI * 2) ** 2 : 0;
         if (!nodder) return;
-        // The clip sets the neck each frame; without it (reduced motion) it starts from its rest every time.
-        if (!playing && rest) nodder.quaternion.copy(rest);
+        // The clip sets the neck each frame when it drives that bone; otherwise it starts from its rest every time.
+        if (!driven && rest) nodder.quaternion.copy(rest);
         nodder.quaternion.multiply(nod.setFromAxisAngle(ax, 0.1 + look * 0.3));
       },
     });

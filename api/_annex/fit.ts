@@ -147,7 +147,7 @@ export const FIT_SCHEMA = {
 } as const;
 
 /** Text inside a tag it can't close or open: any `<resume`, `</posting` and the like loses its bracket. */
-export const fence = (text: string) => text.replace(/<\s*\/?\s*(resume|posting)/gi, (m) => m.replace("<", "‹"));
+export const fence = (text: string) => text.replace(/<(\s*\/?\s*(?:resume|posting))/gi, "‹$1");
 
 export const resumeBlock = (resume: string) => `<resume>\n${fence(resume.slice(0, RESUME_CHARS))}\n</resume>`;
 

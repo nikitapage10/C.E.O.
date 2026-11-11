@@ -9,6 +9,13 @@ import { SILENCE_CHECK_MS, silenceGuard, type SilenceGuard } from "./silence.ts"
 import { holdBegin, holdCheck, holdEnd, holdHeard } from "./hold.ts";
 import { duckSite } from "@ceo/engine/web/siteSound.ts";
 import { createLanding, shortSpoken } from "./landing.ts";
+import { screenJSON } from "@ceo/engine/web/screenFacts.ts";
+
+/** What Nikita is looking at as the call starts (#1027): its metadata goes with the call's asks; never a picture. */
+const screenNowFor = (): { screen?: string } => {
+  const screen = screenJSON();
+  return screen ? { screen } : {};
+};
 
 /**
  * Talking to Skippy out loud (#434), browser side; the function is api/skippy-voice.ts. A tap asks for the microphone,
@@ -138,7 +145,7 @@ const crewOf = (raw: unknown) => {
 /** Ask our function for one call's token. */
 export async function requestToken(doFetch: typeof fetch = fetch): Promise<Started> {
   try {
-    const res = await doFetch("/api/skippy-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }), credentials: "same-origin" });
+    const res = await doFetch("/api/skippy-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", ...screenNowFor() }), credentials: "same-origin" });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (res.status === 401) return { ok: false, reason: "signed-out" };
     if (res.status === 429) return { ok: false, reason: "slow" };

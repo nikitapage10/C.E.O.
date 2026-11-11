@@ -26,6 +26,8 @@ export interface Pending {
   label: string;
   summary: string;
   at: number;
+  /** What the turn saw of Nikita's screen (#1027): the private screenshot's id and the scrubbed metadata, for implement_it. */
+  extra?: { shot?: string; screen?: string };
 }
 
 export const isPendingId = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{20}$/.test(v);

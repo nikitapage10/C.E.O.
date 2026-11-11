@@ -259,7 +259,8 @@ Kernel (#501), signed-in only:
   `memory_read`, `remember`, `forget`); the Foundry has `foundry_board` and `implement_it`; Relay has its counts and
   `draft_text` (the existing Send/Edit/Cancel card); the Green, the Exchange and the Boiler Room have their reads; the
   Haven has `kitchen_add`, `home_device` and the meal planner's tools (`meals_*`, docs/HOME-DEVICES.md, "The meal
-  planner"). Every input is checked against its schema on the server.
+  planner"), `meals_recipe` among them; Today has `look_at_screen` (both #1027, "Skippy sees the screen" below).
+  Every input is checked against its schema on the server.
 - **The tap.** Anything that sends, spends or deletes (and anything marked `confirm`, like `remember`) never runs from
   the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the chat shows exactly what
   will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the input it was kept with.
@@ -271,7 +272,8 @@ Kernel (#501), signed-in only:
   (remember, implement_it, the King Soopers cart) waits for his Yes on the Desk, and spoken it says so. Money, legal, the skip list and privacy hold as typed.
 - **Fetched content never acts.** Once a web search result is in a turn, only reads run for the rest of it.
 - **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
-  the Builder, after the tap. Skippy never writes code through the API.
+  the Builder, after the tap. Skippy never writes code through the API. When the turn looked at the screen, the issue
+  also names the screenshot by its private id and carries the screen's scrubbed description (#1027, below).
 - **Chips.** Under each reply: "looked" chips (what he read: a room, a memory page, a web search) in ice and "did" chips
   (what changed) in gold. Words only, never the data.
 - **The page follows.** Every answer that ran a tool which changed something names those tools in `wrote` (the chat's
@@ -309,6 +311,46 @@ caps. At the cap Skippy stops calling Claude and says so; the gauge under his na
 
 **Later phases** (not built yet): a nightly distiller from the journal into facts and pages, a ChatGPT and file import,
 an interview mode, sub-agents, Managed Agents (inside the same cap), and a remote MCP server.
+
+## Skippy sees the screen (#1027)
+
+Nikita can say "this", "here" or "that" and Skippy knows what he means.
+
+- **Screen context, every message.** Each view says what it shows through one registry, `useScreenContext(facts)`
+  (`@ceo/engine/web/screen.ts`, pure part in `screenFacts.ts`): the room, the tab, the open item, its stage
+  (`draft`, `finalized` or `cooking` in the Kitchen) and a few key fields, plus a `private` part (a meal's name and
+  steps, a job search's words) that only the prompt sees. The Desk shell sets the room and tab; the page on screen adds
+  the rest (only views of the shell's room count, since the Desk keeps other pages mounted behind it). The Kitchen's
+  planner and cook mode, the Annex's Job search and Relay are detailed; Relay gives counts and states, never a
+  message. The Desk chat, a room's mic and hold Space (the `x-ceo-screen` header on a clip) and the start of a Talk call
+  send it; the phone has no screen. It is about 2 KB at most, and key-looking values and key-named fields are dropped
+  in the browser and again on the server (`readScreen`, `api/_skippy/prompt.ts`). It reaches the prompt as a fenced
+  `<screen>` block, read as what Nikita is looking at.
+- **`look_at_screen`, only when needed.** When the description isn't enough, or he points at something visual ("what's
+  wrong here?", "this box"), Skippy calls `look_at_screen`. The server answers `{ needScreen: true }`; the browser draws
+  the page with `html-to-image` (pinned, no permission prompt; WebGL canvases drawn in on their next frame, the Haven's
+  scene through `registerShotRender`; Skippy's own chat box and the mic dock left out with `data-shot-skip`), uploads
+  the JPEG to `POST /api/foundry-shot` and asks again with the same words and the shot's id. That pass puts the picture
+  first in the turn as an image input, and Skippy is never asked to look twice. A failed capture asks again with
+  `look: false`, and Skippy goes on the description. Never on every message, never on the phone or a call.
+- **Screenshots stay private.** A shot is kept only in the private store (`desk/skippy/shots/shot-<20 hex>.jpg`,
+  `api/_skippy/shots.ts`), JPEG, PNG or WebP by its magic bytes, 3 MB at most, posted only from a passkey session.
+  `GET /api/foundry-shot?id=shot-<id>` reads it back with a passkey session or the Builder read key (#800,
+  docs/SECURITY.md), `private, no-store`. When `implement_it` runs after that turn (the Yes tap still decides), the
+  issue gets `**Screenshot:** shot-<id> (private; …)` and a `**Screen:**` line with the description minus its private
+  part, left out if it trips the privacy check. The picture never goes to GitHub; nothing is blurred, since nothing
+  public shows it.
+- **Recipe edits by voice: `meals_recipe`.** "Add a step to make pico de gallo", "no guac or chips", "use lemon instead
+  of lime", "change step 2". Actions `show`, `add_step` (with its ingredients and amounts, like "2 roma tomatoes" or
+  "0.25 cup cilantro"), `edit_step`, `remove_step`, `drop`, `replace` and `add`, for one night (`Custom.recipe` on the
+  week's slot; the catalog's recipe is untouched). It is an order, so it runs at once with no Yes, and Skippy says what
+  changed. The week's stage decides how far it reaches:
+  - *Draft:* the night's recipe, its per-step amounts and the planned shopping list follow.
+  - *Finalized or cooking:* only the recipe and its steps change (text, ingredients, amounts). The Kitchen list, the
+    cart and any order stay as they were, the week stays finalized, and a new non-pantry ingredient is mentioned in a
+    sentence ("Not bought this week: …"), never added unless he asks. Changed steps get their step pictures queued
+    under the images cap (`queueStepPhotos`, only the missing ones), never made on open. Cook mode reads the edited
+    steps live.
 
 ## One brain on every surface (#926)
 

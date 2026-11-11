@@ -27,8 +27,8 @@
  *                                             api/skippy.ts
  *        any request + x-ceo-site-bypass: <SITE_BYPASS_TOKEN>   the live watch (it reads site-bypass-token from the
  *                                             Key Vault, #313; Vercel's copy also served the public-mode seed)
- *        GET /api/haven-plan, /api/haven-meals, /api/haven-photos + x-ceo-builder-key: <BUILDER_READ_KEY>   the Builder reading
- *                                             the Haven's private files (#800, api/_site/builderkey.ts): GET or HEAD only
+ *        GET /api/haven-plan, /api/haven-meals, /api/haven-photos, /api/foundry-shot + x-ceo-builder-key: <BUILDER_READ_KEY>   the Builder reading
+ *                                             the Haven's private files and a Foundry screenshot (#800, #1027, api/_site/builderkey.ts): GET or HEAD only
  *        GET <a room read> + x-ceo-room-key: <SUBMIND_LOG_TOKEN>    a submind thread reading its room's data
  *        POST /api/room-feed + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting a room event
  *        POST /api/setup-asks + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting or closing a setup ask (#324)

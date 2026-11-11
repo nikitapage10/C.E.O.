@@ -8,6 +8,9 @@
  *
  *   GET  /api/haven-meals                    passkey session: { meals, components } (meals null until it's seeded).
  *   POST /api/haven-meals { action: "edit", edit }      passkey session: one edit (`readEdit`) → { meals, changes }.
+ *                                                       A night's recipe edit (#1027, `op: "recipe"`) in a finalized
+ *                                                       week changes only the recipe (never the list, the cart or an
+ *                                                       order) and queues a changed step's picture.
  *   POST /api/haven-meals { action: "confirm" }         passkey session: the week confirmed, its shopping onto the
  *                                                       Kitchen list (source "meals", where the King Soopers matcher
  *                                                       picks it up) → { changes, added, already, photos (the
@@ -48,7 +51,7 @@ import { readJson, updateJson } from "./json.js";
 import { KitchenList, sameKey } from "./list.js";
 import { drainPhotos, livePhotoDeps, queueStepPhotos, type PhotoDeps } from "./photos.js";
 import { weekStepShots } from "./stepShots.js";
-import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
+import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, weekStage, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
 
@@ -268,6 +271,8 @@ export async function mealsPost(request: Request, deps: MealsDeps): Promise<Resp
     if (!edit) return reply({ error: "bad-request" }, 400);
     const got = await store.edit(edit, now);
     if (!got.ok) return reply({ error: got.error }, got.error === "not-seeded" || got.error === "not-found" ? 404 : 409);
+    // A finalized week's changed recipe step gets its new picture queued (#1027), under the library's cap.
+    if (edit.op === "recipe" && edit.action !== "drop" && edit.action !== "add" && edit.action !== "remove-step" && deps.stepPhotos && weekStage(viewOf(got.file, edit.week).week) === "finalized") await deps.stepPhotos(got.file, edit.week).catch(() => null);
     // The kind of edit only: never a meal or a taste.
     deps.log(`haven: meals ${edit.op}`);
     return reply({ ok: true, changes: got.changes, ...view(got.file) });

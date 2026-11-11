@@ -100,7 +100,30 @@ export interface Custom {
   parts?: Record<string, string>;
   portion?: number;
   spice?: Spice;
+  /** The night's own recipe edits (#1027, Skippy's meals_recipe): steps, added and dropped ingredients. */
+  recipe?: RecipeEdit;
 }
+
+/**
+ * One night's recipe as edited (#1027): what Nikita changed by voice in cook mode or the Kitchen ("add a homemade
+ * pico", "no avocado"). Only this night changes; the catalog's recipe stays as written.
+ */
+export interface RecipeEdit {
+  /** The night's steps, in place of the recipe's, once a step was added, changed or taken out. */
+  steps?: string[];
+  /** Ingredients added for the night, for one portion. */
+  add?: Ingredient[];
+  /** Ingredients taken out: any of the meal's or its parts' ingredients whose name has one of these words. */
+  drop?: string[];
+}
+
+/** The most steps a night's edited recipe keeps, and the longest step. */
+export const RECIPE_STEPS_MAX = 16;
+export const STEP_MAX = 240;
+
+/** Where a week is in the process (#1027): a draft (the shopping follows an edit) or finalized (only the recipe changes). */
+export type WeekStage = "draft" | "finalized";
+export const weekStage = (w: { confirmedAt: string | null } | null | undefined): WeekStage => (w?.confirmedAt ? "finalized" : "draft");
 
 export interface Lunch {
   text: string;
@@ -336,7 +359,21 @@ function customOf(v: unknown): Custom {
   for (const [k, id] of Object.entries(o(x.parts))) if (/^[0-5]$/.test(k) && isId(id)) parts[k] = id;
   const portion = (PORTIONS as readonly unknown[]).includes(x.portion) ? (x.portion as number) : undefined;
   const spice = (SPICES as readonly unknown[]).includes(x.spice) ? (x.spice as Spice) : undefined;
-  return { ...(Object.keys(parts).length && { parts }), ...(portion !== undefined && portion !== 1 && { portion }), ...(spice && { spice }) };
+  const recipe = recipeOf(x.recipe);
+  return { ...(Object.keys(parts).length && { parts }), ...(portion !== undefined && portion !== 1 && { portion }), ...(spice && { spice }), ...(recipe && { recipe }) };
+}
+
+/** A night's recipe edits as read from the file (#1027), or undefined when there are none. */
+function recipeOf(v: unknown): RecipeEdit | undefined {
+  const x = o(v);
+  const steps = Array.isArray(x.steps) ? arr(x.steps).map((s) => plain(s, STEP_MAX)).filter(Boolean).slice(0, RECIPE_STEPS_MAX) : undefined;
+  const add = ingredientsOf(x.add).slice(0, 16);
+  const drop = arr(x.drop)
+    .map((t) => plain(t, 40).toLowerCase())
+    .filter((t) => t.length >= 3)
+    .slice(0, 20);
+  const out: RecipeEdit = { ...(steps && steps.length && { steps }), ...(add.length && { add }), ...(drop.length && { drop }) };
+  return Object.keys(out).length ? out : undefined;
 }
 
 function skipOf(v: unknown): Skip | undefined {
@@ -513,9 +550,12 @@ export interface Dish {
 const add = (a: Macros, b: Macros, k = 1): Macros => ({ protein: a.protein + b.protein * k, carbs: a.carbs + b.carbs * k, fat: a.fat + b.fat * k, kcal: a.kcal + b.kcal * k });
 const round = (x: Macros, k = 1): Macros => ({ protein: Math.max(0, Math.round(x.protein * k)), carbs: Math.max(0, Math.round(x.carbs * k)), fat: Math.max(0, Math.round(x.fat * k)), kcal: Math.max(0, Math.round(x.kcal * k)) });
 
-export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Profile, "spice"> }, meal: Meal, custom: Custom = {}): Dish {
+export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Profile, "spice"> }, base: Meal, custom: Custom = {}): Dish {
+  const r = custom.recipe;
+  // The night's own steps (#1027): the dish carries them, so cook mode, its step pictures and Skippy all read the same.
+  const meal = r?.steps ? { ...base, steps: r.steps } : base;
   let macros = meal.macros;
-  const ingredients: Ingredient[] = [...meal.ingredients];
+  let ingredients: Ingredient[] = [...meal.ingredients];
   const changes: string[] = [];
   const parts = meal.parts.map((p, index) => {
     const base = componentNamed(f, p.option);
@@ -529,6 +569,18 @@ export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Prof
     if (now) ingredients.push(...now.ingredients);
     return { index, role: p.role, base, now };
   });
+  if (r) {
+    const gone = ingredients.filter((i) => droppedBy(r, i.item));
+    if (gone.length) {
+      ingredients = ingredients.filter((i) => !gone.includes(i));
+      changes.push(`No ${[...new Set(gone.map((i) => i.item.toLowerCase()))].join(", ")}`);
+    }
+    if (r.add?.length) {
+      ingredients.push(...r.add);
+      changes.push(`With ${r.add.map((i) => i.item.toLowerCase()).join(", ")}`);
+    }
+    if (r.steps) changes.push("Steps edited");
+  }
   const portion = custom.portion ?? 1;
   if (portion !== 1) changes.push(`${portion} portions`);
   // The house heat (the taste profile's) isn't a change to the night: only a night's own spice is.
@@ -536,6 +588,12 @@ export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Prof
   if (custom.spice && custom.spice !== meal.spice) changes.push(spice === "mild" ? "Mild" : spice === "hot" ? "Hot" : "Medium heat");
   return { meal, parts, ingredients, macros: round(macros, portion), portion, spice, changes, customized: changes.length > 0 };
 }
+
+/** Whether a night's recipe edits take an ingredient out (#1027): its name has one of the dropped words. */
+export const droppedBy = (r: RecipeEdit, item: string): boolean => {
+  const k = item.toLowerCase();
+  return !!r.drop?.some((t) => k.includes(t));
+};
 
 export const slotDish = (f: MealsState, s: Slot): Dish | null => {
   const meal = mealNamed(f, s.meal);
@@ -719,6 +777,12 @@ type BaseEdit =
   /** A night's switches; `skipDinner` / `skipLunch` skip that meal with a reason, or null to have it again (#788). */
   | { op: "night"; day: Day; helloFresh?: boolean; forTwo?: boolean; inCart?: boolean; skipDinner?: SkipReason | null; skipLunch?: SkipReason | null }
   | { op: "customize"; day: Day; part?: { index: number; option: string }; portion?: number; spice?: Spice; reset?: boolean }
+  /**
+   * A night's recipe (#1027): add a step (at a 1-based place, with what it needs), change or take out a step, take
+   * ingredients out by name (`terms`), replace one (`terms` out, `add` in, the steps renamed), or add ingredients.
+   * In a draft week the shopping list follows; in a finalized week only the recipe changes (`weekStage`).
+   */
+  | { op: "recipe"; day: Day; action: RecipeAction; step?: number; text?: string; add?: Ingredient[]; terms?: string[] }
   | { op: "avoid"; term: string; unless?: string }
   | { op: "unavoid"; term: string }
   /** A like for the taste profile ("salmon", "spicy food"), or taken back off. */
@@ -736,6 +800,9 @@ type BaseEdit =
   | { op: "undo" }
   /** The photo library's id, written back by the Desk: a night's own photo (`day`) or a catalog meal's (`meal`). No Undo. */
   | { op: "photo"; day?: Day; meal?: string; photo: string };
+
+export const RECIPE_ACTIONS = ["add-step", "edit-step", "remove-step", "drop", "replace", "add"] as const;
+export type RecipeAction = (typeof RECIPE_ACTIONS)[number];
 
 const isDay = (v: unknown): v is Day => (DAYS as readonly unknown[]).includes(v);
 const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
@@ -771,6 +838,24 @@ function readBase(x: Record<string, unknown>): BaseEdit | null {
       const reset = x.reset === true || undefined;
       if (!part && portion === undefined && !spice && !reset) return null;
       return { op: "customize", day: x.day, ...(part && { part }), ...(portion !== undefined && { portion }), ...(spice && { spice }), ...(reset && { reset }) };
+    }
+    case "recipe": {
+      if (!isDay(x.day) || !(RECIPE_ACTIONS as readonly unknown[]).includes(x.action)) return null;
+      const action = x.action as RecipeAction;
+      const step = typeof x.step === "number" && Number.isInteger(x.step) && x.step >= 1 && x.step <= RECIPE_STEPS_MAX + 1 ? x.step : undefined;
+      const text = plain(x.text, STEP_MAX);
+      const add = ingredientsOf(x.add).slice(0, 12);
+      const terms = arr(x.terms)
+        .map((t) => plain(t, 40).toLowerCase())
+        .filter((t) => t.length >= 3)
+        .slice(0, 8);
+      if (action === "add-step" && !text) return null;
+      if (action === "edit-step" && (!text || step === undefined)) return null;
+      if (action === "remove-step" && step === undefined) return null;
+      if (action === "drop" && !terms.length) return null;
+      if (action === "replace" && (!terms.length || !add.length)) return null;
+      if (action === "add" && !add.length) return null;
+      return { op: "recipe", day: x.day, action, ...(step !== undefined && { step }), ...(text && { text }), ...(add.length && { add }), ...(terms.length && { terms }) };
     }
     case "avoid": {
       const term = plain(x.term, 40).toLowerCase();
@@ -883,6 +968,80 @@ function refill(f: MealsState) {
     const others = new Set(w.slots.filter((x) => x !== s).flatMap((x) => [x.meal, ...x.backups]));
     s.backups = backupsFor(f, mealNamed(f, s.meal)!, s.backups, others);
   }
+}
+
+/** "Roma tomatoes (2)", "Cilantro (0.25 cup)": a change's lines, for its words. */
+const lineWords = (list: Ingredient[]) => list.map((i) => shopLine(i)).join(", ");
+
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * One recipe edit on a night (#1027), in place on `s.custom.recipe`: the words for it, or null when it changed nothing
+ * (a step that isn't there, a word no ingredient has).
+ */
+function editRecipe(f: MealsState, s: Slot, meal: Meal, e: Extract<BaseEdit, { op: "recipe" }>): string | null {
+  const r: RecipeEdit = { ...s.custom.recipe };
+  const before = dishOf(f, meal, s.custom);
+  const steps = [...before.meal.steps];
+  const name = `${DAY_NAME[s.day]}'s ${meal.name}`;
+  let said: string;
+  switch (e.action) {
+    case "add-step": {
+      if (steps.length >= RECIPE_STEPS_MAX) return null;
+      const at = Math.min(Math.max(1, e.step ?? steps.length + 1), steps.length + 1);
+      steps.splice(at - 1, 0, e.text!);
+      r.steps = steps;
+      if (e.add?.length) r.add = [...(r.add ?? []), ...e.add].slice(0, 16);
+      said = `${name}: new step ${at}, "${e.text!.slice(0, 80)}"${e.add?.length ? `, with ${lineWords(e.add)}` : ""}.`;
+      break;
+    }
+    case "edit-step": {
+      if (!steps[e.step! - 1]) return null;
+      steps[e.step! - 1] = e.text!;
+      r.steps = steps;
+      said = `${name}: step ${e.step} now reads "${e.text!.slice(0, 80)}".`;
+      break;
+    }
+    case "remove-step": {
+      if (!steps[e.step! - 1] || steps.length <= 1) return null;
+      const [gone] = steps.splice(e.step! - 1, 1);
+      r.steps = steps;
+      said = `${name}: took out step ${e.step} ("${gone!.slice(0, 60)}").`;
+      break;
+    }
+    case "drop":
+    case "replace": {
+      const terms = e.terms!;
+      const has = (i: Ingredient) => terms.some((t) => i.item.toLowerCase().includes(t));
+      const hit = before.ingredients.filter(has);
+      if (!hit.length) return null;
+      // Something added for the night that's dropped now goes with it.
+      r.add = (r.add ?? []).filter((i) => !has(i));
+      r.drop = [...new Set([...(r.drop ?? []), ...terms])].slice(0, 20);
+      const out = [...new Set(hit.map((i) => i.item.toLowerCase()))].join(", ");
+      if (e.action === "replace") {
+        r.add = [...r.add, ...e.add!].slice(0, 16);
+        // The steps name the new one where they named the old (one ingredient in for one word out).
+        if (e.add!.length === 1 && terms.length === 1) {
+          const re = new RegExp(`(?<![\\p{L}])${escRe(terms[0]!)}(?![\\p{L}])`, "giu");
+          const renamed = steps.map((t) => t.replace(re, e.add![0]!.item.toLowerCase()));
+          if (renamed.some((t, k) => t !== steps[k])) r.steps = renamed;
+        }
+        said = `${name}: ${lineWords(e.add!)} in place of ${out}.`;
+      } else said = `${name}: took out ${out}.`;
+      break;
+    }
+    case "add": {
+      r.add = [...(r.add ?? []), ...e.add!].slice(0, 16);
+      said = `${name}: added ${lineWords(e.add!)}.`;
+      break;
+    }
+  }
+  if (!r.add?.length) delete r.add;
+  if (!r.drop?.length) delete r.drop;
+  s.custom = { ...s.custom, recipe: r };
+  if (!Object.keys(r).length) delete s.custom.recipe;
+  return said;
 }
 
 /** Applies one edit (pure). The file comes back new, with Undo set for anything that changed the plan. */
@@ -1018,6 +1177,20 @@ function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
       const d = dishOf(f, meal, s.custom);
       changes.push(d.customized ? `${DAY_NAME[edit.day]}: ${meal.name}, ${d.changes.join(", ").toLowerCase()}.` : `${DAY_NAME[edit.day]}: ${meal.name} as written.`);
       label = `${DAY_NAME[edit.day]} customized`;
+      break;
+    }
+    case "recipe": {
+      if (!needWeek()) return { ok: false, error: "no-week" };
+      const s = f.week!.slots[DAYS.indexOf(edit.day)]!;
+      const meal = mealNamed(f, s.meal);
+      if (!meal || !cooksDinner(s)) return { ok: false, error: "not-found" };
+      const said = editRecipe(f, s, meal, edit);
+      if (!said) return { ok: false, error: "not-found" };
+      changes.push(said);
+      label = `${DAY_NAME[edit.day]}'s recipe`;
+      // Finalized (#1027): the recipe changes and nothing else. The week stays finalized, so the Kitchen list, the cart
+      // and any order are left exactly as they were.
+      if (weekStage(before.week) === "finalized") return { ok: true, file: { v: 1, ...f, undo: { label, at: stamp, state: before } }, changes };
       break;
     }
     case "avoid": {
@@ -1316,6 +1489,52 @@ export function weekWords(f: MealsState): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/** The words a unit goes by in an ingredient line ("2 cups rice", "1 tablespoon oil"). */
+const UNIT_WORDS: Record<string, Unit> = {
+  lb: "lb", lbs: "lb", pound: "lb", pounds: "lb", oz: "oz", ounce: "oz", ounces: "oz", cup: "cup", cups: "cup", tbsp: "tbsp", tablespoon: "tbsp", tablespoons: "tbsp", tsp: "tsp", teaspoon: "tsp", teaspoons: "tsp",
+  each: "each", clove: "clove", cloves: "clove", can: "can", cans: "can", jar: "jar", jars: "jar", pack: "pack", packs: "pack", bunch: "bunch", bunches: "bunch", slice: "slice", slices: "slice", tub: "tub", tubs: "tub", bag: "bag", bags: "bag", bottle: "bottle", bottles: "bottle",
+};
+const FRACTIONS: Record<string, number> = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
+
+/**
+ * An ingredient from a line as Skippy writes it (#1027): "2 roma tomatoes", "0.25 cup cilantro", "1/2 tsp cumin",
+ * "salt (pantry)". The amount first (1 without one), then a unit when the next word is one, then the item. Null when
+ * there's no item.
+ */
+export function ingredientLine(line: string): Ingredient | null {
+  let rest = plain(line, 80);
+  const pantry = /\(\s*pantry\s*\)|\bpantry\b/i.test(rest);
+  rest = rest.replace(/\(\s*pantry\s*\)|\bpantry\b/gi, " ").replace(/\s+/g, " ").trim();
+  let qty = 1;
+  const m = /^(\d+(?:\.\d+)?)?(?:\s*(\d+)\/(\d+))?\s*([½¼¾⅓⅔])?\s*/.exec(rest);
+  if (m && m[0].trim()) {
+    const whole = m[1] ? Number(m[1]) : 0;
+    const frac = m[2] && m[3] && Number(m[3]) > 0 ? Number(m[2]) / Number(m[3]) : 0;
+    const sym = m[4] ? FRACTIONS[m[4]]! : 0;
+    // "1/2" reads as half, not one and a half: a lone fraction's numerator is caught as the whole number.
+    const lone = /^(\d+)\/(\d+)/.exec(rest);
+    qty = lone ? Number(lone[1]) / Math.max(1, Number(lone[2])) : whole + frac + sym || 1;
+    rest = rest.slice(lone ? lone[0].length : m[0].length).trim();
+  }
+  const [first, ...more] = rest.split(" ");
+  const unit = first ? UNIT_WORDS[first.toLowerCase().replace(/\.$/, "")] : undefined;
+  const item = plain((unit ? more.join(" ") : rest).replace(/^of\s+/i, ""), 60);
+  if (!item) return null;
+  return { item: item[0]!.toUpperCase() + item.slice(1), qty: Math.round(Math.min(100, Math.max(0.01, qty)) * 100) / 100, unit: unit ?? "each", ...(pantry && { pantry: true }) };
+}
+
+/** A night's recipe in words for Skippy (#1027): the steps numbered and the ingredients for one portion. */
+export function recipeWords(f: MealsState, s: Slot): string {
+  const d = slotDish(f, s);
+  if (!d) return "There's no meal on that night.";
+  const stage = weekStage(f.week);
+  return [
+    `${DAY_NAME[s.day]}'s ${d.meal.name} (the week is ${stage === "finalized" ? "finalized" : "a draft"})${d.changes.length ? `, ${d.changes.join(", ").toLowerCase()}` : ""}.`,
+    ...d.meal.steps.map((t, k) => `${k + 1}. ${t}`),
+    `Ingredients for one portion: ${d.ingredients.map((i) => `${shopLine(i)}${i.pantry ? " (pantry)" : ""}`).join(", ")}.`,
+  ].join("\n");
 }
 
 /** A meal by its id or (loosely) its name, for Skippy's tools; `course` narrows it to dinners or lunches. */

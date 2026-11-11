@@ -68,8 +68,10 @@ import {
 
 /** The longest words taken (the phone's own cap). */
 export const ROOM_TEXT_MAX = 300;
-/** The most a JSON body may be (bytes): the words, the history and the page's lines. */
-const BODY_MAX = 8 * 1024;
+/** The most a JSON body may be (bytes): the words, the history, the page's lines and the screen's metadata. */
+const BODY_MAX = 12 * 1024;
+/** The header a clip's screen metadata rides in (#1027): its JSON, URI-encoded. */
+export const SCREEN_HEADER = "x-ceo-screen";
 /** The most of the page's lines taken (the chat's own `page` cap, api/_skippy/prompt.ts readPage, applies after). */
 const PAGE_MAX = 1_600;
 /** The turns the browser may send back, at most. */
@@ -198,12 +200,24 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
   let last: Capture["kind"] | null = null;
   // What the page shows (#926): a hint for "this" and "that one", never a filter on what he can do.
   let page = "";
+  // What Nikita is looking at (#1027): the screen's metadata, and the screenshot's id once Skippy asked to look.
+  let screen: unknown;
+  let shot = "";
+  let look = true;
   if (audio) {
     voice = roomVoiceOf(new URL(request.url).searchParams.get("room"));
     if (!voice) return json({ error: "bad-request" }, 400);
     const clip = new Uint8Array(await request.arrayBuffer());
     if (clip.length > CLIP_MAX_BYTES) return json({ error: "too-big" }, 413);
     text = tidyText(await transcribeRoom(clip, type, deps.eleven, deps.ledger, now, deps.fetcher));
+    const header = request.headers.get(SCREEN_HEADER) ?? "";
+    if (header && header.length <= 6_000) {
+      try {
+        screen = decodeURIComponent(header);
+      } catch {
+        screen = undefined;
+      }
+    }
   } else {
     const raw = await request.text().catch(() => "");
     if (raw.length > BODY_MAX) return json({ error: "too-big" }, 413);
@@ -237,6 +251,9 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     text = tidyText(body.text);
     history = readHistory(body.history);
     page = typeof body.page === "string" ? body.page.slice(0, PAGE_MAX) : "";
+    screen = body.screen;
+    shot = typeof body.shot === "string" ? body.shot.slice(0, 40) : "";
+    look = body.look !== false;
     last = readLast(body.last);
   }
   if (!text) return json({ say: "I didn't catch anything. Try again." }, 400);
@@ -267,8 +284,14 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
         log: voice.log,
         by: sub && isNeeds(sub.id) ? sub.id : null,
         ...(page && { page }),
+        ...(screen !== undefined && { screen }),
+        ...(shot && { shot }),
+        ...(!look && { look: false }),
       }),
     );
+    // Skippy asked to look at the screen (#1027): the browser captures the page and sends the words again with the shot
+    // (a clip's words come back with it, so they aren't transcribed twice). Nothing is said yet.
+    if (turn.needScreen) return json({ needScreen: true, text, kind: "skippy" });
     say = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);
     status = turn.error ? STATUS[turn.error] : 200;
     if (!turn.error && turn.wrote?.length) wrote = { wrote: turn.wrote, did: turn.did ?? [] };

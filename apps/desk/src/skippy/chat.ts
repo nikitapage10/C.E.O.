@@ -4,6 +4,7 @@ import type { AskedCard, AskedRoom } from "./asked.ts";
 import type { Pending } from "./handoff.ts";
 import { texting } from "./rooms.ts";
 import { announceWrote, readWrote } from "./wrote.ts";
+import { screenJSON } from "@ceo/engine/web/screenFacts.ts";
 
 /**
  * Skippy's chat, browser side (#224; the function is api/skippy.ts). The conversation lives only in this tab's
@@ -196,16 +197,26 @@ export const ASK_ERROR: Record<Exclude<Asked, { ok: true }>["error"], string> = 
   failed: "Skippy didn't answer. Try again.",
 };
 
-/** One message to the function. */
-export async function askSkippy(message: string, history: { who: Turn["who"]; text: string }[], doFetch: typeof fetch = fetch, page = ""): Promise<Asked> {
+/**
+ * One message to the function, with what Nikita is looking at (#1027, `screen`: the page's metadata, about 2 KB at
+ * most). When Skippy asks to look at the screen (`needScreen`), the page is captured here with no prompt, kept
+ * privately (/api/foundry-shot) and the same words go again with the shot's id; a capture that fails goes again with
+ * `look: false`, on the metadata alone.
+ */
+export async function askSkippy(message: string, history: { who: Turn["who"]; text: string }[], doFetch: typeof fetch = fetch, page = "", look: { shot?: string; none?: true } = {}): Promise<Asked> {
   try {
+    const screen = screenJSON();
     const res = await doFetch("/api/skippy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: message.slice(0, MESSAGE_MAX), history, ...(page && { page }) }),
+      body: JSON.stringify({ message: message.slice(0, MESSAGE_MAX), history, ...(page && { page }), ...(screen && { screen }), ...(look.shot && { shot: look.shot }), ...(look.none && { look: false }) }),
       credentials: "same-origin",
     });
-    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown; looked?: unknown; did?: unknown; wrote?: unknown; confirm?: unknown; spend?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown; looked?: unknown; did?: unknown; wrote?: unknown; confirm?: unknown; spend?: unknown; needScreen?: unknown };
+    if (res.ok && body.needScreen === true && !look.shot && !look.none) {
+      const shot = await import("@ceo/engine/web/screenshot.ts").then((m) => m.lookAtScreen(doFetch)).catch(() => null);
+      return askSkippy(message, history, doFetch, page, shot ? { shot } : { none: true });
+    }
     if (res.status === 401) return { ok: false, error: "signed-out", message: ASK_ERROR["signed-out"] };
     if (res.status === 422) {
       const kinds = Array.isArray(body.held) ? body.held.filter((k): k is string => typeof k === "string" && k.length < 60) : [];

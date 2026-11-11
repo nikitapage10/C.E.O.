@@ -4,6 +4,7 @@ import { ponderLine } from "../../../../api/_skippy/ponder.ts";
 import type { ToolOutcome } from "@ceo/engine/tools";
 import type { RoomIntent, RoomIntentAction, RoomMic, RoomUtterance } from "@ceo/engine/voice";
 import { announceWrote, readWrote } from "../skippy/wrote.ts";
+import { screenJSON } from "@ceo/engine/web/screenFacts.ts";
 
 /**
  * The room mic, browser side (#638): one tap (or hold Space) on a Desk room's page and Nikita talks straight to the room's
@@ -57,10 +58,13 @@ export async function askRoom(
   history: Turn[],
   last: string | null,
   doFetch: typeof fetch = fetch,
+  look: { shot?: string; none?: true } = {},
 ): Promise<RoomAnswer> {
   try {
-    // Where he is, so "this" and "that one" resolve (#926): a hint for the one brain, never a filter.
+    // Where he is, so "this" and "that one" resolve (#926): a hint for the one brain, never a filter. And what he's
+    // looking at (#1027): the page's metadata, with every ask.
     const page = "text" in said ? await pageHint() : "";
+    const screen = screenJSON();
     const res =
       "text" in said
         ? await doFetch("/api/skippy-room", {
@@ -73,11 +77,14 @@ export async function askRoom(
               history,
               ...(last && { last }),
               ...(page && { page }),
+              ...(screen && { screen }),
+              ...(look.shot && { shot: look.shot }),
+              ...(look.none && { look: false }),
             }),
           })
         : await doFetch(`/api/skippy-room?room=${encodeURIComponent(room)}`, {
             method: "POST",
-            headers: { "Content-Type": said.clip.type || "audio/webm" },
+            headers: { "Content-Type": said.clip.type || "audio/webm", ...(screen && { "x-ceo-screen": encodeURIComponent(screen) }) },
             credentials: "same-origin",
             body: said.clip,
           });
@@ -87,7 +94,18 @@ export async function askRoom(
       audio?: unknown;
       wrote?: unknown;
       did?: unknown;
+      needScreen?: unknown;
+      text?: unknown;
     };
+    // Skippy asked to look (#1027): the page is captured with no prompt, kept privately, and the words go again with
+    // the shot (a clip's words came back, so it isn't heard twice). A capture that fails goes on the metadata alone.
+    if (res.ok && body.needScreen === true && !look.shot && !look.none) {
+      const words = "text" in said ? said.text : typeof body.text === "string" ? body.text : "";
+      if (words) {
+        const shot = await import("@ceo/engine/web/screenshot.ts").then((m) => m.lookAtScreen(doFetch)).catch(() => null);
+        return askRoom(room, { text: words }, history, last, doFetch, shot ? { shot } : { none: true });
+      }
+    }
     if (res.ok) announceWrote(readWrote(body));
     const say = typeof body.say === "string" ? body.say.replace(/\s+/g, " ").trim().slice(0, 400) : "";
     const kind = typeof body.kind === "string" ? body.kind : "skippy";

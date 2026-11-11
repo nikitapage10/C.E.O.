@@ -14,7 +14,8 @@ import { useDeskData } from "./deskData.ts";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { startDeskWorker } from "./pings.ts";
 import { PAGE_LOADERS, pageName, pageSections, type DeskPage, type PageProps } from "./roomPages.ts";
-import { sectionTitle } from "@ceo/engine/web/sections.ts";
+import { sectionOf, sectionTitle } from "@ceo/engine/web/sections.ts";
+import { useScreenContext } from "@ceo/engine/web/screen.ts";
 import { startDeskAuth } from "@ceo/engine/web/signin.ts";
 import { useSkippy } from "./skippy/index.ts";
 import { loadTodayMore, Today } from "../../../rooms/today/web/Today.tsx";
@@ -150,6 +151,10 @@ export function Desk({ route }: { route: DeskPage }) {
   useEffect(() => {
     document.title = titleOf(route, pathname);
   }, [route, pathname]);
+  // What Nikita is looking at (#1027), coarsely for every page: the room and its tab. A room's own view adds the open
+  // item; only the room on screen counts, so the pages kept mounted behind it add nothing.
+  const sections = route === "today" ? [] : pageSections(route);
+  useScreenContext({ room: route, tab: route === "today" ? "Senate" : sections.length ? sectionOf(sections, pathname).label : pageName(route) }, true);
 
   // The rooms kept mounted (#759, #934, keptRooms.ts): the one on screen, and the Senate, the Haven and Relay hidden and
   // paused, mounted one at a time in the Desk's idle time after its first paint, the Haven and Relay once the Senate's

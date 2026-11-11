@@ -56,6 +56,27 @@ export const TOOLS: readonly RoomTool[] = [
     effect: "write",
   },
   {
+    name: "meals_recipe",
+    room: "haven",
+    title: "Edit a night's recipe",
+    description:
+      "Change one night's recipe, often from cook mode (<screen> has the day, the step he's on and the stage): show (steps numbered, ingredients; read it before changing steps you can't see), add_step (text; step: where it goes, 1-based, else the end; ingredients it needs), edit_step (step, text), remove_step (step), drop (terms: words of ingredients to take out, e.g. avocado, guac, chips; then fix the steps only about them), replace (terms out, ingredients in) or add. ingredients: lines like '2 roma tomatoes', '0.25 cup cilantro', 'salt (pantry)', for one portion. Only that night changes. A draft week's shopping list follows; a finalized week (cook mode) changes only the recipe, never the Kitchen list, cart or an order. An order: it runs at once; say what changed.",
+    input: {
+      type: "object",
+      properties: {
+        day: DAY,
+        action: { type: "string", enum: ["show", "add_step", "edit_step", "remove_step", "drop", "replace", "add"] },
+        step: { type: "integer", minimum: 1, maximum: 17, description: "The step's number, 1-based." },
+        text: { type: "string", maxLength: 240, description: "The step's words, for add_step and edit_step." },
+        ingredients: { type: "array", items: { type: "string", maxLength: 60 }, maxItems: 12, description: "Lines like \"2 roma tomatoes\", for one portion." },
+        terms: { type: "array", items: { type: "string", maxLength: 40 }, maxItems: 8, description: "For drop and replace: words of the ingredients to take out." },
+      },
+      required: ["day", "action"],
+      additionalProperties: false,
+    },
+    effect: "write",
+  },
+  {
     name: "meals_night",
     room: "haven",
     title: "Set a night: HelloFresh, for two, skip",

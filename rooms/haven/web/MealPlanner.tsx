@@ -36,10 +36,12 @@ import {
   type Course,
   type SkipReason,
   viewOf,
+  weekStage,
   type Slot,
 } from "./meals.ts";
 import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoState } from "./mealPhotos.ts";
 import { onWrote, touchesList, touchesMeals } from "@ceo/desk/skippy/wrote.ts";
+import { useScreenContext } from "@ceo/engine/web/screen.ts";
 import { cookLunchOf, cookOf, type Cook } from "./cook.ts";
 import { CookMode } from "./CookMode.tsx";
 import { onListCleared } from "./groceries.ts";
@@ -442,7 +444,11 @@ function Recipe({ steps, d }: { steps: string[]; d: Dish }) {
 
 /** Cook (#721): the week's recipes once the food's in, each with cook mode. Dinners cooked here and quick lunches. */
 function CookList({ f }: { f: MealsFile }) {
-  const [cooking, setCooking] = useState<Cook | null>(null);
+  // Which recipe is in cook mode, by night: drawn from the plan as it stands, so an edit Skippy makes while Nikita
+  // cooks (#1027, meals_recipe) shows at once.
+  const [cookingAt, setCooking] = useState<{ day: Day; lunch: boolean } | null>(null);
+  const cookSlot = cookingAt ? f.week!.slots[DAYS.indexOf(cookingAt.day)] : undefined;
+  const cooking: Cook | null = cookingAt && cookSlot ? (cookingAt.lunch ? cookLunchOf(f, cookSlot) : cookOf(f, cookSlot)) : null;
   const [open, setOpen] = useState<string | null>(null);
   const rows = f.week!.slots.flatMap((s) => {
     const out: Array<{ key: string; s: Slot; d: Dish; lunch: boolean }> = [];
@@ -471,7 +477,7 @@ function CookList({ f }: { f: MealsFile }) {
               <button type="button" className="mp-link" aria-expanded={open === key} onClick={() => setOpen((v) => (v === key ? null : key))}>
                 {open === key ? "Hide" : "Recipe"}
               </button>
-              <button type="button" className="mp-cook is-small" onClick={() => setCooking(lunch ? cookLunchOf(f, s) : cookOf(f, s))}>
+              <button type="button" className="mp-cook is-small" onClick={() => setCooking({ day: s.day, lunch })}>
                 Cook mode
               </button>
             </span>
@@ -917,6 +923,27 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
   const [photos, setPhotos] = useState<ReadonlyMap<string, PhotoState>>(new Map());
   const seq = useRef(0);
   const detail = useRef<HTMLDivElement>(null);
+
+  // What Nikita is looking at (#1027): the week's stage and the open night; the meals themselves only in the private
+  // part (a public Foundry issue never carries them).
+  const shownWeek = file ? viewOf(file, start && file.ahead.some((w) => w.start === start) ? start : null).week : null;
+  const pickSlot = pick && shownWeek ? shownWeek.slots[pick.i] : undefined;
+  const pickDish = file && pickSlot ? (pick!.course === "lunch" ? lunchDish(viewOf(file, start), pickSlot) : slotDish(viewOf(file, start), pickSlot)) : null;
+  useScreenContext(
+    load === "ready" && shownWeek
+      ? {
+          room: "haven",
+          tab: "Kitchen",
+          item: pickSlot ? `${DAY_NAME[pickSlot.day]}'s ${pick!.course}` : "The week's meal plan",
+          stage: weekStage(shownWeek),
+          fields: { week: shownWeek.start, phase: phase ?? "plan", ...(pickSlot && { day: pickSlot.day }), ...(over && { panel: over }) },
+          private: {
+            ...(pickDish && { meal: pickDish.meal.name, steps: pickDish.meal.steps.map((t, k) => `${k + 1}. ${t}`.slice(0, 120)) }),
+            nights: shownWeek.slots.map((s) => `${s.day}: ${file ? (mealNamed(file, s.meal)?.name ?? s.meal) : s.meal}${s.helloFresh ? " (HelloFresh)" : ""}`),
+          },
+        }
+      : null,
+  );
 
   // The open meal sits under the week's grid (#729): bring it into view when one is picked and it's out of sight.
   useEffect(() => {

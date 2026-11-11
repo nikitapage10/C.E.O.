@@ -8,6 +8,7 @@
  *   /api/haven-plan                 the floor plan
  *   /api/haven-meals                the meal planner file
  *   /api/haven-photos?id=<id>[&size=full] and ?view=catalog[&ids=a,b]   the Kitchen's meal photos
+ *   /api/foundry-shot?id=shot-<hex>  a screenshot Skippy took of the page for a Foundry issue (#1027)
  * Any other method or path stays refused (the gate's usual 401, or a handler's own refusal when a write reaches it). The
  * key counts only when it is set, at least 32 characters, and different from every other key; it is compared in
  * constant time and never logged. Unset, the header does nothing.
@@ -32,6 +33,8 @@ const READS: Readonly<Record<string, readonly string[]>> = {
   "/api/haven-plan": [],
   "/api/haven-meals": [],
   "/api/haven-photos": ["id", "size", "view", "ids"],
+  // A screenshot Skippy took for a Foundry issue (#1027): the issue names it by its opaque id only.
+  "/api/foundry-shot": ["id"],
 };
 
 function same(given: string, want: string): boolean {

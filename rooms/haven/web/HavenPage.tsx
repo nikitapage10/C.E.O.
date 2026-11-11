@@ -9,7 +9,8 @@ import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
 import { LightsPanel, type Look } from "./LightsPanel.tsx";
 import { loadLights, placeLightAt, placeLights, postLights, shownLights, type LightsLoad } from "./lights.ts";
-import type { PlanLight } from "../../../api/_haven/planShape.ts";
+import { lightKey, type PlanLight } from "../../../api/_haven/planShape.ts";
+import { isRun, kindOf } from "./fixtures.ts";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
 import { Plinth } from "./Plinth.tsx";
@@ -299,14 +300,21 @@ export function Haven() {
       if (l && l.online && lightBusy === null) void setLight(id, l.on !== true);
     });
   }, [gl, lightView, lightBusy, setLight, theSpots]);
+  // A row of spots or a backlight (#1007, fixtures.ts) is a run: two taps, where it starts and where it ends.
+  const [runStart, setRunStart] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => setRunStart(null), [placing]);
+  const placingName = placing ? (lightView?.lights.find((l) => l.id === placing)?.name ?? null) : null;
+  const placingRun = placingName !== null && isRun(kindOf(placingName, theSpots.find((s) => lightKey(s.name) === lightKey(placingName))));
   useEffect(() => {
-    const name = placing ? lightView?.lights.find((l) => l.id === placing)?.name : null;
-    house.current?.setPlacing(name ?? null, (x, y) => {
+    const name = placingName;
+    house.current?.setPlacing(name, (x, y) => {
       if (!name) return;
+      if (placingRun && !runStart) return setRunStart({ x, y });
       setPlacing(null);
-      void placeLightAt(name, { x, y }).then((r) => (r.ok ? (setSpots(r.spots), setLightNote(`${name} is on the map.`)) : setLightNote(r.say)));
+      const at = placingRun && runStart ? { ...runStart, x2: x, y2: y } : { x, y };
+      void placeLightAt(name, at).then((r) => (r.ok ? (setSpots(r.spots), setLightNote(`${name} is on the map.`)) : setLightNote(r.say)));
     });
-  }, [placing, lightView, gl]);
+  }, [placingName, placingRun, runStart, gl]);
   useEffect(() => {
     if (!placing) return;
     const key = (e: KeyboardEvent) => e.key === "Escape" && setPlacing(null);
@@ -432,7 +440,7 @@ export function Haven() {
             )}
             <HavenLists />
             {signedIn && lightView && (
-              <LightsPanel view={lightView} placed={placedIds} placing={placing} canPlace={gl === "on"} busy={lightBusy} note={lightNote} onSet={(id, on) => void setLight(id, on)} onScene={(id) => void runScene(id)} onLook={(id, look) => void setLook(id, look)} onPlace={setPlacing} />
+              <LightsPanel view={lightView} placed={placedIds} placing={placing} placingStep={placingRun ? (runStart ? "end" : "start") : null} canPlace={gl === "on"} busy={lightBusy} note={lightNote} onSet={(id, on) => void setLight(id, on)} onScene={(id) => void runScene(id)} onLook={(id, look) => void setLook(id, look)} onPlace={setPlacing} />
             )}
           </header>
           {!signedIn && (

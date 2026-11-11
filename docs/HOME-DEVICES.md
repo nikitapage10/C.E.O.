@@ -324,6 +324,17 @@ only (`api/_haven/lights/`).
 - **Where a light hangs**: the private plan's `lights` (`[{ "name": "Kitchen", "x": …, "y": … }]`, matched to the
   app's name ignoring case), else the room its name names ("Kitchen"; "Left Living Room" on the left half of the
   living room), else it is listed apart. Positions live in the private plan only, never the repo.
+- **What a light is drawn as** (#1007, `rooms/haven/web/fixtures.ts`): a SwitchBot switch that is a run of fittings
+  is drawn as that fixture, not as a whole room's lights. By name: **Left Living Room** and **Right Living Room** are
+  rows of ceiling spots, **Kitchen** the backlight strip behind the cabinet run's back panelling, **Laundry** a single
+  ceiling fitting. A spot's `kind` in the private plan (`spots`, `backlight` or `glow`) overrides the name. With no
+  saved spot the house places them itself: the two spot rows across the open kitchen and the hall (the first between
+  the cabinet run and the island, the second past the island), the backlight on the run's wall from the hob to the
+  coffee maker, the laundry's fitting at the hall's far end from the kitchen. To set one exactly, **Edit → Move** in
+  the Lights panel: a row or a strip takes two taps (where it starts, where it ends), saved as `x`, `y`, `x2`, `y2` on
+  the private plan; any other light takes one. A floor lamp in the Studio with no saved spot stands in a corner: the
+  first (or one named "right") over the DJ decks, the second (or "left") behind the sofas. Every other SwitchBot switch still lights its room (#1002). By day the
+  fittings themselves stay bright (pucks, strip, beams), so on and off read in the sun.
 - **Skippy**: `lights_list` (any surface), `lights_set` (a light or a remote, by name) and `lights_scene` (by name),
   the last two on the Desk after Nikita's Yes.
 - **The API**: `GET /api/haven/lights` and `POST /api/haven/lights` (`{ op: "set", id, on }` or

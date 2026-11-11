@@ -3,6 +3,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
+import { makeSurroundings, type Box2, type Surroundings } from "./surroundings.ts";
 import { introDue, introStarted } from "./intro.ts";
 import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
@@ -27,7 +28,8 @@ import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
  * lit rooms, drift up in their light, rise off the devices that are working and swarm the ones that need Nikita.
  *
  * Starts on a three-quarter view fitted to the plan (#658: about 37° up, turned so the plan's far end runs up and to the
- * right), standing on a Denver night plain under its sky (night.ts, #665), all in the one scene; drag to orbit, pinch or
+ * right), one unit of a low courtyard block with a street, a park and a boulevard round it (surroundings.ts, #1007), on a
+ * Denver plain under its sky (night.ts, #665), all in the one scene; drag to orbit, pinch or
  * scroll to zoom, tap a room to fly in (300 ms), and `resetView` comes back to the fitted view. Reduced motion: every move is
  * instant and the frame is still (drawn only when something changes). Loaded lazily, with three from the Lattice's own
  * chunk, and only for a passkey session with a plan.
@@ -251,6 +253,8 @@ export class House {
   private pan: [number, number] = [0, 0];
   private away = false;
   private night: Night | null = null;
+  /** The courtyard block, the street and the rest round the home (#1007, surroundings.ts). */
+  private around: Surroundings | null = null;
   private tween: { from: Cam; to: Cam; t0: number; ms: number; sweep?: boolean } | null = null;
   private W = 1;
   private H = 1;
@@ -425,6 +429,7 @@ export class House {
       phone: Math.min(window.innerWidth, window.innerHeight) < 600,
     });
     this.scene.add(this.night.group);
+    this.surroundings();
     // Frosted glass walls with bright top edges.
     const boxes = (segs: Seg[], h: number, t: number, y0: number) =>
       segs.map((s) => {
@@ -445,6 +450,30 @@ export class House {
     this.world.add(this.real.group);
     this.nanites();
     this.buildLabels();
+  }
+
+  /**
+   * The home as one unit of a courtyard block (#1007): the block's roofs on every side the home's rooms, decks and
+   * walk don't take, the courtyard on the side its balconies face, the street on the other (surroundings.ts).
+   */
+  private surroundings() {
+    const P = this.plan;
+    const W = (x0: number, y0: number, x1: number, y1: number): Box2 => ({ x0: this.wx(Math.min(x0, x1)), z0: this.wz(Math.min(y0, y1)), x1: this.wx(Math.max(x0, x1)), z1: this.wz(Math.max(y0, y1)) });
+    const keep: Box2[] = P.rooms.flatMap((r) => r.parts.map(([x, y, w, h]) => W(x, y, x + w, y + h)));
+    for (const [x1, y1, x2, y2] of [...(P.decks ?? []), ...P.balconies]) keep.push(W(Math.min(x1, x2) - 140, Math.min(y1, y2) - 140, Math.max(x1, x2) + 140, Math.max(y1, y2) + 140));
+    P.path.forEach(([x, y], i) => {
+      const n = P.path[i + 1];
+      if (n) keep.push(W(Math.min(x, n[0]) - 20, Math.min(y, n[1]) - 20, Math.max(x, n[0]) + 20, Math.max(y, n[1]) + 20));
+    });
+    const home = P.rooms.filter((r) => !r.detached).flatMap((r) => r.parts);
+    if (!home.length) return;
+    const hx0 = Math.min(...home.map((p) => p[0])), hx1 = Math.max(...home.map((p) => p[0] + p[2]));
+    const hy0 = Math.min(...home.map((p) => p[1])), hy1 = Math.max(...home.map((p) => p[1] + p[3]));
+    // The courtyard on the balconies' side (the east when the plan has none).
+    const bal = P.balconies.map((b) => (b[0] + b[2]) / 2);
+    const east = !bal.length || bal.reduce((a, b) => a + b, 0) / bal.length >= (hx0 + hx1) / 2;
+    this.around = makeSurroundings({ home: W(hx0, hy0, hx1, hy1), keep, east, phone: Math.min(window.innerWidth, window.innerHeight) < 600, wallH: WH });
+    this.world.add(this.around.group);
   }
 
   /** Myshka, loaded after the house: a failed load just leaves the house without him. */
@@ -1473,7 +1502,7 @@ export class House {
     this.labels = this.labels.filter((l) => !l.light);
     this.realOn = lights !== null;
     // The stored plan's spots, on the drawn plan: the Gym moved out back shifts the home's coordinates (gymBeyond).
-    const moved = spots?.map((s) => ({ ...s, x: s.x - this.shift[0], y: s.y - this.shift[1] }));
+    const moved = spots?.map((s) => ({ ...s, x: s.x - this.shift[0], y: s.y - this.shift[1], ...(s.x2 !== undefined && s.y2 !== undefined ? { x2: s.x2 - this.shift[0], y2: s.y2 - this.shift[1] } : {}) }));
     const list = lights ? drawList(this.plan, lights, moved, this.desk) : [];
     this.real?.set(list, this.opts.reduce);
     for (const { light: d, x, y, fixture, virtual } of list) {
@@ -1551,6 +1580,10 @@ export class House {
     if (this.night) {
       // The sky is there day and night (#1002); by day it turns blue and the city lights give way (night.ts).
       this.night.group.visible = !this.backdrop;
+      if (this.around) {
+        this.around.group.visible = !this.backdrop;
+        this.around.update(Math.max(0, this.dayNow));
+      }
       this.night.update(this.renderer.domElement.width, this.renderer.domElement.height, t, this.camera, this.renderer.getPixelRatio(), Math.max(0, this.dayNow));
     }
     this.renderer.render(this.scene, this.camera);
@@ -1708,6 +1741,7 @@ export class House {
     cancelAnimationFrame(this.raf);
     for (const d of this.disposers.splice(0)) d();
     this.night?.dispose();
+    this.around?.dispose();
     this.real?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();

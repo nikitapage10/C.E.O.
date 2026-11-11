@@ -8,7 +8,8 @@ import * as THREE from "three";
  * decks across it, and a boulevard with a planted median along the near end. The roofs aren't plain grey (#1020):
  * units of different heights and tones carrying plant, solar panels, skylights, terraces with planters and one pool;
  * by night some windows are lit and lights are strung over the courtyards and terraces. All generic and made up (no
- * real place is modelled), five draw calls in all, unlit with the shading baked in.
+ * real place is modelled), eight draw calls in all, unlit with the shading baked in; the street, the sidewalks and the
+ * roofs carry a small baked pattern (#1022).
  *
  * World units (a metre each across, heights squashed like the house's: the walls are 1.4). `home` is the home's box
  * (its rooms), `keep` the boxes nothing may cover (every room, the decks, the walk to a detached block), `east` which
@@ -128,7 +129,10 @@ export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) 
   // The block: its outer corner at the home (the street face and the boulevard face), wrapping both courtyards.
   const outer = { x0: cluster.x0 - 0.3, z0: yard2.z0 - wing * 0.8, x1: yard2.x1 + wing * 0.9, z1: cluster.z1 + 0.3 };
   const pad = K.map((k) => ({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }));
-  const roofs = cutAll(outer, [yard1, yard2, ...pad]).flatMap((b) => units(b, r, H));
+  // No roof inside the home's own outline (#1022): an empty stretch between its rooms is a light well, paved, not a
+  // neighbour's roof standing in the flat.
+  const homeBox = mb(home);
+  const roofs = cutAll(outer, [yard1, yard2, { x0: homeBox.x0 - 0.25, z0: homeBox.z0 - 0.25, x1: homeBox.x1 + 0.25, z1: homeBox.z1 + 0.25 }, ...pad]).flatMap((b) => units(b, r, H));
   // One roof has the pool (the largest unit clear of the home), a terrace or two the others' way.
   const big = roofs.filter((u) => u.x1 - u.x0 >= 5 && u.z1 - u.z0 >= 5 && !overlaps(u, { x0: cluster.x0 - 6, z0: cluster.z0 - 6, x1: cluster.x1 + 6, z1: cluster.z1 + 6 }));
   const top = big.sort((a, b) => area(b) - area(a))[0];
@@ -228,6 +232,10 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     return m;
   };
   const solid: Piece[] = [], crowns: Piece[] = [], glow: Piece[] = [], pools: Piece[] = [];
+  // Textured tops (#1022, Nikita: texture on the street, the sidewalks and the roofs): flat quads with the pattern laid
+  // in world units, still unlit, one draw call a surface.
+  const skins: Record<Skin, Quad[]> = { asphalt: [], walk: [], roof: [] };
+  const skin = (k: Skin, b: Box2, y: number, c: number) => skins[k].push({ ...b, y, c });
   const strings: number[] = [];
   const slab = (b: Box2, y0: number, h: number, c: number): Piece => ({ x: (b.x0 + b.x1) / 2, y: y0 + h / 2, z: (b.z0 + b.z1) / 2, sx: b.x1 - b.x0, sy: h, sz: b.z1 - b.z0, c });
   const top = (b: Box2, y: number, c: number) => solid.push(slab(b, y - 0.03, 0.03, c));
@@ -258,6 +266,7 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   for (const u of L.roofs) {
     const w = u.x1 - u.x0, d = u.z1 - u.z0, cx = (u.x0 + u.x1) / 2, cz = (u.z0 + u.z1) / 2;
     solid.push(slab(u, 0, u.h, ROOF_TONES[u.tone]!));
+    skin("roof", u, u.h + 0.004, ROOF_TONES[u.tone]!);
     const inner = { x0: u.x0 + 0.7, z0: u.z0 + 0.7, x1: u.x1 - 0.7, z1: u.z1 - 0.7 };
     const iw = inner.x1 - inner.x0, id = inner.z1 - inner.z0;
     if (iw < 1.2 || id < 1.2) continue;
@@ -358,9 +367,9 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   const { a: sa, b: sb } = L.street;
   const zs = L.zs;
   const xs = (p: number, q: number) => ({ x0: Math.min(p, q), x1: Math.max(p, q) });
-  top({ ...xs(sa, sb), z0: zs.z0, z1: zs.z1 }, LV.asphalt, 0x34363a);
-  top({ ...xs(L.face, sa), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
-  top({ ...xs(sb, L.across), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
+  skin("asphalt", { ...xs(sa, sb), z0: zs.z0, z1: zs.z1 }, LV.asphalt, 0x3a3c40);
+  skin("walk", { ...xs(L.face, sa), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
+  skin("walk", { ...xs(sb, L.across), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
   const mid = (sa + sb) / 2;
   for (let z = zs.z0 + 1; z < zs.z1 - 1; z += 4) solid.push({ x: mid, y: LV.lane - 0.01, z, sx: 0.2, sy: 0.02, sz: 1.8, c: 0xd9d4c2 });
   const carCols = [0xe8e8e6, 0x1d1f22, 0x7d8288, 0x9e2b25, 0x2b4a73, 0xc9c6bd, 0x3b3f44, 0xb0b4b8];
@@ -402,12 +411,12 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   // The boulevard along the block's near end: two carriageways, the planted median with its trees, the sidewalks,
   // and a row of low buildings beyond it.
   const bz = L.blvd;
-  top({ x0: bz.x0, z0: bz.z0, x1: bz.x1, z1: bz.z1 }, LV.asphalt, 0x34363a);
+  skin("asphalt", { x0: bz.x0, z0: bz.z0, x1: bz.x1, z1: bz.z1 }, LV.asphalt, 0x3a3c40);
   const bm = (bz.z0 + bz.z1) / 2;
   top({ x0: bz.x0, z0: bm - 1.2, x1: bz.x1, z1: bm + 1.2 }, LV.median, 0x5f8048);
   for (let tx = bz.x0 + 3; tx < bz.x1; tx += 6 + r() * 3) tree(tx, bm, 1.1);
-  top({ x0: L.outer.x0, z0: L.outer.z1, x1: L.outer.x1, z1: bz.z0 }, LV.walk, 0xb8b6ae);
-  top({ x0: bz.x0, z0: bz.z1, x1: bz.x1, z1: bz.z1 + 1.4 }, LV.walk, 0xb8b6ae);
+  skin("walk", { x0: L.outer.x0, z0: L.outer.z1, x1: L.outer.x1, z1: bz.z0 }, LV.walk, 0xb8b6ae);
+  skin("walk", { x0: bz.x0, z0: bz.z1, x1: bz.x1, z1: bz.z1 + 1.4 }, LV.walk, 0xb8b6ae);
   const nb = o.phone ? 5 : 8;
   for (let i = 0, x = bz.x0 + 18; i < nb && x < bz.x1 - 6; i++) {
     const len = 8 + r() * 10, dep = 9 + r() * 6, h = H * (0.55 + r() * 0.5);
@@ -417,6 +426,27 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   }
 
   add(box, baked(), solid);
+  const texs: THREE.Texture[] = [];
+  for (const k of Object.keys(skins) as Skin[]) {
+    const tex = new THREE.CanvasTexture(pattern(k));
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    texs.push(tex);
+    const geo = quads(skins[k], SKIN_TILE[k]);
+    if (!geo) continue;
+    geos.push(geo);
+    const m = baked();
+    m.map = tex;
+    // Drawn over the slab it lies on without fighting it for depth (#1020's strobe).
+    m.polygonOffset = true;
+    m.polygonOffsetFactor = -1;
+    m.polygonOffsetUnits = -2;
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 1;
+    group.add(mesh);
+  }
   const crown = shade(new THREE.IcosahedronGeometry(0.5, 0));
   geos.push(crown);
   add(crown, baked(), crowns);
@@ -454,6 +484,7 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
       for (const g of geos) g.dispose();
       for (const m of mats) m.dispose();
       poolTex.dispose();
+      for (const t of texs) t.dispose();
       group.clear();
     },
   };
@@ -487,4 +518,120 @@ function disc(): HTMLCanvasElement {
     x.fillRect(0, 0, 64, 64);
   }
   return c;
+}
+
+/** The textured surfaces (#1022). */
+type Skin = "asphalt" | "walk" | "roof";
+interface Quad extends Box2 {
+  y: number;
+  c: number;
+}
+/** Metres one repeat of each pattern covers. */
+const SKIN_TILE: Record<Skin, number> = { asphalt: 6, walk: 2.4, roof: 4 };
+
+/** Flat quads facing up, their UVs in world units over `tile`, their colours with the sun baked in as `shade` does. */
+function quads(list: readonly Quad[], tile: number): THREE.BufferGeometry | null {
+  if (!list.length) return null;
+  const pos = new Float32Array(list.length * 12), uv = new Float32Array(list.length * 8), col = new Float32Array(list.length * 12);
+  const idx: number[] = [];
+  const lit = 0.55 + 0.45 * Math.max(0, SUN.y);
+  const c = new THREE.Color();
+  list.forEach((q, i) => {
+    const corners = [[q.x0, q.z0], [q.x1, q.z0], [q.x1, q.z1], [q.x0, q.z1]] as const;
+    c.setHex(q.c);
+    corners.forEach(([x, z], k) => {
+      pos.set([x, q.y, z], i * 12 + k * 3);
+      uv.set([x / tile, -z / tile], i * 8 + k * 2);
+      col.set([c.r * lit, c.g * lit, c.b * lit], i * 12 + k * 3);
+    });
+    const o = i * 4;
+    idx.push(o, o + 2, o + 1, o, o + 3, o + 2);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+
+/**
+ * A small greyscale pattern, near white so the surface's own tone shows through (#1022): asphalt's grit with a crack
+ * or two, the sidewalk's square slabs and their joints, a roof's membrane in strips with gravel. Fixed seeds, so the
+ * same every load; drawn once on a 256 canvas.
+ */
+function pattern(k: Skin): HTMLCanvasElement {
+  const S = 256;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const x = cv.getContext("2d");
+  if (!x) return cv;
+  const r = rand(k === "asphalt" ? 7 : k === "walk" ? 13 : 17);
+  const grey = (v: number, a = 1) => `rgba(${v},${v},${v},${a})`;
+  x.fillStyle = grey(k === "walk" ? 236 : 226);
+  x.fillRect(0, 0, S, S);
+  // Grit: fine flecks lighter and darker than the ground.
+  for (let i = 0; i < (k === "asphalt" ? 2600 : 1400); i++) {
+    const v = r() < 0.5 ? 150 + r() * 50 : 245 + r() * 10;
+    x.fillStyle = grey(Math.round(v), 0.55);
+    const d = r() < 0.85 ? 1 : 2;
+    x.fillRect(Math.floor(r() * S), Math.floor(r() * S), d, d);
+  }
+  x.lineCap = "round";
+  if (k === "asphalt") {
+    // Patches and a couple of hairline cracks.
+    for (let i = 0; i < 5; i++) {
+      x.fillStyle = grey(200 + Math.round(r() * 20), 0.35);
+      x.fillRect(r() * S, r() * S, 20 + r() * 50, 14 + r() * 30);
+    }
+    x.strokeStyle = grey(120, 0.6);
+    x.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      let px = r() * S, py = r() * S;
+      x.beginPath();
+      x.moveTo(px, py);
+      for (let j = 0; j < 6; j++) x.lineTo((px += (r() - 0.5) * 36), (py += (r() - 0.5) * 36));
+      x.stroke();
+    }
+  } else if (k === "walk") {
+    // Square slabs, a joint between each, each slab a shade of its own.
+    const n = 4, q = S / n;
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++) {
+        x.fillStyle = grey(225 + Math.round(r() * 25), 0.5);
+        x.fillRect(i * q + 2, j * q + 2, q - 4, q - 4);
+      }
+    x.strokeStyle = grey(150, 0.9);
+    x.lineWidth = 3;
+    for (let i = 0; i <= n; i++) {
+      x.beginPath();
+      x.moveTo(i * q, 0);
+      x.lineTo(i * q, S);
+      x.moveTo(0, i * q);
+      x.lineTo(S, i * q);
+      x.stroke();
+    }
+  } else {
+    // A roof membrane laid in strips with welded seams, and a few vents' stains.
+    const n = 5, q = S / n;
+    for (let i = 0; i < n; i++) {
+      x.fillStyle = grey(212 + Math.round(r() * 26), 0.45);
+      x.fillRect(0, i * q, S, q);
+    }
+    x.strokeStyle = grey(165, 0.85);
+    x.lineWidth = 2;
+    for (let i = 0; i <= n; i++) {
+      x.beginPath();
+      x.moveTo(0, i * q);
+      x.lineTo(S, i * q);
+      x.stroke();
+    }
+    for (let i = 0; i < 4; i++) {
+      x.fillStyle = grey(180, 0.25);
+      x.beginPath();
+      x.arc(r() * S, r() * S, 6 + r() * 14, 0, Math.PI * 2);
+      x.fill();
+    }
+  }
+  return cv;
 }

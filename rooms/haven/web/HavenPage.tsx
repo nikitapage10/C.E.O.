@@ -8,7 +8,7 @@ import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
 import { LightsPanel, type Look } from "./LightsPanel.tsx";
-import { afterScene, LIGHTS_POLL_MS, loadLights, placeLightAt, placeLights, postLights, shownLights, type LightsLoad } from "./lights.ts";
+import { afterScene, held as heldLights, HOLD_MS, holdScene, LIGHTS_POLL_MS, loadLights, placeLightAt, placeLights, postLights, shownLights, type Holds, type LightsLoad } from "./lights.ts";
 import { lightKey, type PlanLight } from "../../../api/_haven/planShape.ts";
 import { isRun, kindOf } from "./fixtures.ts";
 import { ClimatePop } from "./ClimatePop.tsx";
@@ -158,10 +158,13 @@ export function Haven() {
   const [lights, setLights] = useState<LightsLoad>({ state: "idle" });
   const [lightBusy, setLightBusy] = useState<string | null>(null);
   const [lightNote, setLightNote] = useState<string | null>(null);
+  // What a switch or a scene was set to, held against reads that still say otherwise (#1022, lights.ts held).
+  const holds = useRef<Holds>(new Map());
+  const shown = useCallback((l: LightsLoad): LightsLoad => (l.state === "ready" ? { state: "ready", view: heldLights(l.view, holds.current, Date.now()) } : l), []);
   useEffect(() => {
     if (!signedIn) return setLights({ state: "idle" });
     let gone = false;
-    const read = (fresh = false) => void loadLights(fetch, fresh).then((l) => !gone && (l.state === "out" ? useDeskAuth.getState().lost() : setLights((cur) => (l.state === "failed" && cur.state === "ready" ? cur : l))));
+    const read = (fresh = false) => void loadLights(fetch, fresh).then((l) => !gone && (l.state === "out" ? useDeskAuth.getState().lost() : setLights((cur) => (l.state === "failed" && cur.state === "ready" ? cur : shown(l)))));
     read();
     const t = window.setInterval(() => document.visibilityState === "visible" && read(), LIGHTS_POLL_MS);
     const back = () => document.visibilityState === "visible" && read(true);
@@ -171,11 +174,11 @@ export function Haven() {
       window.clearInterval(t);
       document.removeEventListener("visibilitychange", back);
     };
-  }, [signedIn]);
+  }, [signedIn, shown]);
   // The lights Nikita uses (#1002): the ones he doesn't (lights.ts HIDDEN_LIGHTS) are left out of the panel and the house.
   const lightView = useMemo(() => (lights.state === "ready" ? { ...lights.view, lights: shownLights(lights.view.lights) } : null), [lights]);
   // The vendors' states read again, fresh (#1020): what really happened wins over what was shown at once.
-  const refresh = useCallback(() => loadLights(fetch, true).then((l) => l.state === "ready" && setLights(l)), []);
+  const refresh = useCallback(() => loadLights(fetch, true).then((l) => l.state === "ready" && setLights(shown(l))), [shown]);
   const setLight = useCallback(async (id: string, on: boolean) => {
     setLightBusy(id);
     setLightNote(null);
@@ -183,9 +186,11 @@ export function Haven() {
     const flip = (v: boolean | null) => (l: LightsLoad): LightsLoad => (l.state === "ready" ? { state: "ready", view: { ...l.view, lights: l.view.lights.map((x) => (x.id === id ? { ...x, on: v } : x)) } } : l);
     const was = lights.state === "ready" ? (lights.view.lights.find((x) => x.id === id)?.on ?? null) : null;
     setLights(flip(on));
+    holds.current.set(id, { on, until: Date.now() + HOLD_MS });
     const r = await postLights({ op: "set", id, on });
     setLightBusy(null);
     if (!r.ok) {
+      holds.current.delete(id);
       setLights(flip(was));
       setLightNote(r.say);
     } else window.setTimeout(() => void refresh(), 3_000);
@@ -197,10 +202,15 @@ export function Haven() {
     setLightBusy(null);
     setLightNote(r.say);
     if (!r.ok) return;
-    // An off scene shows every switch off at once (#1020); then the vendors' states, read fresh twice as the scene
-    // settles, decide.
-    setLights((cur) => (cur.state === "ready" ? { state: "ready", view: afterScene(cur.view, cur.view.scenes.find((x) => x.id === id)?.name ?? "") } : cur));
-    for (const ms of [2_500, 8_000]) window.setTimeout(() => void refresh(), ms);
+    // An off scene shows every switch off at once (#1020) and holds them off (#1022) while the real switches follow:
+    // reads that still say on don't turn them back on; one that agrees, or the hold's end, hands back to the reads.
+    setLights((cur) => {
+      if (cur.state !== "ready") return cur;
+      const name = cur.view.scenes.find((x) => x.id === id)?.name ?? "";
+      holdScene(cur.view, name, holds.current, Date.now());
+      return { state: "ready", view: afterScene(cur.view, name) };
+    });
+    for (const ms of [2_500, 8_000, 20_000, HOLD_MS + 2_000]) window.setTimeout(() => void refresh(), ms);
   }, [refresh]);
   // A Govee light's colour, white, brightness or mood (#974): Skippy's line back when it didn't take.
   const setLook = useCallback(async (id: string, look: Look) => {

@@ -47,6 +47,7 @@ import { elevenFromEnv, type ElevenConfig } from "./_world/story.js";
 import { pickStore } from "./_world/store.js";
 import { foundryIssues } from "./skippy.js";
 import { memo } from "./_feedcache.js";
+import { readScreen, screenLine } from "./_skippy/prompt.js";
 
 export interface VoiceDeps {
   deskKey: string;
@@ -242,7 +243,7 @@ export async function talk(request: Request, deps: VoiceDeps): Promise<Response>
 }
 
 async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey: string): Promise<Response> {
-  const body = (await request.json().catch(() => null)) as { action?: unknown; conversation?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { action?: unknown; conversation?: unknown; screen?: unknown } | null;
   if (!body || typeof body !== "object" || (body.action !== "start" && body.action !== "end")) return json({ error: "bad-request" }, 400);
   if (!deps.voice) return json({ error: "not-set-up" }, 503);
   if (!deps.eleven) return json({ error: "no-key" }, 503);
@@ -305,7 +306,8 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
       "keep",
       Promise.all([
         // Bound to this passkey (#926): the call's asks run as the signed-in session that started it.
-        deps.crew && minted.conversation ? issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_MAX_SECS * 1000 + TOOL_SLACK_MS, deps.now, passkey) : Promise.resolve(null),
+        // What Nikita was looking at as the call started (#1027): its metadata rides with the call's asks.
+        deps.crew && minted.conversation ? issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_MAX_SECS * 1000 + TOOL_SLACK_MS, deps.now, passkey, screenLine(readScreen(body.screen))) : Promise.resolve(null),
         p ? voice.update((s) => ({ ...s, pending: [...s.pending.filter((x) => x.id !== p.id), p] })) : Promise.resolve(null),
       ]),
     );

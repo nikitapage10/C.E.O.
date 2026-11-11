@@ -175,6 +175,23 @@ feed key may PUT a seed and hears back counts. Every body is checked as untruste
 units and days, clamped numbers, plain capped text), the weekly budget lives only there (never in the repo), and the
 Haven's public status view carries counts only (nights planned, cooking, HelloFresh, confirmed), never a meal or a taste.
 
+Skippy sees what Nikita is looking at (#1027) in two steps. Every message to Skippy, from the Desk chat, a room's mic
+or the start of a Talk call, carries a small description of the screen (`useScreenContext`,
+`packages/engine/src/web/screenFacts.ts`): the room, the tab, the open item, its stage and a few fields, about 2 KB at
+most, with key-looking values and key-named fields dropped in the browser and again on the server (`readScreen`). It
+crosses TB1 into the prompt as a fenced `<screen>` block (TB2) like the rest of the Desk's state. Relay's part is counts
+and states only, never a message. A screenshot is taken only when Skippy calls `look_at_screen` (never on every
+message, never from the phone or a call): the server answers `needScreen`, the browser draws the page into a JPEG with
+`html-to-image` (no permission prompt; Skippy's own chat box is left out), posts it to `POST /api/foundry-shot` in a
+passkey session, and asks again with the shot's opaque id. The picture lives only in the private store
+(`desk/skippy/shots/shot-<20 hex>.jpg`), checked by its magic bytes (JPEG, PNG or WebP, 3 MB at most), and goes to the
+Claude API as an image input for that turn alone (TB2). It is read back only by `GET /api/foundry-shot?id=` with a
+passkey session or the Builder read key (#800, one `id` parameter, GET only), served `private, no-store` with
+`nosniff`, and every read is logged by who read it. A Foundry issue filed from that turn (`implement_it`, still behind
+the Yes tap) carries only the shot's id, written as private, and the screen description with its private part removed
+and run through `privateParts`; neither the picture nor a link that opens it reaches GitHub. There is no blur: the
+stored copy is the original, since nothing public ever shows it.
+
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
 lanes, by direct push for chat work today) and the "Deploy to Azure" workflow ships it (#214, #216, #218; Azure is
 the only home since #313, and Vercel is being retired). It signs in with OIDC from the repo's `azure` environment
@@ -209,6 +226,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | Nightly backups | Azure Storage `ceo-backups` (private, Cool tier), kept 90 days; deletes and overwrites recoverable for 14 days | A copy of the world's public state, the Azure copy's state and the models; restores either copy |
 | Idea pictures | Azure Blob (private), shown only on short-lived signed links (#127) | May show Nikita's screen |
 | Home device logins | Petlibro and Whisker email and login digest (made from the password in Cloud Shell; the password never reaches Azure) in the Azure Key Vault only; the Roborock login and the vendors' tokens sealed in Azure Blob (private) under `HOME_TOKEN_KEY` (#632) | Read and run the vacuum, feeders, fountain and Litter-Robot; feeding is capped and the litter cycle gated on the server |
+| Screenshots of Nikita's screen (#1027) | Azure Blob (private) at `desk/skippy/shots/`; sent to the Claude API for one turn; read back only in a passkey session or with the Builder read key | Show whatever was on screen, meal plans and job searches included |
 | Nikita's words | GitHub issues (public) | Dictated, may mention people |
 | Messages and contacts (planned) | Relay MacBook only; what may leave it is in [RELAY-PRIVACY.md](RELAY-PRIVACY.md) | The most sensitive data C.E.O. will touch |
 

@@ -75,7 +75,8 @@ import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, handoffTo, isLogRoom, 
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
-import { CALL_RULES, LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb, type SkippyReply } from "./_skippy/prompt.js";
+import { CALL_RULES, LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, publicScreen, readChat, readDeeper, readLookup, readReply, screenLine, withWeb, type SkippyReply } from "./_skippy/prompt.js";
+import { BlobShots, type ShotStore } from "./_skippy/shots.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
 import { elevenFromEnv } from "./_world/story.js";
@@ -115,7 +116,7 @@ export type Ask = (
   system: string,
   input: string,
   ctx?: AgentCtx,
-) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction; tier?: string; deeper?: "talk" | "hard" | "floor" }>;
+) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction; tier?: string; deeper?: "talk" | "hard" | "floor"; needScreen?: boolean }>;
 
 /** The live answer (#646): the agent loop when the turn brings its tools, else the one-shot chat. */
 export function agentChat(key: string): Ask {
@@ -238,6 +239,8 @@ export interface ChatDeps {
   host?: () => ToolHost;
   /** Where calls that wait for Nikita's tap are kept (#646). */
   pending?: PendingStore | null;
+  /** The private screenshots (#1027, api/_skippy/shots.ts): the one the browser sent back after look_at_screen. */
+  shots?: ShotStore | null;
   /** Where each answered ask is kept by room (#273); null or left out keeps nothing. */
   log?: RoomLog | null;
   /** The <stack> block (#312): the whole sheet with the advisory summary when `full`, else one line. Left out, no block. */
@@ -274,6 +277,7 @@ function defaultDeps(): ChatDeps {
     memory: blob ? new BlobMemory(blob, skipTermsFrom(env.EMAIL_SKIP_TERMS)) : null,
     host: () => liveHost(env),
     pending: livePending(env),
+    shots: blob ? new BlobShots(blob) : null,
     world: async () => (await pickStore(env)?.loadState().catch(() => null)) ?? null,
     desk: async (world) => {
       const [{ open, shipped }, setup] = await Promise.all([foundryIssues().catch(() => ({ open: [], shipped: [] })), setupList().catch((): SetupStatus | null => null)]);
@@ -511,6 +515,11 @@ export interface RoomTurn {
   page?: string;
   /** On the Senate's floor: a remark on the debate is given back to the members (`floor` in the answer). */
   floor?: boolean;
+  /** What Nikita is looking at (#1027): the screen's metadata, and the screenshot's id once he's been looked at. */
+  screen?: unknown;
+  shot?: string;
+  /** False when the browser couldn't capture the page: go on the metadata alone. */
+  look?: boolean;
 }
 
 /**
@@ -568,12 +577,26 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
     : [EMPTY_CONTEXT, "", "", ""];
   // The agent's turn (#646): the core card of Nikita's memory, the rooms' tools and the taps' store.
   const core = deps.memory ? coreBlock(await deps.memory.load().catch(() => ({ core: "", pages: [], facts: [] }))) : "";
-  const ctx: AgentCtx | undefined = deps.host ? { surface, message: said.message, core, host: deps.host(), pending: deps.pending ?? null, ...(surface === "phone" && { via: "phone" as const }), ...opts?.agent } : undefined;
+  // What Nikita is looking at (#1027): the metadata always; the screenshot only once Skippy asked to look (look_at_screen)
+  // and the browser sent it back. An issue the turn files carries the shot's id and the metadata scrubbed of its private fields.
+  const shot = said.shot && deps.shots ? await deps.shots.read(said.shot).catch(() => null) : null;
+  const scrubbed = publicScreen(said.screen);
+  const attach = shot || scrubbed ? { ...(shot && { shot: said.shot }), ...(scrubbed && { screen: scrubbed }) } : undefined;
+  const look = shot ? { image: { data: Buffer.from(shot.bytes).toString("base64"), type: shot.type } } : { canLook: said.look && (surface === "desk" || surface === "room") };
+  const ctx: AgentCtx | undefined = deps.host
+    ? { surface, message: said.message, core, host: attach ? { ...deps.host(), attach } : deps.host(), pending: deps.pending ?? null, ...look, ...(surface === "phone" && { via: "phone" as const }), ...opts?.agent }
+    : undefined;
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : surface === "call" ? `${SKIPPY_PROMPT}\n${CALL_RULES}` : SKIPPY_PROMPT, chatInput(typed ? [contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n") : "", said.history, said.message, stack, said.page), ctx);
+    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : surface === "call" ? `${SKIPPY_PROMPT}\n${CALL_RULES}` : SKIPPY_PROMPT, chatInput(typed ? [contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n") : "", said.history, said.message, stack, said.page, screenLine(said.screen)), ctx);
   } catch {
     return json({ error: "model" }, 502);
+  }
+  // Skippy asked to look at the screen (#1027): the browser captures the page (no prompt to Nikita), keeps it privately
+  // and sends the same words again with the shot's id. Nothing of this pass is kept; what it cost counts.
+  if (got.needScreen) {
+    if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd, got.parts).catch(() => undefined);
+    return json({ needScreen: true, spend: meter(spent + (got.usd ?? 0)) });
   }
   // A call's quick pass that handed up (#926): the deeper run goes on its own; nothing is kept yet.
   if (got.deeper && !got.answer) {
@@ -654,7 +677,7 @@ export async function probe(request: Request, deps: ChatDeps): Promise<Response>
       break;
     }
     const dry: ChatDeps = { ...deps, now, host: () => dryHost(live(), rec), pending: dryPending(rec), log: null, memory: deps.memory ? dryMemory(deps.memory, () => undefined) : null };
-    const said = { message: message.slice(0, 600), history: history.slice(-8), page: "" };
+    const said = { message: message.slice(0, 600), history: history.slice(-8), page: "", screen: null, shot: "", look: false };
     const started = performance.now();
     let res: Response;
     let handedUp = false;
@@ -727,6 +750,8 @@ export interface PhoneTurn {
   tier?: string;
   /** On the Senate's floor: the words were a remark on the debate, for the members to answer. */
   floor?: boolean;
+  /** Skippy asked to look at the screen (#1027): the browser captures the page and asks again with the shot. */
+  needScreen?: boolean;
 }
 
 /**
@@ -751,7 +776,7 @@ export async function phoneAnswer(message: string, phoneId: string, history: { w
  */
 export async function roomAnswer(message: string, history: { who: "nikita" | "skippy"; text: string }[], passkey: string, room: RoomTurn, deps: ChatDeps = defaultDeps()): Promise<PhoneTurn> {
   if (!deps.deskKey || !deps.store) return { reply: "", handedOff: false, error: "not-set-up" };
-  const said = readChat({ message, history, ...(room.page && { page: room.page }) });
+  const said = readChat({ message, history, ...(room.page && { page: room.page }), ...(room.screen !== undefined && { screen: room.screen }), ...(room.shot && { shot: room.shot }), ...(room.look === false && { look: false }) });
   if (!said) return { reply: "", handedOff: false, error: "model" };
   const res = await skippyTurn(said, deps, deps.store, passkey, "room", room, room.floor ? { agent: { floor: true } } : undefined);
   return turnOf(res);
@@ -759,8 +784,9 @@ export async function roomAnswer(message: string, history: { who: "nikita" | "sk
 
 /** A turn's answer as the phone and a room's voice read it. */
 async function turnOf(res: Response): Promise<PhoneTurn> {
-  const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[]; wrote?: unknown; did?: unknown; quiet?: unknown; tier?: unknown; deeper?: unknown };
+  const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[]; wrote?: unknown; did?: unknown; quiet?: unknown; tier?: unknown; deeper?: unknown; needScreen?: unknown };
   if (res.ok && body.deeper === "floor") return { reply: "", handedOff: false, floor: true };
+  if (res.ok && body.needScreen === true) return { reply: "", handedOff: false, needScreen: true };
   if (res.status === 422) return { reply: "", handedOff: false, error: "private" };
   if (res.status === 429) return { reply: "", handedOff: false, error: "slow-down" };
   if (res.status === 503) return { reply: "", handedOff: false, error: "not-set-up" };
@@ -789,9 +815,10 @@ export type CallTurn = { reply: string; tier?: string } | { deeper: "talk" | "ha
  * started the call, so this is that passkey's own turn, paced with the Desk's chat: the rules, then the fast tier only.
  * When the fast tier hands up, the answer says how deep, and the caller starts the deeper run (`deepAnswer`).
  */
-export async function callAnswer(message: string, passkey: string, deps: ChatDeps = defaultDeps()): Promise<CallTurn> {
+export async function callAnswer(message: string, passkey: string, deps: ChatDeps = defaultDeps(), screen?: string): Promise<CallTurn> {
   if (!deps.deskKey || !deps.store) return { error: "not-set-up" };
-  const said = readChat({ message, history: [] });
+  // What was on screen when the call started (#1027), kept with the call's token; never a screenshot on a call.
+  const said = readChat({ message, history: [], ...(screen && { screen }) });
   if (!said) return { error: "model" };
   const res = await skippyTurn(said, deps, deps.store, passkey, "call", undefined, { agent: { fastOnly: true } });
   const body = (await res.clone().json().catch(() => ({}))) as { deeper?: unknown };

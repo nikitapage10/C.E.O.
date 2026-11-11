@@ -36,7 +36,8 @@ import { LIGHT_WHERE, type LightWhere } from "../../_haven/planShape.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
 import { allLightsName, spokenAsked, spokenLights } from "./words.js";
-import { componentFor, DAY_NAME, DAYS, findMeal, mealNamed, readEdit, ROLES, weekWords, type Day, type EditResult, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
+import { SHOT_ID } from "../shots.js";
+import { componentFor, DAY_NAME, DAYS, findMeal, ingredientLine, mealNamed, readEdit, recipeWords, ROLES, weekStage, weekWords, type Day, type EditResult, type Ingredient, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
 export const ALL_TOOLS: readonly RoomTool[] = [...TODAY, ...FOUNDRY, ...RELAY, ...GREEN, ...EXCHANGE, ...BOILER, ...HAVEN];
@@ -56,6 +57,8 @@ export interface ToolHost {
     read: () => Promise<MealsFile | null>;
     edit: (edit: MealEdit) => Promise<EditResult | { ok: false; error: "not-seeded" }>;
     send: () => Promise<{ added: number; already: number } | null>;
+    /** Queues the finalized week's missing step pictures (#1016, #1027: a changed step's), under the library's cap; how many. */
+    stepPhotos?: (file: MealsFile) => Promise<number | null>;
   } | null;
   /**
    * The Kitchen's King Soopers rail (api/_haven/kroger/route.ts): what a send would add now, and the send itself, which
@@ -79,9 +82,22 @@ export interface ToolHost {
   placeLight?: ((name: string, at: LightAt | null) => Promise<{ ok: boolean; say: string }>) | null;
   /** Files an issue labelled foundry and foundry:chat; its number, or null. */
   fileIssue: ((title: string, body: string) => Promise<number | null>) | null;
+  /**
+   * What this turn saw of Nikita's screen (#1027), for a Foundry issue: the private screenshot's opaque id and the
+   * screen's metadata with its private fields scrubbed. Set by the turn (and kept with a waiting tap), never by the model.
+   */
+  attach?: ShotAttach;
   /** The skip list's terms (EMAIL_SKIP_TERMS), which never go in memory. */
   skipTerms: readonly string[];
   now: number;
+}
+
+/** A turn's screenshot and scrubbed screen metadata (#1027), for implement_it. */
+export interface ShotAttach {
+  /** The private screenshot's id ("shot-" and hex), or none. */
+  shot?: string;
+  /** The screen's metadata as compact JSON, private fields already scrubbed, or none. */
+  screen?: string;
 }
 
 /** Where Skippy puts a light (#974): a room and a place in it, or plan units. */
@@ -197,7 +213,7 @@ async function switchEvery(host: ToolHost, on: boolean): Promise<Ran> {
 }
 
 /** The issue "Implement it" files: the model's title and pitch, both through the privacy check and shown on the Yes button first. */
-export function implementIssue(title: string, pitch: string, size: string): { title: string; body: string } {
+export function implementIssue(title: string, pitch: string, size: string, attach?: ShotAttach): { title: string; body: string } {
   return {
     title: plainLine(title, 80),
     body: [
@@ -205,8 +221,34 @@ export function implementIssue(title: string, pitch: string, size: string): { ti
       `**Size:** ${size}`,
       "**Short:** Building what Nikita asked",
       "**Builder:** Not picked yet (filed by Desk Skippy's Implement it, on Nikita's Yes tap)",
+      ...shotLines(attach),
     ].join("\n"),
   };
+}
+
+/**
+ * What an issue says about Nikita's screen (#1027): only the screenshot's opaque id (the picture itself stays in the
+ * private store; GET /api/foundry-shot?id= with the Builder read key) and the screen's metadata, private fields
+ * already scrubbed. A metadata line that still trips the privacy check is left out whole.
+ */
+export function shotLines(attach?: ShotAttach): string[] {
+  const out: string[] = [];
+  if (attach?.shot && SHOT_ID.test(attach.shot)) out.push(`**Screenshot:** ${attach.shot} (private; the Builder reads it with \`GET /api/foundry-shot?id=${attach.shot}\` and the Builder read key)`);
+  const screen = attach?.screen ? plainLine(attach.screen, 1_200) : "";
+  if (screen && !privateParts(screen).length) out.push(`**Screen:** \`${screen.replace(/`/g, "'")}\``);
+  return out;
+}
+
+/** What the turn hears from meals_recipe after the edit: the stage's rule and what it left alone (#1027). */
+function recipeAfter(file: MealsFile, added: Ingredient[], photos: number | null): string {
+  const lines: string[] = [];
+  if (weekStage(file.week) === "finalized") {
+    lines.push("The week is finalized, so only the recipe changed: the Kitchen list, the cart and any order are as they were.");
+    const fresh = added.filter((i) => !i.pantry).map((i) => i.item.toLowerCase());
+    if (fresh.length) lines.push(`Not bought this week: ${fresh.join(", ")}. You may mention that in a sentence; put it on the Kitchen list only if he asks.`);
+  } else lines.push("The week is a draft, so its shopping list follows (the Kitchen list gets it when he finalizes).");
+  if (photos) lines.push(`${photos} step picture${photos === 1 ? "" : "s"} for the changed step${photos === 1 ? "" : "s"} queued.`);
+  return lines.join(" ");
 }
 
 /** What Skippy hears when a meal edit couldn't happen. */
@@ -307,15 +349,16 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   implement_it: {
-    prepare: async (i) => {
+    prepare: async (i, host) => {
       const issue = implementIssue(str(i.title), str(i.pitch), str(i.size));
       const no = held(`${issue.title}\n${issue.body}`);
       if (no) return { ok: false, text: no };
-      return { ok: true, label: "File it", summary: `File a ${str(i.size)} foundry issue for the Builder: ${issue.title}` };
+      const shot = host.attach?.shot ? ", with the screenshot (kept private)" : "";
+      return { ok: true, label: "File it", summary: `File a ${str(i.size)} foundry issue for the Builder${shot}: ${issue.title}` };
     },
     run: async (i, host) => {
       if (!host.fileIssue) return { ok: false, text: "Filing issues isn't set up on this copy." };
-      const issue = implementIssue(str(i.title), str(i.pitch), str(i.size));
+      const issue = implementIssue(str(i.title), str(i.pitch), str(i.size), host.attach);
       if (held(`${issue.title}\n${issue.body}`)) return { ok: false, text: "That had something private in it, so nothing was filed." };
       const n = await host.fileIssue(issue.title, issue.body).catch(() => null);
       return n ? { ok: true, text: `Filed as number ${n} for the Builder.`, did: `Filed #${n} for the Builder` } : { ok: false, text: "GitHub didn't take the issue just now." };
@@ -432,6 +475,26 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   meals_undo: { run: async (_i, host) => mealEdit(host, { op: "undo" }) },
+  meals_recipe: {
+    run: async (i, host) => {
+      if (!host.meals) return { ok: false, text: "The meal planner isn't set up on this copy." };
+      const day = dayOf(i.day);
+      const f = await host.meals.read();
+      if (!f) return { ok: false, text: MEAL_NO["not-seeded"]! };
+      const slot = f.week?.slots[DAYS.indexOf(day)];
+      if (!slot) return { ok: false, text: MEAL_NO["no-week"]! };
+      if (i.action === "show") return { ok: true, text: recipeWords(f, slot) };
+      const add = (Array.isArray(i.ingredients) ? (i.ingredients as string[]) : []).map(ingredientLine).filter((x): x is Ingredient => x !== null);
+      const terms = Array.isArray(i.terms) ? (i.terms as string[]) : [];
+      const edit = readEdit({ op: "recipe", day, action: str(i.action).replace("_", "-"), step: i.step, text: str(i.text), add, terms });
+      if (!edit) return { ok: false, text: "That isn't a recipe change I can make: say the step and its words, or the ingredients." };
+      const got = await host.meals.edit(edit);
+      if (!got.ok) return { ok: false, text: got.error === "not-found" ? `${DAY_NAME[day]}'s recipe has no such step or ingredient, or that night isn't cooked. Read it with show.` : (MEAL_NO[got.error] ?? "That didn't work.") };
+      const stepsChanged = i.action === "add_step" || i.action === "edit_step" || i.action === "replace";
+      const photos = stepsChanged && weekStage(got.file.week) === "finalized" && host.meals.stepPhotos ? await host.meals.stepPhotos(got.file).catch(() => null) : null;
+      return { ok: true, text: `${got.changes.join(" ")} ${recipeAfter(got.file, add, photos)} Undo is on the Kitchen page.`, did: plainLine(`${DAY_NAME[day]}'s recipe edited`, 60) };
+    },
+  },
   meals_send: {
     run: async (_i, host) => {
       if (!host.meals) return { ok: false, text: "The meal planner isn't set up on this copy." };
@@ -497,6 +560,9 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   lights_list: { run: async (_i, host) => ({ ok: true, text: await lightsText(host) }) },
+  // The agent loop answers look_at_screen itself (#1027, ./loop.ts): the browser captures the page and the turn starts
+  // again with the picture. Reached here, it's a surface with no screen to see (the phone shortcut, a call, a voice hook).
+  look_at_screen: { run: async () => ({ ok: true, text: "There's no screen to look at from here: go on what <screen> says, or ask him what he means." }) },
   lights_set: {
     prepare: async (i, host) => {
       if (await everyLight(host, i)) return { ok: true, label: i.on ? "Turn them on" : "Turn them off", summary: `Turn every light ${i.on ? "on" : "off"}` };
@@ -606,7 +672,8 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
       if (!opts.pending) return { ok: false, text: "Taps aren't set up on this copy.", tool };
       const prep = ex.prepare ? await ex.prepare(checked.value, host) : { ok: true as const, label: "Yes, do it", summary: tool.title };
       if (!prep.ok) return { ok: false, text: prep.text, tool };
-      const p = await opts.pending.add({ tool: name, input: checked.value, label: plainLine(prep.label, 40), summary: plainLine(prep.summary, 300) }, host.now);
+      // What the turn saw of the screen (#1027) waits with the call, so the Yes files the issue with it.
+      const p = await opts.pending.add({ tool: name, input: checked.value, label: plainLine(prep.label, 40), summary: plainLine(prep.summary, 300), ...(host.attach && { extra: host.attach }) }, host.now);
       const confirm: PendingConfirm = { id: p.id, label: p.label, summary: p.summary };
       return { ok: true, confirm, tool };
     }
@@ -628,7 +695,8 @@ export async function confirmTool(id: string, yes: boolean, host: ToolHost, pend
   const checked = checkInput(tool.input, p.input);
   if (!checked.ok) return { ok: false, text: "That call no longer fits.", tool };
   try {
-    const ran = await ex.run(checked.value, host);
+    const extra = p.extra && typeof p.extra === "object" ? { shot: typeof p.extra.shot === "string" ? p.extra.shot : undefined, screen: typeof p.extra.screen === "string" ? p.extra.screen : undefined } : undefined;
+    const ran = await ex.run(checked.value, extra ? { ...host, attach: extra } : host);
     return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), tool } : { ok: false, text: ran.text, tool };
   } catch {
     return { ok: false, text: "That didn't work just now.", tool };

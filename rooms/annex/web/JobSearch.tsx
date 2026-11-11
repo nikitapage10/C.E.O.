@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useScreenContext } from "@ceo/engine/web/screen.ts";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { useAnnex } from "../data/annex.ts";
 import { careerMove, jobsGrowth, k, since, useJobs, type Job, type JobsProfile, type JobsView, type JobState } from "../data/jobs.ts";
@@ -590,6 +591,24 @@ export function JobSearch() {
         !(tab === "matches" && j.id === best?.id && !q && !remoteOnly),
     );
   }, [view, tab, showHidden, remoteOnly, query, best]);
+
+  // What Nikita is looking at (#1027): the tab, the filters and the counts; the jobs themselves (titles, companies,
+  // the search) only in the private part, never in a public Foundry issue.
+  useScreenContext(
+    view
+      ? {
+          room: "annex",
+          tab: "Job search",
+          item: `${tab[0]!.toUpperCase()}${tab.slice(1)}`,
+          fields: { tab, shown: Math.min(shown, list.length), listed: list.length, live: live.length, remoteOnly, showHidden },
+          private: {
+            ...(query.trim() && { search: query.trim() }),
+            ...(best && tab === "matches" && { topMatch: `${best.title} at ${best.company}` }),
+            jobs: list.slice(0, Math.min(shown, 8)).map((j) => `${j.title} at ${j.company}${j.remote ? " (remote)" : ""}`),
+          },
+        }
+      : null,
+  );
 
   if (load === "idle" || load === "loading") return <div className="desk__loading" role="status" aria-label="Loading" />;
   if (load === "signed-out")

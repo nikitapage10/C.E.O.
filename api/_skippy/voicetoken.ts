@@ -88,7 +88,13 @@ export interface KeptToken {
    * browser beyond the token itself, never in a URL.
    */
   passkey?: string;
+  /** What Nikita was looking at when the call started (#1027): the screen's metadata as compact JSON, never a picture. */
+  screen?: string;
 }
+
+/** The longest screen metadata kept with a call (the Desk's own cap, @ceo/engine/web/screen.ts). */
+const SCREEN_KEEP = 2_048;
+const keptScreen = (v: unknown): string => (typeof v === "string" && v.length <= SCREEN_KEEP && v.startsWith("{") ? v : "");
 
 /** One agent or tool on ElevenLabs, with the signature of the settings it was last given. */
 export interface KeptThing {
@@ -129,7 +135,8 @@ export function cleanCrew(raw: unknown, now: number): CrewState {
     .map((t): KeptToken => {
       const handoffs = (Array.isArray(t.handoffs) ? t.handoffs : []).filter((h): h is string => typeof h === "string" && /^[0-9a-f]{16}$/.test(h)).slice(0, MAX_HANDOFFS);
       const passkey = typeof t.passkey === "string" && PASSKEY.test(t.passkey) ? t.passkey : "";
-      return { hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }), ...(handoffs.length && { handoffs }), ...(passkey && { passkey }) };
+      const screen = keptScreen(t.screen);
+      return { hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }), ...(handoffs.length && { handoffs }), ...(passkey && { passkey }), ...(screen && { screen }) };
     })
     .slice(-KEEP);
   return { tokens, tools: things(r.tools), agents: things(r.agents) };
@@ -174,10 +181,11 @@ export class MemoryCrewStore implements CrewStore {
 }
 
 /** Mint a call's tool token and keep its hash with the call. Null (no lookups this call) when it can't be kept. */
-export async function issueToolToken(store: CrewStore, deskKey: string, conversation: string, until: number, now: number, passkey?: string): Promise<string | null> {
+export async function issueToolToken(store: CrewStore, deskKey: string, conversation: string, until: number, now: number, passkey?: string, screen?: string): Promise<string | null> {
   const token = mintToolToken(deskKey, until);
   if (!token) return null;
-  const kept: KeptToken = { hash: tokenHash(token), conversation: ID.test(conversation) ? conversation : "", until, ...(passkey && PASSKEY.test(passkey) && { passkey }) };
+  const s = keptScreen(screen);
+  const kept: KeptToken = { hash: tokenHash(token), conversation: ID.test(conversation) ? conversation : "", until, ...(passkey && PASSKEY.test(passkey) && { passkey }), ...(s && { screen: s }) };
   try {
     await store.update(now, (s) => ({ ...s, tokens: [...s.tokens, kept] }));
   } catch {
@@ -192,7 +200,7 @@ export async function endToolToken(store: CrewStore, conversation: string, now: 
   await store.update(now, (s) => ({ ...s, tokens: s.tokens.map((t) => (t.conversation === conversation ? { ...t, ended: true } : t)) })).catch(() => undefined);
 }
 
-export type TokenCheck = { ok: true; conversation: string; hash: string; handoffs: string[]; passkey?: string } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
+export type TokenCheck = { ok: true; conversation: string; hash: string; handoffs: string[]; passkey?: string; screen?: string } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
 
 /** The full check the lookups run: signed, unexpired, kept and not ended. */
 export async function checkToolToken(token: string | null | undefined, deskKey: string, store: CrewStore | null, now: number): Promise<TokenCheck> {
@@ -212,7 +220,7 @@ export async function checkToolToken(token: string | null | undefined, deskKey: 
   if (!kept) return { ok: false, why: "unknown" };
   if (kept.ended) return { ok: false, why: "ended" };
   if (kept.until <= now) return { ok: false, why: "expired" };
-  return { ok: true, conversation: kept.conversation, hash: h, handoffs: kept.handoffs ?? [], ...(kept.passkey && { passkey: kept.passkey }) };
+  return { ok: true, conversation: kept.conversation, hash: h, handoffs: kept.handoffs ?? [], ...(kept.passkey && { passkey: kept.passkey }), ...(kept.screen && { screen: kept.screen }) };
 }
 
 /** Notes a hand-off this call made, for check_answers and the Desk's chat; false once the call has made its share. */

@@ -89,7 +89,7 @@ export interface RoomSources {
 }
 
 /** Skippy's one brain for a call's ask (#926, api/skippy.ts callAnswer): the answer, how deep to go, or what failed. */
-export type CallBrain = (ask: string, passkey: string) => Promise<CallTurn>;
+export type CallBrain = (ask: string, passkey: string, screen?: string) => Promise<CallTurn>;
 
 export interface ToolDeps {
   deskKey: string;
@@ -271,7 +271,7 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   if (privateParts(ask).length) return json({ ok: false, text: CALL_FAILED.private });
   // The one brain (#926): quick first, on the call itself, as the passkey that started it.
   if (deps.brain && check.passkey) {
-    const quick = await withTime(deps.brain(ask, check.passkey).catch((): CallTurn => ({ error: "model" })), Math.min(QUICK_BUDGET_MS, (deps.budgetMs ?? READ_BUDGET_MS) - 300));
+    const quick = await withTime(deps.brain(ask, check.passkey, check.screen).catch((): CallTurn => ({ error: "model" })), Math.min(QUICK_BUDGET_MS, (deps.budgetMs ?? READ_BUDGET_MS) - 300));
     if (quick && "reply" in quick && quick.reply) return json({ ok: true, answered: true, text: `Say this to Nikita now, in your own voice, in one or two short sentences, with no waiting line first: ${said(quick.reply, 600)}` });
     if (quick && "error" in quick && quick.error !== "model") return json({ ok: false, text: CALL_FAILED[quick.error] ?? CALL_FAILED["not-set-up"] });
     // Deeper (or the quick pass ran late, or its model failed): the deeper run takes it, and the answer comes in.
@@ -468,7 +468,7 @@ export function webDeps(env: Record<string, string | undefined>): WebDeps {
 export function GET(request: Request): Promise<Response> {
   const env = process.env;
   const blob = pickBlob(env);
-  return handle(request, { deskKey: env.FOUNDRY_DESK_KEY ?? "", crew: blob ? new BlobCrewStore(blob) : null, sources: liveSources(env), brain: (ask, passkey) => callAnswer(ask, passkey), log: blob ? new BlobRoomLog(blob) : null, now: Date.now() });
+  return handle(request, { deskKey: env.FOUNDRY_DESK_KEY ?? "", crew: blob ? new BlobCrewStore(blob) : null, sources: liveSources(env), brain: (ask, passkey, screen) => callAnswer(ask, passkey, undefined, screen), log: blob ? new BlobRoomLog(blob) : null, now: Date.now() });
 }
 
 export const POST = GET;

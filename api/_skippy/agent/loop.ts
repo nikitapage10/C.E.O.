@@ -93,7 +93,7 @@ export const FAST_MAX_TOKENS = 600;
 
 /** The fast tier's own rules, after the cached prefix: try the one direct thing, else say how deep to go. */
 export const FAST_RULES = `You are the quick first pass of Skippy's mind. Settle the ask yourself only when it takes no tool or one direct tool or read (a room's read, home_status for the apartment's temperature or the devices, a home device, the Kitchen list, a memory lookup): call it, then answer in one or two sentences with "deeper": "no". Never say you can't do something a tool here does, that a reading sits behind a sign-in, or that he should ask it another way: call the tool. When doing it well needs more (several steps or rooms, the web, a comparison, a plan, judgment, or a tool that failed in a way more digging could fix), call no further tool and answer with "deeper": "talk" (or "hard" for careful reasoning, a plan or research across sources) and "reply": "". Your deeper self takes it from there with what you found.
-<page> says where Nikita is: a hint for "this" and "that one", never a limit. Every room's tools are yours on every page; an ask about another room is answered here all the same. On the Senate's floor (<page> says the Senate is in session), words about the argument itself get "deeper": "floor" and "reply": "": a remark on it, or a question about it or to the members ("what are you guys talking about?", "who's winning?", "what's the motion?", "why do you think that?"). The members answer those, in the debate. A request, or a question about anything else (the home, a room, the news), is yours.`;
+<page> says where Nikita is and <screen> what he's looking at (the open item, the step he's on): hints for "this" and "that one", never a limit. Call look_at_screen only when <screen> can't settle what he means or he points at something visual. Every room's tools are yours on every page; an ask about another room is answered here all the same. On the Senate's floor (<page> says the Senate is in session), words about the argument itself get "deeper": "floor" and "reply": "": a remark on it, or a question about it or to the members ("what are you guys talking about?", "who's winning?", "what's the motion?", "why do you think that?"). The members answer those, in the debate. A request, or a question about anything else (the home, a room, the news), is yours.`;
 
 /** The fast tier's answer: the agent's, plus how deep to go. */
 export const FAST_SCHEMA = {
@@ -121,6 +121,10 @@ export interface AgentCtx {
   via?: "desk" | "phone";
   /** On the Senate's floor: the fast tier may give a remark on the debate back to the members ("floor"). */
   floor?: boolean;
+  /** The page Nikita is looking at, as a picture (#1027): sent back by the browser after look_at_screen. */
+  image?: { data: string; type: "image/jpeg" | "image/png" | "image/webp" };
+  /** The browser on this surface can capture the page (the Desk's chat, hold Space, a room's mic): look_at_screen asks it. */
+  canLook?: boolean;
 }
 
 export interface AgentResult {
@@ -144,6 +148,8 @@ export interface AgentResult {
   tier: Tier;
   /** With fastOnly: the fast tier handed up, and how deep the rest should go; "floor": a remark for the Senate's debate. */
   deeper?: "talk" | "hard" | "floor";
+  /** The turn asked to look at the screen (#1027): the browser captures the page and the words come again with it. */
+  needScreen?: boolean;
 }
 
 /** One Messages API call: the live client, or a scripted one in tests. */
@@ -212,7 +218,16 @@ export async function runAgent(call: CallModel, system: string, input: string, c
     if (w && !list.includes(w)) list.push(w);
   };
 
-  const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: "user", content: input }];
+  // The page as a picture (#1027), when the browser sent it back after look_at_screen: it leads the turn's words.
+  const first: Anthropic.Beta.Messages.BetaMessageParam["content"] = ctx.image
+    ? [
+        { type: "image", source: { type: "base64", media_type: ctx.image.type, data: ctx.image.data } },
+        { type: "text", text: `The picture is the page Nikita is looking at right now (look_at_screen), captured in his browser.\n\n${input}` },
+      ]
+    : input;
+  const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: "user", content: first }];
+  /** look_at_screen was called where the browser can capture the page: the turn stops and asks it for the picture. */
+  let wantScreen = false;
   const sys = systemBlocks(system, ctx.core);
   const roomTools = apiTools(tools);
 
@@ -221,6 +236,13 @@ export async function runAgent(call: CallModel, system: string, input: string, c
     const results: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
     for (const b of content) {
       if (b.type !== "tool_use") continue;
+      // Looking at the screen (#1027): the picture leads this turn already, or the browser is asked for it.
+      if (b.name === "look_at_screen" && (ctx.image || ctx.canLook)) {
+        if (!ctx.image) wantScreen = true;
+        note(looked, "Looked at the screen");
+        results.push({ type: "tool_result", tool_use_id: b.id, content: ctx.image ? "The picture at the start of this turn is his screen: look at it." : "Capturing the screen." });
+        continue;
+      }
       const got = await callTool(b.name, b.input, ctx.host, { pending: ctx.pending, surface, tainted, said: ctx.message, ...(ctx.via && { via: ctx.via }) });
       if (!got.ok) {
         results.push({ type: "tool_result", tool_use_id: b.id, content: got.text, is_error: true });
@@ -239,7 +261,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
     }
     messages.push({ role: "user", content: results });
   };
-  const result = (answer: unknown, model: AgentModel, tier: Tier, deeper?: "talk" | "hard" | "floor"): AgentResult => ({
+  const result = (answer: unknown, model: AgentModel, tier: Tier, deeper?: "talk" | "hard" | "floor", needScreen?: boolean): AgentResult => ({
     answer,
     usage: called ? usage : null,
     usd,
@@ -252,6 +274,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
     ...(textAction && { textAction }),
     tier,
     ...(deeper && { deeper }),
+    ...(needScreen && { needScreen }),
   });
 
   /* ── The fast tier: understand, try the one direct thing, or say how deep to go ── */
@@ -283,6 +306,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
       if (res.stop_reason === "tool_use") {
         messages.push({ role: "assistant", content: res.content as Anthropic.Beta.Messages.BetaContentBlockParam[] });
         await runTools(res.content);
+        if (wantScreen) return result(null, FAST_MODEL, "fast", undefined, true);
         continue;
       }
       const got = res.stop_reason === "end_turn" ? (readAnswer(res.content) as { reply?: unknown; deeper?: unknown } | null) : null;
@@ -353,6 +377,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
       break;
     }
     await runTools(res.content);
+    if (wantScreen) return result(null, answeredBy, start, undefined, true);
     // A turn that has grown past its input bound answers with what it has.
     if (u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) > AGENT_INPUT && !last) round = AGENT_ROUNDS - 2;
   }

@@ -60,6 +60,8 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "This crate is mostly semicolons.",
     "We had four crates. Now we have one good crate.",
     "Where did the anvil go? We make code, Rusty.",
+    "Skippy looked at the C.E.O.'s screen and filed a ticket. The picture stays in the vault. We get a number.",
+    "\"Fix this,\" says the ticket. Which this? Skippy saw it. Skippy isn't telling the Lattice.",
   ],
   spire: [
     "Per my last email…",

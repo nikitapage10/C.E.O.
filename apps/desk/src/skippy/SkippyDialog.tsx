@@ -206,7 +206,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
 
   if (!shown) return null;
   const dialog = (
-    <section id="skippy-chat" className={`skp-chat skp-chat--${placement} ${className}`} role="dialog" aria-modal="false" aria-labelledby={titleId}>
+    <section id="skippy-chat" className={`skp-chat skp-chat--${placement} ${className}`} role="dialog" aria-modal="false" data-shot-skip="" aria-labelledby={titleId}>
       <header className="skp-chat__head">
         <img className="skp-chat__face" src={SKIPPY_PORTRAIT} alt="" width={40} height={40} />
         <div className="skp-chat__who">

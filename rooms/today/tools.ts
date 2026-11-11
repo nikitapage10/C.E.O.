@@ -2,7 +2,7 @@ import type { RoomTool } from "@ceo/engine/tools";
 
 /**
  * Skippy's own tools on Today (#646): his private memory of Nikita, behind the passkey (api/_skippy/agent/memory.ts).
- * Looking things up changes nothing; saving or forgetting a fact waits for Nikita's Yes tap. And the Things to buy list
+ * Looking things up (and at the screen, #1027) changes nothing; saving or forgetting a fact waits for Nikita's Yes tap. And the Things to buy list
  * (#735, api/_haven/list.ts), shown with every list on Today. Data only.
  */
 export const TOOLS: readonly RoomTool[] = [
@@ -14,6 +14,15 @@ export const TOOLS: readonly RoomTool[] = [
       "Put things that aren't groceries on the Things to buy list (his Amazon list: a phone charger, batteries, a desk lamp), one item per entry, in plain words. Use it when he says Amazon, \"things to buy\" or \"I need to buy\" something that isn't food. Groceries go on kitchen_add. Nothing is bought.",
     input: { type: "object", properties: { items: { type: "array", items: { type: "string", maxLength: 60 }, maxItems: 12 } }, required: ["items"], additionalProperties: false },
     effect: "write",
+  },
+  {
+    name: "look_at_screen",
+    room: "today",
+    title: "Looked at the screen",
+    description:
+      "See the page Nikita is looking at, as a picture. <screen> already says the room, the tab and the open item: use it first, and call this only when that isn't enough: he points at something visual (\"this glitch\", \"that weird box\", \"what's wrong here\", \"why does this look off\"), or \"this\" can't be worked out from <screen>. Always call it before filing a fix for something on his screen with implement_it, so the Builder gets the picture. The page is captured in his browser without asking him and kept privately; never on the phone shortcut or a call.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
+    effect: "read",
   },
   {
     name: "memory_lookup",

@@ -44,6 +44,11 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
           read: async () => new (await import("../../_haven/meals.js")).MealsStore(blob).read(),
           edit: async (edit) => new (await import("../../_haven/meals.js")).MealsStore(blob).edit(edit, Date.now()),
           send: async () => (await import("../../_haven/meals.js")).sendWeek(blob, Date.now()),
+          // A changed step's picture (#1027), queued like finalize's (#1016) under the library's cap; never made on open.
+          stepPhotos: async (file) => {
+            const [{ queueStepPhotos, livePhotoDeps }, { weekStepShots }] = await Promise.all([import("../../_haven/photos.js"), import("../../_haven/stepShots.js")]);
+            return queueStepPhotos(weekStepShots(file), livePhotoDeps(env));
+          },
         }
       : null,
     cart: {

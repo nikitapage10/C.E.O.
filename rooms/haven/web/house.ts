@@ -18,6 +18,7 @@ import { dayLevel, sunAt } from "./daylight.ts";
 import type { PlanLight } from "../../../api/_haven/planShape.ts";
 import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
+import { registerShotRender } from "@ceo/engine/web/screenshot.ts";
 import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
 
 /**
@@ -340,6 +341,8 @@ export class House {
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.domElement.className = "hv-gl";
     host.appendChild(this.renderer.domElement);
+    // A picture of the page for Skippy (#1027, look_at_screen): drawn right before it is read, even when the house is idle.
+    this.disposers.push(registerShotRender(this.renderer.domElement, () => this.renderer.render(this.scene, this.camera)));
     this.thr.className = "hv-thr";
     this.thr.setAttribute("aria-hidden", "true");
     host.appendChild(this.thr);

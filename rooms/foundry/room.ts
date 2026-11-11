@@ -13,6 +13,8 @@ export default defineRoom({
   auth: {
     foundry: ["passkey"],
     "foundry-image": ["passkey"],
+    // Skippy's screenshots for a glitch ticket (#1027): the passkey, or the Builder read key on the read.
+    "foundry-shot": ["passkey"],
     "foundry-feed": ["site"],
     "foundry-usage": ["site"],
   },

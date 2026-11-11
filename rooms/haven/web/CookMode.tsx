@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { Cook, CookLine, CookStep } from "./cook.ts";
 import { findPhotos, photoUrl, stepShotsOf, type PhotoState } from "./mealPhotos.ts";
 import "./cook.css";
+import { useScreenContext } from "@ceo/engine/web/screen.ts";
 
 /**
  * Cook mode (#705; phone-first since #1010): tonight's dinner full screen. Every step is on one scrolling list: the one
@@ -161,6 +162,26 @@ export function CookMode({ cook, onClose }: { cook: Cook; onClose: () => void })
     });
 
   const go = useCallback((to: number) => setAt(Math.max(0, Math.min(n - 1, to))), [n]);
+
+  // What Nikita is looking at (#1027), so "add a pico here" or "this step" needs no explaining: the step he's on, its
+  // ingredients and amounts, the steps ahead and the whole list. The recipe itself goes in the private part only.
+  const stepText = (s: CookStep | undefined) => (s ? (s.skip ?? s.runs.map((r) => r.text).join("")) : "");
+  const lineText = (l: CookLine | undefined) => (l ? `${l.item}${l.amount ? ` ${l.amount}` : ""}` : "");
+  useScreenContext({
+    room: "haven",
+    tab: "Kitchen",
+    item: `Cook mode, step ${i + 1} of ${n}`,
+    stage: "cooking",
+    fields: { day: cook.day, course: cook.course, step: i + 1, steps: n, portions: cook.portions },
+    private: {
+      meal: cook.name,
+      stepText: stepText(cook.steps[i]),
+      stepIngredients: (cook.steps[i]?.uses ?? []).map((k) => lineText(cook.lines[k])).filter(Boolean),
+      comingSteps: cook.steps.slice(i + 1, i + 4).map((s, k) => `${i + k + 2}. ${stepText(s)}`.slice(0, 160)),
+      ingredients: cook.lines.map(lineText),
+      ...(cook.changes.length && { tonight: cook.changes.join(", ") }),
+    },
+  });
 
   // The step you're on comes to the top of the list, the end of the one before it just showing above.
   const first = useRef(true);

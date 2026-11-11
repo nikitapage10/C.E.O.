@@ -79,7 +79,7 @@ export function VoiceDock({ route }: { route: string }) {
   const showMic = !!mic && signedIn && !calling && micSupported();
   const lead = voiceTargetOf(route);
   return (
-    <div className="vdock" style={{ "--mic": (mic ?? lead)?.colour ?? "#8fd8ff" } as React.CSSProperties}>
+    <div className="vdock" data-shot-skip="" style={{ "--mic": (mic ?? lead)?.colour ?? "#8fd8ff" } as React.CSSProperties}>
       <HoldPill />
       <HandsFreeChip />
       <VoiceLine name={lead?.name ?? "Skippy"} />

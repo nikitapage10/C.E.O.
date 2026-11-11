@@ -18,6 +18,7 @@ import * as email from "../../api/_email/route.js";
 import { runEmailTick } from "../../api/_email/live.js";
 import * as foundryfeed from "../../api/foundry-feed.js";
 import * as foundryimage from "../../api/foundry-image.js";
+import * as foundryshot from "../../api/foundry-shot.js";
 import * as foundryusage from "../../api/foundry-usage.js";
 import * as foundry from "../../api/foundry.js";
 import * as exchangemarkets from "../../api/_exchange/route.js";
@@ -144,6 +145,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // The Commentator's call (#276): the Green's weekly analysis, Desk session only. GET the latest, POST { action: "refresh" }.
   ["green-analysis", greenanalysis],
   ["foundry-image", foundryimage],
+  // Screenshots Skippy took of the page for a Foundry issue (#1027, api/_skippy/shots.ts): POST from a passkey session
+  // when he asks to look at the screen; GET for a passkey session or the Builder read key. Private store only.
+  ["foundry-shot", foundryshot],
   // The Spire's invoices (#279, docs/PAYPAL.md): PayPal drafts made from the Desk, sent only on Nikita's confirmed tap.
   // Azure only (the PayPal keys live only here). ?view=status is the public counts; the rest needs the passkey session.
   ["invoices", invoices],

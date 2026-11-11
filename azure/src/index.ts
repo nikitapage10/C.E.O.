@@ -10,7 +10,7 @@ import "./env.js";
 import { app, type HttpMethod } from "@azure/functions";
 import { registerAzureBlob } from "../../api/_blob.js";
 import * as annex from "../../api/_annex/route.js";
-import { JOBS_SCHEDULE } from "../../api/_annex/jobs.js";
+import { FIT_SCHEDULE, JOBS_SCHEDULE } from "../../api/_annex/jobs.js";
 import * as daystory from "../../api/day-story.js";
 import * as deskauth from "../../api/desk-auth.js";
 import * as deskpings from "../../api/desk-pings.js";
@@ -312,6 +312,21 @@ app.timer("annex_jobs_daily", {
     const result = await annex.runJobsDaily().catch(() => "failed");
     if (result === "failed") context.warn("annex jobs: failed");
     else context.log(`annex jobs: ${result}`);
+  },
+});
+
+// The Job search's AI fit check (#1025, api/_annex/fit.ts): every 20 minutes, a finished Message Batch is read back and
+// the jobs still due a check go out in a new one (Claude Sonnet, under its own $15 a month cap). One private-store read
+// when nothing is due; the first tick after it shipped backfilled the stored jobs. Counts only, never job or resume text.
+app.timer("annex_jobs_fit", {
+  schedule: FIT_SCHEDULE,
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    await keysFresh();
+    const tick = await annex.runJobsFit().catch(() => "failed" as const);
+    if (tick === "failed") context.warn("annex jobs fit: failed");
+    else if (tick !== "shelved" && (tick.checked || tick.sent)) context.log(`annex jobs fit: ${tick.checked} checked, ${tick.sent} sent`);
   },
 });
 

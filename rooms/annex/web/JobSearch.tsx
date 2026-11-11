@@ -2,16 +2,37 @@ import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useScreenContext } from "@ceo/engine/web/screen.ts";
 import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { useAnnex } from "../data/annex.ts";
-import { careerMove, jobsGrowth, k, since, useJobs, type Job, type JobsProfile, type JobsView, type JobState } from "../data/jobs.ts";
+import {
+  careerMove,
+  jobsGrowth,
+  k,
+  loadFilters,
+  matchOf,
+  NO_FILTERS,
+  passes,
+  saveFilters,
+  since,
+  sortJobs,
+  SORTS,
+  useJobs,
+  type FitCheckView,
+  type Job,
+  type JobFilters,
+  type JobsProfile,
+  type JobsView,
+  type JobState,
+} from "../data/jobs.ts";
 import "./jobs.css";
 
 /**
  * The Job search (#1000), the Annex's second pop-up, in its pane of glass over the Glasshouse: Google Jobs through
- * SerpApi, searched each morning (and on a tap) for the saved searches, merged and ranked against the profile and the
- * resume with plain rules. Not a plain list: the day's best match blooms at the top in a gold ring, the pipeline
- * (new, saved, applied) runs as a lit line, every listed pay range is plotted against the floor, and the companies on
- * the list light up when they have an opening. Every job is SerpApi's, as the last run read it; nothing is made up.
- * Private: a passkey session only, nothing kept on the device.
+ * SerpApi, searched each morning (and on a tap) for the saved searches. Plain rules filter (near home or fully remote,
+ * the avoid list, the pay floor, already applied); the match score is the AI fit check's (#1025: Claude Sonnet reading
+ * the resume against each posting's requirements), with a provisional score marked "not checked yet" until it runs.
+ * Not a plain list: the day's best match blooms at the top in a gold ring, the pipeline (new, saved, applied) runs as
+ * a lit line, every listed pay range is plotted against the floor, and the companies on the list light up when they
+ * have an opening. Every job is SerpApi's, as the last run read it; nothing is made up. Private: a passkey session
+ * only; the device keeps only the viewer's sort and filters.
  */
 
 type Tab = "matches" | "saved" | "applied" | "dismissed" | "setup";
@@ -121,6 +142,45 @@ function CareerBar({ job, profile }: { job: Job; profile: JobsProfile }) {
   );
 }
 
+const FIT_WORD = { strong: "Strong fit", possible: "Possible fit", weak: "Weak fit" } as const;
+
+/** The match ring: the AI's fit score, or the provisional score dimmed and marked "not checked yet". */
+function Match({ job, size, stroke, big }: { job: Job; size: number; stroke: number; big?: boolean }) {
+  const n = matchOf(job);
+  const label = job.fit ? `${FIT_WORD[job.fit.fit]}, ${n} of 100` : `Provisional match ${n} of 100, not checked yet`;
+  return (
+    <span className={`jb-match${job.fit ? ` is-${job.fit.fit}` : " is-unchecked"}`}>
+      <Ring value={n} size={size} stroke={stroke} label={label}>
+        <b className={big ? "jb-bloom-n" : undefined}>{n}</b>
+        {big && <small>{job.fit ? "fit" : "rules"}</small>}
+      </Ring>
+      <small className="jb-match-w">{job.fit ? FIT_WORD[job.fit.fit] : "Not checked yet"}</small>
+    </span>
+  );
+}
+
+/** The AI's reason and what the resume is missing; a "Check fit" tap while it hasn't run. */
+function FitNote({ job, fitOn, busy, onCheck }: { job: Job; fitOn: boolean; busy: boolean; onCheck: () => void }) {
+  if (job.fit)
+    return (
+      <div className="jb-fit">
+        <p className="jb-fit-why">{job.fit.reason}</p>
+        {job.fit.missing.length > 0 && (
+          <p className="jb-fit-miss">
+            <b>Missing:</b> {job.fit.missing.join(" · ")}
+          </p>
+        )}
+      </div>
+    );
+  return fitOn && !job.hidden && job.state !== "dismissed" ? (
+    <div className="jb-fit">
+      <button type="button" className="jb-btn jb-fit-btn" disabled={busy} onClick={onCheck}>
+        {busy ? "Checking…" : "Check fit"}
+      </button>
+    </div>
+  ) : null;
+}
+
 function Facts({ job }: { job: Job }) {
   const p = pay(job);
   return (
@@ -134,7 +194,23 @@ function Facts({ job }: { job: Job }) {
   );
 }
 
-function JobCard({ job, profile, onMark, busy, i }: { job: Job; profile: JobsProfile; onMark: (s: JobState) => void; busy: boolean; i: number }) {
+function JobCard({
+  job,
+  profile,
+  onMark,
+  onCheck,
+  fitOn,
+  busy,
+  i,
+}: {
+  job: Job;
+  profile: JobsProfile;
+  onMark: (s: JobState) => void;
+  onCheck: () => void;
+  fitOn: boolean;
+  busy: boolean;
+  i: number;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <li className={`jb-job is-${job.state}${job.hidden ? " is-hidden" : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}>
@@ -156,10 +232,9 @@ function JobCard({ job, profile, onMark, busy, i }: { job: Job; profile: JobsPro
           </p>
           {job.state !== "new" && <span className={`jb-tag jb-tag--${job.state}`}>{job.state === "saved" ? "Saved" : job.state === "applied" ? "Applied" : "Dismissed"}</span>}
         </div>
-        <Ring value={job.score} size={52} stroke={4} label={`Match ${job.score} of 100`}>
-          <b>{job.score}</b>
-        </Ring>
+        <Match job={job} size={52} stroke={4} />
       </div>
+      <FitNote job={job} fitOn={fitOn} busy={busy} onCheck={onCheck} />
       <CareerBar job={job} profile={profile} />
       <Facts job={job} />
       {(job.why.length > 0 || job.hidden) && (
@@ -172,6 +247,11 @@ function JobCard({ job, profile, onMark, busy, i }: { job: Job; profile: JobsPro
       )}
       {open && (
         <div className="jb-more">
+          {job.fit && job.fit.met.length > 0 && (
+            <p className="jb-fit-met">
+              <b>Meets:</b> {job.fit.met.join(" · ")}
+            </p>
+          )}
           {job.highlights.length > 0 && (
             <ul>
               {job.highlights.map((h, n) => (
@@ -209,7 +289,21 @@ function JobCard({ job, profile, onMark, busy, i }: { job: Job; profile: JobsPro
 }
 
 /** The day's best match, in full, with its ring large. */
-function Bloom({ job, profile, onMark, busy }: { job: Job | undefined; profile: JobsProfile; onMark: (s: JobState) => void; busy: boolean }) {
+function Bloom({
+  job,
+  profile,
+  onMark,
+  onCheck,
+  fitOn,
+  busy,
+}: {
+  job: Job | undefined;
+  profile: JobsProfile;
+  onMark: (s: JobState) => void;
+  onCheck: () => void;
+  fitOn: boolean;
+  busy: boolean;
+}) {
   if (!job)
     return (
       <section className="jb-glass jb-bloom is-empty" aria-label="Best match">
@@ -219,10 +313,7 @@ function Bloom({ job, profile, onMark, busy }: { job: Job | undefined; profile: 
     );
   return (
     <section className="jb-glass jb-bloom" aria-label="Best match">
-      <Ring value={job.score} size={132} stroke={9} label={`Best match, ${job.score} of 100`}>
-        <b className="jb-bloom-n">{job.score}</b>
-        <small>match</small>
-      </Ring>
+      <Match job={job} size={132} stroke={9} big />
       <div className="jb-bloom-body">
         <p className="jb-k jb-bloom-k">
           <Logo job={job} size={28} /> Best match
@@ -240,6 +331,7 @@ function Bloom({ job, profile, onMark, busy }: { job: Job | undefined; profile: 
           <b>{job.company}</b>
           {job.location && <span> · {job.location}</span>}
         </p>
+        <FitNote job={job} fitOn={fitOn} busy={busy} onCheck={onCheck} />
         <CareerBar job={job} profile={profile} />
         <Facts job={job} />
         {job.why.length > 0 && (
@@ -382,8 +474,113 @@ function Budget({ view, busy, onRun, now }: { view: JobsView; busy: boolean; onR
         <button type="button" className="jb-btn jb-btn--go" disabled={busy || !view.configured || !perRun || left < perRun} onClick={onRun} title={`Uses ${perRun} of this month's searches`}>
           {busy ? "Searching…" : "Search now"}
         </button>
+        {view.fitCheck && <FitSpend fit={view.fitCheck} />}
       </div>
     </section>
+  );
+}
+
+const PAUSED: Record<NonNullable<FitCheckView["paused"]>, string> = {
+  "no-key": "AI check paused: the Claude key isn't set.",
+  cap: "AI check paused: this month's cap is reached. Scores are provisional until the month turns.",
+  "no-resume": "AI check paused: add your resume in Search setup.",
+};
+
+/** The AI fit check's month against its cap. On this passkey-only pane only: never on a public page or the Lattice. */
+function FitSpend({ fit }: { fit: FitCheckView }) {
+  return (
+    <p className={`jb-note jb-fitspend${fit.paused ? " is-paused" : ""}`}>
+      {fit.paused ? <span className="jb-warn">{PAUSED[fit.paused]} </span> : null}
+      AI fit check (Sonnet): ${fit.usd.toFixed(2)} of ${fit.cap} this month · {fit.checks} checked
+      {fit.pending ? ` · ${fit.pending} in the queue` : ""}.
+    </p>
+  );
+}
+
+const WORK_WORD = { near: "Near, on site", hybrid: "Near, hybrid", remote: "Remote", elsewhere: "Elsewhere" } as const;
+
+/** Sort and filters, remembered per viewer in this browser. */
+function Filters({ f, set, regions, floor, hiddenN, showHidden, setShowHidden }: { f: JobFilters; set: (p: Partial<JobFilters>) => void; regions: string[]; floor: number | null; hiddenN: number; showHidden: boolean; setShowHidden: (v: boolean) => void }) {
+  const changed = JSON.stringify({ ...f, sort: "fit" }) !== JSON.stringify(NO_FILTERS);
+  return (
+    <div className="jb-sorts" role="group" aria-label="Sort and filter">
+      <label className="jb-sel">
+        <span>Sort</span>
+        <select className="jb-in" value={f.sort} onChange={(e) => set({ sort: e.target.value as JobFilters["sort"] })}>
+          {SORTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="jb-sel">
+        <span>Fit</span>
+        <select className="jb-in" value={f.fit} onChange={(e) => set({ fit: e.target.value as JobFilters["fit"] })}>
+          <option value="">Any</option>
+          <option value="strong">Strong</option>
+          <option value="possible">Possible</option>
+          <option value="weak">Weak</option>
+          <option value="unchecked">Not checked yet</option>
+        </select>
+      </label>
+      <label className="jb-sel">
+        <span>Level</span>
+        <select className="jb-in" value={f.level} onChange={(e) => set({ level: e.target.value as JobFilters["level"] })}>
+          <option value="">Any</option>
+          <option value="up">Step up</option>
+          <option value="level">Sideways</option>
+          <option value="back">Step back</option>
+        </select>
+      </label>
+      <label className="jb-sel">
+        <span>Work</span>
+        <select className="jb-in" value={f.work} onChange={(e) => set({ work: e.target.value as JobFilters["work"] })}>
+          <option value="">Any</option>
+          {(Object.keys(WORK_WORD) as (keyof typeof WORK_WORD)[]).map((w) => (
+            <option key={w} value={w}>
+              {WORK_WORD[w]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="jb-sel">
+        <span>State</span>
+        <select className="jb-in" value={f.region} onChange={(e) => set({ region: e.target.value })}>
+          <option value="">Any</option>
+          {regions.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="jb-sel">
+        <span>Company</span>
+        <select className="jb-in" value={f.tier} onChange={(e) => set({ tier: e.target.value as JobFilters["tier"] })}>
+          <option value="">Any</option>
+          <option value="list">On your list</option>
+          <option value="big">Big companies</option>
+          <option value="rising">Rising companies</option>
+          <option value="other">Everyone else</option>
+        </select>
+      </label>
+      {floor ? (
+        <label className="jb-check">
+          <input type="checkbox" checked={f.payClears} onChange={(e) => set({ payClears: e.target.checked })} /> Pay clears {k(floor)}
+        </label>
+      ) : null}
+      {hiddenN > 0 && (
+        <label className="jb-check">
+          <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Show {hiddenN} hidden
+        </label>
+      )}
+      {changed && (
+        <button type="button" className="jb-btn jb-btn--quiet" onClick={() => set({ ...NO_FILTERS, sort: f.sort })}>
+          Clear filters
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -477,7 +674,7 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
         <label className="jb-field">
           <span>Your years of experience</span>
           <input className="jb-in" inputMode="numeric" value={years} onChange={(e) => setYears(e.target.value.replace(/[^\d]/g, ""))} placeholder="e.g. 10" />
-          <small>Jobs rank by the years they ask for, not by their title's level.</small>
+          <small>Used for the provisional score until the AI fit check has read the job.</small>
         </label>
         <label className="jb-field">
           <span>Daily run</span>
@@ -510,7 +707,7 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
         <label className="jb-field jb-wide">
           <span>Close to home</span>
           <input className="jb-in" value={near} onChange={(e) => setNear(e.target.value)} placeholder="Comma-separated places, e.g. Denver, Boulder, Colorado" />
-          <small>Jobs here rank first, then hybrid ones, then remote.</small>
+          <small>A job elsewhere is hidden unless it is fully remote. A state's name also matches its two-letter code.</small>
         </label>
         <label className="jb-field jb-wide">
           <span>Already applied to</span>
@@ -532,8 +729,8 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
       <section className="jb-card">
         <h3 className="jb-h3">Resume</h3>
         <p className="jb-note">
-          {hasResume ? "A resume is on file. " : "No resume yet. "}Paste it as plain text to rank jobs by how well their words match it. It is kept in C.E.O.'s private store, read only in a passkey
-          session, and never leaves Azure.
+          {hasResume ? "A resume is on file. " : "No resume yet. "}Paste it as plain text. Claude Sonnet reads it against each job's requirements for the fit check, so it is sent to
+          Anthropic's API with each check; otherwise it stays in C.E.O.'s private store, read only in a passkey session. Saving a new one checks the top jobs again.
         </p>
         <textarea className="jb-in" rows={6} value={resume} onChange={(e) => setResume(e.target.value)} placeholder="Paste your resume here" maxLength={20_000} />
         <div className="jb-row">
@@ -557,7 +754,13 @@ export function JobSearch() {
   const setGrowth = useAnnex((s) => s.setGrowth);
   const [tab, setTab] = useState<Tab>("matches");
   const [showHidden, setShowHidden] = useState(false);
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [filters, setFilters] = useState<JobFilters>(loadFilters);
+  const setF = (p: Partial<JobFilters>) =>
+    setFilters((f) => {
+      const next = { ...f, ...p };
+      saveFilters(next);
+      return next;
+    });
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState(LIST_STEP);
 
@@ -577,20 +780,23 @@ export function JobSearch() {
   }, [view]);
 
   const live = useMemo(() => (view ? view.jobs.filter((j) => (j.state === "new" || j.state === "saved") && !j.hidden) : []), [view]);
-  const best = useMemo(() => live.filter((j) => j.state === "new").sort((a, b) => b.score - a.score)[0], [live]);
+  const best = useMemo(() => (view ? sortJobs(live.filter((j) => j.state === "new"), "fit", view.profile)[0] : undefined), [live, view]);
+  const filtering = JSON.stringify({ ...filters, sort: "fit" }) !== JSON.stringify(NO_FILTERS);
   const list = useMemo(() => {
     if (!view) return [];
     const want: JobState[] = tab === "saved" ? ["saved"] : tab === "applied" ? ["applied"] : tab === "dismissed" ? ["dismissed"] : ["new", "saved"];
     const q = query.trim().toLowerCase();
-    return view.jobs.filter(
+    const shown = view.jobs.filter(
       (j) =>
         want.includes(j.state) &&
         (showHidden || !j.hidden || tab !== "matches") &&
-        (!remoteOnly || j.remote) &&
+        passes(j, filters, view.profile) &&
         (!q || `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q)) &&
-        !(tab === "matches" && j.id === best?.id && !q && !remoteOnly),
+        !(tab === "matches" && j.id === best?.id && !q && !filtering && filters.sort === "fit"),
     );
-  }, [view, tab, showHidden, remoteOnly, query, best]);
+    return sortJobs(shown, filters.sort, view.profile);
+  }, [view, tab, showHidden, filters, filtering, query, best]);
+  const regions = useMemo(() => (view ? [...new Set(view.jobs.map((j) => j.region).filter((r): r is string => !!r))].sort() : []), [view]);
 
   // What Nikita is looking at (#1027): the tab, the filters and the counts; the jobs themselves (titles, companies,
   // the search) only in the private part, never in a public Foundry issue.
@@ -600,7 +806,7 @@ export function JobSearch() {
           room: "annex",
           tab: "Job search",
           item: `${tab[0]!.toUpperCase()}${tab.slice(1)}`,
-          fields: { tab, shown: Math.min(shown, list.length), listed: list.length, live: live.length, remoteOnly, showHidden },
+          fields: { tab, shown: Math.min(shown, list.length), listed: list.length, live: live.length, sort: filters.sort, filtering, showHidden },
           private: {
             ...(query.trim() && { search: query.trim() }),
             ...(best && tab === "matches" && { topMatch: `${best.title} at ${best.company}` }),
@@ -632,13 +838,15 @@ export function JobSearch() {
   const counts = (s: JobState) => view.jobs.filter((j) => j.state === s).length;
   const hiddenN = view.jobs.filter((j) => j.hidden && (j.state === "new" || j.state === "saved")).length;
   const mark = (j: Job) => (state: JobState) => void send({ action: "mark", id: j.id, state });
+  const check = (j: Job) => () => void send({ action: "fit", id: j.id });
+  const fitOn = !!view.fitCheck && !view.fitCheck.paused;
   const saved = view.profile.searches.length;
 
   return (
     <section className="jb" aria-label="Job search">
       <header className="jb-head">
         <div>
-          <p className="jb-k">Google Jobs · SerpApi · ranked on your experience, pay floor and resume</p>
+          <p className="jb-k">Google Jobs · SerpApi · filtered by place and pay · scored by an AI read of your resume</p>
           <h2 className="jb-hero">
             <b>{live.filter((j) => j.state === "new").length}</b> new matches
             {view.profile.searches.length ? <span> across {saved} searches</span> : null}
@@ -648,7 +856,7 @@ export function JobSearch() {
       </header>
 
       <div className="jb-top">
-        <Bloom job={best} profile={view.profile} onMark={(s) => best && mark(best)(s)} busy={busy} />
+        <Bloom job={best} profile={view.profile} onMark={(s) => best && mark(best)(s)} onCheck={() => best && check(best)()} fitOn={fitOn} busy={busy} />
         <div className="jb-side">
           <Pipeline n={counts("new")} s={counts("saved")} a={counts("applied")} d={counts("dismissed")} />
           <Budget view={view} busy={busy} onRun={() => void send({ action: "run" })} now={now} />
@@ -692,19 +900,23 @@ export function JobSearch() {
         <>
           <div className="jb-filters">
             <input className="jb-in jb-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by title, company or place" aria-label="Filter jobs" />
-            <label className="jb-check">
-              <input type="checkbox" checked={remoteOnly} onChange={(e) => setRemoteOnly(e.target.checked)} /> Remote only
-            </label>
-            {tab === "matches" && hiddenN > 0 && (
-              <label className="jb-check">
-                <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> Show {hiddenN} hidden
-              </label>
-            )}
           </div>
+          <Filters
+            f={filters}
+            set={(p) => {
+              setF(p);
+              setShown(LIST_STEP);
+            }}
+            regions={regions}
+            floor={view.profile.minSalary}
+            hiddenN={tab === "matches" ? hiddenN : 0}
+            showHidden={showHidden}
+            setShowHidden={setShowHidden}
+          />
           {list.length ? (
             <ol className="jb-list">
               {list.slice(0, shown).map((j, i) => (
-                <JobCard key={j.id} job={j} profile={view.profile} i={i} busy={busy} onMark={mark(j)} />
+                <JobCard key={j.id} job={j} profile={view.profile} i={i} busy={busy} onMark={mark(j)} onCheck={check(j)} fitOn={fitOn} />
               ))}
             </ol>
           ) : (

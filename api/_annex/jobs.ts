@@ -9,19 +9,49 @@
  * Light on quota. SerpApi counts every search against a monthly plan, so: one scheduled run a day at most, a run is one
  * search per saved query, rotating through up to MAX_SEARCHES of them PER_RUN at a time, a hand run waits MANUAL_GAP_MS after the last, and nothing runs once
  * this month's searches reach the budget (JOBS_MONTHLY_SEARCHES, default 240). SerpApi's own account page (free, not
- * counted) is read after each run so the Desk shows the plan's real searches left. No Claude call anywhere: matches
- * are scored with plain rules against the profile and the resume's words.
+ * counted) is read after each run so the Desk shows the plan's real searches left.
+ *
+ * Rules filter, the AI scores (#1025). The plain rules here are hard filters only, cheap and run before any model: a job
+ * is hidden when it is neither near home (the private profile's `near` places) nor fully remote, when it has an avoided
+ * word, when it is already applied to, or when its listed pay tops out under the floor; saved and applied jobs always
+ * stay visible. They also give a provisional score, shown as "not checked yet". The match score itself is the AI fit
+ * check's (fit.ts: Claude Sonnet reading the resume against the posting's requirements), under its own $15 a month cap.
  *
  * GET  /api/annex-jobs                      → JobsView (Desk session)
  * POST /api/annex-jobs { action: "run" }    run the saved searches now
  *                      { action: "mark", id, state }        new, saved, applied or dismissed
  *                      { action: "profile", profile }       the searches, pay floor, companies, prefer and avoid words
- *                      { action: "resume", text }           the resume as plain text ("" removes it)
+ *                      { action: "resume", text }           the resume as plain text ("" removes it); checks the top jobs' fit
+ *                      { action: "fit", id }                the AI fit check for one job, now (fit.ts)
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
 import { pickBlob, type BlobBackend } from "../_blob.js";
+import {
+  BATCH_CALL_MAX_USD,
+  BATCH_GIVE_UP_MS,
+  BATCH_MAX,
+  CALL_MAX_USD,
+  FIT_CAP_USD,
+  MAX_TRIES,
+  RESUME_NOW,
+  batchUsd,
+  callUsd,
+  defaultBook,
+  pauseOf,
+  postingBlock,
+  readBook,
+  readFit,
+  resumeHash,
+  rollBook,
+  underCap,
+  type FitAI,
+  type FitAnswer,
+  type FitBook,
+  type FitPause,
+  type JobFit,
+} from "./fit.js";
 
 export const JOBS_PATH = "/api/annex-jobs";
 export const JOBS_STORE = "desk/annex/jobs.json";
@@ -72,7 +102,8 @@ export interface JobsProfile {
   years: number | null;
   /** Roles already applied to (outside C.E.O. too): a found job matching one is filed under Applied, never a new match. */
   applied: { company: string; title: string }[];
-  /** Places close to home (whole words in a job's location): those jobs, and hybrid ones, rank above remote ones. */
+  /** Places close to home (whole words in a job's location; a state's name also matches its ", CO" code): a job
+   * elsewhere is hidden unless it is fully remote. Empty turns that rule off. */
   near: string[];
   /** Company tiers (whole words in the company's name): big companies rank first, then rising ones, then the rest. */
   big: string[];
@@ -100,9 +131,20 @@ export interface Job {
   logo?: string | null;
   /** The years of experience the posting asks for, read from its text; null when it names none. */
   yearsAsked?: number | null;
+  /** The posting's description, up to POSTING_CHARS, for the fit check only: never sent to the browser. */
+  detail?: string;
   /** Which saved search found it first. */
   search: string;
+  /** The provisional score from the rules; the match score is `fit.score` once the AI has checked it. */
   score: number;
+  /** The AI fit check's answer (fit.ts); null or absent until it has run against the current resume. */
+  fit?: JobFit | null;
+  /** Failed fit checks so far; at MAX_TRIES it keeps its provisional score. */
+  fitTries?: number;
+  /** Near home on site, near and hybrid, fully remote, or on site / hybrid elsewhere. */
+  work?: Work;
+  /** The US state in its location, as a two-letter code; null when none is named. */
+  region?: string | null;
   why: string[];
   hidden: string | null;
   firstSeen: string;
@@ -137,17 +179,30 @@ export interface JobsState {
   /** Where the next run starts in the saved searches (they rotate when there are more than PER_RUN). */
   cursor: number;
   account: JobsAccount | null;
+  /** The AI fit check's month and its batch in flight (fit.ts). */
+  fit: FitBook;
 }
 
-export interface JobsView extends JobsState {
+/** The fit check as the Desk pane shows it: the month's spend against the cap, never on a public page. */
+export interface FitCheckView {
+  paused: FitPause;
+  usd: number;
+  cap: number;
+  checks: number;
+  /** Jobs waiting in a batch. */
+  pending: number;
+}
+
+export interface JobsView extends Omit<JobsState, "fit"> {
   configured: boolean;
   budget: number;
   hasResume: boolean;
   nextRun: string | null;
+  fitCheck: FitCheckView;
 }
 
 export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [], near: [], big: [], rising: [] });
-export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null });
+export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null, fit: defaultBook() });
 
 /* ── Reading things defensively ── */
 
@@ -263,6 +318,7 @@ export function readJobs(raw: unknown): JobsState {
   s.used = typeof r.used === "number" && r.used >= 0 ? r.used : 0;
   s.cursor = typeof r.cursor === "number" && Number.isInteger(r.cursor) && r.cursor >= 0 ? r.cursor : 0;
   s.account = r.account && typeof r.account === "object" ? r.account : null;
+  s.fit = readBook(r.fit);
   return s;
 }
 
@@ -332,6 +388,7 @@ export function normaliseJob(raw: SerpJob, search: string, nowIso: string): Job 
     link: apply[0]?.link ?? httpsLink(raw.share_link),
     apply,
     snippet: str(raw.description, 700),
+    detail: str(raw.description, 6_000),
     logo: logoOf(raw.thumbnail),
     yearsAsked: yearsAskedIn(`${str(raw.description, 20_000)} ${highlights.join(" ")}`),
     highlights,
@@ -346,14 +403,9 @@ export function normaliseJob(raw: SerpJob, search: string, nowIso: string): Job 
   };
 }
 
-/* ── Scoring: plain rules, no model ── */
+/* ── The rules: hard filters and a provisional score ── */
 
 const STOP = new Set("a an and are as at be by for from has have in is it of on or our that the this to was we were will with you your".split(" "));
-
-/** The resume's distinct words of four letters or more, for overlap with a job's text. */
-export function resumeWords(text: string): Set<string> {
-  return new Set((text.toLowerCase().match(/[a-z][a-z+#.-]{3,}/g) ?? []).filter((w) => !STOP.has(w)));
-}
 
 const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Whether a word or phrase is in the text as a whole word, any case ("ai" is in "AI platform", not in "maintain"). */
@@ -361,11 +413,55 @@ export function hasWord(text: string, w: string): boolean {
   return w ? new RegExp(`(^|[^a-z0-9])${escape(w.toLowerCase())}($|[^a-z0-9])`).test(text.toLowerCase()) : false;
 }
 
-export function scoreJob(job: Job, profile: JobsProfile, resume: Set<string>): Job {
+/** The US states, by name, for reading "Denver, CO" as Colorado and the other way round. */
+export const US_STATES: Record<string, string> = {
+  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA",
+  hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD",
+  massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ",
+  "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC",
+  "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
+  "district of columbia": "DC",
+};
+const STATE_CODES = new Set(Object.values(US_STATES));
+
+/** The US state a location names ("Denver, CO", "Boulder, Colorado, United States"), as its code; null when none. */
+export function regionOf(location: string): string | null {
+  const code = location.match(/,\s*([A-Z]{2})\b/);
+  if (code && STATE_CODES.has(code[1]!)) return code[1]!;
+  // Longest names first, so "West Virginia" is never read as Virginia.
+  const name = Object.keys(US_STATES)
+    .sort((a, b) => b.length - a.length)
+    .find((n) => hasWord(location, n));
+  return name ? US_STATES[name]! : null;
+}
+
+/** Whether a location is close to home: one of the profile's places as a whole word, or in a state it names. */
+export function isNear(location: string, near: string[]): boolean {
+  if (!location) return false;
+  const region = regionOf(location);
+  return near.some((w) => hasWord(location, w) || (!!region && (US_STATES[w] === region || w.toUpperCase() === region)));
+}
+
+export type Work = "near" | "hybrid" | "remote" | "elsewhere";
+
+/** How the job is worked, for the place rule and the filter: near on site, near and hybrid, fully remote, elsewhere. */
+export function workOf(job: Pick<Job, "title" | "location" | "snippet" | "remote"> & { detail?: string }, near: string[]): Work {
+  const hybrid = /\bhybrid\b/i.test(`${job.title} ${job.location} ${job.snippet} ${job.detail ?? ""}`);
+  if (isNear(job.location, near)) return hybrid ? "hybrid" : "near";
+  if (job.remote && !hybrid) return "remote";
+  return near.length ? "elsewhere" : hybrid ? "hybrid" : "elsewhere";
+}
+
+/**
+ * The rules (#1025): hard filters, then a provisional score until the AI fit check has run. Hidden: a job neither near
+ * home nor fully remote (only when the profile names places), an avoided word, or listed pay under the floor. Saved and
+ * applied jobs always stay visible. The provisional score weighs the years asked, the company lists, the lift words,
+ * the place and the pay; it never reads the resume (that is the AI's job, fit.ts).
+ */
+export function scoreJob(job: Job, profile: JobsProfile): Job {
   const why: string[] = [];
   let score = 40;
   const hay = `${job.title} ${job.company} ${job.snippet} ${job.highlights.join(" ")}`.toLowerCase();
-  const titleL = job.title.toLowerCase();
   const avoid = profile.avoid.find((w) => hasWord(`${job.title} ${job.company}`, w));
   const lift = (n: number, w: string) => {
     score += n;
@@ -386,28 +482,23 @@ export function scoreJob(job: Job, profile: JobsProfile, resume: Set<string>): J
   else if (profile.rising.some((w) => hasWord(job.company, w))) lift(7, "rising company");
   const pref = profile.prefer.filter((w) => hasWord(hay, w));
   if (pref.length) lift(Math.min(24, pref.length * 8), `mentions ${pref.slice(0, 3).join(", ")}`);
-  if (profile.searches.some((s) => s.q && titleL.includes(s.q.toLowerCase()))) lift(10, "title matches a search");
   // Close to home first, then hybrid, then remote (Nikita, 2026-11-10: remote roles are harder to land).
-  const near = profile.near.some((w) => hasWord(job.location, w));
-  if (near) lift(16, "near you");
-  if (/\bhybrid\b/i.test(`${job.title} ${job.location} ${job.snippet}`)) lift(near ? 6 : 3, "hybrid");
-  else if (job.remote && !near) lift(profile.near.length ? 1 : 6, "remote");
-  let hidden: string | null = avoid ? `has "${avoid}"` : null;
+  const work = workOf(job, profile.near);
+  if (work === "near") lift(16, "near you");
+  else if (work === "hybrid") lift(profile.near.length ? 22 : 3, profile.near.length ? "near you, hybrid" : "hybrid");
+  else if (work === "remote") lift(profile.near.length ? 1 : 6, "remote");
+  // Nikita isn't moving (2026-11-11): a job elsewhere that isn't fully remote is never a result.
+  let hidden: string | null = avoid ? `has "${avoid}"` : profile.near.length && work === "elsewhere" ? "not near you or remote" : null;
   if (profile.minSalary && job.payMax !== null) {
     if (job.payMax < profile.minSalary) hidden ??= "pay under your floor";
     else lift(10, "pay clears your floor");
   }
-  if (resume.size) {
-    const jw = resumeWords(hay);
-    let hit = 0;
-    for (const w of jw) if (resume.has(w)) hit++;
-    const share = jw.size ? hit / jw.size : 0;
-    const add = Math.round(Math.min(1, share / 0.35) * 18);
-    if (add >= 6) why.push("fits your resume");
-    score += add;
-  }
-  return { ...job, score: Math.max(0, Math.min(100, score)), why: why.slice(0, 4), hidden };
+  if (job.state === "saved" || job.state === "applied") hidden = null;
+  return { ...job, score: Math.max(0, Math.min(100, score)), why: why.slice(0, 4), hidden, work, region: regionOf(job.location) };
 }
+
+/** The match score: the AI's fit when it has checked the job, else the provisional score. */
+export const matchOf = (j: Pick<Job, "score" | "fit">) => j.fit?.score ?? j.score;
 
 /* ── The store ── */
 
@@ -477,6 +568,10 @@ export interface JobsDeps {
   /** This month's search budget. */
   budget: number;
   now: number;
+  /** The AI fit check (fit.ts); null while no Claude key is set. */
+  ai?: FitAI | null;
+  /** The fit check's month cap, FIT_CAP_USD unless a test says otherwise. */
+  fitCap?: number;
 }
 
 export function budgetOf(env: Record<string, string | undefined>): number {
@@ -502,13 +597,13 @@ function rollMonth(state: JobsState, now: number): void {
   }
 }
 
-/** Every job scored again against the profile and resume, best first, the stale ones dropped, and capped. */
-export function tidy(jobs: Job[], profile: JobsProfile, resume: Set<string>, now: number): Job[] {
+/** Every job filtered and scored again against the profile, best match first, the stale ones dropped, and capped. */
+export function tidy(jobs: Job[], profile: JobsProfile, now: number): Job[] {
   // A role already applied to elsewhere goes straight to Applied, so it never comes up as new.
   jobs = jobs.map((j) => (j.state === "new" && appliedBefore(j, profile.applied) ? { ...j, state: "applied" as const, stateAt: new Date(now).toISOString() } : j));
   const kept = jobs.filter((j) => j.state === "saved" || j.state === "applied" || now - Date.parse(j.lastSeen) < STALE_MS);
-  const scored = kept.map((j) => scoreJob(j, profile, resume));
-  scored.sort((a, b) => (a.state === "dismissed" ? 1 : 0) - (b.state === "dismissed" ? 1 : 0) || b.score - a.score || b.lastSeen.localeCompare(a.lastSeen));
+  const scored = kept.map((j) => scoreJob(j, profile));
+  scored.sort((a, b) => (a.state === "dismissed" ? 1 : 0) - (b.state === "dismissed" ? 1 : 0) || matchOf(b) - matchOf(a) || b.lastSeen.localeCompare(a.lastSeen));
   const keep = scored.filter((j) => j.state === "saved" || j.state === "applied");
   const rest = scored.filter((j) => j.state !== "saved" && j.state !== "applied");
   return [...keep, ...rest].slice(0, Math.max(MAX_JOBS, keep.length));
@@ -560,7 +655,8 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
         if (!job) continue;
         found++;
         const was = byId.get(job.id);
-        if (was) byId.set(job.id, { ...job, state: was.state, stateAt: was.stateAt, firstSeen: was.firstSeen, search: was.search });
+        // Seen again: the fit check's answer stays (it is checked once per resume).
+        if (was) byId.set(job.id, { ...job, state: was.state, stateAt: was.stateAt, firstSeen: was.firstSeen, search: was.search, fit: was.fit ?? null, fitTries: was.fitTries ?? 0 });
         else {
           byId.set(job.id, job);
           added++;
@@ -572,8 +668,7 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
   }
   state.used += used;
   state.cursor = searches.length ? (state.cursor + batch.length) % searches.length : 0;
-  const resume = resumeWords(await deps.store.readResume().catch(() => ""));
-  state.jobs = tidy([...byId.values()], state.profile, resume, deps.now);
+  state.jobs = tidy([...byId.values()], state.profile, deps.now);
   state.runs = [{ at: nowIso, by, searches: used, found, added, error }, ...state.runs].slice(0, 30);
   state.account = (await readAccount(deps).catch(() => null)) ?? state.account;
   await deps.store.write(state);
@@ -602,10 +697,24 @@ export function nextRunAt(state: JobsState, now: number): string | null {
 /** Once a day at 13:00 UTC (6 or 7 a.m. in Denver), Azure's six-field cron. */
 export const JOBS_SCHEDULE = "0 0 13 * * *";
 
-export function viewOf(state: JobsState, deps: Pick<JobsDeps, "key" | "budget" | "now">, hasResume: boolean): JobsView {
+export function viewOf(state: JobsState, deps: Pick<JobsDeps, "key" | "budget" | "now" | "ai" | "fitCap">, hasResume: boolean): JobsView {
   const s = { ...state };
   rollMonth(s, deps.now);
-  return { ...s, configured: !!deps.key, budget: deps.budget, hasResume, nextRun: nextRunAt(s, deps.now) };
+  const { fit, ...rest } = s;
+  const book = rollBook(fit, deps.now);
+  const cap = deps.fitCap ?? FIT_CAP_USD;
+  // The postings' full text is for the fit check only; the browser gets the snippet and highlights.
+  // Filtered again on every read, so a rule change (the place rule, #1025) shows before the next run writes it.
+  const jobs = tidy(rest.jobs, rest.profile, deps.now).map(({ detail: _detail, ...j }) => j);
+  return {
+    ...rest,
+    jobs,
+    configured: !!deps.key,
+    budget: deps.budget,
+    hasResume,
+    nextRun: nextRunAt(s, deps.now),
+    fitCheck: { paused: pauseOf(book, !!deps.ai, hasResume, cap), usd: Math.round(book.usd * 100) / 100, cap, checks: book.checks, pending: book.batch ? Object.keys(book.batch.ids).length : 0 },
+  };
 }
 
 /** A change from the Desk: a job's state, the profile or the resume. Returns the new state, or an error word. */
@@ -623,8 +732,145 @@ export async function changeJobs(deps: JobsDeps, body: Record<string, unknown>):
     if (typeof body.text !== "string") return { error: "bad-request" };
     resumeText = body.text.slice(0, MAX_RESUME).trim();
     await deps.store.writeResume(resumeText);
+  } else if (body.action === "fit") {
+    if (typeof body.id !== "string" || !state.jobs.some((j) => j.id === body.id)) return { error: "bad-request" };
+    state.jobs = tidy(state.jobs, state.profile, deps.now);
+    await checkNow(deps, state, resumeText, [body.id]);
   } else return { error: "bad-request" };
-  state.jobs = tidy(state.jobs, state.profile, resumeWords(resumeText), deps.now);
+  state.jobs = tidy(state.jobs, state.profile, deps.now);
+  if (body.action === "resume") {
+    // A new resume: a batch in flight was for the old one. The top few are checked now, the rest go in a batch.
+    state.fit = { ...state.fit, batch: null };
+    const hash = resumeHash(resumeText);
+    const top = state.jobs.filter((j) => needsFit(j, hash)).slice(0, RESUME_NOW);
+    await checkNow(deps, state, resumeText, top.map((j) => j.id));
+    await startBatch(deps, state, resumeText).catch(() => 0);
+    state.jobs = tidy(state.jobs, state.profile, deps.now);
+  }
   await deps.store.write(state);
   return { state, hasResume: !!resumeText };
 }
+
+/* ── The AI fit check (fit.ts), run against the stored jobs ── */
+
+/** Whether a job is due a fit check: shown (or saved or applied), not dismissed, not yet checked against this resume. */
+export function needsFit(j: Job, hash: string): boolean {
+  if (!hash || j.state === "dismissed" || j.hidden) return false;
+  return j.fit?.resume !== hash && (j.fitTries ?? 0) < MAX_TRIES;
+}
+
+const postingOf = (j: Job) => postingBlock({ title: j.title, company: j.company, location: j.location, highlights: j.highlights, description: j.detail || j.snippet });
+
+/** One answer applied to its job: the fit on success, one more try counted on failure. */
+function applyAnswer(state: JobsState, id: string, got: FitAnswer, hash: string, nowIso: string): boolean {
+  const job = state.jobs.find((j) => j.id === id);
+  if (!job || got.failed) return false;
+  const fit = readFit(got.answer, hash, nowIso);
+  if (fit) {
+    job.fit = fit;
+    job.fitTries = 0;
+  } else job.fitTries = (job.fitTries ?? 0) + 1;
+  return !!fit;
+}
+
+/** A few jobs checked now (a "Check fit" tap, a resume change), each pair only while it fits under the cap at its most. */
+export async function checkNow(deps: JobsDeps, state: JobsState, resumeText: string, ids: string[]): Promise<number> {
+  const hash = resumeHash(resumeText);
+  const cap = deps.fitCap ?? FIT_CAP_USD;
+  state.fit = rollBook(state.fit, deps.now);
+  const ai = deps.ai;
+  if (!ai || !hash) return 0;
+  const due = ids.map((id) => state.jobs.find((j) => j.id === id)).filter((j): j is Job => !!j && needsFit(j, hash));
+  const nowIso = new Date(deps.now).toISOString();
+  let checked = 0;
+  // Two at a time: quick enough for a tap, gentle on the rate limit.
+  for (let i = 0; i < due.length; i += 2) {
+    const pair = due.slice(i, i + 2);
+    if (!underCap(state.fit, pair.length, CALL_MAX_USD, cap)) break;
+    const answers = await Promise.all(pair.map((j) => ai.check(resumeText, postingOf(j)).catch((): FitAnswer => ({ answer: null, usage: null, failed: true }))));
+    pair.forEach((j, n) => {
+      const got = answers[n]!;
+      state.fit.usd += callUsd(got.usage);
+      if (applyAnswer(state, j.id, got, hash, nowIso)) {
+        checked++;
+        state.fit.checks++;
+      }
+    });
+  }
+  return checked;
+}
+
+/** Every job due a check, sent as one batch at half price: as many as the cap allows at their most. */
+export async function startBatch(deps: JobsDeps, state: JobsState, resumeText: string): Promise<number> {
+  const hash = resumeHash(resumeText);
+  const cap = deps.fitCap ?? FIT_CAP_USD;
+  state.fit = rollBook(state.fit, deps.now);
+  if (!deps.ai || !hash || state.fit.batch) return 0;
+  const room = Math.floor((cap - state.fit.usd) / BATCH_CALL_MAX_USD);
+  const due = state.jobs.filter((j) => needsFit(j, hash)).slice(0, Math.max(0, Math.min(BATCH_MAX, room)));
+  if (!due.length) return 0;
+  const ids: Record<string, string> = {};
+  const postings = due.map((j, i) => {
+    ids[`j${i}`] = j.id;
+    return { id: `j${i}`, posting: postingOf(j) };
+  });
+  const batchId = await deps.ai.submit(resumeText, postings);
+  state.fit.batch = { id: batchId, at: new Date(deps.now).toISOString(), resume: hash, ids };
+  return due.length;
+}
+
+/** A finished batch's answers applied (only while the resume is the one it went out with); null while it runs. */
+export async function collectBatch(deps: JobsDeps, state: JobsState, resumeText: string): Promise<number | null> {
+  const batch = state.fit.batch;
+  if (!deps.ai || !batch) return 0;
+  const got = await deps.ai.collect(batch.id);
+  if (!got) {
+    if (deps.now - Date.parse(batch.at) > BATCH_GIVE_UP_MS) state.fit = { ...state.fit, batch: null };
+    return null;
+  }
+  state.fit = rollBook(state.fit, deps.now);
+  const hash = resumeHash(resumeText);
+  const nowIso = new Date(deps.now).toISOString();
+  let checked = 0;
+  for (const [custom, jobId] of Object.entries(batch.ids)) {
+    const answer = got.get(custom) ?? { answer: null, usage: null, failed: true };
+    state.fit.usd += batchUsd(answer.usage);
+    if (batch.resume === hash && applyAnswer(state, jobId, answer, hash, nowIso)) {
+      checked++;
+      state.fit.checks++;
+    }
+  }
+  state.fit.batch = null;
+  return checked;
+}
+
+export interface FitTick {
+  checked: number;
+  sent: number;
+  waiting: boolean;
+  paused: FitPause;
+}
+
+/**
+ * The fit check's tick (after the daily run, and every 20 minutes from the timer): a finished batch is read back, then
+ * every job still due a check (new ones, and on the first tick the jobs stored before #1025, which is the backfill)
+ * goes out in one new batch. Nothing is asked of the API and nothing written while nothing is due.
+ */
+export async function fitTick(deps: JobsDeps): Promise<FitTick> {
+  const state = await deps.store.read();
+  const resumeText = await deps.store.readResume().catch(() => "");
+  state.jobs = tidy(state.jobs, state.profile, deps.now);
+  const hash = resumeHash(resumeText);
+  const paused = pauseOf(rollBook(state.fit, deps.now), !!deps.ai, !!hash, deps.fitCap ?? FIT_CAP_USD);
+  const due = state.jobs.some((j) => needsFit(j, hash));
+  if (!state.fit.batch && (paused || !due)) return { checked: 0, sent: 0, waiting: false, paused };
+  const checked = (await collectBatch(deps, state, resumeText).catch(() => null)) ?? 0;
+  const waiting = !!state.fit.batch;
+  const sent = waiting || paused ? 0 : await startBatch(deps, state, resumeText).catch(() => 0);
+  state.jobs = tidy(state.jobs, state.profile, deps.now);
+  await deps.store.write(state);
+  return { checked, sent, waiting: waiting || sent > 0, paused };
+}
+
+/** The fit check's timer: every 20 minutes, Azure's six-field cron. */
+export const FIT_SCHEDULE = "0 */20 * * * *";

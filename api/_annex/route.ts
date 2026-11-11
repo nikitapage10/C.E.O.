@@ -15,7 +15,8 @@
  *                                   (and any of them). Counts and seconds only.
  *
  * GET  /api/annex-jobs           → the Job search (#1000, api/_annex/jobs.ts): Desk session only, read and changed
- * POST /api/annex-jobs              there; runs the saved searches on SerpApi on demand (a daily timer runs them too).
+ * POST /api/annex-jobs              there; runs the saved searches on SerpApi on demand (a daily timer runs them too),
+ *                                   and checks a job's fit with Claude Sonnet on a tap (api/_annex/fit.ts, #1025).
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -24,7 +25,9 @@ import { pickBlob } from "../_blob.js";
 import { requireSession, sameOrigin, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { electionBoard, freshness, seedElections, type ElectionBoard, type ElectionDeps } from "./elections.js";
-import { budgetOf, changeJobs, JOBS_PATH, pickJobsStore, runJobs, viewOf, type JobsDeps } from "./jobs.js";
+import { claudeKey } from "../_world/claude.js";
+import { liveFitAI } from "./fit.js";
+import { budgetOf, changeJobs, fitTick, JOBS_PATH, pickJobsStore, runJobs, viewOf, type FitTick, type JobsDeps } from "./jobs.js";
 import { cleanFollows, isPopup, isStatus, pickAnnexStore, type AnnexState, type AnnexStore } from "./state.js";
 
 export const ANNEX_PATH = "/api/annex";
@@ -133,7 +136,8 @@ export async function getElections(request: Request, deps: AnnexDeps = liveAnnex
 
 export function liveJobsDeps(): JobsDeps {
   const env = process.env;
-  return { store: pickJobsStore(env), fetcher: (url, init) => fetch(url, init), key: (env.SERPAPI_KEY ?? "").trim(), budget: budgetOf(env), now: Date.now() };
+  // The fit check (#1025) reads the Claude key the Desk chat already reads; without it the check is paused.
+  return { store: pickJobsStore(env), fetcher: (url, init) => fetch(url, init), key: (env.SERPAPI_KEY ?? "").trim(), budget: budgetOf(env), now: Date.now(), ai: liveFitAI(claudeKey(env)) };
 }
 
 /** The Job search's record (#1000): a Desk session only, since a job search is private. */
@@ -162,11 +166,22 @@ export async function postJobs(request: Request, deps: AnnexDeps = liveAnnexDeps
   return withCookie(json(viewOf(done.state, jobs, done.hasResume)), signed);
 }
 
-/** The daily run (azure/src/index.ts, `annex_jobs_daily`): nothing while the pop-up is on the Shelf. */
+/** The daily run (azure/src/index.ts, `annex_jobs_daily`): nothing while the pop-up is on the Shelf. The new jobs'
+ * fit check goes out as a batch straight after. */
 export async function runJobsDaily(deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<string> {
   const annex = await stateOf(deps).catch(() => null);
   if (!annex || annex.popups.jobs.status !== "live") return "shelved";
-  return (await runJobs(jobs, "schedule")).result;
+  const { result } = await runJobs(jobs, "schedule");
+  if (result === "ran") await fitTick(jobs).catch(() => null);
+  return result;
+}
+
+/** The fit check's timer (azure/src/index.ts, `annex_jobs_fit`): reads back a finished batch and sends the jobs still
+ * due a check (the first tick after #1025 shipped is the backfill). Nothing while the pop-up is on the Shelf. */
+export async function runJobsFit(deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<FitTick | "shelved"> {
+  const annex = await stateOf(deps).catch(() => null);
+  if (!annex || annex.popups.jobs.status !== "live") return "shelved";
+  return fitTick(jobs);
 }
 
 /** The endpoints, by path (azure/src/index.ts registers each on this module). */

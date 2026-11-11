@@ -3,7 +3,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
-import { makeSurroundings, type Box2, type Surroundings } from "./surroundings.ts";
+import { makeSurroundings, nearFor, type Box2, type Surroundings } from "./surroundings.ts";
 import { introDue, introStarted } from "./intro.ts";
 import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
@@ -13,7 +13,7 @@ import { disposeMats, GYM_MODELS, GymGeo, gymMats, gymModel } from "./gymKit.ts"
 import { CatBrain, navGrid, type CatSignals } from "./catBrain.ts";
 import { BALCONY_DOOR, furnish } from "./furnish.ts";
 import type { Light } from "./lights.ts";
-import { drawList, markerY, RealLights } from "./realLights.ts";
+import { drawList, RealLights } from "./realLights.ts";
 import { dayLevel, sunAt } from "./daylight.ts";
 import type { PlanLight } from "../../../api/_haven/planShape.ts";
 import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
@@ -36,7 +36,7 @@ import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
  *
  * Real light (#974): by day the house is lit by the sun over Denver (daylight.ts), at night by its lights alone. Once
  * the lights are read (setLights), only the placed lights that are really on light the rooms (realLights.ts: a floor
- * lamp's LED line, an under-light's glow, a ceiling light), and the Studio's while Nikita is on the Desk from a desktop;
+ * lamp's LED line, an under-light's glow, soft light over a ceiling light's area), and the Studio's while Nikita is on the Desk from a desktop;
  * before that, or without the lights' keys, the rooms with something going on glow as they did. The scene keeps one
  * fixed set of point lights whatever is on (a change in their number rebuilds every shader, a visible flash).
  */
@@ -254,7 +254,7 @@ export class House {
   private away = false;
   private night: Night | null = null;
   /** The courtyard block, the street and the rest round the home (#1007, surroundings.ts). */
-  private around: Surroundings | null = null;
+  private around: (Surroundings & { bounds: Box2 }) | null = null;
   private tween: { from: Cam; to: Cam; t0: number; ms: number; sweep?: boolean } | null = null;
   private W = 1;
   private H = 1;
@@ -290,7 +290,7 @@ export class House {
   private poolMat: THREE.MeshBasicMaterial[] = [];
   private lit: Record<string, Lit> = {};
   private litNow = new Map<string, number>();
-  private labels: { el: HTMLElement; p: THREE.Vector3; room?: string; spot?: Spot; light?: string }[] = [];
+  private labels: { el: HTMLElement; p: THREE.Vector3; room?: string; spot?: Spot }[] = [];
   private atlasCanvas = document.createElement("canvas");
   private atlas: THREE.CanvasTexture;
   private pts!: THREE.Points;
@@ -420,16 +420,18 @@ export class House {
       this.lights.push(l);
     }
     this.world.add(this.floor());
-    // The Denver night round the house: the plain it stands on, the city's lights, the range and the sky.
+    // The block round the home first (surroundings.ts), then the Denver night round that: the plain, the city's lights
+    // (none on the block's own streets and roofs, where they'd sit on its surfaces and flicker, #1020), the range, the sky.
     const b = this.roomBounds();
+    const around = this.surroundings();
+    const rooms = { x0: this.wx(b[0]), x1: this.wx(b[2]), z0: this.wz(b[1]), z1: this.wz(b[3]) };
     this.night = makeNight({
       centre: [this.wx((b[0] + b[2]) / 2), this.wz((b[1] + b[3]) / 2)],
-      keep: { x0: this.wx(b[0]), x1: this.wx(b[2]), z0: this.wz(b[1]), z1: this.wz(b[3]) },
+      keep: around ? { x0: Math.min(rooms.x0, around.x0), x1: Math.max(rooms.x1, around.x1), z0: Math.min(rooms.z0, around.z0), z1: Math.max(rooms.z1, around.z1) } : rooms,
       west: Math.atan2(-Math.sin(HOME_TH), -Math.cos(HOME_TH)),
       phone: Math.min(window.innerWidth, window.innerHeight) < 600,
     });
     this.scene.add(this.night.group);
-    this.surroundings();
     // Frosted glass walls with bright top edges.
     const boxes = (segs: Seg[], h: number, t: number, y0: number) =>
       segs.map((s) => {
@@ -456,7 +458,7 @@ export class House {
    * The home as one unit of a courtyard block (#1007): the block's roofs on every side the home's rooms, decks and
    * walk don't take, the courtyard on the side its balconies face, the street on the other (surroundings.ts).
    */
-  private surroundings() {
+  private surroundings(): Box2 | null {
     const P = this.plan;
     const W = (x0: number, y0: number, x1: number, y1: number): Box2 => ({ x0: this.wx(Math.min(x0, x1)), z0: this.wz(Math.min(y0, y1)), x1: this.wx(Math.max(x0, x1)), z1: this.wz(Math.max(y0, y1)) });
     const keep: Box2[] = P.rooms.flatMap((r) => r.parts.map(([x, y, w, h]) => W(x, y, x + w, y + h)));
@@ -466,7 +468,7 @@ export class House {
       if (n) keep.push(W(Math.min(x, n[0]) - 20, Math.min(y, n[1]) - 20, Math.max(x, n[0]) + 20, Math.max(y, n[1]) + 20));
     });
     const home = P.rooms.filter((r) => !r.detached).flatMap((r) => r.parts);
-    if (!home.length) return;
+    if (!home.length) return null;
     const hx0 = Math.min(...home.map((p) => p[0])), hx1 = Math.max(...home.map((p) => p[0] + p[2]));
     const hy0 = Math.min(...home.map((p) => p[1])), hy1 = Math.max(...home.map((p) => p[1] + p[3]));
     // The courtyard on the balconies' side (the east when the plan has none).
@@ -474,6 +476,7 @@ export class House {
     const east = !bal.length || bal.reduce((a, b) => a + b, 0) / bal.length >= (hx0 + hx1) / 2;
     this.around = makeSurroundings({ home: W(hx0, hy0, hx1, hy1), keep, east, phone: Math.min(window.innerWidth, window.innerHeight) < 600, wallH: WH });
     this.world.add(this.around.group);
+    return this.around.bounds;
   }
 
   /** Myshka, loaded after the house: a failed load just leaves the house without him. */
@@ -1229,6 +1232,10 @@ export class House {
     this.camera.position.set(c.tx + c.r * sp * Math.sin(c.th), c.r * cp, c.tz + c.r * sp * Math.cos(c.th));
     this.camera.lookAt(c.tx, 0, c.tz);
     this.camera.setViewOffset(this.W, this.H, this.pan[0], this.pan[1], this.W, this.H);
+    // The near plane with the distance (#1020): a fixed 0.05 left the depth buffer too coarse out at the block's streets
+    // and courtyards, so their layers fought over each pixel and strobed as the view turned. Nothing comes nearer the
+    // camera than a few percent of its distance to what it looks at.
+    this.camera.near = nearFor(c.r);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
     const pts: [number, number][] = [];
@@ -1258,6 +1265,10 @@ export class House {
     this.camera.lookAt(tx, c.ly ?? 0, tz);
     // The fitted view's offset, so the house sits in its box whatever the perspective does to it.
     this.camera.setViewOffset(this.W, this.H, this.pan[0], this.pan[1], this.W, this.H);
+    // The near plane with the distance (#1020): a fixed 0.05 left the depth buffer too coarse out at the block's streets
+    // and courtyards, so their layers fought over each pixel and strobed as the view turned. Nothing comes nearer the
+    // camera than a few percent of its distance to what it looks at.
+    this.camera.near = nearFor(c.r);
     this.camera.updateProjectionMatrix();
     this.nMat.uniforms.uScale!.value = this.renderer.domElement.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
     this.dirty = true;
@@ -1491,37 +1502,20 @@ export class House {
   }
 
   /**
-   * The lights (#931, #974): each placed light drawn where it stands (realLights.ts), lit only while it's really on,
-   * with a small marker over it, glowing while it's on, dim while off, hollow when its state is unknown or it's offline.
-   * A tap on the marker switches it (`onTap`); the Lights panel is the same control in words. `spots` are the stored
-   * plan's (the page keeps them, so placing a light doesn't rebuild the house). Null: the lights aren't read here, and
-   * the rooms' activity glow stands in.
+   * The lights (#931, #974, #1020): each placed light drawn where it stands (realLights.ts) as soft light over its area,
+   * lit only while it's really on. No markers over them: the Lights panel switches and moves them. `spots` are the
+   * stored plan's (the page keeps them, so placing a light doesn't rebuild the house). Null: the lights aren't read
+   * here, and the rooms' activity glow stands in. The host's `data-lights` / `data-lights-on` count what's drawn.
    */
-  setLights(lights: readonly Light[] | null, spots: readonly PlanLight[] | undefined, onTap: (id: string) => void) {
-    for (const l of this.labels) if (l.light) l.el.remove();
-    this.labels = this.labels.filter((l) => !l.light);
+  setLights(lights: readonly Light[] | null, spots: readonly PlanLight[] | undefined) {
     this.realOn = lights !== null;
     // The stored plan's spots, on the drawn plan: the Gym moved out back shifts the home's coordinates (gymBeyond).
     const moved = spots?.map((s) => ({ ...s, x: s.x - this.shift[0], y: s.y - this.shift[1], ...(s.x2 !== undefined && s.y2 !== undefined ? { x2: s.x2 - this.shift[0], y2: s.y2 - this.shift[1] } : {}) }));
     const list = lights ? drawList(this.plan, lights, moved, this.desk) : [];
     this.real?.set(list, this.opts.reduce);
-    for (const { light: d, x, y, fixture, virtual } of list) {
-      if (virtual) continue;
-      const el = document.createElement("div");
-      el.className = "hv-dev hv-bulb is-tap";
-      el.dataset.on = !d.online ? "offline" : d.on === null ? "unknown" : d.on ? "on" : "off";
-      if (d.rgb && /^#[0-9a-f]{6}$/i.test(d.rgb)) el.style.setProperty("--hv-bulb", [1, 3, 5].map((k) => parseInt(d.rgb!.slice(k, k + 2), 16)).join(","));
-      el.title = `${d.name}: ${el.dataset.on}`;
-      const i = document.createElement("i");
-      el.append(i);
-      const tap = (e: Event) => {
-        e.stopPropagation();
-        onTap(d.id);
-      };
-      el.addEventListener("click", tap);
-      this.labelHost.appendChild(el);
-      this.labels.push({ el, p: new THREE.Vector3(this.wx(x), markerY(fixture), this.wz(y)), light: d.id });
-    }
+    const placed = list.filter((d) => !d.virtual);
+    this.host.dataset.lights = String(placed.length);
+    this.host.dataset.lightsOn = String(placed.filter((d) => d.light.online && d.light.on === true).length);
     this.dirty = true;
   }
 

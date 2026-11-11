@@ -25,9 +25,10 @@ const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includ
 
 export type LightsLoad = { state: "idle" } | { state: "ready"; view: LightsView } | { state: "off" } | { state: "out" } | { state: "failed" };
 
-export async function loadLights(f: typeof fetch = fetch): Promise<LightsLoad> {
+export async function loadLights(f: typeof fetch = fetch, fresh = false): Promise<LightsLoad> {
   try {
-    const res = await f(PATH, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } });
+    // Fresh (#1020): after a tap or a scene, the vendors' states as they are now, not as kept a moment ago.
+    const res = await f(fresh ? `${PATH}?fresh=1` : PATH, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } });
     if (res.status === 401) return { state: "out" };
     if (res.status === 404 || res.status === 405 || res.status === 503 || !isJson(res)) return { state: "off" };
     if (!res.ok) return { state: "failed" };
@@ -36,6 +37,22 @@ export async function loadLights(f: typeof fetch = fetch): Promise<LightsLoad> {
   } catch {
     return { state: "failed" };
   }
+}
+
+/** How often the Haven reads the lights while it's on screen (#1020): a switch flipped anywhere shows within this. */
+export const LIGHTS_POLL_MS = 25_000;
+
+/** A scene that turns the lights off, by its name ("Turn off lights", "All off", "Lights off"). */
+export const isOffScene = (name: string) => / off /.test(words(name)) && !/ on /.test(words(name));
+
+/**
+ * The view as it will be once an off scene has run (#1020): every SwitchBot switch off at once, on screen and in the
+ * panel, until the vendors' own states are read again (a moment later, fresh) and win. Govee lamps wait for that read:
+ * the scene may not reach them.
+ */
+export function afterScene(view: LightsView, scene: string): LightsView {
+  if (!isOffScene(scene)) return view;
+  return { ...view, lights: view.lights.map((l) => (l.vendor === "switchbot" && l.online ? { ...l, on: false } : l)) };
 }
 
 /** A switch (`on`) or a scene: Skippy's line back, and whether it went through. */

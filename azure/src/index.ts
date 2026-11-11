@@ -282,6 +282,21 @@ app.timer("haven_photos_tick", {
   },
 });
 
+// The cook steps' pictures backfill (#1026, api/_haven/meals.ts `backfillStepPhotos`): hourly at :05, a finalized week's
+// step pictures that were never queued (a week finalized before #1016) go into the photo library, then a run makes
+// them under the steps' own $3 cap. Never finalize again, never on a cook mode read; a no-op once they are all there.
+app.timer("haven_step_backfill", {
+  schedule: "0 5 * * * *",
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    await keysFresh();
+    const queued = await havenmeals.runStepBackfill().catch(() => "failed" as const);
+    if (queued === "failed") context.warn("haven step backfill: failed");
+    else if (typeof queued === "number" && queued > 0) context.log(`haven step backfill: ${queued} step pictures queued`);
+  },
+});
+
 // The Annex's Job search (#1000, api/_annex/jobs.ts): once a day at 13:00 UTC, the saved searches on SerpApi, inside
 // the month's search budget (JOBS_MONTHLY_SEARCHES). Nothing while it is shelved or SERPAPI_KEY isn't set. Counts only.
 app.timer("annex_jobs_daily", {

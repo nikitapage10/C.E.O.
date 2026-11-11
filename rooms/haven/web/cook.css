@@ -464,6 +464,10 @@
   object-fit: cover;
   opacity: 0.85;
 }
+/* A thumbnail that couldn't load hides instead of showing a broken image (#1026). */
+[data-room="haven"] .ck-thumb[hidden] {
+  display: none;
+}
 [data-room="haven"] .ck-item.is-up .ck-jump {
   background: rgba(255, 255, 255, 0.03);
   color: var(--hv-ink);

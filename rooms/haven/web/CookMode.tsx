@@ -287,7 +287,7 @@ export function CookMode({ cook, onClose }: { cook: Cook; onClose: () => void })
               </span>
             ) : null}
           </span>
-          {pic?.status === "ready" && k > i ? <img className="ck-thumb" src={photoUrl(pic.id)} alt="" loading="lazy" decoding="async" /> : null}
+          {pic?.status === "ready" && k > i ? <img className="ck-thumb" src={photoUrl(pic.id)} alt="" loading="lazy" decoding="async" onError={(e) => (e.currentTarget.hidden = true)} /> : null}
         </button>
       </li>
     );

@@ -46,7 +46,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { readJson, updateJson } from "./json.js";
 import { KitchenList, sameKey } from "./list.js";
-import { livePhotoDeps, queueStepPhotos } from "./photos.js";
+import { drainPhotos, livePhotoDeps, queueStepPhotos, type PhotoDeps } from "./photos.js";
 import { weekStepShots } from "./stepShots.js";
 import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
@@ -155,6 +155,44 @@ export async function sendWeek(blob: BlobBackend, now: number, start?: string, s
 /** The counts for the Haven's status view. */
 export async function mealCountsOf(blob: BlobBackend): Promise<MealCounts | null> {
   return mealCounts(await new MealsStore(blob).read());
+}
+
+/**
+ * The step-picture backfill (#1026): a week finalized before #1016 never had its cook steps' pictures queued. The
+ * hourly timer (azure/src/index.ts, `haven_step_backfill`) queues the ones a finalized week (the current one, then any
+ * finalized week ahead) has no library entry for at all, then the photo library makes them under the steps' own $3 cap.
+ * It never re-runs finalize (the Kitchen list and the cart are left alone), never re-queues a step that failed or hit
+ * the cap (the next finalize does that, as before), and does nothing for a draft week; so running it again is a no-op.
+ * Cook mode's reads never reach it. → how many were queued, or why nothing could be. Counts only in the log.
+ */
+export async function backfillStepPhotos(blob: BlobBackend | null, photos: PhotoDeps): Promise<number | "not-set-up" | "no-week"> {
+  if (!blob || !photos.library || !photos.ledger) return "not-set-up";
+  const meals = await new MealsStore(blob).read();
+  const weeks = meals ? allWeeks(meals).filter((w) => w.confirmedAt !== null) : [];
+  if (!meals || !weeks.length) return "no-week";
+  const shots: ReturnType<typeof weekStepShots> = [];
+  const seen = new Set<string>();
+  for (const w of weeks) {
+    for (const shot of weekStepShots(meals, w === meals.week ? undefined : w.start)) {
+      const sig = JSON.stringify([shot.meal, shot.description, shot.components]);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      shots.push(shot);
+    }
+  }
+  const found = await photos.library.find(shots);
+  const missing = shots.filter((_, i) => !found[i]);
+  if (!missing.length) return 0;
+  return (await queueStepPhotos(missing, photos)) ?? "not-set-up";
+}
+
+/** The hourly timer's job (#1026): the backfill, then a run right away when it queued anything. */
+export async function runStepBackfill(env: Record<string, string | undefined> = process.env): Promise<number | "not-set-up" | "no-week"> {
+  // The timer makes them itself (awaited below), so nothing is handed off.
+  const photos: PhotoDeps = { ...livePhotoDeps(env), kick: () => undefined };
+  const queued = await backfillStepPhotos(pickBlob(env), photos);
+  if (typeof queued === "number" && queued > 0) await drainPhotos(photos);
+  return queued;
 }
 
 export interface MealsDeps {

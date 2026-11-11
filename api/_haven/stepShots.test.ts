@@ -3,7 +3,7 @@ import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { fakeMeals } from "./meals.fixture.ts";
-import { mealsPost, readMeals, type MealsDeps } from "./meals.ts";
+import { backfillStepPhotos, mealsPost, MEALS_PATH, readMeals, type MealsDeps } from "./meals.ts";
 import { ImageLedger } from "./photoGen.ts";
 import { PhotoLibrary, queueStepPhotos, type PhotoDeps } from "./photos.ts";
 import { weekStepShots } from "./stepShots.ts";
@@ -118,5 +118,58 @@ describe("cook steps' pictures at plan time (#1016)", () => {
     const res = await mealsPost(post({ action: "confirm" }, cookie), s.meals);
     expect(res.status).toBe(200);
     expect(((await res.json()) as { stepPhotos: number }).stepPhotos).toBe(0);
+  });
+
+  describe("the backfill for a week finalized before #1016 (#1026)", () => {
+    /** A finalized week whose step pictures were never queued, as finalize did before #1016. */
+    async function finalizedWithout(s: ReturnType<typeof setup>) {
+      s.meals.stepPhotos = undefined;
+      const cookie = await s.cookie();
+      await mealsPost(post({ action: "seed", meals: fakeMeals() }, cookie), s.meals);
+      const res = await mealsPost(post({ action: "confirm" }, cookie), s.meals);
+      expect(res.status).toBe(200);
+      expect((await s.library.catalog()).photos).toHaveLength(0);
+      return readMeals(((await res.json()) as { meals: unknown }).meals)!;
+    }
+
+    it("queues the finalized week's missing step pictures without touching the plan; again queues nothing", async () => {
+      const s = setup();
+      const file = await finalizedWithout(s);
+      const before = await s.meals.blob!.get(MEALS_PATH);
+      const want = weekStepShots(file);
+      expect(await backfillStepPhotos(s.meals.blob, s.photos)).toBe(want.length);
+      const cat = await s.library.catalog();
+      expect(cat.photos.filter((p) => p.style === "step" && p.status === "queued")).toHaveLength(want.length);
+      // The planner file (and so the Kitchen list and the cart) was never written.
+      expect((await s.meals.blob!.get(MEALS_PATH))?.etag).toBe(before?.etag);
+      expect(s.calls).toHaveLength(0);
+      expect(await backfillStepPhotos(s.meals.blob, s.photos)).toBe(0);
+      expect((await s.library.catalog()).photos).toHaveLength(want.length);
+    });
+
+    it("never re-queues a step that failed or hit the cap (the next finalize does)", async () => {
+      const s = setup();
+      await finalizedWithout(s);
+      await backfillStepPhotos(s.meals.blob, s.photos);
+      const [first, second] = (await s.library.catalog()).photos;
+      await s.library.settle(first!.id, { status: "failed" }, NOW);
+      await s.library.settle(second!.id, { status: "budget" }, NOW);
+      expect(await backfillStepPhotos(s.meals.blob, s.photos)).toBe(0);
+      const after = await s.library.catalog();
+      expect(after.photos.find((p) => p.id === first!.id)?.status).toBe("failed");
+      expect(after.photos.find((p) => p.id === second!.id)?.status).toBe("budget");
+    });
+
+    it("does nothing for a draft week, an empty planner or a missing library", async () => {
+      const s = setup();
+      expect(await backfillStepPhotos(s.meals.blob, s.photos)).toBe("no-week");
+      await mealsPost(post({ action: "seed", meals: fakeMeals() }, await s.cookie()), s.meals);
+      const draft = readMeals(fakeMeals())!;
+      expect(draft.week?.confirmedAt).toBeNull();
+      expect(await backfillStepPhotos(s.meals.blob, s.photos)).toBe("no-week");
+      expect(await backfillStepPhotos(null, s.photos)).toBe("not-set-up");
+      expect(await backfillStepPhotos(s.meals.blob, { ...s.photos, library: null })).toBe("not-set-up");
+      expect((await s.library.catalog()).photos).toHaveLength(0);
+    });
   });
 });

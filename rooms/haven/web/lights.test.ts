@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { readPlan } from "../../../api/_haven/planShape.ts";
 import { gymBeyond } from "./gymFill.ts";
-import { afterScene, deskRoom, fixtureOf, HIDDEN_LIGHTS, isOffScene, loadLights, placeLights, roomLightOf, shownLights, type Light, type LightsView } from "./lights.ts";
+import { afterScene, deskRoom, fixtureOf, held, HIDDEN_LIGHTS, HOLD_MS, holdScene, isOffScene, loadLights, type Holds, placeLights, roomLightOf, shownLights, type Light, type LightsView } from "./lights.ts";
 import { boxOf, colourOf, drawList, roomReach } from "./realLights.ts";
 import { dayLevel, sunAt } from "./daylight.ts";
 
@@ -154,5 +154,30 @@ describe("a scene that turns the lights off (#1020)", () => {
     await loadLights(f, true);
     expect(urls[0]!.endsWith("/api/haven/lights")).toBe(true);
     expect(urls[1]!.endsWith("/api/haven/lights?fresh=1")).toBe(true);
+  });
+});
+
+describe("holding a switch or a scene against stale reads (#1022)", () => {
+  const sb = (name: string, on: boolean | null): Light => ({ id: name, vendor: "switchbot", name, type: "Bot", on, online: true });
+  const v = (lights: Light[]): LightsView => ({ lights, groups: [], scenes: [], remotes: [] }) as unknown as LightsView;
+
+  it("keeps the rooms off after an off scene while reads still say on, and lets a real on through after the hold", () => {
+    const holds: Holds = new Map();
+    holdScene(v([sb("Kitchen", true), sb("Laundry", true)]), "Turn off lights", holds, 0);
+    // Stale reads within the hold: still off.
+    expect(held(v([sb("Kitchen", true), sb("Laundry", true)]), holds, 5_000).lights.map((l) => l.on)).toEqual([false, false]);
+    // One switch catches up: its hold ends; the other stays held.
+    expect(held(v([sb("Kitchen", false), sb("Laundry", true)]), holds, 12_000).lights.map((l) => l.on)).toEqual([false, false]);
+    expect(holds.has("Kitchen")).toBe(false);
+    // Turned on for real later (Kitchen, no longer held), and past the hold (Laundry): the reads win.
+    expect(held(v([sb("Kitchen", true), sb("Laundry", true)]), holds, HOLD_MS + 1).lights.map((l) => l.on)).toEqual([true, true]);
+    expect(holds.size).toBe(0);
+  });
+
+  it("holds a single switch the same way, and leaves the rest alone", () => {
+    const holds: Holds = new Map([["Kitchen", { on: true, until: HOLD_MS }]]);
+    expect(held(v([sb("Kitchen", false), sb("Porch", false)]), holds, 1_000).lights.map((l) => l.on)).toEqual([true, false]);
+    holdScene(v([sb("Kitchen", true)]), "Movie night", holds, 0);
+    expect(holds.size).toBe(1);
   });
 });

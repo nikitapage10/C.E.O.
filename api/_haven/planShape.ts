@@ -34,6 +34,9 @@ export const KINDS = [
   "sideboard", "espresso", "tubchair", "greenhouse", "coatrack", "litterbox", "towelbar", "bowls", "projector",
   // #764: wall art, a run of tall canvases side by side making one picture.
   "art",
+  // #1022: a coffee station cabinet beside the counter run, black wall shelves with cups over it, a steel bin by the
+  // island, a round accent chair.
+  "coffeebar", "cupshelf", "bin", "accent",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 
@@ -115,6 +118,8 @@ export interface HavenPlan {
    * was glazed from (rooms/haven/web/furnish.ts); the door out is one of `balconies`.
    */
   decks?: Seg[];
+  /** Drawing only, never stored or read (#1022): windows drawn tall, from just over the floor (furnish.ts). */
+  tall?: Seg[];
   /**
    * The two walls (one each way) the living room's L sectional turns to (#935): when the TV hangs on one, the long run
    * faces it and the return faces the other; otherwise the L backs onto them. Unset: the east and south walls.

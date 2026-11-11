@@ -55,6 +55,36 @@ export function afterScene(view: LightsView, scene: string): LightsView {
   return { ...view, lights: view.lights.map((l) => (l.vendor === "switchbot" && l.online ? { ...l, on: false } : l)) };
 }
 
+/** How long a switch or a scene's target holds against reads that still say otherwise (#1022). */
+export const HOLD_MS = 40_000;
+/** The targets held: a light's id, what it was set to, until when. */
+export type Holds = Map<string, { on: boolean; until: number }>;
+
+/** Holds every online SwitchBot switch off after an off scene (#1022): the real switches take a while to follow. */
+export function holdScene(view: LightsView, scene: string, holds: Holds, now: number) {
+  if (!isOffScene(scene)) return;
+  for (const l of view.lights) if (l.vendor === "switchbot" && l.online) holds.set(l.id, { on: false, until: now + HOLD_MS });
+}
+
+/**
+ * A read as shown (#1022, Nikita: the off scene turned the lights off, then all back on, then off one by one): a light
+ * held by a switch or a scene keeps its target while reads still say otherwise, until a read agrees or the hold ends;
+ * then the read wins. Ends the holds it's done with.
+ */
+export function held(view: LightsView, holds: Holds, now: number): LightsView {
+  if (!holds.size) return view;
+  const lights = view.lights.map((l) => {
+    const h = holds.get(l.id);
+    if (!h) return l;
+    if (now >= h.until || l.on === h.on || !l.online) {
+      holds.delete(l.id);
+      return l;
+    }
+    return { ...l, on: h.on };
+  });
+  return { ...view, lights };
+}
+
 /** A switch (`on`) or a scene: Skippy's line back, and whether it went through. */
 export type LightsPost = { op: "set"; id: string; on: boolean } | { op: "scene"; id: string } | ({ op: "look"; id: string } & ({ rgb: string } | { kelvin: number } | { brightness: number } | { mood: string }));
 

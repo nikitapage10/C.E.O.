@@ -84,6 +84,10 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   bowls: S(0, 14, 0x111113, 0.4, 0.6),
   projector: S(104, 10, 0x1a1a1c, 0.4, 0, [0x9fd0ff, 0.4]),
   art: S(48, 80, 0xe8e8e6, 0.8), // top at 128, under the 140 cut-down wall (#892)
+  coffeebar: S(0, 36, 0x111113, 0.45),
+  cupshelf: S(62, 34, 0x0e0e10, 0.5),
+  bin: S(0, 28, 0xb9bcc0, 0.3, 0.85),
+  accent: S(0, 28, 0x2a2724, 0.9),
 };
 
 /** Floor finishes, drawn into the floor's texture. */

@@ -139,6 +139,7 @@ export function gymBeyond(plan: HavenPlan): HavenPlan {
     balconies: moved.balconies.map(S),
     tv: moved.tv.map(S),
     ...(plan.decks ? { decks: plan.decks.map(S) } : {}),
+    ...(plan.tall ? { tall: plan.tall.map(S) } : {}),
     // The lights' spots (#931) hang in the home, which moves with the rest.
     ...(plan.lights ? { lights: plan.lights.map((l) => ({ ...l, x: l.x - sx, y: l.y - sy, ...(l.x2 !== undefined && l.y2 !== undefined ? { x2: l.x2 - sx, y2: l.y2 - sy } : {}) })) } : {}),
     path: [],

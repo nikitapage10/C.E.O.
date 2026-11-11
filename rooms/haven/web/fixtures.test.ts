@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { placeLight, readPlan } from "../../../api/_haven/planShape.ts";
 import { furnish } from "./furnish.ts";
-import { backlightRun, kindOf, kitchenRun, laundrySpot, placeFixture, spotRows, studioLampCorner } from "./fixtures.ts";
-import { drawList, spotCount } from "./realLights.ts";
+import { backlightRun, kindOf, kitchenRun, laundrySpot, overheadZones, placeFixture, spotRows, studioLampCorner } from "./fixtures.ts";
+import { drawList, spillOf } from "./realLights.ts";
 import type { Light } from "./lights.ts";
-import { cut, cutAll, layout } from "./surroundings.ts";
+import { cut, cutAll, layout, LV, nearFor } from "./surroundings.ts";
 
 /** The home's own fixtures, the hob's place and the block round the home (#1007), on the made-up plan only. */
 
@@ -60,7 +60,6 @@ describe("the home's fixtures (#1007)", () => {
     const hall = plan.rooms.find((r) => r.id === "hall")!.parts[0]!;
     expect(a.x0).toBeLessThan(hall[0] + hall[2]);
     expect(a.x1).toBeLessThanOrEqual(k.R[2]);
-    expect(spotCount(a.x1 - a.x0)).toBeGreaterThanOrEqual(3);
   });
 
   it("puts the laundry's fitting at the hall's far end from the kitchen", () => {
@@ -77,14 +76,46 @@ describe("the home's fixtures (#1007)", () => {
     expect(strip.out).toEqual([0, 1]);
   });
 
-  it("draws each of the four as its fixture, the marker at the run's middle", () => {
+  it("lights the open kitchen with the first switch's area and the far half through the dining room with the second (#1020)", () => {
+    const [a, b] = overheadZones(plan)!;
+    const k = kitchenRun(plan)!;
+    const dining = plan.rooms.find((r) => r.id === "nook")!.parts[0]!;
+    // The first from the run's front to the island's middle, the second from there on, the two meeting with no gap.
+    expect(a.y0).toBeLessThanOrEqual(k.run[3]);
+    expect(a.y1).toBe(b.y0);
+    expect(b.y0).toBeGreaterThan(k.island![1]);
+    expect(b.y0).toBeLessThan(k.island![3]);
+    // On into the dining room next door, all the way across it.
+    expect(b.y1).toBe(dining[1] + dining[3]);
+    expect(b.x0).toBeLessThanOrEqual(dining[0]);
+    expect(b.x1).toBeGreaterThanOrEqual(dining[0] + dining[2]);
+  });
+
+  it("draws each of the four as its fixture, the ceiling ones as areas, and the living room's spill (#1020)", () => {
     const list = drawList(plan, [sb("Left Living Room"), sb("Right Living Room"), sb("Kitchen"), sb("Laundry", false)], undefined, false);
-    expect(list.map((d) => d.fixture)).toEqual(["spots", "spots", "backlight", "glow"]);
+    expect(list.map((d) => d.fixture)).toEqual(["spots", "spots", "backlight", "glow", "spill"]);
+    expect(list[0]!.place!.zone).toEqual(overheadZones(plan)![0]);
+    expect(list[1]!.place!.zone).toEqual(overheadZones(plan)![1]);
+    expect(list[3]!.place!.zone).toBeDefined();
+    const spill = list[4]!;
+    expect(spill.virtual).toBe(true);
+    expect(spill.light.on).toBe(true);
+    expect(spill.room).toBeDefined();
     const [a, b] = spotRows(plan)!;
     expect(list[0]!.place!.run).toEqual(a);
     expect(list[1]!.place!.run).toEqual(b);
     expect(list[0]!.y).toBe(a.y0);
-    expect(list.every((d) => !d.room)).toBe(true);
+    expect(list.slice(0, 4).every((d) => !d.room)).toBe(true);
+  });
+
+  it("spills into the living room only while a kitchen or dining light is on, and not over its own light (#1020)", () => {
+    const off = drawList(plan, [sb("Left Living Room", false), sb("Kitchen", false)], undefined, false);
+    expect(off.find((d) => d.fixture === "spill")!.light.on).toBe(false);
+    const one = drawList(plan, [sb("Left Living Room", false), sb("Kitchen")], undefined, false);
+    expect(one.find((d) => d.fixture === "spill")!.light.on).toBe(true);
+    // A light of the living room's own lights it instead.
+    const own = drawList(plan, [sb("Kitchen"), sb("Living room lamp")], [{ name: "living room lamp", x: 700, y: 200 }], false);
+    expect(spillOf(plan, own.filter((d) => d.fixture !== "spill"))).toBeNull();
   });
 
   it("saves a run's far end on the plan, clamped, and keeps a saved kind", () => {
@@ -132,10 +163,67 @@ describe("the block round the home (#1007)", () => {
     const hits = (b: typeof home) => L.roofs.some((r) => r.x0 < b.x1 && r.x1 > b.x0 && r.z0 < b.z1 && r.z1 > b.z0);
     expect(hits(home)).toBe(false);
     expect(hits(gym)).toBe(false);
+    expect(hits(L.yard1)).toBe(false);
+    expect(hits(L.yard2)).toBe(false);
     expect(L.yard1.x0).toBeGreaterThan(home.x1);
     expect(L.street.a).toBeLessThan(home.x0);
     const W = layout(home, [home], false);
     expect(W.yard1.x1).toBeLessThan(home.x0);
     expect(W.street.a).toBeGreaterThan(home.x1);
+  });
+
+  it("puts the home on the block's outer corner, the courtyard past it about twice its size, a larger one beyond (#1020)", () => {
+    const home = { x0: 0, z0: 0, x1: 9, z1: 8 };
+    const L = layout(home, [home], true);
+    const area = (b: { x0: number; z0: number; x1: number; z1: number }) => (b.x1 - b.x0) * (b.z1 - b.z0);
+    // The home at the block's street face and its near end (the boulevard's side).
+    expect(L.outer.x0).toBeCloseTo(home.x0 - 0.3);
+    expect(L.outer.z1).toBeCloseTo(home.z1 + 0.3);
+    expect(L.blvd.z0).toBeGreaterThan(home.z1);
+    // The courtyard past the home's balcony side and further back, about twice its size.
+    const ratio = area(L.yard1) / area(home);
+    expect(ratio).toBeGreaterThan(1.7);
+    expect(ratio).toBeLessThan(2.3);
+    expect((L.yard1.z0 + L.yard1.z1) / 2).toBeLessThan((home.z0 + home.z1) / 2);
+    expect(L.yard1.z1).toBeGreaterThan(home.z0);
+    // The block wraps it; the second courtyard larger, further along and further back, its pool at the far end.
+    expect(L.yard1.z1).toBeLessThan(L.outer.z1 - 3);
+    expect(L.yard1.z0).toBeGreaterThan(L.outer.z0 + 3);
+    expect(area(L.yard2)).toBeGreaterThan(area(L.yard1));
+    expect(L.yard2.x0).toBeGreaterThan(L.yard1.x1);
+    expect(L.yard2.z0).toBeLessThan(L.yard1.z0);
+    expect(L.pool.z0).toBeLessThan((L.yard2.z0 + L.yard2.z1) / 2);
+    expect(L.pool.x0).toBeGreaterThan(L.yard2.x0);
+    // Across the street: the decks toward the boulevard, the trail and river beyond.
+    for (const d of L.decks) expect(d.x1).toBeLessThan(L.across);
+    expect(Math.max(...L.decks.map((d) => d.z1))).toBeLessThan(L.blvd.z0);
+    expect(L.trail.x1).toBeLessThan(L.decks[0]!.x0);
+    expect(L.river.x1).toBeLessThan(L.trail.x0);
+    // Roofs of every kind, one pool among them, in a few tones and heights.
+    const uses = new Set(L.roofs.map((r) => r.use));
+    expect(L.roofs.filter((r) => r.use === "pool")).toHaveLength(1);
+    for (const u of ["hvac", "solar", "sky", "terrace"] as const) expect(uses.has(u)).toBe(true);
+    expect(new Set(L.roofs.map((r) => r.tone)).size).toBeGreaterThan(3);
+    expect(new Set(L.roofs.map((r) => r.h.toFixed(2))).size).toBeGreaterThan(3);
+    // Everything inside the bounds the city's lights keep off.
+    for (const b of [L.outer, L.river, L.farBank, ...L.decks]) {
+      expect(b.x0).toBeGreaterThanOrEqual(L.bounds.x0);
+      expect(b.x1).toBeLessThanOrEqual(L.bounds.x1);
+      expect(b.z0).toBeGreaterThanOrEqual(L.bounds.z0);
+      expect(b.z1).toBeLessThanOrEqual(L.bounds.z1);
+    }
+  });
+
+  it("keeps the ground's layers far enough apart for the depth buffer when the view is out wide (#1020, the strobe)", () => {
+    // A 24-bit depth buffer resolves about d² / (near · 2²⁴) at distance d. Out at the widest (r about 24) the block's far
+    // streets are some 60 away: the step there must be a small part of the smallest gap between two layers.
+    const step = (d: number, near: number) => (d * d) / (near * 2 ** 24);
+    const levels = Object.values(LV).sort((a, b) => a - b);
+    const gap = Math.min(...levels.slice(1).map((v, i) => v - levels[i]!));
+    expect(gap).toBeGreaterThan(0.0049);
+    expect(step(60, nearFor(24))).toBeLessThan(gap / 10);
+    // The fixed 0.05 it had would not: the layers fought over the same pixels as the view turned.
+    expect(step(60, 0.05)).toBeGreaterThan(0.001);
+    expect(nearFor(3)).toBeLessThanOrEqual(0.12);
   });
 });

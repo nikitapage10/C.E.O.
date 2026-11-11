@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MemoryAuthStore } from "../../_desk/store.ts";
 import { signedInCookie } from "../../_desk/testing.ts";
 import { Govee, GOVEE_BASE } from "./govee.ts";
-import { Lights, lightId } from "./lights.ts";
+import { Lights, lightId, STATE_BUDGET } from "./lights.ts";
 import { lightsGet, lightsPost, type LightsRouteDeps } from "./route.ts";
 import { signedHeaders, SwitchBot, SWITCHBOT_BASE } from "./switchbot.ts";
 
@@ -171,6 +171,33 @@ describe("the lights (#931)", () => {
     expect(calls.length).toBeGreaterThan(n);
   });
 
+  it("keeps the states 20 s, reads them again after 4 s when asked fresh, and slows down past the day's budget (#1020)", async () => {
+    const { lights, calls, tick } = lightsWith();
+    await lights.view();
+    const n = calls.length;
+    tick(3_000);
+    await lights.view({ fresh: true });
+    expect(calls.length).toBe(n);
+    tick(2_000);
+    await lights.view();
+    expect(calls.length).toBe(n);
+    await lights.view({ fresh: true });
+    const m = calls.length;
+    expect(m).toBeGreaterThan(n);
+    tick(21_000);
+    await lights.view();
+    expect(calls.length).toBeGreaterThan(m);
+    // Past the budget the states are kept three minutes, a fresh read included.
+    (lights as unknown as { calls: { n: number } }).calls.n = STATE_BUDGET;
+    const k = calls.length;
+    tick(60_000);
+    await lights.view({ fresh: true });
+    expect(calls.length).toBe(k);
+    tick(121_000);
+    await lights.view();
+    expect(calls.length).toBeGreaterThan(k);
+  });
+
   it("refuses an id it doesn't know, a scene's id as a light and a hub", async () => {
     const { lights } = lightsWith();
     const v = await lights.view();
@@ -222,14 +249,14 @@ describe("the lights (#931)", () => {
     expect(lines.join("\n")).not.toMatch(/Floor Lamp|EE:FF|Aurora/);
   });
 
-  it("keeps the states a minute, then reads them again", async () => {
+  it("keeps the states 20 s, then reads them again (#1020)", async () => {
     const t = lightsWith();
     await t.lights.view();
     const n = t.calls.length;
-    t.tick(30_000);
+    t.tick(15_000);
     await t.lights.view();
     expect(t.calls.length).toBe(n);
-    t.tick(40_000);
+    t.tick(10_000);
     await t.lights.view();
     expect(t.calls.length).toBeGreaterThan(n);
   });
@@ -269,6 +296,13 @@ describe("/api/haven/lights (#931)", () => {
     expect((await lightsPost(post({ op: "look", id: lamp.id, brightness: 0 }, cookie), d)).status).toBe(400);
     expect((await lightsPost(post({ op: "look", id: lamp.id, rgb: "#39ff7a", brightness: 50 }, cookie), d)).status).toBe(400);
     expect((await lightsPost(post({ op: "look", id: study.id, rgb: "#39ff7a" }, cookie), d)).status).toBe(404);
+  });
+
+  it("takes ?fresh=1 and no other query (#1020)", async () => {
+    const d = routeDeps();
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    expect((await lightsGet(new Request(`${ORIGIN}/api/haven/lights?fresh=1`, { headers: { Cookie: cookie } }), d)).status).toBe(200);
+    expect((await lightsGet(new Request(`${ORIGIN}/api/haven/lights?fresh=2`, { headers: { Cookie: cookie } }), d)).status).toBe(400);
   });
 
   it("waits without keys", async () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { readPlan } from "../../../api/_haven/planShape.ts";
 import { gymBeyond } from "./gymFill.ts";
-import { deskRoom, fixtureOf, HIDDEN_LIGHTS, placeLights, roomLightOf, shownLights, type Light } from "./lights.ts";
+import { afterScene, deskRoom, fixtureOf, HIDDEN_LIGHTS, isOffScene, loadLights, placeLights, roomLightOf, shownLights, type Light, type LightsView } from "./lights.ts";
 import { boxOf, colourOf, drawList, roomReach } from "./realLights.ts";
 import { dayLevel, sunAt } from "./daylight.ts";
 
@@ -123,5 +123,36 @@ describe("the lights Nikita uses, and the rooms the switches light (#1002)", () 
     expect(list[0]!.room).toEqual(hall);
     // A room light reaches the room's corners and no further than that (no light next door through the walls).
     expect(roomReach(hall)).toBeCloseTo((0.62 * Math.hypot(hall.w, hall.h)) / 100);
+  });
+});
+
+describe("a scene that turns the lights off (#1020)", () => {
+  const view = (lights: Light[]): LightsView => ({ lights, groups: [], scenes: [{ id: "s1", name: "Turn off lights" }], remotes: [] }) as unknown as LightsView;
+  const sb = (name: string, on: boolean | null, online = true): Light => ({ id: name, vendor: "switchbot", name, type: "Bot", on, online });
+
+  it("knows an off scene by its name", () => {
+    expect(isOffScene("Turn off lights")).toBe(true);
+    expect(isOffScene("All Off")).toBe(true);
+    expect(isOffScene("Lights on")).toBe(false);
+    expect(isOffScene("Movie night")).toBe(false);
+  });
+
+  it("shows every SwitchBot switch off at once, leaving the offline ones and the Govee lamps for the next read", () => {
+    const govee: Light = { ...sb("Studio Lamp", true), vendor: "govee" };
+    const v = view([sb("Kitchen", true), sb("Left Living Room", null), sb("Laundry", true, false), govee]);
+    expect(afterScene(v, "Turn off lights").lights.map((l) => l.on)).toEqual([false, false, true, true]);
+    expect(afterScene(v, "Movie night")).toBe(v);
+  });
+
+  it("asks for a fresh read when told to", async () => {
+    const urls: string[] = [];
+    const f = (async (u: string) => {
+      urls.push(u);
+      return new Response(JSON.stringify({ ok: false }), { status: 503 });
+    }) as unknown as typeof fetch;
+    await loadLights(f);
+    await loadLights(f, true);
+    expect(urls[0]!.endsWith("/api/haven/lights")).toBe(true);
+    expect(urls[1]!.endsWith("/api/haven/lights?fresh=1")).toBe(true);
   });
 });

@@ -12,7 +12,7 @@
  *   scene(id)          runs one SwitchBot manual scene
  *   byName(words)      a light, group, remote or scene by its name, for Skippy ("the kitchen light", "Turn off lights")
  *
- * The device list is kept ten minutes, the states one minute and a Govee light's moods six hours (each vendor allows
+ * The device list is kept ten minutes, the states 20 seconds (#1020, STATE_MS) and a Govee light's moods six hours (each vendor allows
  * 10,000 calls a day); a switch that went through updates the kept state at once instead of reading again. An IR remote has no state to read
  * (`on` is null), so the Desk shows on and off as two buttons for it. No line logged holds a name or an id.
  *
@@ -90,7 +90,16 @@ export type LightsResult = { ok: true; say: string } | { ok: false; code: "unkno
 type Ref = { vendor: "switchbot"; thing: SwitchBotThing } | { vendor: "govee"; light: GoveeLight } | { vendor: "scene"; scene: string };
 
 const LIST_MS = 10 * 60_000;
-const STATE_MS = 60_000;
+/**
+ * The states are kept 20 s (#1020: the Haven reads them every 25 s while it's on screen, so a switch flipped at the
+ * wall, in the SwitchBot app, by a scene or by Skippy shows within half a minute). A fresh read (after a tap or a scene)
+ * skips the kept states once they're 4 s old. Past STATE_BUDGET SwitchBot status calls in a day (SwitchBot allows
+ * 10,000) they're kept three minutes instead, fresh reads included.
+ */
+const STATE_MS = 20_000;
+const FRESH_MS = 4_000;
+const SLOW_MS = 180_000;
+export const STATE_BUDGET = 7_000;
 const MOODS_MS = 6 * 3_600_000;
 
 /** 0xRRGGBB as "#rrggbb". */
@@ -126,6 +135,8 @@ export interface LightsDeps {
 export class Lights {
   private list: { at: number; refs: Map<string, Ref>; things: SwitchBotThing[]; govee: GoveeLight[]; scenes: Scene[]; down: Set<LightVendor> } | null = null;
   private state: { at: number; view: LightsView } | null = null;
+  /** SwitchBot status calls today (UTC), for the daily budget. */
+  private calls = { day: "", n: 0 };
   private moods = new Map<string, { at: number; list: GoveeScene[] }>();
 
   constructor(private readonly deps: LightsDeps) {}
@@ -187,9 +198,12 @@ export class Lights {
   }
 
   /** Every light, group, scene and remote, with the lights' states. */
-  async view(): Promise<LightsView> {
+  async view(opts: { fresh?: boolean } = {}): Promise<LightsView> {
     const now = this.deps.now();
-    if (this.state && now - this.state.at < STATE_MS) return this.state.view;
+    const day = new Date(now).toISOString().slice(0, 10);
+    if (this.calls.day !== day) this.calls = { day, n: 0 };
+    const keep = this.calls.n >= STATE_BUDGET ? SLOW_MS : opts.fresh ? FRESH_MS : STATE_MS;
+    if (this.state && now - this.state.at < keep) return this.state.view;
     const l = await this.lists();
     const lights: Light[] = [], remotes: Remote[] = [], groups: Group[] = [];
     const reads: Promise<void>[] = [];
@@ -198,6 +212,7 @@ export class Lights {
       else if (ref.vendor === "switchbot" && SwitchBot.switchable(ref.thing)) {
         const light: Light = { id, vendor: "switchbot", name: ref.thing.name, type: ref.thing.type, on: null, online: true };
         lights.push(light);
+        this.calls.n++;
         reads.push(
           this.deps.switchbot!.power(ref.thing.id).then(
             (on) => void (light.on = on),

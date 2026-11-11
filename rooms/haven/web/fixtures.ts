@@ -14,10 +14,11 @@ export type { LightKind };
  * Where a kind runs: the saved spot first, a line when it has a far end (`x2`, `y2`, two taps on the house), a point
  * otherwise; else the house's own shape:
  *
- *   spots      rows of ceiling spots across the open kitchen, the hall included: the first row between the cabinet run
- *              and the island, the second past the island; a saved point is a row through it across that space.
+ *   spots      the overhead lights: since #1020 soft light filling a zone (overheadZones), the first from the cabinet
+ *              run to the island's middle across the open kitchen and the hall, the second from there on through the
+ *              dining room; a saved run is a band along it, a saved point a band across the space through it.
  *   backlight  the wall behind the cabinet run, between the hob and the coffee maker (or the run's far end).
- *   glow       a ceiling fitting at the far end of the hall from the kitchen (the laundry end).
+ *   glow       a soft glow at the far end of the hall from the kitchen (the laundry end).
  *
  * Pure: the drawn (furnished) plan in, plan units out. No names of anyone's home here: the kinds by name are the apps'
  * light names, and every place comes from the plan.
@@ -43,6 +44,11 @@ export interface Run {
 export interface FixturePlace {
   kind: LightKind;
   run: Run;
+  /**
+   * The floor an overhead light fills (#1020: soft light through the space, no spots to see), as a box (x0 < x1,
+   * y0 < y1); for the overhead kinds only.
+   */
+  zone?: Run;
   /** A backlight's way into the room from its wall, as a unit step in plan units. */
   out?: [number, number];
 }
@@ -165,6 +171,65 @@ export function spotRows(plan: HavenPlan): [Run, Run] | null {
   return [row(d1), row(d2)];
 }
 
+const DINING = /\b(dining|nook)\b/i;
+
+/**
+ * The floor the two overhead switches fill (#1020, Nikita: diffused through the space, all the way through the dining
+ * room): the first from the cabinet run to the island's middle, across the open kitchen and the hall; the second from
+ * there through the rest of the kitchen and on through a dining room beyond it.
+ */
+export function overheadZones(plan: HavenPlan): [Run, Run] | null {
+  const k = kitchenRun(plan);
+  if (!k) return null;
+  const along = k.wall === "n" || k.wall === "s";
+  const far = k.wall === "n" || k.wall === "w";
+  const W = along ? (far ? k.R[1] : k.R[3]) : far ? k.R[0] : k.R[2];
+  const depth = (b: Box): [number, number] => {
+    const [p, q] = along ? [b[1], b[3]] : [b[0], b[2]];
+    return far ? [p - W, q - W] : [W - q, W - p];
+  };
+  const room = along ? k.R[3] - k.R[1] : k.R[2] - k.R[0];
+  const front = depth(k.run)[1];
+  const [i0, i1] = k.island ? depth(k.island) : [room * 0.5, room * 0.5];
+  const cut = Math.max(front + 40, (i0 + i1) / 2);
+  const [s0, s1] = openSpan(plan, k);
+  const a0 = s0 - 30, a1 = s1 + 30;
+  // A dining room past the kitchen's far wall, overlapping it along the run, carries the second zone on.
+  let end = room, b0 = a0, b1 = a1;
+  const kd: Box = [k.R[0], k.R[1], k.R[2], k.R[3]];
+  for (const r of plan.rooms) {
+    if (r.detached || !DINING.test(r.name)) continue;
+    const d = largest(r);
+    const [p0, p1] = depth(d);
+    const [q0, q1] = along ? [d[0], d[2]] : [d[1], d[3]];
+    const [k0, k1] = along ? [kd[0], kd[2]] : [kd[1], kd[3]];
+    if (Math.abs(p0 - room) > 4 || Math.min(q1, k1) - Math.max(q0, k0) < 60) continue;
+    end = Math.max(end, p1);
+    b0 = Math.min(b0, q0);
+    b1 = Math.max(b1, q1);
+  }
+  const at = (d: number) => (far ? W + d : W - d);
+  const box = (d0: number, d1: number, x0: number, x1: number): Run => {
+    const [u, v] = [at(d0), at(d1)].sort((m, n) => m - n) as [number, number];
+    return along ? { x0, y0: u, x1, y1: v } : { x0: u, y0: x0, x1: v, y1: x1 };
+  };
+  return [box(front - 10, cut, a0, a1), box(cut, end, b0, b1)];
+}
+
+/** A band of overhead light round a run (a saved row), `half` either side, as a box. */
+export function bandOf(run: Run, half = 110): Run {
+  return { x0: Math.min(run.x0, run.x1) - half, y0: Math.min(run.y0, run.y1) - half, x1: Math.max(run.x0, run.x1) + half, y1: Math.max(run.y0, run.y1) + half };
+}
+
+/** The floor a single fitting lights (#1020): a box round it, kept inside the room it's in. */
+export function glowZone(plan: HavenPlan, x: number, y: number, half = 120): Run {
+  const room = plan.rooms.find((r) => !r.detached && r.parts.some(([px, py, pw, ph]) => x >= px && x <= px + pw && y >= py && y <= py + ph));
+  const b = { x0: x - half, y0: y - half, x1: x + half, y1: y + half };
+  if (!room) return b;
+  const [r0, r1, r2, r3] = largest(room);
+  return { x0: Math.max(b.x0, r0), y0: Math.max(b.y0, r1), x1: Math.min(b.x1, r2), y1: Math.min(b.y1, r3) };
+}
+
 /** The hall's far end from the kitchen, where the laundry is: a point a fifth of the hall's length in from that end. */
 export function laundrySpot(plan: HavenPlan): { x: number; y: number } | null {
   const hall = plan.rooms.find((r) => !r.detached && HALL.test(r.name));
@@ -200,7 +265,8 @@ function rowThrough(plan: HavenPlan, x: number, y: number): Run {
 export function placeFixture(plan: HavenPlan, kind: LightKind, spot: Pick<PlanLight, "x" | "y" | "x2" | "y2"> | null, index = 0): FixturePlace | null {
   if (spot && typeof spot.x2 === "number" && typeof spot.y2 === "number") {
     const run = { x0: spot.x, y0: spot.y, x1: spot.x2, y1: spot.y2 };
-    if (kind !== "backlight") return { kind, run };
+    if (kind === "spots") return { kind, run, zone: bandOf(run) };
+    if (kind === "glow") return { kind, run, zone: bandOf(run, 90) };
     // A saved backlight faces into the room it runs along: the side its middle's room lies on.
     const dx = run.x1 - run.x0, dy = run.y1 - run.y0, L = Math.hypot(dx, dy) || 1;
     const n: [number, number] = [-dy / L + 0, dx / L + 0];
@@ -209,9 +275,13 @@ export function placeFixture(plan: HavenPlan, kind: LightKind, spot: Pick<PlanLi
     return { kind, run, out: inRoom(mx + n[0] * 30, my + n[1] * 30) ? n : [-n[0], -n[1]] };
   }
   if (kind === "spots") {
-    if (spot) return { kind, run: rowThrough(plan, spot.x, spot.y) };
-    const rows = spotRows(plan);
-    return rows ? { kind, run: rows[Math.min(1, Math.max(0, index))]! } : null;
+    if (spot) {
+      const run = rowThrough(plan, spot.x, spot.y);
+      return { kind, run, zone: bandOf(run) };
+    }
+    const rows = spotRows(plan), zones = overheadZones(plan);
+    const i = Math.min(1, Math.max(0, index));
+    return rows && zones ? { kind, run: rows[i]!, zone: zones[i]! } : null;
   }
   if (kind === "backlight") {
     const b = backlightRun(plan);
@@ -221,7 +291,7 @@ export function placeFixture(plan: HavenPlan, kind: LightKind, spot: Pick<PlanLi
     return { kind, run: { x0: spot.x - 60, y0: spot.y, x1: spot.x + 60, y1: spot.y }, out: [0, 1] };
   }
   const p = spot ?? laundrySpot(plan);
-  return p ? { kind, run: { x0: p.x, y0: p.y, x1: p.x, y1: p.y } } : null;
+  return p ? { kind, run: { x0: p.x, y0: p.y, x1: p.x, y1: p.y }, zone: glowZone(plan, p.x, p.y) } : null;
 }
 
 const STUDIO = /\b(studio|study)\b/i;

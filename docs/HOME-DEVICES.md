@@ -324,22 +324,32 @@ only (`api/_haven/lights/`).
 - **Where a light hangs**: the private plan's `lights` (`[{ "name": "Kitchen", "x": …, "y": … }]`, matched to the
   app's name ignoring case), else the room its name names ("Kitchen"; "Left Living Room" on the left half of the
   living room), else it is listed apart. Positions live in the private plan only, never the repo.
-- **What a light is drawn as** (#1007, `rooms/haven/web/fixtures.ts`): a SwitchBot switch that is a run of fittings
-  is drawn as that fixture, not as a whole room's lights. By name: **Left Living Room** and **Right Living Room** are
-  rows of ceiling spots, **Kitchen** the backlight strip behind the cabinet run's back panelling, **Laundry** a single
-  ceiling fitting. A spot's `kind` in the private plan (`spots`, `backlight` or `glow`) overrides the name. With no
-  saved spot the house places them itself: the two spot rows across the open kitchen and the hall (the first between
-  the cabinet run and the island, the second past the island), the backlight on the run's wall from the hob to the
-  coffee maker, the laundry's fitting at the hall's far end from the kitchen. To set one exactly, **Edit → Move** in
-  the Lights panel: a row or a strip takes two taps (where it starts, where it ends), saved as `x`, `y`, `x2`, `y2` on
-  the private plan; any other light takes one. A floor lamp in the Studio with no saved spot stands in a corner: the
-  first (or one named "right") over the DJ decks, the second (or "left") behind the sofas. Every other SwitchBot switch still lights its room (#1002). By day the
-  fittings themselves stay bright (pucks, strip, beams), so on and off read in the sun.
+- **What a light is drawn as** (#1007, #1020, `rooms/haven/web/fixtures.ts`): a SwitchBot switch that is a run of
+  fittings is drawn as that fixture, not as a whole room's lights, and as the light it gives, with no markers, pucks or
+  beams over it (Nikita, 2026-11-11: switch and move them from the Lights panel). By name: **Left Living Room** and
+  **Right Living Room** are the overhead lights, each a soft, even light over its area of the open kitchen: the first
+  from the cabinet run to the island's middle, the second from there on through the dining room next door. **Kitchen**
+  is the backlight behind the cabinet run's back panelling (its glow only), **Laundry** a soft glow at the hall's far
+  end. A spot's `kind` in the private plan (`spots`, `backlight` or `glow`) overrides the name. With no saved spot the
+  house places them itself. To set one exactly, **Edit → Move** in the Lights panel: a row or a strip takes two taps
+  (where its area starts, where it ends), saved as `x`, `y`, `x2`, `y2` on the private plan; any other light takes
+  one. A floor lamp in the Studio with no saved spot stands in a corner: the first (or one named "right") over the DJ
+  decks, the second (or "left") behind the sofas. Every other SwitchBot switch still lights its room (#1002). The
+  living room is never dark while the kitchen's lights are on: their spill lights it dimly and its lamp glows with it,
+  unless a light of its own lights it. The house's element carries `data-lights` / `data-lights-on` (how many lights
+  are drawn, how many on) for the tests.
 - **Skippy**: `lights_list` (any surface), `lights_set` (a light or a remote, by name) and `lights_scene` (by name),
   the last two on the Desk after Nikita's Yes.
-- **The API**: `GET /api/haven/lights` and `POST /api/haven/lights` (`{ op: "set", id, on }` or
-  `{ op: "scene", id }`), passkey session only. The device list is kept ten minutes and the states one minute, inside
-  each vendor's 10,000 calls a day; a switch updates the kept state without reading back.
+- **The API**: `GET /api/haven/lights` (`?fresh=1` for a read no older than 4 s) and `POST /api/haven/lights`
+  (`{ op: "set", id, on }` or `{ op: "scene", id }`), passkey session only. The device list is kept ten minutes and the
+  states 20 s; past 7,000 state reads in a day (UTC) they're kept three minutes, inside each vendor's 10,000 calls a
+  day. A switch updates the kept state without reading back; a scene drops it, so the next read is the vendor's.
+- **Live sync (#1020).** The Haven reads the lights every 25 s while it's on screen (none while the tab is hidden, a
+  fresh read when it comes back), and fresh 3 s after a switch, 1.5 s after a colour or mood, and 2.5 s and 8 s after a
+  scene. A scene that turns lights off ("Turn off lights", "All off") shows every SwitchBot switch off at once, in the
+  panel and on the house, until those reads agree or say otherwise. A switch flipped on the wall or in the SwitchBot
+  app shows within about 25 s. SwitchBot's webhooks could make that instant, but they come unsigned and need a public
+  endpoint and a registration call; not done.
 
 ## The meal planner
 

@@ -41,7 +41,7 @@ const VIEW = {
 /** The made-up flat's study as a Studio, with a made-up spot for the made-up floor lamp. */
 const PLAN = { ...FAKE_PLAN, rooms: FAKE_PLAN.rooms.map((r) => (r.id === "study" ? { ...r, name: "Studio" } : r)), lights: [{ name: "Test Floor Lamp", x: 930, y: 770 }] };
 
-async function stub(page: Page, posts: unknown[]) {
+async function stub(page: Page, posts: unknown[], view: (url: string) => unknown = () => VIEW) {
   const now = Date.now();
   await page.route("https://api.github.com/**", (r) => r.fulfill({ json: [] }));
   await page.route(`${BASE}/api/foundry-feed`, (r) => r.fulfill({ json: { issues: [], runs: { workflow_runs: [] }, e2e: { workflow_runs: [] }, pulls: [], commits: [] } }));
@@ -56,12 +56,12 @@ async function stub(page: Page, posts: unknown[]) {
     }
     return r.fulfill({ json: { plan: PLAN } });
   });
-  await page.route(`${BASE}/api/haven/lights`, (r) => {
+  await page.route(/\/api\/haven\/lights(\?.*)?$/, (r) => {
     if (r.request().method() === "POST") {
       posts.push(r.request().postDataJSON());
       return r.fulfill({ json: { ok: true, say: "Done." } });
     }
-    return r.fulfill({ json: VIEW });
+    return r.fulfill({ json: view(r.request().url()) });
   });
 }
 
@@ -107,15 +107,49 @@ test("signed in: rooms and lamps, the scenes apart, Edit for a Govee colour, the
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-974-panel.png` });
   const house = page.locator(".hv-house");
   if ((await house.getAttribute("data-gl")) !== "on") return;
-  // Kitchen by its name, the floor lamp by its spot: two markers; Porch and the uplight wait to be placed.
-  await expect(page.locator(".hv-bulb")).toHaveCount(2);
+  // Kitchen by its name, the floor lamp by its spot: two drawn, with no marker over either (#1020); Porch and the
+  // uplight wait to be placed.
+  await expect(house).toHaveAttribute("data-lights", "2");
+  await expect(page.locator(".hv-bulb")).toHaveCount(0);
   await panel.getByRole("button", { name: "Place Test Uplight on the house" }).click();
   await expect(panel).toContainText("Tap where Test Uplight stands on the house.");
   const box = (await house.boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.55);
   await expect.poll(() => posts.length).toBe(6);
   expect(posts[5]).toMatchObject({ action: "light", name: "Test Uplight", x: expect.any(Number), y: expect.any(Number) });
-  await expect(page.locator(".hv-bulb")).toHaveCount(3);
+  await expect(house).toHaveAttribute("data-lights", "3");
   await expect(panel.getByRole("button", { name: "Move Test Uplight on the house" })).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-974-house.png` });
+});
+
+test("the off scene shows every room switch off at once, then reads them again fresh (#1020)", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const posts: unknown[] = [], reads: string[] = [];
+  let ran = false;
+  const on = { ...VIEW, lights: VIEW.lights.map((l) => (l.vendor === "switchbot" ? { ...l, on: true } : l)) };
+  const off = { ...VIEW, lights: VIEW.lights.map((l) => (l.vendor === "switchbot" ? { ...l, on: false } : l)) };
+  // The vendor's state turns off only once read fresh after the scene, as SwitchBot's does.
+  await stub(page, posts, (url) => {
+    reads.push(url);
+    return ran && url.endsWith("?fresh=1") ? off : on;
+  });
+  await page.goto(`${BASE}/haven`);
+  const panel = page.getByRole("region", { name: "Lights" });
+  await expect(panel).toBeVisible({ timeout: 20_000 });
+  await expect(panel.getByRole("button", { name: /^Kitchen, on/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(panel.getByRole("button", { name: /^Porch, on/ })).toHaveAttribute("aria-pressed", "true");
+  const house = page.locator(".hv-house");
+  const gl = (await house.getAttribute("data-gl")) === "on";
+  if (gl) await expect(house).toHaveAttribute("data-lights-on", "2");
+  await panel.getByRole("button", { name: "All off" }).click();
+  ran = true;
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0]).toEqual({ op: "scene", id: "a0000000000c" });
+  // At once, before any read: both rooms off in the panel and on the house.
+  await expect(panel.getByRole("button", { name: /^Kitchen, off/ })).toHaveAttribute("aria-pressed", "false", { timeout: 1_500 });
+  await expect(panel.getByRole("button", { name: /^Porch, off/ })).toHaveAttribute("aria-pressed", "false", { timeout: 1_500 });
+  if (gl) await expect(house).toHaveAttribute("data-lights-on", "1"); // the Govee floor lamp waits for its read
+  // Then the real state, read fresh, agrees.
+  await expect.poll(() => reads.some((u) => u.endsWith("?fresh=1")), { timeout: 6_000 }).toBe(true);
+  await expect(panel.getByRole("button", { name: /^Kitchen, off/ })).toHaveAttribute("aria-pressed", "false");
 });

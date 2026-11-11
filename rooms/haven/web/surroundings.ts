@@ -1,14 +1,14 @@
 import * as THREE from "three";
 
 /**
- * What stands round the home (#1007). Nikita, 2026-11-10: the grey all round the apartment was boring; the sky and the
- * mountains are nice, the city round it should look like somewhere. So the home is one unit in a low courtyard block:
- * its flat roofs flush with the walls on every side the home doesn't take, a landscaped courtyard (lawn, paths, a few
- * trees) on the home's balcony side and a second one further along, a street with parked cars and street lamps on the
- * other side, low neighbours and a parking deck across it, a boulevard with a planted median at one end, and a strip of
- * park and river beyond the street. All generic and made up (no real place is modelled), built from a few instanced
- * boxes, cones and planes (about a dozen draw calls), lit by the same sun and moon as the house; by night only the
- * street lamps glow.
+ * What stands round the home (#1007, #1020). Nikita, 2026-11-10: the grey all round the apartment was boring; the city
+ * round it should look like somewhere. So the home is the corner unit of a low courtyard block: the courtyard its
+ * balconies face (about twice the home's size), the block wrapping round it, a second, larger courtyard further along
+ * with a pool deck, a street with parked cars and street lamps on the home's other side, a riverside trail and parking
+ * decks across it, and a boulevard with a planted median along the near end. The roofs aren't plain grey (#1020):
+ * units of different heights and tones carrying plant, solar panels, skylights, terraces with planters and one pool;
+ * by night some windows are lit and lights are strung over the courtyards and terraces. All generic and made up (no
+ * real place is modelled), five draw calls in all, unlit with the shading baked in.
  *
  * World units (a metre each across, heights squashed like the house's: the walls are 1.4). `home` is the home's box
  * (its rooms), `keep` the boxes nothing may cover (every room, the decks, the walk to a detached block), `east` which
@@ -61,58 +61,150 @@ interface Piece {
   sx: number;
   sy: number;
   sz: number;
+  rx?: number;
   ry?: number;
   c?: number;
 }
 
-/**
- * The plan of the surroundings, pure (for the tests): every box by what it is. The courtyard block's roofs, its
- * courtyards, the street and the rest, laid out from the home's box.
- */
-export function layout(home: Box2, keep: readonly Box2[], east = true) {
-  const W = home.x1 - home.x0, D = home.z1 - home.z0;
-  // Mirror x when the courtyard is to the west: everything is laid out as if it were to the east.
-  const s = east ? 1 : -1;
-  const X = (x: number) => (east ? x : home.x0 + home.x1 - x);
-  const bx = (x0: number, z0: number, x1: number, z1: number): Box2 => ({ x0: Math.min(X(x0), X(x1)), z0, x1: Math.max(X(x0), X(x1)), z1 });
-  const wing = Math.max(8, Math.min(14, Math.min(W, D)));
-  // The block: the home's street face is its outer edge; it runs on past the home on every other side.
-  const outer = bx(home.x0 - 0.3, home.z0 - D * 0.9 - wing, home.x1 + W * 0.9 + wing * 3.2, home.z1 + wing * 0.9);
-  const yard1 = bx(home.x1 + 0.6, home.z0 + D * 0.08, home.x1 + 0.6 + Math.max(8, W * 0.75), home.z1 - D * 0.12);
-  const y2x0 = home.x1 + 0.6 + Math.max(8, W * 0.75) + wing;
-  const yard2 = bx(y2x0, outer.z0 + wing, y2x0 + Math.max(8, W * 0.7), home.z0 + D * 0.2);
-  const pad = keep.map((k) => ({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }));
-  const roofs = cutAll(outer, [yard1, yard2, ...pad]);
-  // The street along the block's street face; the far side's sidewalk, then the neighbours.
-  const face = east ? outer.x0 : outer.x1;
-  const street = { a: face - s * 1.2, b: face - s * 10.2 };
-  const across = face - s * 11.6;
-  const zs = { z0: outer.z0 - 30, z1: outer.z1 + 40 };
-  // The boulevard past the block's far end (larger z).
-  const blvd = { z0: outer.z1 + 2.5, z1: outer.z1 + 18 };
-  return { outer, yard1, yard2, roofs, face, street, across, zs, blvd, s, wing };
+/** What a roof of the block carries (#1020): plant, panels, skylights, a terrace, the one pool, or nothing. */
+export type RoofUse = "plain" | "hvac" | "solar" | "sky" | "terrace" | "pool";
+export interface RoofUnit extends Box2 {
+  /** Its height over the ground, around the neighbours' storey. */
+  h: number;
+  /** Which of the roof tones. */
+  tone: number;
+  use: RoofUse;
 }
 
-export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: boolean; phone?: boolean; wallH: number }): Surroundings {
-  const L = layout(o.home, o.keep, o.east ?? true);
+const area = (b: Box2) => (b.x1 - b.x0) * (b.z1 - b.z0);
+const union = (a: Box2, b: Box2): Box2 => ({ x0: Math.min(a.x0, b.x0), z0: Math.min(a.z0, b.z0), x1: Math.max(a.x1, b.x1), z1: Math.max(a.z1, b.z1) });
+const overlaps = (a: Box2, b: Box2) => a.x0 < b.x1 && a.x1 > b.x0 && a.z0 < b.z1 && a.z1 > b.z0;
+
+/** A roof part split along its length into units of 5 to 10, each its own height and tone (#1020). */
+function units(b: Box2, r: () => number, H: number): RoofUnit[] {
+  const along = b.x1 - b.x0 >= b.z1 - b.z0;
+  const len = along ? b.x1 - b.x0 : b.z1 - b.z0;
+  const out: RoofUnit[] = [];
+  for (let t = 0; t < len - 0.01; ) {
+    let step = 5 + r() * 5;
+    if (len - t - step < 3) step = len - t;
+    const u = along ? { x0: b.x0 + t, z0: b.z0, x1: b.x0 + t + step, z1: b.z1 } : { x0: b.x0, z0: b.z0 + t, x1: b.x1, z1: b.z0 + t + step };
+    const k = r();
+    const use: RoofUse = k < 0.3 ? "hvac" : k < 0.48 ? "solar" : k < 0.62 ? "sky" : k < 0.76 ? "terrace" : "plain";
+    out.push({ ...u, h: H * (0.55 + r() * 0.22), tone: Math.floor(r() * ROOF_TONES.length), use });
+    t += step;
+  }
+  return out;
+}
+
+const ROOF_TONES = [0xc9c8c1, 0xb7b9b6, 0xd8d6cf, 0x8e9194, 0xc2b8a8, 0xe4e3de, 0x9fa4a6];
+
+/**
+ * The plan of the surroundings, pure (for the tests), from the home's box (#1007, re-proportioned in #1020): the home
+ * on the block's outer corner by the street and the boulevard; the courtyard its balconies face just past that corner,
+ * about twice the home's size; the block wrapping round it; a second, larger courtyard further along with a pool deck
+ * at its far end; the street on the home's other side with a riverside trail and parking decks across it; the
+ * boulevard with a planted median along the block's near end. Laid out as if the courtyard were to the east, then
+ * mirrored when it's to the west. Generic and made up: proportions only.
+ */
+export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) {
+  const X = (x: number) => (east ? x : home.x0 + home.x1 - x);
+  const mb = (b: Box2): Box2 => (east ? b : { x0: X(b.x1), z0: b.z0, x1: X(b.x0), z1: b.z1 });
+  const r = rand(29);
+  const W = home.x1 - home.x0, D = home.z1 - home.z0;
+  const K = keep.map(mb);
+  const cluster = K.reduce(union, home);
+  const wing = Math.max(8, Math.min(12, Math.min(W, D)));
+  // The courtyard by the home: off its balcony side, from beside its far half on past it, about twice its size.
+  const y1w = Math.max(8, W * 1.3), y1d = Math.max(8, (2 * W * D) / y1w);
+  const y1z1 = home.z0 + D * 0.45;
+  const yard1 = { x0: home.x1 + 0.6, z0: y1z1 - y1d, x1: home.x1 + 0.6 + y1w, z1: y1z1 };
+  // The larger one, a wing further along and further back, its pool deck at the far end.
+  const y2w = Math.max(10, W * 1.6), y2d = Math.max(12, D * 2.2);
+  const yard2 = { x0: yard1.x1 + wing, z0: yard1.z0 + y1d * 0.35 - y2d, x1: yard1.x1 + wing + y2w, z1: yard1.z0 + y1d * 0.35 };
+  const poolD = Math.min(4, y2d * 0.22);
+  const pool = { x0: yard2.x0 + 1.6, z0: yard2.z0 + 1.4, x1: yard2.x1 - 1.6, z1: yard2.z0 + 1.4 + poolD };
+  const poolDeck = { x0: yard2.x0 + 0.3, z0: yard2.z0 + 0.3, x1: yard2.x1 - 0.3, z1: pool.z1 + 1.6 };
+  // The block: its outer corner at the home (the street face and the boulevard face), wrapping both courtyards.
+  const outer = { x0: cluster.x0 - 0.3, z0: yard2.z0 - wing * 0.8, x1: yard2.x1 + wing * 0.9, z1: cluster.z1 + 0.3 };
+  const pad = K.map((k) => ({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }));
+  const roofs = cutAll(outer, [yard1, yard2, ...pad]).flatMap((b) => units(b, r, H));
+  // One roof has the pool (the largest unit clear of the home), a terrace or two the others' way.
+  const big = roofs.filter((u) => u.x1 - u.x0 >= 5 && u.z1 - u.z0 >= 5 && !overlaps(u, { x0: cluster.x0 - 6, z0: cluster.z0 - 6, x1: cluster.x1 + 6, z1: cluster.z1 + 6 }));
+  const top = big.sort((a, b) => area(b) - area(a))[0];
+  if (top) top.use = "pool";
+  // The street along the block's street face: sidewalks, the carriageway, then across it the trail, river and decks.
+  const face = outer.x0;
+  const street = { a: face - 1.2, b: face - 10.2 };
+  const across = face - 11.6;
+  const blvd = { z0: outer.z1 + 1.6, z1: outer.z1 + 17.6 };
+  const zs = { z0: outer.z0 - 34, z1: blvd.z0 };
+  const deckZ0 = blvd.z0 - Math.max(22, D * 2.5);
+  const decks = [
+    { x0: across - 16.8, z0: deckZ0, x1: across - 0.8, z1: (deckZ0 + blvd.z0 - 1.5) / 2 - 0.8 },
+    { x0: across - 16.8, z0: (deckZ0 + blvd.z0 - 1.5) / 2 + 0.8, x1: across - 0.8, z1: blvd.z0 - 1.5 },
+  ];
+  const park = { x0: across - 16.8, z0: zs.z0 - 40, x1: across - 0.4, z1: deckZ0 - 1 };
+  const trail = { x0: across - 19, z0: zs.z0 - 40, x1: across - 17.6, z1: blvd.z0 - 0.5 };
+  const bank = { x0: across - 22, z0: zs.z0 - 40, x1: across - 17.2, z1: blvd.z1 + 40 };
+  const river = { x0: across - 36, z0: zs.z0 - 40, x1: across - 22, z1: blvd.z1 + 40 };
+  const farBank = { x0: across - 50, z0: zs.z0 - 40, x1: across - 36, z1: blvd.z1 + 40 };
+  const bx0 = across - 17.2, bx1 = outer.x1 + 34;
+  const bounds = { x0: farBank.x0, z0: zs.z0 - 40, x1: bx1, z1: blvd.z1 + 40 };
+  const m = (x: number) => X(x);
+  return {
+    outer: mb(outer),
+    yard1: mb(yard1),
+    yard2: mb(yard2),
+    pool: mb(pool),
+    poolDeck: mb(poolDeck),
+    roofs: roofs.map((u) => ({ ...u, ...mb(u) })),
+    face: m(face),
+    street: { a: m(street.a), b: m(street.b) },
+    across: m(across),
+    zs,
+    blvd: { ...blvd, x0: Math.min(m(bx0), m(bx1)), x1: Math.max(m(bx0), m(bx1)) },
+    decks: decks.map(mb),
+    park: mb(park),
+    trail: mb(trail),
+    bank: mb(bank),
+    river: mb(river),
+    farBank: mb(farBank),
+    bounds: mb(bounds),
+    s: east ? 1 : -1,
+    wing,
+  };
+}
+
+/**
+ * Heights of the ground layers (#1020): each a clear step over the next where they overlap, so no two surfaces fight
+ * over the same depth when the camera turns (the strobe on the auto-rotate).
+ */
+/** The house camera's near plane at orbit distance `r` (#1020): 4% of it, 0.05 to 0.8, so the depth buffer stays fine out at the block. */
+export const nearFor = (r: number) => Math.max(0.05, Math.min(0.8, r * 0.04));
+
+export const LV = { base: -0.02, water: 0.004, asphalt: 0.02, paving: 0.03, grass: 0.035, lane: 0.04, trail: 0.05, lawn: 0.06, walk: 0.07, median: 0.1, glow: 0.12 };
+
+export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: boolean; phone?: boolean; wallH: number }): Surroundings & { bounds: Box2 } {
+  const H = o.wallH;
+  const L = layout(o.home, o.keep, o.east ?? true, H);
   const { s } = L;
   const group = new THREE.Group();
   group.name = "surroundings";
   const geos: THREE.BufferGeometry[] = [];
   const mats: THREE.Material[] = [];
-  const r = rand(29);
+  const r = rand(31);
   // Unlit (#1007): the house's eight point lights would be worked out for every pixel of every roof and street, which
   // a phone or a software renderer can't afford, so the shading is baked into the geometry (a face's light from its
-  // facing, `shade`) and the time of day is a colour (`update`).
+  // facing, `shade`) and the time of day is a colour (`update`). Everything solid is one instanced mesh, the trees'
+  // crowns a second, the glowing windows and lamp heads a third, the lamps' pools a fourth, the string lights a fifth.
   const box = shade(new THREE.BoxGeometry(1, 1, 1));
   geos.push(box);
-  // Every material with its colour by day; by night each turns a dim moonlit blue, so the home's own lights stay what
-  // the eye goes to.
   const dims: [THREE.MeshBasicMaterial, THREE.Color][] = [];
-  const std = (color: number, ..._look: unknown[]) => {
-    const m = new THREE.MeshBasicMaterial({ color, vertexColors: true });
+  const baked = () => {
+    const m = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
     mats.push(m);
-    dims.push([m, new THREE.Color(color)]);
+    dims.push([m, new THREE.Color(0xffffff)]);
     return m;
   };
   const tmp = new THREE.Object3D();
@@ -122,11 +214,11 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     const m = new THREE.InstancedMesh(geo, mat, list.length);
     list.forEach((p, i) => {
       tmp.position.set(p.x, p.y, p.z);
-      tmp.rotation.set(0, p.ry ?? 0, 0);
+      tmp.rotation.set(p.rx ?? 0, p.ry ?? 0, 0);
       tmp.scale.set(p.sx, p.sy, p.sz);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
-      if (p.c !== undefined) m.setColorAt(i, col.setHex(p.c));
+      m.setColorAt(i, col.setHex(p.c ?? 0xffffff));
     });
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
@@ -135,143 +227,228 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     group.add(m);
     return m;
   };
-  const slab = (b: Box2, y0: number, h: number, c?: number): Piece => ({ x: (b.x0 + b.x1) / 2, y: y0 + h / 2, z: (b.z0 + b.z1) / 2, sx: b.x1 - b.x0, sy: h, sz: b.z1 - b.z0, c });
-
-  // The block's roofs, flush with the home's walls, with a low parapet line where a roof meets the open air.
-  const H = o.wallH;
-  // The block's ground, under everything, so the light-wells round the home read as paving, not the plain.
-  add(box, std(0x9d9b94, 1), [slab(L.outer, -0.011, 0.007)]);
-  // The neighbours' units sit a little lower than the home's walls, so the home reads as the one opened up.
-  const RH = H * 0.62;
-  const roofTone = [0xc9c8c1, 0xc4c5c0, 0xcdccc5];
-  add(box, std(0xffffff, 0.9), L.roofs.map((b, i) => slab(b, 0, RH, roofTone[i % 3])));
-  // Rooftop plant: a few low boxes, kept off the edges.
-  const units: Piece[] = [];
-  for (const b of L.roofs) {
-    const n = Math.floor(((b.x1 - b.x0) * (b.z1 - b.z0)) / 60);
-    for (let i = 0; i < Math.min(6, n); i++) {
-      const w = 0.8 + r() * 1.4, d = 0.6 + r() * 1;
-      if (b.x1 - b.x0 < w + 1.2 || b.z1 - b.z0 < d + 1.2) continue;
-      units.push({ x: b.x0 + 0.6 + w / 2 + r() * (b.x1 - b.x0 - w - 1.2), y: RH + 0.08, z: b.z0 + 0.6 + d / 2 + r() * (b.z1 - b.z0 - d - 1.2), sx: w, sy: 0.16, sz: d, c: 0xb9bbb8 });
-    }
-  }
-  add(box, std(0xffffff, 0.7), units);
-
-  // The courtyards: a lawn, a paved path round and across it, planting beds and a few trees.
-  const lawn: Piece[] = [], paving: Piece[] = [], beds: Piece[] = [];
-  const trunks: Piece[] = [], crowns: Piece[] = [];
-  const tree = (x: number, z: number, size = 1) => {
-    const big = size * 0.62;
-    const h = (0.7 + r() * 0.5) * big;
-    trunks.push({ x, y: h * 0.25, z, sx: 0.12, sy: h * 0.5, sz: 0.12 });
-    crowns.push({ x, y: h * 0.5 + 0.45 * big, z, sx: (1.3 + r() * 0.7) * big, sy: (1.1 + r() * 0.5) * big, sz: (1.3 + r() * 0.7) * big, ry: r() * 3, c: [0x4f7a45, 0x5b8a4c, 0x466e3f, 0x6a9455][Math.floor(r() * 4)] });
-  };
+  const solid: Piece[] = [], crowns: Piece[] = [], glow: Piece[] = [], pools: Piece[] = [];
+  const strings: number[] = [];
+  const slab = (b: Box2, y0: number, h: number, c: number): Piece => ({ x: (b.x0 + b.x1) / 2, y: y0 + h / 2, z: (b.z0 + b.z1) / 2, sx: b.x1 - b.x0, sy: h, sz: b.z1 - b.z0, c });
+  const top = (b: Box2, y: number, c: number) => solid.push(slab(b, y - 0.03, 0.03, c));
   const pad = o.keep.map((k) => ({ x0: k.x0 - 0.4, z0: k.z0 - 0.4, x1: k.x1 + 0.4, z1: k.z1 + 0.4 }));
   const clear = (x: number, z: number) => !pad.some((k) => x > k.x0 && x < k.x1 && z > k.z0 && z < k.z1);
-  const treeAt = (x: number, z: number, big = 1) => clear(x, z) && tree(x, z, big);
   const parts = (b: Box2) => cutAll(b, pad);
-  for (const y of [L.yard1, L.yard2]) {
-    paving.push(...parts(y).map((b) => slab(b, 0, 0.02)));
-    const inset = { x0: y.x0 + 0.9, z0: y.z0 + 0.9, x1: y.x1 - 0.9, z1: y.z1 - 0.9 };
-    const mx = (y.x0 + y.x1) / 2, mz = (y.z0 + y.z1) / 2;
-    // Four lawns, a cross of paths between them.
-    for (const [a, b] of [[inset.x0, mx - 0.5], [mx + 0.5, inset.x1]] as const)
-      for (const [c, d] of [[inset.z0, mz - 0.5], [mz + 0.5, inset.z1]] as const) if (b - a > 0.6 && d - c > 0.6) lawn.push(...parts({ x0: a, z0: c, x1: b, z1: d }).map((q) => slab(q, 0, 0.035)));
-    // Beds of shrubs along the long sides, a tree in each lawn, one in the middle of the cross.
-    for (const b of [{ x0: y.x0 + 0.2, z0: y.z0 + 0.2, x1: y.x1 - 0.2, z1: y.z0 + 0.7 }, { x0: y.x0 + 0.2, z0: y.z1 - 0.7, x1: y.x1 - 0.2, z1: y.z1 - 0.2 }]) beds.push(...parts(b).map((q) => slab(q, 0, 0.16)));
-    for (const [tx, tz] of [[(inset.x0 + mx) / 2, (inset.z0 + mz) / 2], [(mx + inset.x1) / 2, (mz + inset.z1) / 2], [(inset.x0 + mx) / 2, (mz + inset.z1) / 2]]) treeAt(tx!, tz!);
-    treeAt(mx, mz, 1.25);
-  }
-  add(box, std(0xa9a69e, 0.95), paving);
-  add(box, std(0x6f9a52, 1), lawn);
-  add(box, std(0x3f6338, 1), beds);
+  const tree = (x: number, z: number, size = 1) => {
+    if (!clear(x, z)) return;
+    const big = size * 0.62;
+    const h = (0.7 + r() * 0.5) * big;
+    solid.push({ x, y: h * 0.25, z, sx: 0.12, sy: h * 0.5, sz: 0.12, c: 0x4a3a2c });
+    crowns.push({ x, y: h * 0.5 + 0.45 * big, z, sx: (1.3 + r() * 0.7) * big, sy: (1.1 + r() * 0.5) * big, sz: (1.3 + r() * 0.7) * big, ry: r() * 3, c: [0x4f7a45, 0x5b8a4c, 0x466e3f, 0x6a9455][Math.floor(r() * 4)] });
+  };
+  /** A string of lights from a to b, sagging in the middle (night only). */
+  const strand = (ax: number, az: number, bx: number, bz: number, y: number) => {
+    const n = Math.max(6, Math.round(Math.hypot(bx - ax, bz - az) / 0.35));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      strings.push(ax + (bx - ax) * t, y - 0.35 * 4 * t * (1 - t), az + (bz - az) * t);
+    }
+  };
+  const post = (x: number, z: number, y0: number, h: number) => solid.push({ x, y: y0 + h / 2, z, sx: 0.06, sy: h, sz: 0.06, c: 0x2a2c30 });
 
-  // The street: asphalt, the curbs and sidewalks either side, a dashed centre line, parked cars along both curbs.
+  // The block's ground under everything, so the light-wells round the home read as paving, not the plain.
+  solid.push(slab(L.outer, LV.base - 0.02, 0.02, 0x9d9b94));
+
+  // The roofs (#1020): each unit its own height and tone, and on top whatever it carries.
+  for (const u of L.roofs) {
+    const w = u.x1 - u.x0, d = u.z1 - u.z0, cx = (u.x0 + u.x1) / 2, cz = (u.z0 + u.z1) / 2;
+    solid.push(slab(u, 0, u.h, ROOF_TONES[u.tone]!));
+    const inner = { x0: u.x0 + 0.7, z0: u.z0 + 0.7, x1: u.x1 - 0.7, z1: u.z1 - 0.7 };
+    const iw = inner.x1 - inner.x0, id = inner.z1 - inner.z0;
+    if (iw < 1.2 || id < 1.2) continue;
+    const at = (fx: number, fz: number) => [inner.x0 + fx * iw, inner.z0 + fz * id] as const;
+    if (u.use === "hvac") {
+      for (let i = 0; i < 2 + Math.floor(r() * 3); i++) {
+        const [x, z] = at(0.15 + r() * 0.7, 0.15 + r() * 0.7);
+        const sw = 0.6 + r() * 0.9, sd = 0.5 + r() * 0.6;
+        solid.push({ x, y: u.h + 0.12, z, sx: sw, sy: 0.24, sz: sd, c: 0xb4b7b5 });
+        solid.push({ x, y: u.h + 0.25, z, sx: sw * 0.5, sy: 0.03, sz: sd * 0.6, c: 0x6d7174 });
+      }
+    } else if (u.use === "solar") {
+      // Rows of panels tilted toward the sun, their long side across the roof's length.
+      const along = w >= d;
+      const rows = Math.max(1, Math.floor((along ? id : iw) / 1.1));
+      for (let i = 0; i < rows; i++) {
+        const f = (i + 0.5) / rows;
+        const [x, z] = along ? [cx, inner.z0 + f * id] : [inner.x0 + f * iw, cz];
+        solid.push({ x, y: u.h + 0.12, z, sx: along ? iw : 0.8, sy: 0.03, sz: along ? 0.8 : id, rx: along ? 0.35 : 0, ry: along ? 0 : 0, c: 0x22344f });
+      }
+    } else if (u.use === "sky") {
+      for (let i = 0; i < 3; i++) {
+        const [x, z] = at(0.2 + i * 0.3, 0.3 + r() * 0.4);
+        solid.push({ x, y: u.h + 0.05, z, sx: 0.9, sy: 0.1, sz: 0.9, c: 0x9fb7c6 });
+      }
+    } else if (u.use === "terrace") {
+      // A deck with planters round it, a table or two, and lights strung across it.
+      const t = { x0: inner.x0 + iw * 0.1, z0: inner.z0 + id * 0.1, x1: inner.x1 - iw * 0.1, z1: inner.z1 - id * 0.1 };
+      solid.push(slab(t, u.h, 0.04, 0x9b7b5c));
+      for (const [px, pz] of [[t.x0, t.z0], [t.x1, t.z0], [t.x0, t.z1], [t.x1, t.z1]] as const) {
+        solid.push({ x: px, y: u.h + 0.1, z: pz, sx: 0.5, sy: 0.2, sz: 0.5, c: 0x6b5a48 });
+        crowns.push({ x: px, y: u.h + 0.32, z: pz, sx: 0.6, sy: 0.4, sz: 0.6, ry: r() * 3, c: 0x5b8a4c });
+      }
+      const [tx, tz] = [(t.x0 + t.x1) / 2, (t.z0 + t.z1) / 2];
+      solid.push({ x: tx, y: u.h + 0.12, z: tz, sx: 0.5, sy: 0.04, sz: 0.5, c: 0xe0ddd5 });
+      post(t.x0, t.z0, u.h, 0.6);
+      post(t.x1, t.z1, u.h, 0.6);
+      strand(t.x0, t.z0, t.x1, t.z1, u.h + 0.6);
+    } else if (u.use === "pool") {
+      // The rooftop pool: a deck, the water a light blue, loungers along one side.
+      const deck = { x0: inner.x0, z0: inner.z0, x1: inner.x1, z1: inner.z1 };
+      solid.push(slab(deck, u.h, 0.05, 0xd9d2c4));
+      const wtr = { x0: deck.x0 + iw * 0.15, z0: deck.z0 + id * 0.25, x1: deck.x1 - iw * 0.15, z1: deck.z1 - id * 0.25 };
+      solid.push(slab(wtr, u.h + 0.05, 0.02, 0x7fd3e8));
+      for (let i = 0; i < 4; i++) solid.push({ x: wtr.x0 + ((i + 0.5) / 4) * (wtr.x1 - wtr.x0), y: u.h + 0.09, z: deck.z0 + id * 0.12, sx: 0.35, sy: 0.06, sz: 0.8, c: 0xf2f0ea });
+      post(deck.x0, deck.z0, u.h, 0.7);
+      post(deck.x1, deck.z0, u.h, 0.7);
+      strand(deck.x0, deck.z0, deck.x1, deck.z0, u.h + 0.7);
+    }
+  }
+
+  // Windows on the courtyard walls and the street face: dark glass by day, some lit warm at night.
+  const windows = (x0: number, z0: number, x1: number, z1: number, out: [number, number]) => {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    for (let t = 0.8; t < len - 0.5; t += 1.3) {
+      const x = x0 + ((x1 - x0) * t) / len + out[0] * 0.03, z = z0 + ((z1 - z0) * t) / len + out[1] * 0.03;
+      if (!clear(x - out[0] * 0.5, z - out[1] * 0.5)) continue;
+      const lit = r() < 0.32;
+      glow.push({ x, y: H * 0.3, z, sx: out[0] ? 0.03 : 0.55, sy: 0.22, sz: out[0] ? 0.55 : 0.03, c: lit ? 0xffd9a0 : 0x2b3138 });
+    }
+  };
+  for (const y of [L.yard1, L.yard2]) {
+    windows(y.x0, y.z0, y.x1, y.z0, [0, 1]);
+    windows(y.x0, y.z1, y.x1, y.z1, [0, -1]);
+    windows(y.x0, y.z0, y.x0, y.z1, [1, 0]);
+    windows(y.x1, y.z0, y.x1, y.z1, [-1, 0]);
+  }
+  windows(L.face, L.outer.z0, L.face, L.outer.z1, [-s, 0]);
+  windows(L.outer.x0, L.outer.z1, L.outer.x1, L.outer.z1, [0, 1]);
+
+  // The courtyards: paving, four lawns with a cross of paths, beds of shrubs, trees, and lights strung across.
+  for (const [y, i] of [[L.yard1, 0], [L.yard2, 1]] as const) {
+    for (const p of parts(y)) top(p, LV.paving, 0xa9a69e);
+    const inner = i ? { ...y, z0: L.poolDeck.z1 + 0.6 } : y;
+    const inset = { x0: inner.x0 + 0.9, z0: inner.z0 + 0.9, x1: inner.x1 - 0.9, z1: inner.z1 - 0.9 };
+    const mx = (inner.x0 + inner.x1) / 2, mz = (inner.z0 + inner.z1) / 2;
+    for (const [a, b] of [[inset.x0, mx - 0.5], [mx + 0.5, inset.x1]] as const)
+      for (const [c, d] of [[inset.z0, mz - 0.5], [mz + 0.5, inset.z1]] as const) if (b - a > 0.6 && d - c > 0.6) for (const q of parts({ x0: a, z0: c, x1: b, z1: d })) top(q, LV.lawn, 0x6f9a52);
+    for (const b of [{ x0: y.x0 + 0.2, z0: y.z1 - 0.7, x1: y.x1 - 0.2, z1: y.z1 - 0.2 }, { x0: y.x0 + 0.2, z0: inner.z0 + 0.2, x1: y.x0 + 0.7, z1: y.z1 - 0.2 }]) for (const q of parts(b)) solid.push(slab(q, 0, 0.18, 0x3f6338));
+    for (const [fx, fz] of [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) tree(inset.x0 + fx! * (inset.x1 - inset.x0), inset.z0 + fz! * (inset.z1 - inset.z0), i ? 1.15 : 1);
+    tree(mx, mz, 1.3);
+    if (i) for (let k = 0; k < 4; k++) tree(inset.x0 + 0.4 + r() * (inset.x1 - inset.x0 - 0.8), inset.z1 - 0.4 - r() * 1.2, 0.9);
+    // Lights strung corner to corner over the paths, from four posts.
+    const ys = H * 0.62;
+    for (const [px, pz] of [[inset.x0, inset.z0], [inset.x1, inset.z0], [inset.x0, inset.z1], [inset.x1, inset.z1]] as const) if (clear(px, pz)) post(px, pz, 0, ys);
+    if (clear(inset.x0, inset.z0) && clear(inset.x1, inset.z1)) strand(inset.x0, inset.z0, inset.x1, inset.z1, ys);
+    if (clear(inset.x1, inset.z0) && clear(inset.x0, inset.z1)) strand(inset.x1, inset.z0, inset.x0, inset.z1, ys);
+  }
+  // The pool deck at the larger courtyard's far end: the deck, the water, loungers and a strand along it.
+  top(L.poolDeck, LV.walk, 0xd9d2c4);
+  solid.push(slab(L.pool, LV.walk - 0.03, 0.05, 0x7fd3e8));
+  for (let i = 0; i < 6; i++) solid.push({ x: L.pool.x0 + ((i + 0.5) / 6) * (L.pool.x1 - L.pool.x0), y: LV.walk + 0.05, z: L.pool.z1 + 0.8, sx: 0.35, sy: 0.06, sz: 0.8, c: 0xf2f0ea });
+  post(L.poolDeck.x0, L.poolDeck.z1, 0, H * 0.6);
+  post(L.poolDeck.x1, L.poolDeck.z1, 0, H * 0.6);
+  strand(L.poolDeck.x0, L.poolDeck.z1, L.poolDeck.x1, L.poolDeck.z1, H * 0.6);
+
+  // The street: asphalt, a dashed centre line, sidewalks either side, parked cars along both curbs.
   const { a: sa, b: sb } = L.street;
   const zs = L.zs;
   const xs = (p: number, q: number) => ({ x0: Math.min(p, q), x1: Math.max(p, q) });
-  add(box, std(0x34363a, 0.95), [slab({ ...xs(sa, sb), z0: zs.z0, z1: zs.z1 }, 0, 0.01)]);
-  add(box, std(0xb8b6ae, 0.9), [
-    slab({ ...xs(L.face, sa), z0: zs.z0, z1: zs.z1 }, 0, 0.04),
-    slab({ ...xs(sb, L.across), z0: zs.z0, z1: zs.z1 }, 0, 0.04),
-  ]);
+  top({ ...xs(sa, sb), z0: zs.z0, z1: zs.z1 }, LV.asphalt, 0x34363a);
+  top({ ...xs(L.face, sa), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
+  top({ ...xs(sb, L.across), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
   const mid = (sa + sb) / 2;
-  const dashes: Piece[] = [];
-  for (let z = zs.z0 + 1; z < zs.z1; z += 4) dashes.push({ x: mid, y: 0.012, z, sx: 0.12, sy: 0.006, sz: 1.8 });
-  add(box, std(0xd9d4c2, 0.8), dashes);
-  const bodies: Piece[] = [], cabins: Piece[] = [];
+  for (let z = zs.z0 + 1; z < zs.z1 - 1; z += 4) solid.push({ x: mid, y: LV.lane - 0.01, z, sx: 0.2, sy: 0.02, sz: 1.8, c: 0xd9d4c2 });
   const carCols = [0xe8e8e6, 0x1d1f22, 0x7d8288, 0x9e2b25, 0x2b4a73, 0xc9c6bd, 0x3b3f44, 0xb0b4b8];
-  const lane = [sa - s * 1.2, sb + s * 1.2];
-  for (const lx of lane)
-    for (let z = L.outer.z0 - 6 + r() * 3; z < L.outer.z1 + 6; z += 5.6 + r() * 4) {
-      if (r() < 0.3) continue;
-      const c = carCols[Math.floor(r() * carCols.length)]!;
-      bodies.push({ x: lx, y: 0.2, z, sx: 1.8, sy: 0.3, sz: 4.3, c });
-      cabins.push({ x: lx, y: 0.45, z: z + 0.2, sx: 1.6, sy: 0.22, sz: 2.2, c: 0x23262b });
-    }
-  add(box, std(0xffffff, 0.45, { metalness: 0.3 }), bodies);
-  add(box, std(0xffffff, 0.3, { metalness: 0.2 }), cabins);
+  const car = (x: number, z: number, y0: number, along = true) => {
+    const c = carCols[Math.floor(r() * carCols.length)]!;
+    solid.push({ x, y: y0 + 0.17, z, sx: along ? 1.8 : 4.3, sy: 0.3, sz: along ? 4.3 : 1.8, c });
+    solid.push({ x, y: y0 + 0.42, z, sx: along ? 1.6 : 2.2, sy: 0.22, sz: along ? 2.2 : 1.6, c: 0x23262b });
+  };
+  for (const lx of [sa - s * 1.2, sb + s * 1.2]) for (let z = L.outer.z0 - 6 + r() * 3; z < L.blvd.z0 - 3; z += 5.6 + r() * 4) if (r() > 0.3) car(lx, z, LV.asphalt);
 
-  // Street lamps along the block's sidewalk, their heads glowing and a pool under each by night.
-  const poles: Piece[] = [], heads: Piece[] = [];
-  const lampX = L.face - s * 0.7;
-  for (let z = L.outer.z0 + 2; z < L.outer.z1; z += 9) {
-    poles.push({ x: lampX, y: 0.55, z, sx: 0.07, sy: 1.1, sz: 0.07 });
-    heads.push({ x: lampX - s * 0.25, y: 1.1, z, sx: 0.5, sy: 0.06, sz: 0.18 });
+  // Street lamps along the block's sidewalk and both sides of the boulevard: heads that glow, a pool under each.
+  const lamp = (x: number, z: number, dx: number, dz: number) => {
+    solid.push({ x, y: 0.55, z, sx: 0.07, sy: 1.1, sz: 0.07, c: 0x2a2c30 });
+    glow.push({ x: x + dx * 0.25, y: 1.1, z: z + dz * 0.25, sx: dz ? 0.18 : 0.5, sy: 0.06, sz: dz ? 0.5 : 0.18, c: 0xffd29a });
+    pools.push({ x: x + dx * 0.4, y: LV.glow, z: z + dz * 0.4, sx: 5, sy: 1, sz: 5 });
+  };
+  for (let z = L.outer.z0 + 2; z < L.outer.z1; z += 9) lamp(L.face - s * 0.7, z, -s, 0);
+  for (let x = L.blvd.x0 + 4; x < L.blvd.x1; x += 10) {
+    lamp(x, L.blvd.z0 - 0.7, 0, 1);
+    lamp(x + 5, L.blvd.z1 + 0.7, 0, -1);
   }
-  add(box, std(0x2a2c30, 0.6), poles);
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xffd29a, toneMapped: false });
-  mats.push(headMat);
-  add(box, headMat, heads);
+
+  // Across the street: the parking decks (levels, ramps' stripes, cars on top) and the riverside park and trail.
+  for (const d of L.decks) {
+    const lv = 3, h = H * 0.95;
+    solid.push(slab(d, 0, h, 0xc4c3bd));
+    for (let k = 1; k < lv; k++) solid.push(slab({ x0: d.x0 - 0.04, z0: d.z0 - 0.04, x1: d.x1 + 0.04, z1: d.z1 + 0.04 }, (h * k) / lv - 0.03, 0.06, 0x8f9194));
+    for (let z = d.z0 + 1.2; z < d.z1 - 1.5; z += 2.6) if (r() > 0.45) car(d.x0 + 3 + r() * (d.x1 - d.x0 - 6), z, h, false);
+  }
+  top(L.park, LV.grass, 0x6d8f55);
+  top(L.bank, LV.grass, 0x6d8f55);
+  top(L.farBank, LV.grass, 0x6a8a52);
+  top(L.trail, LV.trail, 0xc2b79f);
+  solid.push(slab(L.river, LV.base, LV.water - LV.base, 0x3d5a6b));
+  for (let tz = L.park.z0 + 6; tz < L.park.z1; tz += 4 + r() * 5) tree(L.park.x0 + (L.park.x1 - L.park.x0) * (0.2 + r() * 0.6), tz, 1.1 + r() * 0.3);
+  for (let tz = L.bank.z0 + 6; tz < L.bank.z1 - 4; tz += 5 + r() * 6) tree((L.bank.x0 + L.bank.x1) / 2 + (r() - 0.5) * 2, tz, 1.2 + r() * 0.4);
+  for (let tz = L.farBank.z0 + 6; tz < L.farBank.z1 - 4; tz += 6 + r() * 6) tree((L.farBank.x0 + L.farBank.x1) / 2 + (r() - 0.5) * 6, tz, 1.3);
+
+  // The boulevard along the block's near end: two carriageways, the planted median with its trees, the sidewalks,
+  // and a row of low buildings beyond it.
+  const bz = L.blvd;
+  top({ x0: bz.x0, z0: bz.z0, x1: bz.x1, z1: bz.z1 }, LV.asphalt, 0x34363a);
+  const bm = (bz.z0 + bz.z1) / 2;
+  top({ x0: bz.x0, z0: bm - 1.2, x1: bz.x1, z1: bm + 1.2 }, LV.median, 0x5f8048);
+  for (let tx = bz.x0 + 3; tx < bz.x1; tx += 6 + r() * 3) tree(tx, bm, 1.1);
+  top({ x0: L.outer.x0, z0: L.outer.z1, x1: L.outer.x1, z1: bz.z0 }, LV.walk, 0xb8b6ae);
+  top({ x0: bz.x0, z0: bz.z1, x1: bz.x1, z1: bz.z1 + 1.4 }, LV.walk, 0xb8b6ae);
+  const nb = o.phone ? 5 : 8;
+  for (let i = 0, x = bz.x0 + 18; i < nb && x < bz.x1 - 6; i++) {
+    const len = 8 + r() * 10, dep = 9 + r() * 6, h = H * (0.55 + r() * 0.5);
+    solid.push({ x: x + len / 2, y: h / 2, z: bz.z1 + 2 + dep / 2, sx: len, sy: h, sz: dep, c: ROOF_TONES[Math.floor(r() * ROOF_TONES.length)]! });
+    if (r() < 0.6) solid.push({ x: x + len * (0.3 + r() * 0.4), y: h + 0.12, z: bz.z1 + 2 + dep * (0.3 + r() * 0.4), sx: 1.2, sy: 0.24, sz: 0.8, c: 0xb4b7b5 });
+    x += len + 1.5 + r() * 2;
+  }
+
+  add(box, baked(), solid);
+  const crown = shade(new THREE.IcosahedronGeometry(0.5, 0));
+  geos.push(crown);
+  add(crown, baked(), crowns);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+  mats.push(glowMat);
+  add(box, glowMat, glow);
   const poolTex = new THREE.CanvasTexture(disc());
   const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, color: 0xffc98a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   mats.push(poolMat);
   const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   geos.push(plane);
-  add(plane, poolMat, heads.map((h) => ({ x: h.x - s * 0.4, y: 0.05, z: h.z, sx: 5, sy: 1, sz: 5 })), 2);
-
-  // Across the street: low neighbours (two to four storeys, squashed like the house) and a parking deck.
-  const blocks: Piece[] = [];
-  const nb = o.phone ? 5 : 8;
-  let z = L.outer.z0 - 8;
-  for (let i = 0; i < nb && z < L.outer.z1 + 8; i++) {
-    const len = 9 + r() * 12, dep = 10 + r() * 10, h = (i % 3 === 1 ? 2.2 : 1.1) + r() * 1.2;
-    const deck = i % 3 === 1;
-    blocks.push({ x: L.across - s * (dep / 2 + 0.6), y: h / 2, z: z + len / 2, sx: dep, sy: h, sz: len, c: deck ? 0xc4c3bd : [0xcfcac0, 0xbfc3c6, 0xd6d2c8][i % 3] });
-    if (deck) for (let k = 1; k < 4; k++) blocks.push({ x: L.across - s * (dep / 2 + 0.6), y: (h * k) / 4, z: z + len / 2, sx: dep + 0.05, sy: 0.05, sz: len + 0.05, c: 0x8f9194 });
-    z += len + 1.2 + r() * 2;
-  }
-  add(box, std(0xffffff, 0.9), blocks);
-
-  // The park and the river beyond the neighbours: a long strip of grass, a trail, trees along the bank, the water.
-  const park0 = L.across - s * 26, park1 = park0 - s * 10, river1 = park1 - s * 14;
-  add(box, std(0x6d8f55, 1), [slab({ ...xs(park0, park1), z0: zs.z0 - 40, z1: zs.z1 + 40 }, 0, 0.02)]);
-  add(box, std(0xc2b79f, 1), [slab({ ...xs(park0 - s * 3, park0 - s * 4.2), z0: zs.z0 - 40, z1: zs.z1 + 40 }, 0, 0.03)]);
-  const water = std(0x3d5a6b, 0.25, { metalness: 0.1 });
-  add(box, water, [slab({ ...xs(park1, river1), z0: zs.z0 - 40, z1: zs.z1 + 40 }, 0, 0.008)]);
-  for (let tz = zs.z0 - 30; tz < zs.z1 + 30; tz += 5 + r() * 6) tree(park1 + s * (1 + r() * 2), tz, 1.2 + r() * 0.4);
-
-  // The boulevard at the block's far end: two carriageways and a planted median with trees.
-  const bx0 = L.across - 30, bx1 = L.outer.x1 + 30;
-  add(box, std(0x34363a, 0.95), [slab({ x0: bx0, z0: L.blvd.z0, x1: bx1, z1: L.blvd.z1 }, 0, 0.011)]);
-  const bm = (L.blvd.z0 + L.blvd.z1) / 2;
-  add(box, std(0x5f8048, 1), [slab({ x0: bx0, z0: bm - 1, x1: bx1, z1: bm + 1 }, 0, 0.06)]);
-  for (let tx = bx0 + 3; tx < bx1; tx += 7 + r() * 3) tree(tx, bm, 1.1);
-  add(box, std(0xb8b6ae, 0.9), [slab({ x0: L.outer.x0, z0: L.outer.z1, x1: L.outer.x1, z1: L.blvd.z0 }, 0, 0.04)]);
-
-  // The trees last: one mesh for the trunks, one for the crowns (low-poly, an octahedron each).
-  add(box, std(0x4a3a2c, 1), trunks);
-  const crown = shade(new THREE.IcosahedronGeometry(0.5, 0));
-  geos.push(crown);
-  add(crown, std(0xffffff, 0.95, { flatShading: true }), crowns);
+  add(plane, poolMat, pools, 2);
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(strings), 3));
+  geos.push(sg);
+  const stringMat = new THREE.PointsMaterial({ color: 0xffd9a0, size: o.phone ? 2.5 : 3, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+  mats.push(stringMat);
+  const bulbs = new THREE.Points(sg, stringMat);
+  bulbs.frustumCulled = false;
+  bulbs.renderOrder = 3;
+  group.add(bulbs);
 
   return {
     group,
+    bounds: L.bounds,
     update(day: number) {
       const night = 1 - Math.max(0, Math.min(1, day));
       for (const [m, c] of dims) m.color.copy(c).multiply(tint.copy(DAY).lerp(NIGHT, night));
       poolMat.opacity = 0.35 * night;
-      headMat.color.setHex(0xffd29a).multiplyScalar(0.25 + 0.75 * night);
+      glowMat.color.setScalar(0.3 + 0.7 * night);
+      stringMat.opacity = 0.95 * night;
+      bulbs.visible = night > 0.05;
     },
     dispose() {
       for (const g of geos) g.dispose();

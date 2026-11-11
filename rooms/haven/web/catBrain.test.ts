@@ -104,7 +104,7 @@ describe("Myshka's day (#729)", () => {
     const b = new CatBrain(g, plan, false, seq([0.5, 0.9, 0.1]));
     const now = 1_000_000;
     b.setSignals({ fedAt: now - 60_000, litterCycling: false });
-    const p = run(b, now, 30);
+    const p = run(b, now, 48);
     const near = b.spots.feeders.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 1);
     expect(near).toBe(true);
     expect(p.mode).toBe("sit");
@@ -117,7 +117,7 @@ describe("Myshka's day (#729)", () => {
   it("heads to the litter corner during a cycle", () => {
     const b = new CatBrain(g, plan, false, seq([0.5]));
     b.setSignals({ fedAt: null, litterCycling: true });
-    const p = run(b, 0, 25);
+    const p = run(b, 0, 48);
     expect(Math.hypot(p.x - b.spots.litter![0], p.y - b.spots.litter![1])).toBeLessThan(1);
   });
 

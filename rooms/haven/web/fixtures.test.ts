@@ -76,19 +76,23 @@ describe("the home's fixtures (#1007)", () => {
     expect(strip.out).toEqual([0, 1]);
   });
 
-  it("lights the open kitchen with the first switch's area and the far half through the dining room with the second (#1020)", () => {
+  it("lights the open kitchen, dining room and living room as one, in two halves, and part of the hall (#1020, #1022)", () => {
     const [a, b] = overheadZones(plan)!;
-    const k = kitchenRun(plan)!;
-    const dining = plan.rooms.find((r) => r.id === "nook")!.parts[0]!;
-    // The first from the run's front to the island's middle, the second from there on, the two meeting with no gap.
-    expect(a.y0).toBeLessThanOrEqual(k.run[3]);
-    expect(a.y1).toBe(b.y0);
-    expect(b.y0).toBeGreaterThan(k.island![1]);
-    expect(b.y0).toBeLessThan(k.island![3]);
-    // On into the dining room next door, all the way across it.
-    expect(b.y1).toBe(dining[1] + dining[3]);
-    expect(b.x0).toBeLessThanOrEqual(dining[0]);
-    expect(b.x1).toBeGreaterThanOrEqual(dining[0] + dining[2]);
+    const part = (id: string) => plan.rooms.find((r) => r.id === id)!.parts[0]!;
+    const k = part("kitchen"), d = part("nook"), l = part("living"), hall = part("hall");
+    // The made-up open room runs west to east from the kitchen (x 220) to the living room's far wall (x 960), y 40 to
+    // 460: the first half at the kitchen's end, the second on to the far end, meeting with no gap.
+    expect(a.x1).toBe(b.x0);
+    expect(b.x1).toBe(l[0] + l[2]);
+    expect(a.x0).toBeLessThan(k[0]);
+    expect(Math.min(a.y0, b.y0)).toBe(k[1]);
+    expect(Math.max(a.y1, b.y1)).toBe(d[1] + d[3]);
+    // The whole living room across, not a spot.
+    expect(b.y0).toBeLessThanOrEqual(l[1]);
+    expect(b.y1).toBeGreaterThanOrEqual(l[1] + l[3]);
+    // Part of the hall beside the kitchen, up to 150 into it, not all of it.
+    expect(a.x0).toBeGreaterThanOrEqual(hall[0] + hall[2] - 150);
+    expect(a.x0).toBeLessThan(hall[0] + hall[2]);
   });
 
   it("draws each of the four as its fixture, the ceiling ones as areas, and the living room's spill (#1020)", () => {
@@ -135,10 +139,11 @@ describe("the Studio's floor lamps (#1007)", () => {
 
   it("stands one in the corner over the DJ decks and one behind the sofas, by order or by left and right", () => {
     const list = drawList(studio, [govee("Studio Floor Lamp 1"), govee("Studio Floor Lamp 2")], undefined, false);
-    // The decks in the north-east corner, the sofas meeting in the south-west (furnish.ts STUDIO_WALLS).
+    // The decks in the north-east corner, the sofas meeting in the south-west (furnish.ts STUDIO_WALLS); each lamp
+    // right in its corner, against both walls (#1022).
     expect(list.map((d) => [d.fixture, d.x, d.y])).toEqual([
-      ["floor", sx + sw - 18, sy + 18],
-      ["floor", sx + 18, sy + sh - 18],
+      ["floor", sx + sw - 16, sy + 16],
+      ["floor", sx + 16, sy + sh - 16],
     ]);
     expect(studioLampCorner("Studio Lamp Left", 0)).toBe("sofas");
     expect(studioLampCorner("Studio Lamp Right", 1)).toBe("dj");

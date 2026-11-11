@@ -1,5 +1,5 @@
 import type { HavenPlan, PlanItem, PlanRoom } from "./data.ts";
-import { STUDIO_WALLS } from "./furnish.ts";
+import { OPEN_ROOM, STUDIO_WALLS } from "./furnish.ts";
 import type { PlanLight } from "../../../api/_haven/planShape.ts";
 import { LIGHT_KINDS as KINDS, type LightKind } from "../../../api/_haven/planShape.ts";
 
@@ -171,49 +171,45 @@ export function spotRows(plan: HavenPlan): [Run, Run] | null {
   return [row(d1), row(d2)];
 }
 
-const DINING = /\b(dining|nook)\b/i;
-
 /**
- * The floor the two overhead switches fill (#1020, Nikita: diffused through the space, all the way through the dining
- * room): the first from the cabinet run to the island's middle, across the open kitchen and the hall; the second from
- * there through the rest of the kitchen and on through a dining room beyond it.
+ * The floor the two overhead switches fill (#1020, #1022, Nikita: all the way through the dining room, the kitchen and
+ * the living room to its far edge, and part of the hall): the kitchen, dining room and living room are one open room
+ * (furnish.ts OPEN_ROOM); it is split across its length in two, the first ("left") at the kitchen's end, the second
+ * on to the far end, meeting with no gap. A hall beside it carries the zone it touches up to 150 into it.
  */
 export function overheadZones(plan: HavenPlan): [Run, Run] | null {
-  const k = kitchenRun(plan);
-  if (!k) return null;
-  const along = k.wall === "n" || k.wall === "s";
-  const far = k.wall === "n" || k.wall === "w";
-  const W = along ? (far ? k.R[1] : k.R[3]) : far ? k.R[0] : k.R[2];
-  const depth = (b: Box): [number, number] => {
-    const [p, q] = along ? [b[1], b[3]] : [b[0], b[2]];
-    return far ? [p - W, q - W] : [W - q, W - p];
-  };
-  const room = along ? k.R[3] - k.R[1] : k.R[2] - k.R[0];
-  const front = depth(k.run)[1];
-  const [i0, i1] = k.island ? depth(k.island) : [room * 0.5, room * 0.5];
-  const cut = Math.max(front + 40, (i0 + i1) / 2);
-  const [s0, s1] = openSpan(plan, k);
-  const a0 = s0 - 30, a1 = s1 + 30;
-  // A dining room past the kitchen's far wall, overlapping it along the run, carries the second zone on.
-  let end = room, b0 = a0, b1 = a1;
-  const kd: Box = [k.R[0], k.R[1], k.R[2], k.R[3]];
-  for (const r of plan.rooms) {
-    if (r.detached || !DINING.test(r.name)) continue;
-    const d = largest(r);
-    const [p0, p1] = depth(d);
-    const [q0, q1] = along ? [d[0], d[2]] : [d[1], d[3]];
-    const [k0, k1] = along ? [kd[0], kd[2]] : [kd[1], kd[3]];
-    if (Math.abs(p0 - room) > 4 || Math.min(q1, k1) - Math.max(q0, k0) < 60) continue;
-    end = Math.max(end, p1);
-    b0 = Math.min(b0, q0);
-    b1 = Math.max(b1, q1);
-  }
-  const at = (d: number) => (far ? W + d : W - d);
-  const box = (d0: number, d1: number, x0: number, x1: number): Run => {
-    const [u, v] = [at(d0), at(d1)].sort((m, n) => m - n) as [number, number];
-    return along ? { x0, y0: u, x1, y1: v } : { x0: u, y0: x0, x1: v, y1: x1 };
-  };
-  return [box(front - 10, cut, a0, a1), box(cut, end, b0, b1)];
+  const home = plan.rooms.filter((r) => !r.detached);
+  const open = home.filter((r) => OPEN_ROOM.test(r.name));
+  const kitchen = open.find((r) => /\bkitchen\b/i.test(r.name));
+  if (!kitchen) return null;
+  const parts = open.flatMap((r) => r.parts);
+  const U = { x0: Math.min(...parts.map((p) => p[0])), y0: Math.min(...parts.map((p) => p[1])), x1: Math.max(...parts.map((p) => p[0] + p[2])), y1: Math.max(...parts.map((p) => p[1] + p[3])) };
+  const long = U.x1 - U.x0 >= U.y1 - U.y0;
+  const kc = kitchen.parts.reduce((n, p) => n + (long ? p[0] + p[2] / 2 : p[1] + p[3] / 2), 0) / kitchen.parts.length;
+  const [lo, hi] = long ? [U.x0, U.x1] : [U.y0, U.y1];
+  const mid = (lo + hi) / 2;
+  const kitchenLow = kc <= mid;
+  const span = (a: number, b: number): Run => (long ? { x0: a, y0: U.y0, x1: b, y1: U.y1 } : { x0: U.x0, y0: a, x1: U.x1, y1: b });
+  const z = kitchenLow ? [span(lo, mid), span(mid, hi)] : [span(mid, hi), span(lo, mid)];
+  // Part of a hall beside the open room: up to 150 into it, along the stretch it shares.
+  for (const h of home.filter((r) => HALL.test(r.name) && !OPEN_ROOM.test(r.name)))
+    for (const [px, py, pw, ph] of h.parts) {
+      const P = { x0: px, y0: py, x1: px + pw, y1: py + ph };
+      const ox = Math.min(P.x1, U.x1) - Math.max(P.x0, U.x0), oy = Math.min(P.y1, U.y1) - Math.max(P.y0, U.y0);
+      let add: Run | null = null;
+      if (oy > 20 && Math.abs(P.x1 - U.x0) <= 2) add = { x0: Math.max(P.x0, U.x0 - 150), y0: Math.max(P.y0, U.y0), x1: U.x0, y1: Math.min(P.y1, U.y1) };
+      else if (oy > 20 && Math.abs(P.x0 - U.x1) <= 2) add = { x0: U.x1, y0: Math.max(P.y0, U.y0), x1: Math.min(P.x1, U.x1 + 150), y1: Math.min(P.y1, U.y1) };
+      else if (ox > 20 && Math.abs(P.y1 - U.y0) <= 2) add = { x0: Math.max(P.x0, U.x0), y0: Math.max(P.y0, U.y0 - 150), x1: Math.min(P.x1, U.x1), y1: U.y0 };
+      else if (ox > 20 && Math.abs(P.y0 - U.y1) <= 2) add = { x0: Math.max(P.x0, U.x0), y0: U.y1, x1: Math.min(P.x1, U.x1), y1: Math.min(P.y1, U.y1 + 150) };
+      if (!add) continue;
+      const c = long ? (add.x0 + add.x1) / 2 : (add.y0 + add.y1) / 2;
+      // The zone whose middle is nearer the hall's stretch.
+      const near = z.map((q) => Math.abs((long ? (q.x0 + q.x1) / 2 : (q.y0 + q.y1) / 2) - c));
+      const k = near[0]! <= near[1]! ? 0 : 1;
+      const q = z[k]!;
+      z[k] = { x0: Math.min(q.x0, add.x0), y0: Math.min(q.y0, add.y0), x1: Math.max(q.x1, add.x1), y1: Math.max(q.y1, add.y1) };
+    }
+  return [z[0]!, z[1]!];
 }
 
 /** A band of overhead light round a run (a saved row), `half` either side, as a box. */
@@ -265,7 +261,7 @@ function rowThrough(plan: HavenPlan, x: number, y: number): Run {
 export function placeFixture(plan: HavenPlan, kind: LightKind, spot: Pick<PlanLight, "x" | "y" | "x2" | "y2"> | null, index = 0): FixturePlace | null {
   if (spot && typeof spot.x2 === "number" && typeof spot.y2 === "number") {
     const run = { x0: spot.x, y0: spot.y, x1: spot.x2, y1: spot.y2 };
-    if (kind === "spots") return { kind, run, zone: bandOf(run) };
+    if (kind === "spots") return { kind, run, zone: overheadZones(plan)?.[Math.min(1, Math.max(0, index))] ?? bandOf(run) };
     if (kind === "glow") return { kind, run, zone: bandOf(run, 90) };
     // A saved backlight faces into the room it runs along: the side its middle's room lies on.
     const dx = run.x1 - run.x0, dy = run.y1 - run.y0, L = Math.hypot(dx, dy) || 1;
@@ -275,13 +271,12 @@ export function placeFixture(plan: HavenPlan, kind: LightKind, spot: Pick<PlanLi
     return { kind, run, out: inRoom(mx + n[0] * 30, my + n[1] * 30) ? n : [-n[0], -n[1]] };
   }
   if (kind === "spots") {
-    if (spot) {
-      const run = rowThrough(plan, spot.x, spot.y);
-      return { kind, run, zone: bandOf(run) };
-    }
+    // The open room's two halves always (#1022): a saved spot moves only the row the zone is named after.
     const rows = spotRows(plan), zones = overheadZones(plan);
     const i = Math.min(1, Math.max(0, index));
-    return rows && zones ? { kind, run: rows[i]!, zone: zones[i]! } : null;
+    const run = spot ? rowThrough(plan, spot.x, spot.y) : rows?.[i];
+    if (!run) return null;
+    return { kind, run, zone: zones?.[i] ?? bandOf(run) };
   }
   if (kind === "backlight") {
     const b = backlightRun(plan);
@@ -308,7 +303,8 @@ export function studioLampSpots(plan: HavenPlan): { dj: { x: number; y: number }
   const [x0, y0, x1, y1] = largest(room);
   const corner = ([a, b]: readonly [string, string]) => {
     const side = [a, b];
-    const inset = 18;
+    // Right in the corner, against both walls (#1022): the lamp's base is about 30 across.
+    const inset = 16;
     return { x: side.includes("w") ? x0 + inset : x1 - inset, y: side.includes("n") ? y0 + inset : y1 - inset };
   };
   return { dj: corner(STUDIO_WALLS.dj), sofas: corner(STUDIO_WALLS.sofas) };

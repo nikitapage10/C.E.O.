@@ -13,6 +13,8 @@ import type { GymGeo } from "./gymKit.ts";
 export const HOME_MODELS = new Set<Kind>([
   "counter", "range", "fridge", "island", "tv", "sofa", "cattree", "lamp", "shower", "tub", "wc", "vanity",
   "towelbar", "litterbox", "coatrack", "tunnel", "greenhouse", "bowls", "sideboard", "upper", "dj", "art", "espresso",
+  // #1022: no more plain boxes for these.
+  "minifridge", "projector", "rail", "coffeebar", "cupshelf", "bin", "accent",
 ]);
 
 export interface HomeMats {
@@ -238,12 +240,12 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "cattree": {
-      // A tall black cat tree: a base, posts, platforms and a perch at the top.
-      const w = Math.min(L, D);
-      b(M.soft, w, 0.04, w, 0, 0.02, 0);
-      for (const [x, z] of [[-w * 0.22, -w * 0.18], [w * 0.2, w * 0.2]] as const) c(M.black, 0.035, H, x, H / 2, z);
-      for (const [y, s, x] of [[0.3, 0.7, 0.05], [0.58, 0.6, -0.08], [H - 0.04, 0.75, 0]] as const) b(M.soft, w * s, 0.035, w * s, w * x, y, 0);
-      b(M.soft, w * 0.5, 0.12, w * 0.5, 0, 0.48, w * 0.12);
+      // A flat cat tower against the wall (#1022): a tall back board, steps up it side to side, a post and a perch.
+      const h = Math.max(H, 1.1);
+      b(M.black, L, h, 0.03, 0, h / 2, D / 2 - 0.015);
+      b(M.soft, L, 0.03, D, 0, 0.015, 0);
+      for (const [y, x] of [[0.3, -0.25], [0.55, 0.22], [0.8, -0.2], [h - 0.03, 0.1]] as const) b(M.soft, L * 0.5, 0.03, D, x * L, y, 0);
+      c(M.dark, 0.035, 0.5, L * 0.3, 0.27, 0);
       return g;
     }
     case "lamp": {
@@ -355,16 +357,97 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "dj": {
-      // The DJ deck on its black stand: two platters, the mixer between, a thin green light along the front.
-      const top = H * 0.85;
+      // A DJ setup against the wall (#1022): a black stand, two decks (players with their platters and pitch faders),
+      // the mixer between with its knobs and faders, a laptop on a stand behind, a monitor speaker at each end.
+      const top = H * 0.85, deck = Math.min(L * 0.3, 0.36), dz = D * 0.12;
       b(M.black, L, 0.03, D, 0, top, 0);
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b(M.black, 0.025, top, 0.025, sx * (L / 2 - 0.03), top / 2, sz * (D / 2 - 0.03));
-      for (const s of [-1, 1]) {
-        b(M.dark, L * 0.36, 0.04, D * 0.8, s * L * 0.3, top + 0.035, 0);
-        c(M.grey, Math.min(L * 0.13, D * 0.32), 0.012, s * L * 0.3, top + 0.06, 0);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b(M.black, 0.03, top, 0.03, sx * (L / 2 - 0.03), top / 2, sz * (D / 2 - 0.03));
+      b(M.black, L - 0.06, 0.02, D - 0.08, 0, 0.12, 0);
+      for (const sx of [-1, 1]) {
+        const x = sx * (L / 2 - deck / 2 - 0.1);
+        b(M.dark, deck, 0.06, D * 0.62, x, top + 0.045, -dz);
+        c(M.grey, deck * 0.36, 0.012, x, top + 0.081, -dz - D * 0.04);
+        c(M.chrome, deck * 0.07, 0.016, x, top + 0.086, -dz - D * 0.04);
+        b(M.chrome, 0.012, 0.01, deck * 0.4, x + deck * 0.38, top + 0.082, -dz - D * 0.02);
+        b(M.grey, 0.02, 0.006, D * 0.22, x + deck * 0.4, top + 0.079, -dz + D * 0.16);
+        // The monitor speaker at this end, against the wall.
+        b(M.black, 0.1, 0.18, 0.12, sx * (L / 2 - 0.06), top + 0.105, D / 2 - 0.08);
+        c(M.grey, 0.03, 0.005, sx * (L / 2 - 0.06), top + 0.07, D / 2 - 0.142, "z");
       }
-      b(M.dark, L * 0.16, 0.05, D * 0.8, 0, top + 0.04, 0);
+      const mw = Math.min(L * 0.2, 0.22);
+      b(M.dark, mw, 0.07, D * 0.62, 0, top + 0.05, -dz);
+      for (let i = 0; i < 3; i++) for (const sx of [-1, 1]) c(M.grey, 0.008, 0.012, sx * mw * 0.25, top + 0.09, -dz - D * 0.2 + i * D * 0.1);
+      for (const sx of [-1, 1]) b(M.chrome, 0.008, 0.006, D * 0.12, sx * mw * 0.25, top + 0.087, -dz + D * 0.18);
+      b(M.chrome, mw * 0.5, 0.006, 0.008, 0, top + 0.087, -dz + D * 0.27);
       b(M.green, L * 0.9, 0.006, 0.006, 0, top + 0.012, -D / 2 - 0.004);
+      // The laptop on its stand, behind the mixer.
+      b(M.black, 0.02, 0.1, 0.02, 0, top + 0.065, D * 0.3);
+      b(M.steel, 0.3, 0.012, 0.2, 0, top + 0.12, D * 0.3);
+      b(M.screen, 0.3, 0.18, 0.008, 0, top + 0.21, D * 0.3 + 0.1);
+      return g;
+    }
+    case "minifridge": {
+      // A black bar fridge (#1022): its glass door, a cool light inside on the shelves, a steel handle.
+      b(M.black, L, H, D, 0, H / 2, 0);
+      b(M.glass, L * 0.86, H * 0.82, 0.01, 0, H * 0.48, fz - 0.006);
+      for (const y of [0.3, 0.55, 0.8]) b(M.white, L * 0.8, 0.006, D * 0.7, 0, H * y, 0);
+      b(M.steel, 0.012, H * 0.5, 0.02, L * 0.38, H * 0.5, fz - 0.016);
+      return g;
+    }
+    case "projector": {
+      // A small projector hung from the ceiling on a drop rod (#1022): a grey body, its lens toward the TV.
+      const y = lift + H / 2;
+      b(M.grey, Math.min(L, 0.3), H, Math.min(D, 0.24), 0, y, 0);
+      c(M.dark, 0.035, 0.03, 0, y, fz - 0.01, "z");
+      c(M.black, 0.012, 1.4 - lift - H, 0, (1.4 + lift + H) / 2, 0);
+      return g;
+    }
+    case "rail": {
+      // A clothes rail (#1022): two uprights, the bar, a shelf over it, and clothes hanging along it.
+      const top = Math.max(H, 0.6);
+      for (const sx of [-1, 1]) b(M.chrome, 0.02, top, 0.02, sx * (L / 2 - 0.02), top / 2, 0);
+      c(M.chrome, 0.008, L, 0, top * 0.86, 0, "x");
+      b(M.black, L, 0.02, D, 0, top + 0.01, 0);
+      const n = Math.max(3, Math.floor(L / 0.06));
+      const tones = [M.dark, M.grey, M.white, M.soft, M.black];
+      for (let i = 0; i < n; i++) {
+        const len = top * (0.4 + ((i * 7) % 5) * 0.06);
+        b(tones[(i * 3) % tones.length]!, 0.035, len, D * 0.8, -L / 2 + 0.05 + (i + 0.5) * ((L - 0.1) / n), top * 0.85 - len / 2, 0);
+      }
+      return g;
+    }
+    case "coffeebar": {
+      // The coffee station (#1022): a black cabinet with drawers and a white stone top.
+      b(M.black, L, H - 0.03, D - 0.02, 0, (H - 0.03) / 2, 0.01);
+      b(M.stone, L + 0.01, 0.03, D + 0.01, 0, H - 0.015, 0);
+      for (const y of [0.33, 0.66]) b(M.dark, L - 0.02, 0.004, 0.004, 0, H * y, fz - 0.001);
+      for (const y of [0.16, 0.5, 0.83]) b(M.steel, L * 0.3, 0.01, 0.012, 0, H * y, fz - 0.008);
+      return g;
+    }
+    case "cupshelf": {
+      // Two little black wall shelves over the coffee station, cups and mugs along them (#1022).
+      for (const y of [lift + 0.06, lift + 0.26]) {
+        b(M.black, L, 0.018, D, 0, y, 0);
+        const n = Math.max(2, Math.floor(L / 0.11));
+        for (let i = 0; i < n; i++) c(i % 3 === 1 ? M.black : M.white, 0.025, 0.06, -L / 2 + (i + 0.5) * (L / n), y + 0.039, 0);
+      }
+      return g;
+    }
+    case "bin": {
+      // A brushed-steel rectangular bin (#1022), its lid and the pedal.
+      b(M.steel, L, H, D, 0, H / 2, 0);
+      b(M.chrome, L + 0.004, 0.02, D + 0.004, 0, H + 0.01, 0);
+      b(M.black, L * 0.4, 0.015, 0.03, 0, 0.02, fz - 0.015);
+      return g;
+    }
+    case "accent": {
+      // A round accent chair (#1022): a soft barrel seat with a curved back round its rear half.
+      const r = Math.min(L, D) / 2;
+      c(M.soft, r, H * 0.55, 0, (H * 0.55) / 2, 0);
+      for (let i = 0; i < 7; i++) {
+        const an = Math.PI * (0.15 + (0.7 * i) / 6);
+        b(M.soft, r * 0.5, H, 0.08, Math.cos(an) * r * 0.82, H / 2, Math.sin(an) * r * 0.82).rotation.y = -an + Math.PI / 2;
+      }
       return g;
     }
     case "art": {
@@ -423,6 +506,16 @@ export function deviceModel(G: GymGeo, M: HomeMats, kind: Spot, s: number): THRE
     case "wet-feeder":
       c(M.black, 14, 10, 0, 5, 0);
       c(M.steel, 9, 3, 0, 10.5, 0);
+      return g;
+    case "vacuum":
+      // The robot vacuum on its dock (#1022): the dock's back against the wall, the round robot in front with its
+      // laser turret, a green charging light.
+      b(M.black, 30, 10, 8, 0, 5, 14);
+      b(M.dark, 26, 1, 14, 0, 0.5, 6);
+      c(M.white, 17, 9, 0, 5.5, -4);
+      c(M.dark, 16.5, 0.6, 0, 10.2, -4);
+      c(M.white, 4, 3, 0, 11.5, -1);
+      c(M.green, 0.8, 1, 0, 8, 10.5, "z");
       return g;
     case "litter":
       // The black mat under it, the drawer base, the step, the drum and its front opening.

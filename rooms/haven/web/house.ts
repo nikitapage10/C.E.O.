@@ -664,13 +664,17 @@ export class House {
     tex.colorSpace = THREE.SRGBColorSpace;
     const mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xb8c4dd, transparent: true, opacity: 0.85 });
     const list: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
+    const tall = this.plan.tall ?? [];
     for (const w of this.plan.windows) {
       const hz = w[1] === w[3];
       const L = (hz ? Math.abs(w[2] - w[0]) : Math.abs(w[3] - w[1])) / U;
-      const n = Math.max(1, Math.round(L / 0.5)), seg = L / n;
+      // A tall window (#1022) is one pane from just over the floor.
+      const high = tall.some((t) => t.every((v, i) => v === w[i]));
+      const sill = high ? WH * 0.04 : SILL;
+      const n = high ? 1 : Math.max(1, Math.round(L / 0.5)), seg = L / n;
       for (let k = 0; k < n; k++) {
         const f = (k + 0.5) / n;
-        list.push({ x: this.wx(w[0] + (w[2] - w[0]) * f), y: (SILL + WIN_TOP) / 2, z: this.wz(w[1] + (w[3] - w[1]) * f), sx: hz ? seg - 0.02 : T + 0.012, sy: WIN_TOP - SILL, sz: hz ? T + 0.012 : seg - 0.02 });
+        list.push({ x: this.wx(w[0] + (w[2] - w[0]) * f), y: (sill + WIN_TOP) / 2, z: this.wz(w[1] + (w[3] - w[1]) * f), sx: hz ? seg - 0.02 : T + 0.012, sy: WIN_TOP - sill, sz: hz ? T + 0.012 : seg - 0.02 });
       }
     }
     this.disposers.push(() => (mat.dispose(), tex.dispose()));
@@ -745,6 +749,9 @@ export class House {
       if (!m) continue;
       m.position.set(this.wx((x0 + x1) / 2), 0, this.wz((y0 + y1) / 2));
       m.rotation.y = rot;
+      // A round accent chair faces the coffee table it stands by (#1022), not the wall behind it.
+      const table = it.k === "accent" ? this.plan.items.filter((t) => t.k === "ctable").sort((a, b) => Math.hypot(a.x - it.x, a.y - it.y) - Math.hypot(b.x - it.x, b.y - it.y))[0] : undefined;
+      if (table) m.rotation.y = Math.atan2(-(this.wx(table.x + table.w / 2) - m.position.x), -(this.wz(table.y + table.h / 2) - m.position.z));
       if (m.userData.dispose) this.disposers.push(m.userData.dispose as () => void);
       all.add(m);
     }

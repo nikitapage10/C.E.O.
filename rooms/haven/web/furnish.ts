@@ -1,4 +1,4 @@
-import type { HavenPlan, Kind, PlanItem, PlanRoom, Seg } from "./data.ts";
+import type { HavenPlan, Kind, PlanDevice, PlanItem, PlanRoom, Seg } from "./data.ts";
 import { KIND_STYLE } from "./style.ts";
 
 /*
@@ -14,29 +14,39 @@ import { KIND_STYLE } from "./style.ts";
  *                 wider than a door is glazed like every other room, windows along it with one glass door out (#860),
  *                 and every balcony door is one single door wide, saved or derived (#935).
  *                 Every other wall stays solid. What the plan does save wins. The kitchen and the hall are one open
- *                 space: no wall is drawn where they meet.
+ *                 space: no wall is drawn where they meet; nor between the kitchen, the dining room and the living
+ *                 room, one open room (#1022, openSeams).
  *   Living room   the TV on its back wall across from the Gym (else facing the windows), a long low console under it, an L sectional facing
  *                 it, turned to the east and south walls (#935: the return faces the other one when the TV is on one,
- *                 else the L backs onto both), with a square coffee table on a rug between, an arc lamp behind the sofa (kept in the corner it
- *                 has always stood in when the openings come from the walls), a drinks fridge beside it, and the tall
- *                 cat tree in the corner by the balcony door: the home's only cat tree.
+ *                 else the L backs onto both), narrow (#1022) so the way to the balcony door stays clear, with a square
+ *                 coffee table on a rug between and two round accent chairs facing it, an arc lamp snug behind the sofa
+ *                 (kept in the corner it has always stood in when the openings come from the walls), a drinks fridge
+ *                 beside it, and the cat tower flat against the wall by the balcony door, out of the doorway with room
+ *                 to walk past: the home's only cat tree.
  *   Studio        turned 90° clockwise (2026-11-06, #959): the desk against the east wall (two monitors, an office
- *                 chair, speakers either side, a tall shelf at its other end), two low sofas meeting in an L along the
- *                 south and west walls, a coffee table on a rug in front of them, and the DJ decks in the north-east
- *                 corner (STUDIO_WALLS). No printer.
+ *                 chair, speakers either side, a tall shelf at its other end), two low, narrow sofas meeting in an L
+ *                 along the south and west walls, a coffee table on a rug in front of them, and the DJ decks against
+ *                 the north wall by the north-east corner, whose very corner is the floor lamp's (STUDIO_WALLS). No
+ *                 printer. Three tall windows on its east wall, its wall by the litter box straight with its door
+ *                 beside the box (#1022).
  *   Kitchen       what the plan has, with the fridge at the left end of the cabinet run (looking at it), the hob
- *                 centre-left on the run, about a third of the way from the fridge's end (#1007), the espresso
- *                 machine on the counter, no sideboard or cabinet of bottles, and on the wall across from the
- *                 cabinets five tall black-and-white canvases side by side, one picture of trees and mountains; a tub
- *                 chair in a free corner of the dining area.
- *   Dining        the coffee station (#860): a low sideboard with the espresso machine on it, against the dining
- *                 room's wall on the TV's side (the back wall, away from the Gym), behind the table; the espresso machine
- *                 leaves the kitchen counter for it. When no stretch of that wall is free, it stays on the counter.
+ *                 centre-left on the run, about a third of the way from the fridge's end (#1007), no sideboard or
+ *                 cabinet of bottles, and on the wall across from the cabinets five tall black-and-white canvases side
+ *                 by side, one picture of trees and mountains. The coffee station (#1022) just past the run's
+ *                 right-hand end: a black cabinet, the espresso machine on its left, black cup shelves over it; the sink
+ *                 at the run's right-hand end. A steel bin by the island's east end; only the island's stools.
+ *   Baths         the guest bath a little bigger, the tub on its west wall, the toilet about the middle of its south
+ *                 wall with the vanity beside it; the master bath with its shower on the north wall and the vanity on
+ *                 the south (#1022).
+ *   Hall          the coat rack on its east wall, no rugs and no stray pieces, the docked vacuum on its west wall by
+ *                 the plant cabinet or the hall's light (#1022).
+ *   Main bedroom  its door at the far end of its wall, the bed moved west of it, three tall windows on its west wall;
+ *                 the closet with clothes rails along its north and south walls (#1022).
  *   Balcony nook  beside a balcony door anywhere but the living room, the Studio and the main bedroom: a small lit
- *                 greenhouse in the corner on its solid side, a round cat bed by it, and an air purifier under the
- *                 nearest window.
+ *                 greenhouse in the corner on its solid side and an air purifier under the nearest window.
  *
- * Pure and deterministic, and only the drawing uses it: the stored plan is untouched. Devices stay where they are.
+ * Pure and deterministic, and only the drawing uses it: the stored plan is untouched. Devices stay where they are, but
+ * the docked vacuum.
  */
 
 type Side = "n" | "s" | "w" | "e";
@@ -121,6 +131,7 @@ function windowWall(R: Rect, p: HavenPlan): Side {
 
 /** Pieces that stand on the floor and take it up (not rugs and mats, not what hangs or sits on something else). */
 const solid = (it: PlanItem) => KIND_STYLE[it.k].height > 2 && KIND_STYLE[it.k].lift < 20;
+const grow = (b: Box, m: number): Box => [b[0] - m, b[1] - m, b[2] + m, b[3] + m];
 const overlaps = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 /** Whether a piece would stand in another's footprint (a rug only clashes with another rug). */
 const clash = (list: PlanItem[], it: PlanItem) => list.some((o) => (solid(it) ? solid(o) : o.k === it.k) && overlaps(boxOf(o), boxOf(it)));
@@ -132,12 +143,13 @@ const fits = (R: Rect, it: PlanItem) => {
 /* ── the rooms ── */
 
 /** Where the arc lamp stands for a TV wall: behind the sectional, at its return end. */
-function lampSpot(R: Rect, tvWall: Side, retEnd: "lo" | "hi"): [number, number] {
+function lampSpot(R: Rect, tvWall: Side, retEnd: "lo" | "hi", sofaDep = SOFA_DEP, back = 2): [number, number] {
   const L = wallLen(R, tvWall), D = depthTo(R, tvWall);
-  const sofaDep = 90, sofaOff = clampLen(D * 0.58, 200, D - sofaDep - 30);
+  const sofaOff = clampLen(D * 0.58, 200, D - sofaDep - 30);
   const sofaLen = clampLen(L * 0.62, 180, 300), t0 = (L - sofaLen) / 2;
   const lampT = retEnd === "lo" ? t0 + 10 : t0 + sofaLen - 10;
-  return centreOfRect(inFrom(R, tvWall, lampT - 16, 32, 32, Math.min(D - 40, sofaOff + sofaDep + 14)));
+  // Snug behind the sofa (#1022), so the way along its back stays open past the lamp.
+  return centreOfRect(inFrom(R, tvWall, lampT - 16, 32, 32, Math.min(D - 40, sofaOff + sofaDep + back)));
 }
 
 /**
@@ -157,6 +169,9 @@ function tvWallOf(R: Rect, p: HavenPlan): Side {
   return named ?? (glass(R, OPP[win], p) === 0 ? OPP[win] : ([...solidSides].sort((a, b) => wallLen(R, b) - wallLen(R, a))[0] ?? OPP[win]));
 }
 
+/** How deep the living room's sofas are (#1022, Nikita: narrower, so the way to the balcony door stays clear). */
+const SOFA_DEP = 66;
+
 /** The walls the living room's sectional turns to when the plan names none (Nikita, 2026-11-06, #935). */
 const SECTIONAL: [Side, Side] = ["e", "s"];
 
@@ -172,6 +187,12 @@ function sectionalOf(tvWall: Side, faces: [Side, Side]): { backed: boolean; retE
   const backed = axis !== tvWall;
   const want = backed ? other : OPP[other];
   return { backed, retEnd: endSide(tvWall, "lo") === want ? "lo" : "hi" };
+}
+
+/** Whether a piece stands in front of the doorway [a, b] on wall s (within a door's swing of it). */
+function onDoorway(R: Rect, s: Side, a: number, b: number, it: PlanItem): boolean {
+  const door = against(R, s, a - 10, b - a + 20, 90, 0);
+  return overlaps(boxOf(it), [door[0], door[1], door[0] + door[2], door[1] + door[3]]);
 }
 
 /** `pinLamp`: the openings came from the walls, so the arc lamp keeps the spot it had before they did (#764). */
@@ -192,7 +213,7 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   // corner, still facing the TV: against the walls, unless a balcony door is on the one behind it.
   const turn = sectionalOf(tvWall, p.sectional ?? SECTIONAL);
   const retEnd = turn.retEnd, backed = turn.backed && !runs(R, OPP[tvWall], p.balconies ?? []).length;
-  const sofaDep = 90, sofaOff = backed ? D - sofaDep - 6 : clampLen(D * 0.58, 200, D - sofaDep - 30);
+  const sofaDep = SOFA_DEP, sofaOff = backed ? D - sofaDep - 6 : clampLen(D * 0.58, 200, D - sofaDep - 30);
   const sofaLen = clampLen(L * 0.62, 180, 300);
   const t0 = backed ? (retEnd === "lo" ? 6 : L - sofaLen - 6) : (L - sofaLen) / 2;
   out.push(item("sofa", inFrom(R, tvWall, t0, sofaLen, sofaDep, sofaOff)));
@@ -217,7 +238,8 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
     // Before the walls gave the openings, the room was laid out from its longest wall (glass nowhere): the lamp stood
     // behind the sofa at the start of the wall facing that one. It stays there, else snug in that corner.
     const longest = [...SIDES].sort((a, b) => wallLen(R, b) - wallLen(R, a))[0]!;
-    const was = lampSpot(R, OPP[longest], "lo");
+    // (The sofas were 90 deep then.)
+    const was = lampSpot(R, OPP[longest], "lo", 90, 14);
     const snug = corner(R, longest, endSide(longest, "lo"), 24, 24);
     lamp = [was, snug].map(([x, y]) => round("lamp", x, y, 32)).find((it) => fits(R, it) && !clash(out, it)) ?? lamp;
   }
@@ -228,11 +250,33 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   const ctSide: Side = door ? door.s : win;
   const ctEnd: "lo" | "hi" = door ? (door.at < wallLen(R, door.s) / 2 ? "lo" : "hi") : "hi";
   const other = (e: "lo" | "hi"): "lo" | "hi" => (e === "lo" ? "hi" : "lo");
-  const trees = ([[ctSide, ctEnd], [ctSide, other(ctEnd)], [OPP[ctSide], ctEnd], [OPP[ctSide], other(ctEnd)]] as [Side, "lo" | "hi"][]).map(([s, e]) => {
-    const [cx, cy] = corner(R, s, endSide(s, e), 40, 40);
-    return round("cattree", cx, cy, 64);
-  });
-  out.push(trees.find((it) => !clash(out, it)) ?? trees[0]!);
+  // Flat and shallow against the wall (#1022, Nikita: a square block stood in the way to the balcony).
+  // Into the corner by the door, else just beside the door on that wall, else the other corners.
+  const tw = 80, td = 28;
+  const drun = door ? runs(R, door.s, p.balconies ?? [])[0] : undefined;
+  const beside = door && drun ? [drun[0] - 12 - tw, drun[1] + 12].filter((t) => t >= 4 && t + tw <= wallLen(R, door.s) - 4).map((t) => item("cattree", against(R, door.s, t, tw, td, 0))) : [];
+  const corners = ([[ctSide, ctEnd], [ctSide, other(ctEnd)], [OPP[ctSide], ctEnd], [OPP[ctSide], other(ctEnd)]] as [Side, "lo" | "hi"][]).map(([s, e]) =>
+    item("cattree", against(R, s, e === "lo" ? 4 : wallLen(R, s) - 4 - tw, tw, td, 0)),
+  );
+  const trees = [corners[0]!, ...beside, ...corners.slice(1)];
+  const inDoorway = (it: PlanItem) => !!door && runs(R, door.s, p.balconies ?? []).some(([a, b]) => onDoorway(R, door.s, a, b, it));
+  // Room to walk past it: nothing else standing within a way's width (45) of it.
+  const roomy = (it: PlanItem) => !out.some((o) => solid(o) && overlaps(boxOf(o), grow(boxOf(it), 45)));
+  out.push(trees.find((it) => !clash(out, it) && !inDoorway(it) && roomy(it)) ?? trees.find((it) => !clash(out, it) && !inDoorway(it)) ?? trees[0]!);
+  // Two round accent chairs on the coffee table's open side, facing it (#1022): the first side, not the TV's, where
+  // both stand clear of the sofas and the walls.
+  const table = out.find((it) => it.k === "ctable")!;
+  const tb = boxOf(table);
+  for (const s of SIDES.filter((x) => x !== tvWall)) {
+    const d = 52, off = 20, hz = s === "n" || s === "s";
+    const c = hz ? (tb[0] + tb[2]) / 2 : (tb[1] + tb[3]) / 2;
+    const at = s === "n" ? tb[1] - off - d / 2 : s === "s" ? tb[3] + off + d / 2 : s === "w" ? tb[0] - off - d / 2 : tb[2] + off + d / 2;
+    const pair = [-1, 1].map((k) => (hz ? round("accent", c + k * (d / 2 + 8), at, d) : round("accent", at, c + k * (d / 2 + 8), d)));
+    if (pair.every((it) => fits(R, it) && !clash(out, it))) {
+      out.push(...pair);
+      break;
+    }
+  }
   // The projector on the ceiling over the coffee table.
   out.push(item("projector", inFrom(R, tvWall, (L - 34) / 2, 34, 26, gapMid + 20)));
   return out;
@@ -244,6 +288,8 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
  * Walls are named as everywhere here: north is the top of the plan (smallest y), east its right-hand side.
  */
 export const STUDIO_WALLS: { desk: Side; sofas: [Side, Side]; dj: [Side, Side] } = { desk: "e", sofas: ["s", "w"], dj: ["n", "e"] };
+/** The DJ setup's length along its wall (#1022): two decks and the mixer between, on one stand. */
+const DJ_LEN = 130;
 
 function studio(R: Rect, p: HavenPlan, doors: Seg[]): PlanItem[] {
   const { desk: dw, sofas, dj: djCorner } = STUDIO_WALLS;
@@ -268,8 +314,9 @@ function studio(R: Rect, p: HavenPlan, doors: Seg[]): PlanItem[] {
   const [ox, oy] = centreOfRect(inFrom(R, dw, s0 + uw / 2 - 29, 58, 58, 84));
   out.push(round("ochair", ox, oy, 58));
   // The DJ decks in their corner: along either wall from the corner, sliding out of it until free.
-  const dj = (s: Side, from: Side, t: number) => [item("dj", against(R, s, tFrom(R, s, from, t, 80), 80, 46, 6))];
-  const steps = [4, 24, 48, 72, 100, 130];
+  // Against the wall (#1022), a little out of the corner, which the floor lamp has (fixtures.ts studioLampSpots).
+  const dj = (s: Side, from: Side, t: number) => [item("dj", against(R, s, tFrom(R, s, from, t, DJ_LEN), DJ_LEN, 52, 0))];
+  const steps = [44, 60, 80, 104, 130];
   const [dA, dB] = djCorner;
   const djAt = cands([...steps.map((t) => dj(dA, dB, t)), ...steps.map((t) => dj(dB, dA, t))]);
   out.push(...djAt);
@@ -278,7 +325,8 @@ function studio(R: Rect, p: HavenPlan, doors: Seg[]): PlanItem[] {
   out.push(...cands([4, 24, 48].map((t) => [item("shelf", against(R, dw, tFrom(R, dw, shelfFrom, t, 50), 50, 40))])));
   // The L of two low sofas along their two walls, meeting in that corner, short of the door when it is on one of them.
   // Either may be the long one: the way round that seats the most wins.
-  const dep = 82;
+  // Low and narrow (#1022, Nikita: much narrower).
+  const dep = 58;
   const room = (s: Side, from: "lo" | "hi", want: number) => {
     if (!door || door.s !== s) return want;
     const free = from === "lo" ? door.a - 4 - 16 : wallLen(R, s) - door.b - 4 - 16;
@@ -392,15 +440,52 @@ function kitchen(r: PlanRoom, R: Rect, items: PlanItem[], plan: HavenPlan): Plan
       }
     }
   }
-  // The espresso machine on the counter, toward the end away from the fridge, clear of the sink and the hob.
-  const busy = list.filter((i) => (i.k === "sink" || i.k === "range") && inBox(...mid(i), nr)).map((i) => A(boxOf(i)));
+  // The coffee station (#1022, Nikita): its own small cabinet just past the run's right-hand end (away from the
+  // fridge), the espresso machine on its left, black wall shelves with cups over it; the sink at the run's right-hand
+  // end, where the machine stood on the counter. With no room past the run, the machine stays on the counter there.
   const len = 30, dep = Math.max(10, Math.min(26, xs[1] - xs[0] - 4));
-  const at = wall === "n" || wall === "w" ? xs[0] + 2 : xs[1] - 2 - dep;
-  for (let k = 0; 8 + k * 10 + len + 8 <= n1 - n0; k++) {
-    const t = leftLow ? n1 - 8 - len - k * 10 : n0 + 8 + k * 10;
-    if (busy.some(([a, b]) => t < b + 6 && t + len > a - 6)) continue;
-    list.push(item("espresso", along ? [t, at, len, dep] : [at, t, dep, len]));
+  const runDep = xs[1] - xs[0];
+  const at = wall === "n" || wall === "w" ? xs[0] : xs[1] - runDep;
+  const put = (k: Kind, t: number, l: number, d: number, off = 0): PlanItem => {
+    const across = wall === "n" || wall === "w" ? at + off : at + runDep - d - off;
+    return item(k, along ? [t, across, l, d] : [across, t, d, l]);
+  };
+  const open = plan.rooms.filter((x) => !x.detached && OPEN_ROOM.test(x.name));
+  const inOpen = (it: PlanItem) => {
+    const b = boxOf(it);
+    const inside = (x: number, y: number) => open.some((r) => r.parts.some((pt) => inRect(x, y, pt)));
+    return inside(b[0] + 1, b[1] + 1) && inside(b[2] - 1, b[1] + 1) && inside(b[0] + 1, b[3] - 1) && inside(b[2] - 1, b[3] - 1);
+  };
+  const others = list.filter((it) => solid(it) && !onRun(it) && it.k !== "fridge");
+  let station: PlanItem[] = [];
+  for (const sl of [72, 56]) {
+    const t = leftLow ? n1 + 2 : n0 - 2 - sl;
+    const bar = put("coffeebar", t, sl, runDep);
+    if (!inOpen(bar) || clash(others, bar)) continue;
+    const mt = leftLow ? t + 4 : t + sl - 4 - len;
+    station = [bar, put("espresso", mt, len, dep, 2), put("cupshelf", t, sl, 16)];
     break;
+  }
+  const endT = leftLow ? n1 - 8 - len : n0 + 8;
+  if (station.length) list.push(...station);
+  else list.push(put("espresso", endT, len, dep, 2));
+  const sinkAt = list.findIndex((i) => i.k === "sink" && onRun(i));
+  if (sinkAt >= 0) {
+    const sk = list[sinkAt]!, [s0, s1] = A(boxOf(sk)), sL = s1 - s0;
+    const t = station.length ? (leftLow ? n1 - 8 - sL : n0 + 8) : leftLow ? endT - 8 - sL : endT + len + 8;
+    const hobs = list.filter((i) => i.k === "range" && onRun(i)).map((i) => A(boxOf(i)));
+    if (!hobs.some(([a, b]) => t < b + 6 && t + sL > a - 6)) list[sinkAt] = along ? { ...sk, x: Math.round(t) } : { ...sk, y: Math.round(t) };
+  }
+  // A brushed-steel bin by the island's east end (#1022).
+  const isl = list.find((i) => i.k === "island" && inK(i));
+  if (isl) {
+    const ib = boxOf(isl), bin = item("bin", [ib[2] + 6, (ib[1] + ib[3]) / 2 - 16, 24, 32]);
+    if (inOpen(bin) && !clash(list, bin)) list.push(bin);
+  }
+  // Only the island's stools: a loose one elsewhere goes (#1022).
+  if (isl) {
+    const ib = boxOf(isl);
+    list = list.filter((i) => i.k !== "stool" || !inK(i) || overlaps(boxOf(i), [ib[0] - 50, ib[1] - 50, ib[2] + 50, ib[3] + 50]));
   }
   return [...list, ...artWall(r, R, wall, (n0 + n1) / 2, plan)];
 }
@@ -429,7 +514,9 @@ function artWall(k: PlanRoom, R: Rect, wall: Side, c: number, plan: HavenPlan): 
   }
   const L = wallLen(P, opp), t = clampLen(c - (along ? P[0] : P[1]), 0, L);
   let free: [number, number][] = [[0, L]];
-  for (const [a, b] of runs(P, opp, plan.doors)) free = cutIv(free, [a - 10, b + 10]);
+  // Not on an open seam of the open room (#1022): no wall stands there to hang them on.
+  const seams = openSeams(home.filter((r) => OPEN_ROOM.test(r.name)).flatMap((r) => r.parts));
+  for (const [a, b] of runs(P, opp, [...plan.doors, ...seams])) free = cutIv(free, [a - 10, b + 10]);
   const spots = free.filter(([a, b]) => b - a >= 130).sort((x, y) => (t >= x[0] && t <= x[1] ? -1 : 0) - (t >= y[0] && t <= y[1] ? -1 : 0) || Math.min(Math.abs(t - x[0]), Math.abs(t - x[1])) - Math.min(Math.abs(t - y[0]), Math.abs(t - y[1])));
   const spot = spots[0];
   if (!spot) return [];
@@ -438,69 +525,12 @@ function artWall(k: PlanRoom, R: Rect, wall: Side, c: number, plan: HavenPlan): 
   return [item("art", against(P, opp, t0, len, 4, 1))];
 }
 
-/** A tub chair in the first free corner of the dining area. */
-function tubChair(R: Rect, items: PlanItem[], p: HavenPlan): PlanItem[] {
-  const taken = [...items.filter(solid).map(boxOf), ...p.devices.map((d): Box => [d.x - 30, d.y - 30, d.x + 30, d.y + 30])];
-  for (const [a, b] of [["s", "e"], ["s", "w"], ["n", "e"], ["n", "w"]] as [Side, Side][]) {
-    const [cx, cy] = corner(R, a, b, 40, 40);
-    const box: Box = [cx - 32, cy - 32, cx + 32, cy + 32];
-    if (!taken.some((t) => box[0] < t[2] && box[2] > t[0] && box[1] < t[3] && box[3] > t[1])) return [round("tubchair", cx, cy, 60)];
-  }
-  return [];
-}
+
+
 
 /**
- * The dining table and its chairs step out from wall s far enough for the coffee station and a way past it behind
- * them (Nikita 2026-11-05 21:09Z: the coffee station on the back wall, behind the table), when the room is deep enough.
- */
-function clearForStation(R: Rect, items: PlanItem[], s: Side): PlanItem[] {
-  const set = items.filter((it) => (it.k === "table" || it.k === "chair") && inRect(...mid(it), R));
-  if (!set.some((it) => it.k === "table")) return items;
-  const bs = set.map(boxOf);
-  const [x0, y0, x1, y1] = [Math.min(...bs.map((b) => b[0])), Math.min(...bs.map((b) => b[1])), Math.max(...bs.map((b) => b[2])), Math.max(...bs.map((b) => b[3]))];
-  const need = 42 + 56;
-  const gap = s === "n" ? y0 - R[1] : s === "s" ? R[1] + R[3] - y1 : s === "w" ? x0 - R[0] : R[0] + R[2] - x1;
-  const room = s === "n" ? R[1] + R[3] - 10 - y1 : s === "s" ? y0 - R[1] - 10 : s === "w" ? R[0] + R[2] - 10 - x1 : x0 - R[0] - 10;
-  const by = Math.min(need - gap, room);
-  if (by <= 0 || gap + by < need) return items;
-  const [dx, dy] = s === "n" ? [0, by] : s === "s" ? [0, -by] : s === "w" ? [by, 0] : [-by, 0];
-  return items.map((it) => (set.includes(it) ? { ...it, x: it.x + dx, y: it.y + dy } : it));
-}
-
-/**
- * The coffee station (#860): a low sideboard with the espresso machine on it, against the dining room's wall on the
- * living room TV's side (`first`), else its other walls nearest the Gym first; clear of doors, windows when it can be,
- * the table and chairs, and the cat's feeding station. Empty when no stretch is free.
- */
-function coffee(R: Rect, p: HavenPlan, items: PlanItem[], first: Side | null): PlanItem[] {
-  const taken: PlanItem[] = [...items.filter((it) => solid(it) && inRect(...mid(it), R)), ...p.devices.map((d) => round("box", d.x, d.y, 56))];
-  const sides = byGym(R, p, SIDES);
-  const order = first ? [first, ...sides.filter((s) => s !== first)] : sides;
-  for (const avoidGlass of [true, false])
-    for (const s of order) {
-      const L = wallLen(R, s);
-      let free: [number, number][] = [[6, L - 6]];
-      for (const [a, b] of runs(R, s, p.doors)) free = cutIv(free, [a - 14, b + 14]);
-      if (avoidGlass) for (const [a, b] of [...runs(R, s, p.windows), ...runs(R, s, p.balconies ?? [])]) free = cutIv(free, [a - 6, b + 6]);
-      for (const len of [150, 120, 96]) {
-        // From the middle of each free stretch outward, the first spot nothing stands in.
-        const ts = free.filter(([a, b]) => b - a >= len).flatMap(([a, b]) => {
-          const c = (a + b) / 2 - len / 2;
-          return Array.from({ length: Math.floor((b - a - len) / 10) + 1 }, (_, k) => c + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 10).filter((t) => t >= a && t + len <= b);
-        });
-        for (const t of ts) {
-          const board = item("sideboard", against(R, s, t, len, 42));
-          if (!fits(R, board) || clash(taken, board)) continue;
-          return [board, item("espresso", against(R, s, t + len / 2 - 17, 34, 26, 12))];
-        }
-      }
-    }
-  return [];
-}
-
-/**
- * Beside a balcony door: a small greenhouse in the corner on its solid side, a round cat bed by it, a purifier under
- * the window. The greenhouse and the bed take the first spot that is not in what is `taken` already.
+ * Beside a balcony door: a small greenhouse in the corner on its solid side and a purifier under the window (no cat
+ * bed, #1022). The greenhouse takes the first spot that is not in what is `taken` already.
  */
 function nook(R: Rect, p: HavenPlan, s: Side, a: number, b: number, taken: PlanItem[] = []): PlanItem[] {
   const L = wallLen(R, s);
@@ -518,12 +548,6 @@ function nook(R: Rect, p: HavenPlan, s: Side, a: number, b: number, taken: PlanI
   const ghs = ts.map((t) => item("greenhouse", against(R, s, t, gh, 50, 6)));
   const house = ghs.find(free) ?? ghs[ghs.length - 1]!;
   out.push(house);
-  const gt = s === "n" || s === "s" ? house.x - R[0] : house.y - R[1];
-  const beds = [after ? gt : gt + gh - 46, after ? gt + gh - 46 : gt].map((t) => {
-    const [bx, by] = centreOfRect(inFrom(R, s, t, 46, 46, 70));
-    return round("petbed", bx, by, 46);
-  });
-  out.push(beds.find(free) ?? beds[0]!);
   const w = win.find(([x, e]) => e - x >= 40);
   if (w) out.push(item("purifier", against(R, s, (w[0] + w[1]) / 2 - 18, 36, 26, 6)));
   return out;
@@ -548,62 +572,69 @@ function doorOf(R: Rect, doors: Seg[]): { s: Side; at: number } {
  */
 function bath(R: Rect, doors: Seg[], master: boolean): PlanItem[] {
   const door = doorOf(R, doors).s;
-  const back = OPP[door], left = LEFT[door], right = OPP[left];
-  const BL = wallLen(R, back), SL = wallLen(R, left);
   const out: PlanItem[] = [];
   const along = (s: Side, from: Side, t: number, len: number, dep: number, gap = 4) => against(R, s, tFrom(R, s, from, t, len), len, dep, gap);
+  const W = wallLen(R, "n"), Hh = wallLen(R, "w");
+  const free = (s: Side, t: number, len: number) => !runs(R, s, doors).some(([a, b]) => t < b + 6 && t + len > a - 6);
   if (master) {
-    const shLen = clampLen(SL * 0.5, 90, 150), shDep = clampLen(BL * 0.35, 80, 110);
-    out.push(item("shower", along(left, back, 2, shLen, shDep, 2)));
-    out.push(item("mat", along(left, back, shLen + 8, 60, 44, shDep * 0.3)));
-    const vLen = clampLen(SL * 0.7, 100, 240);
-    out.push(item("vanity", along(right, door, Math.max(20, (SL - vLen) / 2), vLen, 54)));
-    out.push(item("mat", inFrom(R, right, tFrom(R, right, door, Math.max(20, (SL - vLen) / 2) + vLen / 2 - 40, 80), 80, 46, 64)));
-    // Back wall, left to right from the shower: the litter box on its mat, the toilet, the towel bar.
+    // Turned 180° (#1022, Nikita): the glass shower on the north wall, the long vanity on the south wall.
+    const from: Side = door === "w" ? "e" : "w";
+    const shLen = clampLen(W * 0.5, 90, 150), shDep = clampLen(Hh * 0.35, 80, 110);
+    out.push(item("shower", along("n", from, 2, shLen, shDep, 2)));
+    out.push(item("mat", inFrom(R, "n", tFrom(R, "n", from, shLen * 0.2, 60), 60, 44, shDep + 6)));
+    const vLen = clampLen(W * 0.7, 100, 240);
+    let vt = Math.max(20, (W - vLen) / 2);
+    if (!free("s", vt, vLen)) vt = runs(R, "s", doors).some(([a]) => a > W / 2) ? 8 : W - vLen - 8;
+    out.push(item("vanity", against(R, "s", vt, vLen, 54)));
+    out.push(item("mat", inFrom(R, "s", vt + vLen / 2 - 40, 80, 46, 64)));
+    // The side wall away from the door, from the shower down: the litter box on its mat, the toilet, the towel bar.
+    const side: Side = door === "e" ? "w" : door === "w" ? "e" : OPP[from];
+    const stop = Hh - 62;
     let t = shDep + 10;
-    if (t + 46 + 12 + 40 <= BL - 8) {
-      out.push(item("mat", along(back, left, t - 4, 56, 54, 2)));
-      out.push(item("litterbox", along(back, left, t, 46, 40, 6)));
+    if (t + 46 + 12 + 40 <= stop) {
+      out.push(item("mat", along(side, "n", t - 4, 56, 54, 2)));
+      out.push(item("litterbox", along(side, "n", t, 46, 40, 6)));
       t += 60;
     }
-    if (t + 40 <= BL - 4) {
-      out.push(item("wc", along(back, left, t, 40, 66)));
-      out.push(item("mat", along(back, left, t - 6, 52, 40, 74)));
+    if (t + 40 <= stop) {
+      out.push(item("wc", along(side, "n", t, 40, 66)));
       t += 54;
     }
-    if (t + 50 <= BL - 4) out.push(item("towelbar", along(back, left, t, 50, 6, 0)));
+    if (t + 50 <= stop) out.push(item("towelbar", along(side, "n", t, 50, 6, 0)));
   } else {
-    const vLen = clampLen(SL * 0.45, 70, 140);
-    out.push(item("vanity", along(left, door, 16, vLen, 54)));
-    out.push(item("towelbar", along(left, door, 16 + vLen + 14, Math.min(50, SL - vLen - 40), 6, 0)));
-    const tubLen = clampLen(wallLen(R, right) * 0.6, 120, 160), tubDep = clampLen(BL * 0.42, 60, 78);
-    out.push(item("tub", along(right, back, 2, tubLen, tubDep, 2)));
-    out.push(item("mat", inFrom(R, right, tFrom(R, right, back, tubLen * 0.25, 60), 60, 40, tubDep + 6)));
-    const wt = clampLen((BL - tubDep - 40) / 2, 10, BL - tubDep - 48);
-    out.push(item("wc", along(back, left, wt, 40, 66)));
-    out.push(item("mat", along(back, left, wt - 6, 52, 40, 74)));
+    // The guest bath (#1022, Nikita): the tub and shower against the west wall, the toilet about the middle of the
+    // south wall facing north, the vanity beside it; a towel bar on the east wall.
+    const tubLen = clampLen(Hh * 0.6, 120, 160), tubDep = clampLen(W * 0.4, 60, 78);
+    const tub = item("tub", along("w", "n", 2, tubLen, tubDep, 2));
+    out.push(tub, item("mat", inFrom(R, "w", tubLen * 0.25, 60, 40, tubDep + 6)));
+    const vLen = clampLen(W * 0.35, 60, 120);
+    const clear = (t: number, len: number, dep: number) => t >= 4 && t + len <= W - 4 && free("s", t, len) && !overlaps(boxOf(item("box", against(R, "s", t, len, dep))), boxOf(tub));
+    // The toilet from the middle outward, the first spot with the vanity fitting beside it (east first), else alone.
+    const mids = Array.from({ length: 13 }, (_, k) => W / 2 - 20 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 10);
+    let wc: number | null = null, vt: number | null = null;
+    for (const t of mids) {
+      if (!clear(t, 40, 66)) continue;
+      const v = [t + 48, t - 8 - vLen].find((u) => clear(u, vLen, 54));
+      if (v !== undefined) {
+        [wc, vt] = [t, v];
+        break;
+      }
+      wc ??= t;
+    }
+    if (wc !== null) out.push(item("wc", against(R, "s", wc, 40, 66)));
+    if (vt !== null) out.push(item("vanity", against(R, "s", vt, vLen, 54)));
+    if (door !== "e") out.push(item("towelbar", against(R, "e", Hh / 2 - 25, 50, 6, 0)));
   }
   return out;
 }
 
 /** The front door: a door of the hall whose far side is outside the home; a coat rack and shoes beside it. */
 function hall(R: Rect, plan: HavenPlan): PlanItem[] {
-  const home = plan.rooms.filter((r) => !r.detached);
-  const inside = (x: number, y: number) => home.some((r) => r.parts.some((pt) => inRect(x, y, pt)));
-  for (const s of SIDES)
-    for (const [a, b] of runs(R, s, plan.doors)) {
-      const mid = (a + b) / 2;
-      const [px, py] = centreOfRect(against(R, s, mid, 1, 1, -24));
-      if (inside(px, py)) continue;
-      const L = wallLen(R, s);
-      if (b + 12 + 44 <= L - 4) return [item("coatrack", against(R, s, b + 12, 44, 34, 4))];
-      if (a - 12 - 44 >= 4) return [item("coatrack", against(R, s, a - 12 - 44, 44, 34, 4))];
-      // No room beside it on that wall: on the side wall at the nearer corner.
-      const end: "lo" | "hi" = a < L - b ? "lo" : "hi";
-      const side = endSide(s, end);
-      return [item("coatrack", against(R, side, tFrom(R, side, s, 8, 44), 44, 34, 4))];
-    }
-  return [];
+  // The coat rack against the hall's east wall (#1022, Nikita), on its longest stretch clear of doors and glass.
+  let free: [number, number][] = [[4, wallLen(R, "e") - 4]];
+  for (const [a, b] of [...runs(R, "e", plan.doors), ...runs(R, "e", plan.windows), ...runs(R, "e", plan.balconies ?? [])]) free = cutIv(free, [a - 12, b + 12]);
+  const spot = free.filter(([a, b]) => b - a >= 52).sort((x, y) => y[1] - y[0] - (x[1] - x[0]))[0];
+  return spot ? [item("coatrack", against(R, "e", (spot[0] + spot[1]) / 2 - 22, 44, 34, 4))] : [];
 }
 
 /** The white cat tunnel (two donuts) under the dining area's largest window, else the kitchen's. */
@@ -634,7 +665,9 @@ function bowls(p: HavenPlan): PlanItem[] {
 
 /** The plan as drawn: its openings as the walls give them, these rooms dressed by the rules above, the rest as stored. */
 export function furnish(stored: HavenPlan): HavenPlan {
-  const { plan, derivedLiving } = withOpenings(stored);
+  const opened = withOpenings(masterDoor(straightenStudio(biggerGuestBath(stored))));
+  const derivedLiving = opened.derivedLiving;
+  const plan = tallWindows(opened.plan);
   let items = [...plan.items];
   const home = plan.rooms.filter((r) => !r.detached);
   const within = (r: PlanRoom, it: PlanItem) => {
@@ -655,15 +688,7 @@ export function furnish(stored: HavenPlan): HavenPlan {
   if (lounge) items = items.filter((it) => it.k !== "cattree" || within(lounge, it));
   items = [...items, ...bowls(plan)];
   for (const r of home) if (KITCHEN.test(r.name)) items = kitchen(r, mainRect(r), items, plan);
-  // The coffee station behind the dining table, on the TV's side; the espresso machine moves off the counter to it.
-  const diner = home.find((x) => DINING.test(x.name));
-  if (diner) {
-    const tvSide = lounge ? tvWallOf(mainRect(lounge), plan) : null;
-    if (tvSide) items = clearForStation(mainRect(diner), items, tvSide);
-    const station = coffee(mainRect(diner), plan, items, tvSide);
-    if (station.length) items = [...items.filter((it) => it.k !== "espresso"), ...station];
-  }
-  for (const r of home) if (DINING.test(r.name) || (KITCHEN.test(r.name) && !diner)) items = [...items, ...tubChair(mainRect(r), items, plan)];
+  // The coffee station is by the counter now (#1022), and no tub chair: Nikita has neither in the dining area.
   // The bathrooms: the master (by name, else the largest of two or more) and the guest bath.
   const baths = home.filter((r) => BATH.test(r.name));
   const biggest = baths.length > 1 ? baths.reduce((a, b) => (areaOf(b) > areaOf(a) ? b : a)) : null;
@@ -671,7 +696,7 @@ export function furnish(stored: HavenPlan): HavenPlan {
     const master = /\b(master|primary|en-?suite)\b/i.test(r.name) || (!/\bguest\b/i.test(r.name) && r === biggest);
     relay(r, (R) => bath(R, plan.doors, master));
   }
-  for (const r of home) if (HALL.test(r.name)) items = [...items, ...hall(mainRect(r), plan)];
+  for (const r of home) if (HALL.test(r.name)) items = [...items.filter((it) => !(it.k === "coatrack" && within(r, it))), ...hall(mainRect(r), plan)];
   const dining = home.find((x) => DINING.test(x.name)) ?? home.find((x) => KITCHEN.test(x.name));
   if (dining) items = [...items, ...tunnel(mainRect(dining), plan, items)];
   // The nooks: a balcony door in any room but the living room, the studio and the main bedroom.
@@ -684,8 +709,327 @@ export function furnish(stored: HavenPlan): HavenPlan {
     const [a, b] = onWall(R, s, seg)!;
     items = [...items, ...nook(R, plan, s, a, b, items)];
   }
-  return { ...plan, items };
+  // The hall (#1022, Nikita): no rugs, and none of the strays that stood in the way, drawn as plain cylinders and
+  // boxes (a cat bed, a purifier, loose jars and stools, a drinks fridge or a projector left over from another room).
+  for (const r of home) if (HALL.test(r.name)) items = items.filter((it) => !(within(r, it) && (HALL_GONE.has(it.k) || (it.round && HALL_STRAYS.has(it.k)))));
+  // The open room keeps no tub chair (#1022: Nikita has none in the dining area).
+  for (const r of home) if (OPEN_ROOM.test(r.name)) items = items.filter((it) => !(it.k === "tubchair" && within(r, it)));
+  // The closet (#1022): clothes rails along its north and south walls, nothing else.
+  for (const r of home) if (CLOSET.test(r.name)) relay(r, (R) => closet(R, plan.doors));
+  // The main bedroom: with its door at the east end of a north or south wall, the bed and its nightstands move west,
+  // leaving a way in (#1022).
+  if (bed) items = bedWest(bed, plan.doors, items, within);
+  // Kitchen, dining room and living room are one open room (#1022, Nikita: no walls between them): their shared edges
+  // are openings, so no wall is drawn there. Added after the layout, which still sees each room's own edges.
+  const edges = openSeams(home.filter((r) => OPEN_ROOM.test(r.name)).flatMap((r) => r.parts));
+  return { ...plan, items, devices: docked(plan, items), doors: [...plan.doors, ...edges] };
 }
+
+/**
+ * Every seam between two parts of the open room (#1022), each part's own edge where it meets another, so no wall is
+ * drawn there: between two rooms or two parts of one, meeting exactly or a hair apart (up to 4).
+ */
+export function openSeams(parts: PlanRoom["parts"]): Seg[] {
+  const out: Seg[] = [];
+  const NEAR = 4;
+  for (const p of parts)
+    for (const q of parts) {
+      if (p === q) continue;
+      const [px0, py0, px1, py1] = [p[0], p[1], p[0] + p[2], p[1] + p[3]];
+      const [qx0, qy0, qx1, qy1] = [q[0], q[1], q[0] + q[2], q[1] + q[3]];
+      const y0 = Math.max(py0, qy0), y1 = Math.min(py1, qy1);
+      if (y1 - y0 > 1) {
+        if (Math.abs(px1 - qx0) <= NEAR) out.push([px1, y0, px1, y1]);
+        if (Math.abs(px0 - qx1) <= NEAR) out.push([px0, y0, px0, y1]);
+      }
+      const x0 = Math.max(px0, qx0), x1 = Math.min(px1, qx1);
+      if (x1 - x0 > 1) {
+        if (Math.abs(py1 - qy0) <= NEAR) out.push([x0, py1, x1, py1]);
+        if (Math.abs(py0 - qy1) <= NEAR) out.push([x0, py0, x1, py0]);
+      }
+    }
+  return out;
+}
+
+const CLOSET = /\b(closet|wardrobe|walk-?in)\b/i;
+/** What never stands in the hall (#1022), and the round strays drawn there as plain cylinders. */
+const HALL_GONE = new Set<Kind>(["rug", "runner", "mat", "petbed", "minifridge", "projector"]);
+const HALL_STRAYS = new Set<Kind>(["purifier", "jar", "stool", "tubchair", "box", "plant"]);
+
+/** Clothes rails along the closet's north and south walls, clear of a door on either (#1022). */
+function closet(R: Rect, doors: Seg[]): PlanItem[] {
+  const out: PlanItem[] = [];
+  for (const s of ["n", "s"] as Side[]) {
+    let free: [number, number][] = [[4, wallLen(R, s) - 4]];
+    for (const [a, b] of runs(R, s, doors)) free = cutIv(free, [a - 8, b + 8]);
+    for (const [a, b] of free) if (b - a >= 40) out.push(item("rail", against(R, s, a, b - a, Math.min(34, depthTo(R, s) / 3), 2)));
+  }
+  return out;
+}
+
+/** The bed and the nightstands moved west, up to 60, when the bedroom's door is at the east end of its north or south wall. */
+function bedWest(bed: PlanRoom, doors: Seg[], items: PlanItem[], within: (r: PlanRoom, it: PlanItem) => boolean): PlanItem[] {
+  const R = mainRect(bed);
+  const d = SIDES.flatMap((s) => runs(R, s, doors).map(([a, b]) => ({ s, a, b })))[0];
+  if (!d || (d.s !== "n" && d.s !== "s") || d.a < wallLen(R, d.s) / 2) return items;
+  const group = items.filter((it) => within(bed, it) && (it.k === "bed" || it.k === "night"));
+  if (!group.some((it) => it.k === "bed")) return items;
+  const x0 = Math.min(...group.map((it) => boxOf(it)[0]));
+  const by = Math.max(0, Math.min(60, x0 - R[0] - 6));
+  return by ? items.map((it) => (group.includes(it) ? { ...it, x: it.x - by } : it)) : items;
+}
+
+/**
+ * The robot vacuum drawn at its dock (#1022, Nikita: it showed mid-hall while docked; the dock is in the Hall on its
+ * left side, by the hall light, near the plant cabinet). In a hall: against its west wall, beside the plant cabinet
+ * (the greenhouse) when one stands there, else level with the hall's light, else level with where the plan has it;
+ * clear of doors and of what stands there. In another room: beside a greenhouse there, else where the plan has it.
+ */
+function docked(plan: HavenPlan, items: PlanItem[]): PlanDevice[] {
+  return plan.devices.map((d) => {
+    if (d.kind !== "vacuum") return d;
+    const room = plan.rooms.find((r) => !r.detached && r.parts.some((pt) => inRect(d.x, d.y, pt)));
+    if (!room) return d;
+    const R = mainRect(room);
+    const taken = items.filter(solid);
+    const DOCK = 38;
+    const ok = (s: Side, t: number) => {
+      const dock = item("box", against(R, s, t, DOCK, DOCK, 2));
+      return fits(R, dock) && !clash(taken, dock) && !runs(R, s, [...plan.doors, ...(plan.balconies ?? [])]).some(([a, e]) => t < e + 10 && t + DOCK > a - 10);
+    };
+    const at = (s: Side, t: number): PlanDevice => {
+      const [x, y] = centreOfRect(against(R, s, t, DOCK, DOCK, 2));
+      return { ...d, x: Math.round(x), y: Math.round(y) };
+    };
+    const cands: [Side, number][] = [];
+    const gh = items.find((it) => it.k === "greenhouse" && inRect(...mid(it), R));
+    if (gh) {
+      const b = boxOf(gh), s = nearSide(R, b), hz = s === "n" || s === "s";
+      const t0 = hz ? b[0] - R[0] : b[1] - R[1], t1 = hz ? b[2] - R[0] : b[3] - R[1];
+      // On a north or south wall, its west side first.
+      cands.push([s, t0 - 6 - DOCK], [s, t1 + 6]);
+    }
+    if (HALL.test(room.name)) {
+      const light = (plan.lights ?? []).find((l) => inRect(l.x, l.y, R));
+      const want = (light ? light.y : d.y) - R[1] - DOCK / 2;
+      const L = wallLen(R, "w");
+      for (let k = 0; k <= 24; k++) {
+        const t = want + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 12;
+        if (t >= 4 && t + DOCK <= L - 4) cands.push(["w", t]);
+      }
+    }
+    const hit = cands.find(([s, t]) => ok(s, t));
+    return hit ? at(...hit) : d;
+  });
+}
+
+/**
+ * The main bedroom's door at the far end of its wall (#1022, Nikita: all the way to the right, not the centre): on a
+ * north or south wall its east end, on a west or east wall the right-hand end seen from inside; kept on the stretch
+ * the bedroom shares with the room it opens to.
+ */
+function masterDoor(plan: HavenPlan): HavenPlan {
+  const home = plan.rooms.filter((r) => !r.detached);
+  const bed = masterBed(home);
+  if (!bed) return plan;
+  const R = mainRect(bed);
+  for (const s of SIDES)
+    for (const door of plan.doors) {
+      const on = onWall(R, s, door);
+      if (!on) continue;
+      const len = on[1] - on[0];
+      const [px, py] = centreOfRect(against(R, s, (on[0] + on[1]) / 2, 1, 1, -12));
+      // Its way in: the door from the hall, a landing or the open room, not one to its bath, closet or another room.
+      const next = home.find((r) => r !== bed && r.parts.some((pt) => inRect(px, py, pt)));
+      if (!next || !(LANDING.test(next.name) || OPEN_ROOM.test(next.name))) continue;
+      const edge = sharedEdges(bed, next).map((g) => onWall(R, s, g)).find((v): v is [number, number] => v !== null && v[0] <= on[0] + 1 && v[1] >= on[1] - 1);
+      if (!edge) return plan;
+      const toHigh = s === "n" || s === "s" || s === "e";
+      const a = toHigh ? edge[1] - 6 - len : edge[0] + 6;
+      if (a < edge[0] || Math.abs(a - on[0]) < 2) return plan;
+      return { ...plan, doors: plan.doors.map((d) => (d === door ? segOn(R, s, a, a + len) : d)) };
+    }
+  return plan;
+}
+
+/** Three tall windows on the main bedroom's west wall and the Studio's east wall (#1022), clear of doors and balcony doors. */
+function tallWindows(plan: HavenPlan): HavenPlan {
+  const home = plan.rooms.filter((r) => !r.detached);
+  const want: [PlanRoom | null | undefined, Side][] = [[masterBed(home), "w"], [home.find((r) => STUDIO.test(r.name)), "e"]];
+  let windows = plan.windows;
+  const tall: Seg[] = [];
+  for (const [room, s] of want) {
+    if (!room) continue;
+    const R = mainRect(room), L = wallLen(R, s);
+    let free: [number, number][] = [[14, L - 14]];
+    for (const [a, b] of [...runs(R, s, plan.doors), ...runs(R, s, plan.balconies ?? [])]) free = cutIv(free, [a - 14, b + 14]);
+    const best = free.sort((x, y) => y[1] - y[0] - (x[1] - x[0]))[0];
+    if (!best || best[1] - best[0] < 120) continue;
+    windows = windows.filter((w) => !onWall(R, s, w));
+    const gap = 16, wl = (best[1] - best[0] - 2 * gap) / 3;
+    for (let i = 0; i < 3; i++) {
+      const a = best[0] + i * (wl + gap);
+      const seg = segOn(R, s, a, a + wl);
+      windows = [...windows, seg];
+      tall.push(seg);
+    }
+  }
+  return tall.length ? { ...plan, windows, tall } : plan;
+}
+
+/**
+ * The Studio's wall by the litter box, straight (#1022, Nikita: a flat wall, the Studio's door right beside the litter
+ * box). When the litter box stands just outside the Studio, the Studio's side facing it becomes one straight line (the
+ * Studio's edge nearest the box): the jogs along it are squared off, the rooms across it meet it, and the Studio's door
+ * on that side moves to stand beside the box, on the side it was on.
+ */
+export function straightenStudio(plan: HavenPlan): HavenPlan {
+  const home = plan.rooms.filter((r) => !r.detached);
+  const studio = home.find((r) => STUDIO.test(r.name));
+  const box = plan.devices.find((d) => d.kind === "litter");
+  if (!studio || !box || studio.parts.some((pt) => inRect(box.x, box.y, pt))) return plan;
+  const xs = studio.parts.flatMap((p) => [p[0], p[0] + p[2]]), ys = studio.parts.flatMap((p) => [p[1], p[1] + p[3]]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  // The side facing the box: the box beside that side's span, nearest it.
+  const cand: [Side, number][] = [];
+  if (box.y >= y0 - 40 && box.y <= y1 + 40) cand.push(["w", x0 - box.x], ["e", box.x - x1]);
+  if (box.x >= x0 - 40 && box.x <= x1 + 40) cand.push(["n", y0 - box.y], ["s", box.y - y1]);
+  const near = cand.filter(([, d]) => d > -200).sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]))[0];
+  if (!near || Math.abs(near[1]) > 160) return plan;
+  const s = near[0], hz = s === "n" || s === "s";
+  // The axis across the wall (x for a west or east side) and along it.
+  const lo = s === "w" || s === "n";
+  const edgeOf = (p: [number, number, number, number]) => (hz ? (lo ? p[1] : p[1] + p[3]) : lo ? p[0] : p[0] + p[2]);
+  const boxAcross = hz ? box.y : box.x, boxAlong = hz ? box.x : box.y;
+  const edges = studio.parts.map(edgeOf);
+  const line = edges.reduce((a, e) => (Math.abs(e - boxAcross) < Math.abs(a - boxAcross) ? e : a));
+  const span: [number, number] = hz ? [x0, x1] : [y0, y1];
+  const JOG = 80;
+  const setEdge = (p: [number, number, number, number], near: boolean): [number, number, number, number] => {
+    // `near`: the part's edge facing the line from the Studio's side (the Studio's own), else the far side's.
+    const [px, py, pw, ph] = p;
+    if (hz) {
+      const top = near === lo;
+      return top ? [px, line, pw, py + ph - line] : [px, py, pw, line - py];
+    }
+    const left = near === lo;
+    return left ? [line, py, px + pw - line, ph] : [px, py, line - px, ph];
+  };
+  const alongOf = (p: [number, number, number, number]): [number, number] => (hz ? [p[0], p[0] + p[2]] : [p[1], p[1] + p[3]]);
+  const hits = (p: [number, number, number, number]) => {
+    const [a, b] = alongOf(p);
+    return b > span[0] && a < span[1];
+  };
+  const rooms = plan.rooms.map((r) => {
+    if (r.detached) return r;
+    const parts = r.parts.map((p) => {
+      if (!hits(p)) return p;
+      if (r === studio) {
+        const e = edgeOf(p);
+        return e !== line && Math.abs(e - line) <= JOG ? setEdge(p, true) : p;
+      }
+      // A room across the line: its edge facing the Studio meets the line.
+      const far = hz ? (lo ? p[1] + p[3] : p[1]) : lo ? p[0] + p[2] : p[0];
+      return far !== line && Math.abs(far - line) <= JOG ? setEdge(p, false) : p;
+    });
+    return parts.every((p) => p[2] > 20 && p[3] > 20) ? { ...r, parts } : r;
+  });
+  // The door: off the jogs, beside the box on the side it stood on.
+  const onSide = (d: Seg) => (hz ? d[1] === d[3] && Math.abs(d[1] - line) <= JOG : d[0] === d[2] && Math.abs(d[0] - line) <= JOG) && (hz ? Math.max(d[0], d[2]) > span[0] && Math.min(d[0], d[2]) < span[1] : Math.max(d[1], d[3]) > span[0] && Math.min(d[1], d[3]) < span[1]);
+  const old = plan.doors.filter(onSide);
+  const len = old.length ? Math.max(...old.map((d) => Math.abs(hz ? d[2] - d[0] : d[3] - d[1]))) : 80;
+  const was = old.length ? (hz ? (old[0]![0] + old[0]![2]) / 2 : (old[0]![1] + old[0]![3]) / 2) : (span[0] + span[1]) / 2;
+  const side = was >= boxAlong ? 1 : -1;
+  let a = side > 0 ? boxAlong + 38 : boxAlong - 38 - len;
+  a = Math.max(span[0] + 6, Math.min(span[1] - 6 - len, a));
+  const door: Seg = hz ? [a, line, a + len, line] : [line, a, line, a + len];
+  return { ...plan, rooms, doors: [...plan.doors.filter((d) => !old.includes(d)), door] };
+}
+
+/** How much the guest bath grows (#1022). */
+const GUEST_GROW = 30;
+
+/** The guest bath: by name, else the smaller of two or more baths, else the only one. */
+function guestBath(home: PlanRoom[]): PlanRoom | null {
+  const baths = home.filter((r) => BATH.test(r.name));
+  if (!baths.length) return null;
+  const named = baths.find((r) => /\bguest\b/i.test(r.name));
+  if (named) return named;
+  const notMaster = baths.filter((r) => !/\b(master|primary|en-?suite)\b/i.test(r.name));
+  if (!notMaster.length) return null;
+  return notMaster.length === baths.length && baths.length > 1 ? baths.reduce((a, b) => (areaOf(b) < areaOf(a) ? b : a)) : notMaster[0]!;
+}
+
+/**
+ * The guest bath a little bigger (#1022, Nikita): its main part grows GUEST_GROW into empty floor beside it (inside the
+ * home's outline, no room there), else takes it from a hall, closet or other side room across that wall that stays
+ * deep enough. Doors on the wall it moves move with it. Drawing only.
+ */
+export function biggerGuestBath(plan: HavenPlan): HavenPlan {
+  const home = plan.rooms.filter((r) => !r.detached);
+  const bath = guestBath(home);
+  if (!bath) return plan;
+  const R = mainRect(bath);
+  const all = home.flatMap((r) => r.parts);
+  const hx0 = Math.min(...all.map((p) => p[0])), hx1 = Math.max(...all.map((p) => p[0] + p[2]));
+  const hy0 = Math.min(...all.map((p) => p[1])), hy1 = Math.max(...all.map((p) => p[1] + p[3]));
+  const G = GUEST_GROW;
+  const [x, y, w, h] = R;
+  const strip: Record<Side, Rect> = { n: [x, y - G, w, G], s: [x, y + h, w, G], w: [x - G, y, G, h], e: [x + w, y, G, h] };
+  const hits = (a: Rect, b: Rect) => a[0] < b[0] + b[2] - 0.5 && a[0] + a[2] > b[0] + 0.5 && a[1] < b[1] + b[3] - 0.5 && a[1] + a[3] > b[1] + 0.5;
+  const inHome = (q: Rect) => q[0] >= hx0 && q[1] >= hy0 && q[0] + q[2] <= hx1 && q[1] + q[3] <= hy1;
+  const glassOn = (s: Side) => [...plan.windows, ...(plan.balconies ?? [])].some((g) => onWall(R, s, g));
+  let side: Side | null = null;
+  let donor: { room: PlanRoom; part: number } | null = null;
+  for (const s of SIDES) {
+    if (glassOn(s) || !inHome(strip[s]) || all.some((p) => hits(p, strip[s]))) continue;
+    side = s;
+    break;
+  }
+  if (!side)
+    for (const s of SIDES) {
+      if (glassOn(s)) continue;
+      const q = strip[s];
+      const owners = home.flatMap((r) => r.parts.map((p, i) => ({ r, p, i }))).filter(({ p }) => hits(p, q));
+      if (owners.length !== 1) continue;
+      const { r, p, i } = owners[0]!;
+      if (r === bath || OPEN_ROOM.test(r.name) || BED.test(r.name) || STUDIO.test(r.name) || BATH.test(r.name)) continue;
+      // It spans the whole wall, and stays at least 110 deep.
+      const spans = s === "n" || s === "s" ? p[0] <= x && p[0] + p[2] >= x + w : p[1] <= y && p[1] + p[3] >= y + h;
+      const deep = s === "n" || s === "s" ? p[3] : p[2];
+      // No other room's door opens onto the strip it would lose.
+      const lands = plan.doors.some((d) => {
+        if (onWall(R, s, d)) return false;
+        const [a0, b0, a1, b1] = [Math.min(d[0], d[2]), Math.min(d[1], d[3]), Math.max(d[0], d[2]), Math.max(d[1], d[3])];
+        return a0 <= q[0] + q[2] && a1 >= q[0] && b0 <= q[1] + q[3] && b1 >= q[1] && Math.max(a1 - a0, b1 - b0) > 1 && (a1 - a0 > 1 ? Math.min(a1, q[0] + q[2]) - Math.max(a0, q[0]) > 1 : Math.min(b1, q[1] + q[3]) - Math.max(b0, q[1]) > 1);
+      });
+      if (!spans || deep - G < 110 || lands) continue;
+      side = s;
+      donor = { room: r, part: i };
+      break;
+    }
+  if (!side) return plan;
+  const s = side;
+  const grown: Rect = s === "n" ? [x, y - G, w, h + G] : s === "s" ? [x, y, w, h + G] : s === "w" ? [x - G, y, w + G, h] : [x, y, w + G, h];
+  const rooms = plan.rooms.map((r) => {
+    if (r === bath) return { ...r, parts: r.parts.map((p) => (p === R ? grown : p)) };
+    if (donor && r === donor.room)
+      return {
+        ...r,
+        parts: r.parts.map((p, i): Rect => {
+          if (i !== donor!.part) return p;
+          return s === "n" ? [p[0], p[1], p[2], p[3] - G] : s === "s" ? [p[0], p[1] + G, p[2], p[3] - G] : s === "w" ? [p[0], p[1], p[2] - G, p[3]] : [p[0] + G, p[1], p[2] - G, p[3]];
+        }),
+      };
+    return r;
+  });
+  const shift: [number, number] = s === "n" ? [0, -G] : s === "s" ? [0, G] : s === "w" ? [-G, 0] : [G, 0];
+  const doors = plan.doors.map((d): Seg => (onWall(R, s, d) ? [d[0] + shift[0], d[1] + shift[1], d[2] + shift[0], d[3] + shift[1]] : d));
+  return { ...plan, rooms, doors };
+}
+
+/** The rooms of the one open space (#1022): the kitchen, the dining room and the living room. */
+export const OPEN_ROOM = /\b(kitchen|dining|living)\b/i;
 
 /* ── openings from the walls (#764) ── */
 

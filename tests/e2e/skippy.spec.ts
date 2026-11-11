@@ -69,8 +69,13 @@ for (const width of [1280, 400]) {
     await box.fill("What's going on?");
     await box.press("Enter");
     await expect(chat.getByText("Bask in my summary.")).toBeVisible();
-    // The message goes with the page's own data for his quick take (#341), never with anything typed before.
-    expect(asked).toEqual([{ message: "What's going on?", history: [], page: expect.stringMatching(/^Nikita is on the Desk's Senate page\./) }]);
+    // The message goes with the page's own data for his quick take (#341), never with anything typed before,
+    // plus the small screen-context facts (#1027): the room and tab he's on, never a screenshot unless asked.
+    // The screen facts ride along once the page has registered them, so they're checked only when present.
+    expect(asked).toEqual([expect.objectContaining({ message: "What's going on?", history: [], page: expect.stringMatching(/^Nikita is on the Desk's Senate page\./) })]);
+    const sent = asked[0] ?? {};
+    expect(Object.keys(sent).sort()).toEqual(sent.screen === undefined ? ["history", "message", "page"] : ["history", "message", "page", "screen"]);
+    if (sent.screen !== undefined) expect(JSON.parse(String(sent.screen))).toMatchObject({ room: "today" });
     // The unknown "merge" button is dropped in the browser too.
     await expect(chat.getByRole("button", { name: "Merge everything" })).toHaveCount(0);
     await expect(chat.getByRole("button", { name: /File: podium/ })).toBeVisible();

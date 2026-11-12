@@ -27,7 +27,7 @@ import { privateParts } from "../_privacy.js";
 import { costOf, type Usage } from "../foundry.js";
 import { LOOKUP_MODEL } from "../skippy.js";
 import { SEARCH_USD, SONNET_PRICE } from "./budget.js";
-import { LOOKUP_PROMPT, lookupInput } from "./prompt.js";
+import { lookupInput, lookupPrompt } from "./prompt.js";
 import { NO_GAME } from "./sports.js";
 import { capLines, said } from "./voicereads.js";
 
@@ -182,7 +182,7 @@ export const STILL_SEARCHING =
   "Still searching the web for that. Call web_search again with the same query in a few seconds, without filling the wait with talk, and never say you couldn't find it while this runs. If it's still not back then, hand the question to hand_to_kernel.";
 
 /** Added to a wait's result the first time a question needs a waiting line (waitingLine), so there is one and no more. */
-export const SAY_WAITING_LINE = " Say one short in-character line about it now (this question's only waiting line), then silence until the answer.";
+export const SAY_WAITING_LINE = " Unless you already said one, say one quick, funny, in-character line on what he asked now (this question's only waiting line, never a stock \"consulting the deeper me\"), then silence until the answer.";
 export const NO_MORE_LINES = " You already said this question's waiting line: say nothing now.";
 
 interface Search {
@@ -236,7 +236,8 @@ export async function webSearch(rawQuery: unknown, call: string, d: WebDeps, now
     entry.run = search(query)
       .then(async (got) => {
         await d.addSpend(got.usage, got.usd).catch(() => undefined);
-        return got.text ? capLines([`Web search for "${said(query, 120)}":`, said(got.text, 1_400)]) : `The web search for "${said(query, 120)}" found nothing reliable; hand it to hand_to_kernel.`;
+        const found = withoutMeta(got.text);
+        return found ? capLines([`Web search for "${said(query, 120)}":`, said(found, 1_400)]) : `The web search for "${said(query, 120)}" found nothing reliable; hand it to hand_to_kernel.`;
       })
       .catch(() => `The web search for "${said(query, 120)}" failed; hand the question to hand_to_kernel.`)
       .then((text) => {
@@ -254,8 +255,22 @@ export async function webSearch(rawQuery: unknown, call: string, d: WebDeps, now
   return Promise.race([s.run, late]).finally(() => clearTimeout(timer));
 }
 
-/** The voice summary's rules: the typed chat's lookup prompt, held to a spoken length. */
-export const VOICE_LOOKUP_PROMPT = `${LOOKUP_PROMPT} The summary is read aloud on a live call: at most 90 words, the answer first, with dates.`;
+/** The voice summary's rules: the typed chat's lookup prompt with today's date (#1069), held to a spoken length. */
+export const voiceLookupPrompt = (now: number) => `${lookupPrompt(now)} The summary is read aloud on a live call: at most 70 words, the answer itself first in one or two sentences.`;
+
+/** A sentence about the looking, not the finding: narration, or a doubt about a page's date (#1069). */
+const META = /^(?:searching|search(?:ing)? now|let me|i'?ll|i will|i'?m (?:going to|searching|checking|looking|flagging)|one moment|checking|looking (?:that|it) up)\b|\b(?:may|might|could) not (?:be|match|reflect) (?:today|the current)|\bpage'?s date\b|\bwhich may not be today\b|\bcheck a live source\b|\bcan'?t (?:verify|confirm) (?:the|today'?s) date\b/i;
+
+/** A search's summary without its narration or date doubts (#1069): only what it found is said. */
+export function withoutMeta(text: string): string {
+  return text
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .filter((s) => s && !META.test(s))
+    .join(" ")
+    .trim();
+}
 
 /** The most a search's summary may write (thinking included). */
 export const VOICE_LOOKUP_TOKENS = 1_200;
@@ -269,14 +284,14 @@ export const VOICE_SEARCH_RESUMES = 2;
 export type SearchCall = (params: Anthropic.MessageCreateParamsNonStreaming) => Promise<Anthropic.Message>;
 
 /** The search's request: the typed chat's lookup model and web search, short, speed first on a live call. */
-export function searchParams(query: string, messages: Anthropic.MessageParam[] = [{ role: "user", content: lookupInput(query) }]): Anthropic.MessageCreateParamsNonStreaming {
+export function searchParams(query: string, messages: Anthropic.MessageParam[] = [{ role: "user", content: lookupInput(query) }], now: number = Date.now()): Anthropic.MessageCreateParamsNonStreaming {
   return {
     model: LOOKUP_MODEL,
     max_tokens: VOICE_LOOKUP_TOKENS,
     // Speed first on a live call (#1054): thinking off between the searches (Sonnet 5.5 refuses "disabled") at low effort.
     thinking: { type: "between_tools" },
     output_config: { effort: "low" },
-    system: VOICE_LOOKUP_PROMPT,
+    system: voiceLookupPrompt(now),
     tools: [{ type: "web_search_20260209", name: "web_search", max_uses: VOICE_SEARCH_MAX }],
     messages,
   };
@@ -319,7 +334,7 @@ export function claudeSearch(key: string, call?: SearchCall): (query: string) =>
  * leaving the agent to tell Nikita it failed (toolroute.ts).
  */
 export const isEmptyLookup = (text: string): boolean =>
-  /^No player matching|found nothing reliable|^The web search for .* failed|^The C\.E\.O\.'s roster isn't answering|^ESPN isn't answering|isn't set up on this call|search budget is spent|all the web searches/i.test(text) || text.startsWith(NO_GAME);
+  /^No player matching|found nothing reliable|^The web search for .* failed|^The C\.E\.O\.'s roster isn't answering|^ESPN isn't answering|isn't set up on this call|search budget is spent|all the web searches|^The live forecast didn't answer/i.test(text) || text.startsWith(NO_GAME);
 
 /** Marks a listing whose fresh-news half is still running. */
 export const NEWS_PENDING = "Fresh news is still being checked. Don't answer from the listing alone: call player_news again with the same player in a few seconds, silently, then answer once with both.";

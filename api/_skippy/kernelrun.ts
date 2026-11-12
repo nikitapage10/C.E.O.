@@ -1,7 +1,7 @@
 /**
  * The always-on responder's Claude loop (#501, api/_skippy/kernelagent.ts): the rules and the private brief as the
  * system prompt (the brief behind a prompt-cache breakpoint), the live state and the question as the user turn, and
- * five tools: Anthropic's web search (at most three), "sleeper_league" (read-only, kernelleague.ts), "live_scores" (ESPN's scoreboard, sports.ts), "file_build_request" (the code files the issue from Nikita's own
+ * five tools: Anthropic's web search (at most three), "sleeper_league" (read-only, kernelleague.ts), "live_scores" (ESPN's scoreboard, sports.ts), "weather" (the live forecast near home, weather.ts), "file_build_request" (the code files the issue from Nikita's own
  * words; the model picks only a size) and "deliver", which ends the run with the answer. At most five calls, each with
  * a hard max_tokens. The model has no other tool and cannot send, open a link or change anything.
  *
@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { SORT_MODEL, type Usage } from "../_email/budget.js";
 import { RUN_LIMITS, type AgentRequest, type AgentRun } from "./kernelagent.js";
 import { liveScores } from "./sports.js";
+import { NO_WEATHER } from "./weather.js";
 
 const TOOLS = [
   { type: "web_search_20260209", name: "web_search", max_uses: RUN_LIMITS.searches },
@@ -24,6 +25,11 @@ const TOOLS = [
     name: "live_scores",
     description: "ESPN's live scoreboard, no key: the score, the game's status (inning, quarter, final, start time) and a postseason series' state. Use it for every score, 'is the game on', 'right now' or 'tonight' question, before and instead of web search. league is mlb, nfl, nba, nhl, wnba, ncaaf, mls or epl (leave it out to search the big leagues); team is a team name ('Brewers'), or leave it out for the league's day.",
     input_schema: { type: "object", properties: { league: { type: "string" }, team: { type: "string" } }, additionalProperties: false },
+  },
+  {
+    name: "weather",
+    description: "The live forecast near home from the National Weather Service, no key: right now, today, tonight and tomorrow with today's date. Use it for any weather question near home or in Denver, before and instead of web search.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     name: "file_build_request",
@@ -77,6 +83,8 @@ export function claudeAgent(key: string): (req: AgentRequest) => Promise<AgentRu
           results.push({ type: "tool_result", tool_use_id: block.id, content: await req.league(input) });
         } else if (block.name === "live_scores") {
           results.push({ type: "tool_result", tool_use_id: block.id, content: await liveScores(input.league, input.team, Date.now()).catch(() => "ESPN isn't answering right now.") });
+        } else if (block.name === "weather") {
+          results.push({ type: "tool_result", tool_use_id: block.id, content: req.weather ? await req.weather().catch(() => NO_WEATHER) : NO_WEATHER });
         } else if (block.name === "file_build_request") {
           const size = input.size === "small" || input.size === "large" ? input.size : "medium";
           const n = await req.fileBuild(size);

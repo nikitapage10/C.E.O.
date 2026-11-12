@@ -129,6 +129,10 @@ export function liveAgent(env: Env = process.env): AgentDeps {
         const kept = await peekKept<Record<string, { n: string; pos: string; team: string | null; inj?: string | null }>>(pickGreenStore(env), PLAYERS_PATH).catch(() => null);
         return kept?.value ?? {};
       }),
+    weather: async () => {
+      const route = await import("./toolroute.js");
+      return route.readText("weather", route.liveSources(env), Date.now());
+    },
     fileIssue: async (title, body) => {
       const res = await fetch(`${GH}/issues`, {
         method: "POST",

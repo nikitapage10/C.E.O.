@@ -12,6 +12,7 @@
 import { scrub, TRAIL_AUTHORS } from "../_world/digest.js";
 import type { SetupStatus } from "../_desk/setup.js";
 import type { WorldState } from "../_world/types.js";
+import { clockLine } from "./clock.js";
 
 /** An issue as the feed carries it: only the fields read here. */
 export interface ContextIssue {
@@ -120,7 +121,7 @@ export function deskContext(open: ContextIssue[], shipped: ContextIssue[], setup
 export function contextLines(c: DeskContext, now: number): string {
   const list = (items: string[]) => (items.length ? items.map((s) => `  - ${s}`).join("\n") : "  - (none)");
   const out = [
-    `Now: ${new Date(now).toLocaleString("en-US", { timeZone: "America/Denver", weekday: "long", hour: "numeric", minute: "2-digit" })} Mountain time.`,
+    `Now: ${clockLine(now)}.`,
     `Ideas waiting for Nikita's pick: ${c.ideas.length}`,
     list(c.ideas.map((i) => `#${i.issue} ${i.title}`)),
     `Rivet's questions waiting for an answer: ${c.questions.length}`,

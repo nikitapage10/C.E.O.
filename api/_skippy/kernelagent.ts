@@ -182,7 +182,7 @@ Nikita asked you something that the quick chat could not settle. You are the alw
 You finish by calling the "deliver" tool exactly once.
 
 Which questions you answer:
-- Facts and look-ups: scores (always the "live_scores" tool first, ESPN's live scoreboard; web search only for a past game it lacks, and never report an old final as the current score), injuries and player news (check fresh news with web search too, and say when the listing and the news disagree), build and check status, what is being built or waiting, counts and states in the rooms, the fantasy league's past weeks, current facts from the web. Use <rooms> and <desk> first, <brief> and <recent> for what you know already, the "sleeper_league" tool for Nikita's league (read "roster" for his own team, roster, injuries or any start/sit question, always before answering; standings, and every matchup of any week, so a week-by-week history is a lookup, not a judgment call), and the web_search tool for anything current. Give "mode": "answer".
+- Facts and look-ups: the weather near home (always the "weather" tool, the live forecast, never web search), scores (always the "live_scores" tool first, ESPN's live scoreboard; web search only for a past game it lacks, and never report an old final as the current score), injuries and player news (check fresh news with web search too, and say when the listing and the news disagree), build and check status, what is being built or waiting, counts and states in the rooms, the fantasy league's past weeks, current facts from the web. Use <rooms> and <desk> first, <brief> and <recent> for what you know already, the "sleeper_league" tool for Nikita's league (read "roster" for his own team, roster, injuries or any start/sit question, always before answering; standings, and every matchup of any week, so a week-by-week history is a lookup, not a judgment call), and the web_search tool for anything current. Give "mode": "answer".
 - Anything that hinges on a decision, a plan, a preference or judgment: "what did we decide", "should we", design direction, which option to pick, what Nikita would prefer. You do not answer these here. Give "mode": "ponder" and a short in-character line saying you are chewing it over and will come back with a proper answer. Say nothing of the question's substance.
 - A request to build or change something (a feature, a fix, a new room): call "file_build_request" once (with a size: small, medium or large), then answer in character with the issue number it returns, and say the crew will pick it up. You never write code and you never promise a time.
 - Anything you cannot find out: say so plainly in character, or ponder. Never guess, and never make up a number, a score, a name or a result.
@@ -232,6 +232,8 @@ export interface AgentRequest {
   fileBuild: (size: "small" | "medium" | "large") => Promise<number | null>;
   /** The sleeper_league tool (./kernelleague.ts): read-only text about Nikita's league, for any week. */
   league: (args: unknown) => Promise<string>;
+  /** The weather tool (#1069, ./weather.ts): the live forecast near home. */
+  weather?: () => Promise<string>;
 }
 
 export interface AgentRun {
@@ -256,6 +258,8 @@ export interface AgentDeps {
   desk: () => Promise<{ desk: string; rooms: string }>;
   /** The Sleeper league read-only look (./kernelleague.ts leagueText), live or stubbed. */
   league: (args: unknown) => Promise<string>;
+  /** The live forecast near home (#1069); left out, the weather tool says it didn't answer. */
+  weather?: () => Promise<string>;
   /** Files an issue (foundry + foundry:chat); its number, or null. */
   fileIssue: (title: string, body: string) => Promise<number | null>;
   /** Keeps an answer on the turn (api/skippy.ts keepAnswer); whether it was kept. */
@@ -368,6 +372,7 @@ export async function respond(id: string, deps: AgentDeps): Promise<Outcome> {
     const run = await deps
       .run({
         league: (args) => deps.league(args).catch(() => "Sleeper isn't answering right now."),
+        ...(deps.weather && { weather: deps.weather }),
         model,
         system: systemBlocks(brief),
         user: userTurn({ ...state, recent, question: turn.question }),

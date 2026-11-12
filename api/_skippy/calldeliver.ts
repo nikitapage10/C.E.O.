@@ -22,7 +22,7 @@
 
 import type { AnswerKind } from "./answertimes.js";
 import { fitAnswer, withoutMoney } from "./kernelagent.js";
-import { STILL_SEARCHING, isEmptyLookup } from "./voicelookups.js";
+import { STILL_SEARCHING, isEmptyLookup, withoutMeta } from "./voicelookups.js";
 
 /** The longest a call's question waits for its answer before Skippy says plainly he couldn't get it. */
 export const CALL_ANSWER_MS = 45_000;
@@ -70,11 +70,15 @@ export function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([work.catch(() => null), late]).finally(() => clearTimeout(timer));
 }
 
-/** A search's text as an answer to keep: its summary without the "Web search for …:" label; "" when it has none. */
+/**
+ * A search's text as an answer to keep: its summary without the "Web search for …:" label, its narration or its doubts
+ * about a page's date (#1069); "" when it has none. A usable answer is final: a date mentioned in it never sends the
+ * question deeper.
+ */
 export function searchAnswer(text: string | null): string {
   if (!text || text === STILL_SEARCHING || isEmptyLookup(text)) return "";
-  const body = text.replace(/^Web search for "[^"]*":\s*/, "").trim();
-  return fitAnswer(withoutMoney(body));
+  const body = withoutMeta(text.replace(/^Web search for "[^"]*":\s*/, ""));
+  return body ? fitAnswer(withoutMoney(body)) : "";
 }
 
 /** Works out one call question's answer and keeps it (see the top of this file). Never throws. */

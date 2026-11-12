@@ -191,6 +191,13 @@ for (const width of [1440, 400]) {
     await did.getByRole("button", { name: "Undo" }).click();
     await expect(held.getByText("Setup, only you can do")).toBeVisible();
 
+    // The Senate's foot: the docket, and no list of his own under the chamber.
+    if (SHOTS) {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(5_000);
+      await page.screenshot({ path: `${SHOTS}/1056-senate-foot-${width}.png` });
+    }
+
     // Nothing here opened a chat.
     await expect(held.getByRole("dialog")).toHaveCount(0);
     expect(errors).toEqual([]);

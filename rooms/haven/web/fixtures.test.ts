@@ -285,3 +285,16 @@ describe("the block round the home (#1007)", () => {
     expect(nearFor(3)).toBeLessThanOrEqual(0.12);
   });
 });
+
+describe("the island's underglow (#1085)", () => {
+  const L = (name: string, on: boolean | null, online = true) => ({ name, on, online });
+  it("follows the island's under-light, not its top lights", async () => {
+    const { islandGlowOn } = await import("./fixtures.ts");
+    expect(islandGlowOn(null)).toBe(true);
+    expect(islandGlowOn([L("Island under lights", true), L("Island top lights", false)])).toBe(true);
+    expect(islandGlowOn([L("Island under lights", false), L("Island top lights", true)])).toBe(false);
+    expect(islandGlowOn([L("Kitchen island", false)])).toBe(false);
+    expect(islandGlowOn([L("Island glow", true, false)])).toBe(false);
+    expect(islandGlowOn([L("Hall", false)])).toBe(true);
+  });
+});

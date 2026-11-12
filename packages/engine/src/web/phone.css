@@ -1,0 +1,47 @@
+/*
+ * The phone layout's shared rules (#1045, phone.ts). Every rule here is for a phone only, `(max-width: 760px)`, the
+ * same width as PHONE_QUERY; the desktop Desk is untouched.
+ *
+ *   --ph-top / --ph-bot   the heights of the fixed bars at the top and the bottom, safe areas included (0 elsewhere),
+ *                         for anything a room pins to the screen's edges (a sheet, a dock, a sticky row).
+ *   .ph-scene             a room's 3D or drawn scene laid behind its controls: dimmed, and the touch goes to the page
+ *                         (it scrolls), never to the scene, until the room opens it on purpose with [data-ph-live].
+ */
+.desk {
+  --ph-top: 0px;
+  --ph-bot: 0px;
+}
+
+@media (max-width: 760px) {
+  .desk {
+    --ph-top: calc(52px + env(safe-area-inset-top, 0px));
+    --ph-bot: calc(60px + env(safe-area-inset-bottom, 0px));
+    /* The page is the one thing that scrolls, and it doesn't bounce the frame round under a finger. */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* No double-tap zoom wait on a tap. */
+  .desk :where(a, button, summary, label, input, select, textarea, [role="button"], [role="tab"]) {
+    touch-action: manipulation;
+  }
+  /* A canvas never takes the page's scroll on a phone: a finger dragging up or down over a scene scrolls the room. */
+  .desk .desk__main canvas {
+    touch-action: pan-y !important;
+  }
+
+  /* A scene behind the controls. */
+  .desk .ph-scene,
+  .desk .ph-scene canvas {
+    pointer-events: none !important;
+  }
+  .desk .ph-scene[data-ph-live],
+  .desk .ph-scene[data-ph-live] canvas {
+    pointer-events: auto !important;
+    touch-action: none !important;
+  }
+
+  /* The foot clears the bottom bar. */
+  .desk .desk__foot {
+    padding-bottom: calc(var(--ph-bot) + 28px);
+  }
+}

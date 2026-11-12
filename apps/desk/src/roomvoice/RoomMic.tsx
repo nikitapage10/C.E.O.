@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { roomMicOf, SKIPPY_VOICE, voiceTargetOf } from "@ceo/engine/voice";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { useIsPhone } from "@ceo/engine/web/phone.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { useTalk } from "../skippy/talk.ts";
 import { holdHint, PRIORITY, registerHoldToTalk, useHoldToTalk } from "../holdToTalk.ts";
@@ -35,6 +36,8 @@ export function VoiceDock({ route }: { route: string }) {
   const setChat = useSkippy((s) => s.setOpen);
   const calling = useTalk((s) => s.phase !== "idle");
   const signedIn = auth === "in";
+  // On a phone Ask Skippy is the bottom bar's middle slot (#1045, PhoneNav.tsx): the dock keeps the mic and the line.
+  const phone = useIsPhone();
 
   // Hands-free follows the page; it waits while Ask Skippy or a call has the floor, and signed out.
   useEffect(() => {
@@ -85,22 +88,24 @@ export function VoiceDock({ route }: { route: string }) {
       <VoiceLine name={lead?.name ?? "Skippy"} />
       <div className="vdock__row">
         {showMic && <MicButton room={mic.room} name={mic.name} />}
-        <button
-          type="button"
-          className="desk__skippy vdock__ask"
-          onClick={() => setChat(true)}
-          aria-expanded={false}
-          aria-controls="skippy-chat"
-          title="Ask Skippy: chat, or Talk on a call"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3.8 7.6C5.9 4.7 8.7 3.4 12 3.4s6.1 1.3 8.2 4.2c-2.5-.8-5.2-1.1-8.2-1.1s-5.7.3-8.2 1.1z" fill="currentColor" />
-            <rect x="7.4" y="8.2" width="9.2" height="12.6" rx="2.3" fill="none" stroke="currentColor" strokeWidth="1.3" />
-            <circle cx="10.3" cy="14.4" r="1" fill="currentColor" />
-            <circle cx="13.7" cy="14.4" r="1" fill="currentColor" />
-          </svg>
-          <span>Ask Skippy</span>
-        </button>
+        {!phone && (
+          <button
+            type="button"
+            className="desk__skippy vdock__ask"
+            onClick={() => setChat(true)}
+            aria-expanded={false}
+            aria-controls="skippy-chat"
+            title="Ask Skippy: chat, or Talk on a call"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.8 7.6C5.9 4.7 8.7 3.4 12 3.4s6.1 1.3 8.2 4.2c-2.5-.8-5.2-1.1-8.2-1.1s-5.7.3-8.2 1.1z" fill="currentColor" />
+              <rect x="7.4" y="8.2" width="9.2" height="12.6" rx="2.3" fill="none" stroke="currentColor" strokeWidth="1.3" />
+              <circle cx="10.3" cy="14.4" r="1" fill="currentColor" />
+              <circle cx="13.7" cy="14.4" r="1" fill="currentColor" />
+            </svg>
+            <span>Ask Skippy</span>
+          </button>
+        )}
       </div>
     </div>
   );

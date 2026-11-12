@@ -1543,6 +1543,99 @@
   font-weight: 500;
   font-size: 17px;
 }
+/* Cook day by day (#1055): a header per day with its date, today's card lit and brought into view, the days gone by
+   dimmed and folded under "Earlier this week". */
+[data-room="haven"] .mp-cookDays {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .mp-cookDay {
+  scroll-margin-top: calc(var(--ph-top, 0px) + 16px);
+  padding: 10px 12px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 20px;
+}
+[data-room="haven"] .mp-cookDay > ul {
+  margin-top: 8px;
+}
+[data-room="haven"] .mp-cookDay.is-today {
+  border-color: rgba(var(--hv-gold), 0.6);
+  background: linear-gradient(180deg, rgba(var(--hv-gold), 0.1), rgba(var(--hv-gold), 0.02));
+  box-shadow: 0 0 0 1px rgba(var(--hv-gold), 0.18), 0 10px 30px -18px rgba(var(--hv-gold), 0.6);
+}
+[data-room="haven"] .mp-cookDay.is-past {
+  opacity: 0.6;
+}
+[data-room="haven"] .mp-cookHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 20px;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-cookHead em {
+  align-self: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(var(--hv-gold), 0.18);
+  color: rgb(var(--hv-gold));
+  font-family: inherit;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-room="haven"] .mp-cookDay.is-tomorrow .mp-cookHead em {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--hv-soft);
+}
+[data-room="haven"] .mp-cookHead small {
+  font-family: var(--hv-text);
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-cookHF {
+  align-self: center;
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid rgba(185, 229, 143, 0.4);
+  border-radius: 999px;
+  color: #b9e58f;
+  font-family: var(--hv-text);
+  font-style: normal;
+  font-size: 12px;
+}
+[data-room="haven"] .mp-cookWhy {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-cookPast {
+  margin-top: 12px;
+}
+[data-room="haven"] .mp-cookPast > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px dashed var(--hv-line);
+  border-radius: 999px;
+  color: var(--hv-soft);
+  font-size: 14px;
+  cursor: pointer;
+}
+[data-room="haven"] .mp-cookPast > summary small {
+  color: var(--hv-mute);
+}
 @media (max-width: 1000px) {
   [data-room="haven"] .mp-shopStep {
     grid-template-columns: minmax(0, 1fr);

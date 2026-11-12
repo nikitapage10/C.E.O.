@@ -39,6 +39,7 @@ import { comeUndone, glyphMaterial, sigilAtlas, SIGIL_GLYPHS } from "@ceo/engine
 import { edgeFactor, SOFT, wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import type { BowlMan, BowlView } from "./bowlView.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Green as the bowl (#824, concept 01, picked by Nikita 2026-11-05): a football stadium at night, seen from high on
@@ -374,7 +375,7 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   const PH = opts.phone;
   let view = opts.view;
   const renderer = new WebGLRenderer({ canvas: cv, antialias: !PH, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.25 : 1.75));
+  renderer.setPixelRatio(sceneDpr()); // 2x on a phone, stepped down while frames run slow (#1070)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
@@ -1208,6 +1209,10 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
     px.value = renderer.getPixelRatio();
   };
   size();
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    size();
+  });
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(size) : null;
   ro?.observe(host);
   let yaw = 0;
@@ -1405,6 +1410,7 @@ export async function createBowl(host: HTMLElement, cv: HTMLCanvasElement, opts:
   const minStep = PH ? 1000 / 30 - 2 : 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (!visible || document.visibilityState === "hidden") {
       last = now;
       return;

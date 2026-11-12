@@ -47,6 +47,7 @@ import {
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import { edgeFactor, wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import type { Step } from "./line.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Studio in 3D (#828): an edit suite in the foreground with a sound stage behind it, drawn the way the Senate draws
@@ -122,7 +123,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   const PH = opts.phone;
   let view = opts.view;
   const renderer = new WebGLRenderer({ canvas, antialias: !PH, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.25 : 1.75));
+  renderer.setPixelRatio(sceneDpr()); // 2x on a phone, stepped down while frames run slow (#1070)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.08;
@@ -1153,6 +1154,10 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     px.value = renderer.getPixelRatio();
   };
   size();
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    size();
+  });
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(size) : null;
   ro?.observe(host);
   // The camera swivels round the stage on a set arc, never roams (Nikita, 2026-11-06): A/D (or a mouse drag) turn it
@@ -1280,6 +1285,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   };
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (!visible || document.visibilityState === "hidden") {
       last = now;
       return;

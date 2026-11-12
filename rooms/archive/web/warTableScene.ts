@@ -49,6 +49,7 @@ import { comeUndone, sigilAtlas, SIGIL_GLYPHS } from "@ceo/engine/sigils/undone.
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import { wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { groundOf, heightAt, MAP_D, MAP_W, PLACES, surfaceAt, type ModelKind, type Place, type PlaceId } from "../data/warTable.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The war table in 3D (#826; re-skinned in the Tide's look in #937).
@@ -483,7 +484,7 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
     antialias: !PH,
     powerPreference: "high-performance",
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.5 : 1.75));
+  renderer.setPixelRatio(sceneDpr()); // 2x on a phone, stepped down while frames run slow (#1070)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
@@ -1498,6 +1499,10 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   let open: PlaceId | null = null;
   let moved = true;
   size();
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    size();
+  });
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(size) : null;
   ro?.observe(host);
 
@@ -1650,6 +1655,7 @@ export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElemen
   const ghostMini = miniOf("tide");
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (!visible || document.visibilityState === "hidden") {
       last = now;
       return;

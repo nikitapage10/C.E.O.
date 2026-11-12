@@ -1,4 +1,4 @@
-import { sceneDpr } from "@ceo/engine/web/phone.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 import {
   ACESFilmicToneMapping,
   AdditiveBlending,
@@ -253,6 +253,11 @@ export class PipeScene {
   private look = new Vector3();
   private dist = 0;
   private raf = 0;
+  // Steps the ratio down on a phone that runs slow (#1070).
+  private guard = dprGuard((d) => {
+    this.renderer.setPixelRatio(d);
+    this.size();
+  });
   private last = performance.now();
   private T = 0;
   private visible = true;
@@ -314,7 +319,7 @@ export class PipeScene {
     canvas.after(this.lbls);
 
     const renderer = (this.renderer = new WebGLRenderer({ canvas, antialias: true }));
-    // Lighter on a phone (#1045): the scenes' 1.25x there, 1.75x elsewhere.
+    // 2x on a phone, stepped down while frames run slow (#1070); 1.75x elsewhere.
     renderer.setPixelRatio(sceneDpr());
     renderer.outputColorSpace = SRGBColorSpace;
     renderer.toneMapping = ACESFilmicToneMapping;
@@ -1014,6 +1019,7 @@ export class PipeScene {
 
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
+    this.guard.frame(now);
     const reduce = this.opts.reduce;
     const easing = Math.abs(this.yawTo - this.yaw) > 1e-4 || Math.abs(this.zoomTo - this.zoom) > 1e-4;
     if (!this.visible || document.hidden || (reduce && this.dirty <= 0 && !this.moved && !this.pan.busy && !easing)) {

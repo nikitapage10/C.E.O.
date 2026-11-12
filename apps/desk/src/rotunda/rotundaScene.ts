@@ -83,6 +83,7 @@ import type { FloorTopic, Joined, RecessSource } from "./liveTalk.ts";
 import { CAMERA_MAX_R, GALLERY_FADE, GALLERY_R0, KEEP_OUT, YAW_ARC, ZOOM, keepOutScale, softStep } from "./clearance.ts";
 import { ambientKey } from "./heard.ts";
 import { whereClause } from "./floorSteer.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Senate in 3D (#740), Today's chamber: the round 3 concept (concepts/2026-11-04-today-boiler, r3/rotunda.js)
@@ -378,8 +379,10 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     return loader.loadAsync(modelUrl(SKIPPY_MODEL));
   });
 
-  const renderer = new WebGLRenderer({ canvas, antialias: !PH0, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH0 ? 1.25 : 1.75));
+  // Sharp on a phone too (#1070, Nikita: the Senate looked blurry): 2x there, not 1.25x upscaled to a 3x screen, and
+  // antialiased, so the gold wires and the glyphs hold a clean edge; dprGuard below steps it down if frames run slow.
+  const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(sceneDpr());
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   // Darker overall (#925, Nikita: "darken the room overall"): the spotlights, the gold and the captions carry it.
@@ -595,7 +598,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       /* no face to move: the painted one stays */
     }
   }
-  const rig: SenateRig = { poses, capGeo, faceW: PH0 ? 256 : 512, faceH: PH0 ? 128 : 256, reduce, budget: 0 };
+  const rig: SenateRig = { poses, capGeo, faceW: 512, faceH: 256, reduce, budget: 0 };
 
   const makeCan = (id: string, colour: string | null, scale: number, y0: number) => {
     const model = cloneSkinned(proto);
@@ -1744,13 +1747,14 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   }
   const atlas = (() => {
     const c = document.createElement("canvas");
-    c.width = c.height = 512;
+    // 128 pixels a glyph (#1070): at 2x the near glyphs draw bigger than 64, and a smaller cell went soft.
+    c.width = c.height = 1024;
     const g = c.getContext("2d")!;
     g.fillStyle = "#fff";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.font = `44px "Noto Sans Runic","Geist Mono Variable",monospace`;
-    GLYPHS.slice(0, 64).forEach((ch, i) => g.fillText(ch, (i % 8) * 64 + 32, Math.floor(i / 8) * 64 + 34));
+    g.font = `88px "Noto Sans Runic","Geist Mono Variable",monospace`;
+    GLYPHS.slice(0, 64).forEach((ch, i) => g.fillText(ch, (i % 8) * 128 + 64, Math.floor(i / 8) * 128 + 68));
     const t = keep(new CanvasTexture(c));
     t.colorSpace = SRGBColorSpace;
     return t;
@@ -2148,8 +2152,15 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     }
     bgAt = now;
   }, 1000);
+  // A phone that can't hold its frames at 2x steps down a rung, and stays there (#1070).
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    nU.px.value = d;
+    size();
+  });
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (!visible || document.visibilityState === "hidden") {
       last = now;
       return;

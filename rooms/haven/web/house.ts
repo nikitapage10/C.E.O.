@@ -20,7 +20,7 @@ import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type Ho
 import type { HouseCat } from "./myshkaHouse.ts";
 import { registerShotRender } from "@ceo/engine/web/screenshot.ts";
 import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
-import { sceneDpr } from "@ceo/engine/web/phone.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Haven's house in 3D (#616): a generic renderer for whatever floor plan the private store holds. Nikita's round-6
@@ -301,6 +301,7 @@ export class House {
   private W = 1;
   private H = 1;
   private raf = 0;
+  private guard: { frame: (now: number) => void };
   private dirty = true;
   private visible = true;
   private backdrop = false;
@@ -376,8 +377,15 @@ export class House {
     this.desk = !phone && !(typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
     this.N = phone ? 700 : 1400;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    // At most 1.25x on a phone (the engine's sceneDpr, #1049), 1.75x on a small landscape screen, 2x on a desktop.
+    // At most 2x on a phone, stepped down while frames run slow (the engine's sceneDpr and dprGuard, #1070), 1.75x on
+    // a small landscape screen, 2x on a desktop.
     this.renderer.setPixelRatio(sceneDpr(phone ? 1.75 : 2));
+    this.guard = dprGuard((d) => {
+      this.renderer.setPixelRatio(d);
+      this.thr.width = Math.round(this.W * d);
+      this.thr.height = Math.round(this.H * d);
+      this.dirty = true;
+    }, phone ? 1.75 : 2);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.setClearColor(0x000000, 0);
@@ -1643,6 +1651,7 @@ export class House {
 
   private loop = (now: number) => {
     this.raf = requestAnimationFrame(this.loop);
+    this.guard.frame(now);
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     if (!this.visible || document.visibilityState === "hidden") return;

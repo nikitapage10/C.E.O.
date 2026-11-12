@@ -152,8 +152,8 @@ export const STOREYS_BELOW = 5;
  * first; with the way out from it, a unit step in plan (and world) axes. Null when the plan has none.
  */
 /**
- * Which side the courtyard is on (#1040): across the home from the long street, which runs along the side its living
- * room's balcony door faces (Nikita: his balcony is on the street). East when there is no balcony to go by.
+ * Which side the courtyard is on (#1040, #1044): the side its living room's balcony door faces (the balcony looks onto
+ * the courtyard), the long street across the home from it. East when there is no balcony to go by.
  */
 export function courtyardEast(plan: HavenPlan, x0: number, x1: number): boolean {
   const living = plan.rooms.find((r) => !r.detached && /\bliving\b/i.test(r.name));
@@ -161,8 +161,8 @@ export function courtyardEast(plan: HavenPlan, x0: number, x1: number): boolean 
   const xs = plan.balconies.filter((s) => s[0] === s[2] && own(s)).map((s) => s[0]);
   if (!xs.length) return true;
   const mid = (x0 + x1) / 2;
-  // A balcony on the east half puts the street east, the courtyard west.
-  return !(xs.reduce((a, b) => a + b, 0) / xs.length > mid);
+  // A balcony on the east half puts the courtyard east, the street west.
+  return xs.reduce((a, b) => a + b, 0) / xs.length > mid;
 }
 
 export function frontDoor(plan: HavenPlan): { seg: Seg; out: [number, number] } | null {
@@ -516,9 +516,8 @@ export class House {
     if (!home.length) return null;
     const hx0 = Math.min(...home.map((p) => p[0])), hx1 = Math.max(...home.map((p) => p[0] + p[2]));
     const hy0 = Math.min(...home.map((p) => p[1])), hy1 = Math.max(...home.map((p) => p[1] + p[3]));
-    // The home as it sits in its building (#1035, #1040): the long street on the side its living room's balcony faces
-    // (Nikita: his balcony is on the street), the courtyard on the other, up on an upper floor; its front door off a
-    // small entrance alcove.
+    // The home as it sits in its building (#1035, #1040, #1044): the courtyard on the side its living room's balcony
+    // faces, the long street on the other, up on an upper floor; its front door off a small entrance alcove.
     const door = frontDoor(P);
     let alcove: { x: number; z: number; out: [number, number]; w: number } | undefined;
     if (door) {

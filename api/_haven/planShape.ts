@@ -37,6 +37,8 @@ export const KINDS = [
   // #1022: a coffee station cabinet beside the counter run, black wall shelves with cups over it, a steel bin by the
   // island, a round accent chair.
   "coffeebar", "cupshelf", "bin", "accent",
+  // #1044: a small potted plant standing on a desk.
+  "potplant",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 

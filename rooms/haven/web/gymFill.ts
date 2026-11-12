@@ -31,7 +31,7 @@ function wallGap(b: Box, parts: PlanRoom["parts"]): number {
 }
 
 /** Floor pieces (mats, rugs) don't take floor space from the kit. */
-const FLAT = new Set<Kind>(["gmat", "mat", "rug", "runner"]);
+const FLAT = new Set<Kind>(["gmat", "mat", "rug", "lrug", "runner"]);
 
 /** The gym's room in the plan: the one whose tab is the Gym. */
 export function gymRoom(plan: HavenPlan): PlanRoom | null {

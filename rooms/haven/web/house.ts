@@ -640,6 +640,17 @@ export class House {
       const st = KIND_STYLE[it.k];
       if (st.height > 2) continue;
       c.fillStyle = `#${st.colour.toString(16).padStart(6, "0")}`;
+      if (it.k === "lrug") {
+        // White with a soft grey border and a faint grey weave (#1057).
+        c.fillRect(it.x, it.y, it.w, it.h);
+        const b = Math.min(it.w, it.h) * 0.06;
+        c.strokeStyle = "#9c9da1";
+        c.lineWidth = b * 0.5;
+        c.strokeRect(it.x + b, it.y + b, it.w - 2 * b, it.h - 2 * b);
+        c.fillStyle = "rgba(120,122,128,0.10)";
+        for (let gx = it.x + 2 * b; gx < it.x + it.w - 2 * b; gx += 10) c.fillRect(gx, it.y + 2 * b, 1.2, it.h - 4 * b);
+        continue;
+      }
       if (it.round) {
         c.beginPath();
         c.arc(it.x, it.y, it.w / 2, 0, 7);

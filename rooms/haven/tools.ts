@@ -168,6 +168,15 @@ export const TOOLS: readonly RoomTool[] = [
     effect: "read",
   },
   {
+    name: "weather",
+    room: "haven",
+    title: "Read the weather",
+    description:
+      "The live forecast near home from the National Weather Service (keyless, today's date first): right now, then today, tonight and tomorrow with the high or low, the sky, the chance of rain or snow and the wind. Any question about the weather, outside, rain, snow, an umbrella or a coat near home or in Denver: call this, never web_search. Another city's weather is web_search.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
+    effect: "read",
+  },
+  {
     name: "home_device",
     room: "haven",
     title: "Run a home device",

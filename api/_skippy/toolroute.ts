@@ -49,7 +49,6 @@ import { creditsReader } from "./voice.js";
 import { billText, boilerText, capLines, said, exchangeText, foundryText, greenText, isRead, positionsText, relayText, type BillInput, type ReadName } from "./voicereads.js";
 import { BlobCrewStore, MAX_HANDOFFS, TOOL_HEADER, checkToolToken, noteHandoff, type CrewStore, type TokenCheck } from "./voicetoken.js";
 import { BlobRoomLog, CALL_HARD, CALL_MODEL, isCallAsk, turnId, type LoggedTurn, type RoomLog } from "./log.js";
-import { ponderLine } from "./ponder.js";
 import { privateParts } from "../_privacy.js";
 import { PLAYERS_PATH, keptOrRead, pickGreenStore } from "../_green/cache.js";
 import { fpKey, readFpPlayerNews } from "../_green/fantasypros.js";
@@ -61,6 +60,8 @@ import { deliverCallAnswer, type CallJob } from "./calldeliver.js";
 import type { AnswerKind } from "./answertimes.js";
 import { BlobAnswerStore, timeAnswer } from "../_boot/talkTiming.js";
 import { liveScores } from "./sports.js";
+import { NO_WEATHER, homeWeather, isHomeWeather, weatherText } from "./weather.js";
+import { readKroger } from "../_haven/kroger/store.js";
 
 export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
@@ -89,6 +90,8 @@ export interface RoomSources {
   web?: WebDeps;
   /** The home devices' lines (#926, api/_haven/devices/homeread.ts homeNow): instant from the kept reading. */
   home?(): Promise<string>;
+  /** The live forecast near home (#1069, api/_skippy/weather.ts): the Weather Service's, keyless. */
+  weather?(): Promise<string>;
   /** The live scoreboard (#537); ESPN's by default. */
   scores?: (league: string | null, team: string | null, now: number) => Promise<string>;
 }
@@ -145,6 +148,8 @@ export async function readText(read: ReadName, s: RoomSources, now: number): Pro
     }
     case "haven":
       return s.home ? await q(s.home(), "The home devices didn't answer just now.") : "The home devices aren't set up on this copy.";
+    case "weather":
+      return s.weather ? await q(s.weather(), NO_WEATHER) : NO_WEATHER;
     case "voice_bill": {
       const b = await q(s.bill(), null);
       return b ? billText(b) : "ElevenLabs isn't set up for the plan's credits right now.";
@@ -174,6 +179,11 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
       const body = (await request.json().catch(() => null)) as { query?: unknown } | null;
       if (!deps.sources.web) return json({ read: "web", text: "Web search isn't set up on this call; hand the question to hand_to_kernel." });
       const query = cleanQueryText(body?.query);
+      // The weather near home (#1069): the live forecast, at once, never a web page that may be a day stale.
+      if (query && deps.sources.weather && isHomeWeather(query)) {
+        const forecast = await withBudget(readText("weather", deps.sources, deps.now), budget);
+        if (forecast !== SLOW_TEXT && !isEmptyLookup(forecast)) return json({ read: "web", text: forecast });
+      }
       const key = `${check.hash}|${query.toLowerCase()}`;
       // One path per question (#952): once a slow search is passed on, asking it again is answered with silence, so
       // the search's late result is never said as a second answer.
@@ -222,6 +232,8 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
   if (read === ANSWERS_READ) return json({ read, text: await answersText(deps, check.handoffs) });
   if (!isRead(read)) return json({ error: "bad-request" }, 400);
   const text = await withBudget(readText(read, deps.sources, deps.now), budget);
+  // No forecast: the question goes on to be answered (the web, then deeper), never "it didn't answer" (#1069).
+  if (read === "weather") return json(await settle(read, text, "What's the weather near home today?", deps, check));
   return json({ read, text, ...(text === SLOW_TEXT && { slow: true }) });
 }
 
@@ -272,7 +284,7 @@ const CALL_FAILED: Record<string, string> = {
 /** A call's searches already passed on to the deeper mind (#952), by call and query, on this instance. */
 const passedOn = new Set<string>();
 /** What a repeat of a passed-on search hears: nothing to say, the answer is coming. */
-export const PASSED_ON = "Your deeper mind already has this question, and its answer is put into the call the moment it lands. Say nothing now, don't search again, and stop.";
+export const PASSED_ON = "That question is already being looked up, and its answer is put into the call the moment it lands. Say nothing now, don't search again, and stop.";
 
 /** What the web tool keeps of its budget for passing a slow search on (two blob writes), inside the five seconds. */
 export const WEB_FILE_MS = 900;
@@ -328,11 +340,16 @@ async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenChec
   }
   // Answered here, not awaited (#1054): the search when there is one, else the deeper run, else an honest line.
   deps.deliver?.({ id, ask, depth, asked: deps.now, ...(search && { search }) });
-  const line = waitingLine(check.hash, deps.now)
-    ? `Say one short in-character line, like "${ponderLine(id).replace(/…$/, "")}" (never "thread", "hand-off", "Kernel" or "crew"), then stop.`
-    : "You already said this question's waiting line: say nothing now, and stop.";
-  return { ok: true, turn: id, text: `Passed on to your deeper mind. ${line} The answer is put into the call the moment it lands; don't call check_answers for it.` };
+  const line = waitingLine(check.hash, deps.now) ? WAIT_QUIP : "You already said this question's waiting line: say nothing now, and stop.";
+  return { ok: true, turn: id, text: `Still looking. ${line} The answer is put into the call the moment it lands; say it then, and don't call check_answers for it.` };
 }
+
+/**
+ * The one waiting line a passed-on question gets (#1069): topical and funny, in his own words, said once. Nikita,
+ * 2026-11-12: a stock "consulting the deeper me" sounded like a hand-off; he wants a quip on the subject while he looks.
+ * Never a stock line, and never the plumbing's words.
+ */
+export const WAIT_QUIP = `Unless you already said a line about this question, say one short in-character line about what he asked, quick and funny, on its subject and your own, like whether he'll need an umbrella for that monkey fur when it's the weather (never "thread", "hand-off", "Kernel" or "crew", never "team", and never a stock "consulting the deeper me"), then stop.`;
 
 const cleanQueryText = (raw: unknown): string => (typeof raw === "string" ? raw.replace(/\s+/g, " ").trim().slice(0, ASK_MAX) : "");
 
@@ -433,6 +450,11 @@ export function liveSources(env: Record<string, string | undefined> = process.en
     },
     players: playerSources(env),
     web: webDeps(env),
+    // The home's ZIP from the Haven's private store at run time (Denver without one); never in the code or a log.
+    weather: async () => {
+      const blob = pickBlob(env);
+      return weatherText(await homeWeather({ fetch: (u, i) => fetch(u, i), zip: async () => (blob ? (await readKroger(blob)).zip : ""), now: Date.now() }), Date.now());
+    },
     bill: async () => {
       const eleven = elevenFromEnv(env);
       return eleven ? { credits: await creditsReader(eleven.key)() } : null;

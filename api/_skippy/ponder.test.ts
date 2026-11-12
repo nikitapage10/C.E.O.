@@ -5,7 +5,7 @@ import { ANSWER_FIRST, ONE_WAITING_LINE, PONDER_LINES, SUBMIND_FIRST, UNSPOKEN, 
 import { greenLines } from "./rooms.ts";
 import { greenText, weekFrame } from "./voicereads.ts";
 import { SKIPPY_PROMPT } from "./prompt.ts";
-import { CALL_REPLY, EARLIER_CALLS_MS, EARLIER_MAX, handle, type RoomSources } from "./toolroute.ts";
+import { CALL_REPLY, EARLIER_CALLS_MS, EARLIER_MAX, WAIT_QUIP, handle, type RoomSources } from "./toolroute.ts";
 import { voicePrompt } from "./voice.ts";
 import { ON_AIR, TOOL_DEFS, submindPrompt } from "./voicecrew.ts";
 import { MemoryCrewStore, TOOL_HEADER, issueToolToken } from "./voicetoken.ts";
@@ -80,7 +80,9 @@ describe("the call's tool answers (#498)", () => {
     const got = await ask("Start a build for a waiver alarm");
     expect(got.ok).toBe(true);
     expect(got.text.replace(/\(never "thread"[^)]*\)/, "")).not.toMatch(UNSPOKEN);
-    expect(PONDER_LINES.some((l) => got.text.includes(l.replace(/…$/, "")))).toBe(true);
+    // One waiting line, topical and funny, never a stock "consulting the deeper me" (#1069).
+    expect(got.text).toContain(WAIT_QUIP);
+    expect(got.text.replace(/\([^)]*\)/g, "")).not.toMatch(/deeper/i);
     expect(CALL_REPLY).not.toMatch(UNSPOKEN);
     expect((await log.list("kernel", NOW))[0]!.answer).toBe(CALL_REPLY);
   });

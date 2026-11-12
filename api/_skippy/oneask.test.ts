@@ -73,7 +73,7 @@ describe("the route: scores, merged status and empty-tool escalation (#537)", ()
     const { token, d, log } = await setup({ scores: async () => `${NO_GAME} for "Brewers" in MLB today or yesterday.` });
     const body = (await (await handle(get(token, `read=${SPORTS_READ}&team=Brewers`), d)).json()) as { text: string; escalated?: boolean };
     expect(body.escalated).toBe(true);
-    expect(body.text).toMatch(/Passed on to your deeper mind\. Say one short in-character line/);
+    expect(body.text).toMatch(/^Still looking\. Unless you already said a line about this question, say one short in-character line/);
     expect(body.text).not.toMatch(/couldn't|failed|ESPN/i);
     const kept = await log.list("kernel", NOW);
     expect(kept).toHaveLength(1);

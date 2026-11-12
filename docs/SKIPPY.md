@@ -409,6 +409,24 @@ Skippy, who works out from the context whether the ask is about this page, anoth
   2 s of landing; and if even the honest line never lands (the instance went away), the call itself says plainly
   after 70 s that it couldn't get it (`CALL_GIVE_UP_MS`, `landing.ts`). The Kernel's trigger no longer starts call
   asks, and posts the rest to the site's address (`CEO_SITE_URL`) first ([AZURE.md](AZURE.md)).
+- **Quick questions stay quick (#1069).** Nikita, 2026-11-12: a weather question on a call went to a web search, which
+  read a forecast page a day old, hedged on the date aloud and ran past the tool's budget, so it was passed on with a
+  stock "consulting the deeper me" and landed framed as the deeper self's answer with "the write-up is in the chat".
+  Now:
+  - **The weather is a live forecast, on every surface.** `weather` (the Haven's tool, so the typed chat, the phone,
+    a room's mic and a call's quick and deeper passes all have it), `read_weather` on the call and `weather` in the
+    always-on responder read `api/_skippy/weather.ts`: the National Weather Service's free API (api.weather.gov, no
+    key), Open-Meteo's when it is down. The place is the home's ZIP from the Haven's private store (the King Soopers
+    picker's, `haven/kroger.json`) read at run time and geocoded to its town, else Denver; nothing about the home is in
+    the code, and the ZIP is never said or logged. Kept ten minutes per place, so it answers in about a second. A call's
+    `web_search` that is just the weather near home is answered from it at once (`isHomeWeather`).
+  - **Every lookup knows today.** The web lookups' prompt carries today's date and time on Nikita's clock
+    (`lookupPrompt`, `clock.ts`), picks today's entry with confidence and writes only the findings; any narration or
+    date doubt left is cut (`withoutMeta`). Spoken turns start with the clock line, and the Desk's `Now:` has the date.
+  - **A usable quick answer is final and spoken.** A found answer is never sent deeper over a date in it, the landed
+    note says it as his own answer (never "the deeper you" or "the chat"), and the one waiting line is a quick, funny
+    line on the question's subject (`WAIT_QUIP`; for the weather, whether he needs an umbrella for that monkey fur),
+    never repeated.
 - **The Senate's floor (#952).** A question about the debate ("what are you guys talking about?") goes to the members
   like a remark; a deeper answer that fails or comes back empty on the floor goes to them too. A room or floor turn
   whose model failed is asked once more before "my magnificent mind hiccupped" (`onceMore`, `roomroute.ts`).

@@ -68,6 +68,7 @@ import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
 import { costOf, setupList, type Usage } from "./foundry.js";
 import { AGENT_CEILING_USD, BlobChatLedger, CHAT_MAX_TOKENS, KERNEL_LEDGER_PATH, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, skippySpent, skippyWarn, type ChatLedger } from "./_skippy/budget.js";
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
+import { clockLine } from "./_skippy/clock.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
 import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
 import { FLOOR_REPLY, floorQuestion, readFloor } from "./_today/floor.js";
@@ -75,7 +76,7 @@ import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, handoffTo, isLogRoom, 
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
-import { CALL_RULES, LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, publicScreen, readChat, readDeeper, readLookup, readReply, screenLine, withWeb, type SkippyReply } from "./_skippy/prompt.js";
+import { CALL_RULES, lookupPrompt, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, publicScreen, readChat, readDeeper, readLookup, readReply, screenLine, withWeb, type SkippyReply } from "./_skippy/prompt.js";
 import { BlobShots, type ShotStore } from "./_skippy/shots.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
@@ -169,7 +170,7 @@ export function claudeChat(key: string): Ask {
       model: LOOKUP_MODEL,
       max_tokens: LOOKUP_MAX_TOKENS,
       output_config: { effort: "low" },
-      system: LOOKUP_PROMPT,
+      system: lookupPrompt(Date.now()),
       tools: [{ type: "web_search_20260209", name: "web_search", max_uses: SEARCH_MAX }],
       messages: [{ role: "user", content: lookupInput(query) }],
     });
@@ -588,7 +589,7 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
     : undefined;
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : surface === "call" ? `${SKIPPY_PROMPT}\n${CALL_RULES}` : SKIPPY_PROMPT, chatInput(typed ? [contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n") : "", said.history, said.message, stack, said.page, screenLine(said.screen)), ctx);
+    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : surface === "call" ? `${SKIPPY_PROMPT}\n${CALL_RULES}` : SKIPPY_PROMPT, chatInput(typed ? [contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n") : `Now: ${clockLine(deps.now)}.`, said.history, said.message, stack, said.page, screenLine(said.screen)), ctx);
   } catch {
     return json({ error: "model" }, 502);
   }

@@ -229,7 +229,7 @@ export function clipSentence(text: string, max: number): string {
  * character (#498): the note never says "thread", "hand-off", "Kernel" or "crew", so he has nothing to echo.
  */
 export const landedNote = (text: string, final: boolean): string =>
-  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${clipSentence(shortSpoken(text), LANDED_MAX)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after; the full version is in the chat. Drop whatever else you were about to say, and no waiting line. That question is settled: don't search for it, check on it or pass it on again, and no "still pondering".`;
+  `${final ? "The answer" : "An update"} to what Nikita asked is in: "${clipSentence(shortSpoken(text), LANDED_MAX)}". Say it to him now as your own answer, answer first, in one or two short sentences, in character, with no recap and no question after. It is current: don't add doubts about its date that it doesn't raise itself, and never mention the chat, a write-up or where it came from. Drop whatever else you were about to say, and no waiting line. That question is settled: don't search for it, check on it or pass it on again, and no "still pondering".`;
 
 /** This call's landed answers (#952): held while a tool is out, said once, short. */
 const landing = createLanding();

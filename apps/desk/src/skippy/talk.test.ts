@@ -94,7 +94,9 @@ describe("Talk to Skippy in the browser", () => {
     expect(seen).toEqual(["/api/skippy-voice?handoffs=conv_live_123"]);
     expect(await readHandoffs("../x", doFetch)).toEqual([]);
     expect(await readHandoffs("conv_live_123", reply(401, {}))).toEqual([]);
-    expect(landedNote("Shipped in number 485.", true)).toMatch(/^The answer from the deeper you .*"Shipped in number 485\.".*Say it to him now, answer first/);
+    expect(landedNote("Shipped in number 485.", true)).toMatch(/^The answer to what Nikita asked is in: "Shipped in number 485\.".*Say it to him now as your own answer, answer first/);
+    // Spoken as his own answer (#1069): never "the deeper you", never "the write-up is in the chat".
+    expect(landedNote("Sunny, a high of 68.", true)).not.toMatch(/deeper you|full version is in the chat/);
     // Nothing for him to echo (#498): the note never names the plumbing.
     expect(landedNote("Shipped.", true).replace(/"[^"]*"/, "")).not.toMatch(/thread|hand-?off|hand (it )?off|kernel/i);
     expect(landedNote("On it.", false)).toMatch(/^An update/);

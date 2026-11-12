@@ -62,3 +62,31 @@ describe("the world clock's words", () => {
     expect(clockLoad(reading, T0 + 5 * 60 * MIN)).toBe(1);
   });
 });
+
+describe("one missed read doesn't stop the clock (#1084)", () => {
+  it("keeps the last good reading for a blip and reads as failed only after three misses in a row", async () => {
+    const { refreshWorldClock, resetClockFails, useWorldClock, CLOCK_FAILS_DOWN } = await import("./worldClock.ts");
+    resetClockFails();
+    const at = new Date().toISOString();
+    const ok = () => new Response(JSON.stringify({ at, nextAt: at }), { status: 200, headers: { "content-type": "application/json" } });
+    const bad = () => new Response(JSON.stringify({ error: "site-unavailable" }), { status: 503, headers: { "content-type": "application/json", "x-ceo-site-gate": "locked" } });
+    const real = globalThis.fetch;
+    try {
+      globalThis.fetch = (async () => ok()) as typeof fetch;
+      await refreshWorldClock();
+      expect(useWorldClock.getState().status).toBe("ready");
+      globalThis.fetch = (async () => bad()) as typeof fetch;
+      for (let i = 1; i < CLOCK_FAILS_DOWN; i++) {
+        await refreshWorldClock();
+        expect(useWorldClock.getState().status).toBe("ready");
+      }
+      await refreshWorldClock();
+      expect(useWorldClock.getState().status).toBe("failed");
+      globalThis.fetch = (async () => ok()) as typeof fetch;
+      await refreshWorldClock();
+      expect(useWorldClock.getState().status).toBe("ready");
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+});

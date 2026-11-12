@@ -189,7 +189,9 @@ export function Systems({ now }: { now: number }) {
   const jobList = useMemo(() => jobRows(jobs, now), [jobs, now]);
   const sec = useSecurityFeed().feed;
   const problems = useHome((s) => s.view?.problems);
-  const reported = sec?.workflows.filter((w) => w.state === "pass" || w.state === "fail") ?? [];
+  // The scans' pipe counts the security scans only: the browser tests (E2E) and the checks have gauges of their own,
+  // so one red test run lights one gauge, not three (#1084). The Security tab still lists every workflow.
+  const reported = sec?.workflows.filter((w) => (w.state === "pass" || w.state === "fail") && w.id !== "e2e" && w.id !== "checks") ?? [];
   const failing = reported.filter((w) => w.state === "fail");
   // Code findings and package alerts only: Scorecard's posture checks never turn the scans' pipe amber (#901).
   const alerts = actionableAlerts(sec?.alerts)?.open ?? null;

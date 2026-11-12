@@ -58,7 +58,9 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(tv.x).toBe(600);
     expect(list.find((i) => i.k === "console")!.x).toBeLessThan(650);
     expect(list.filter((i) => i.k === "sofa")).toHaveLength(2);
-    for (const k of ["rug", "ctable", "lamp", "minifridge", "projector"] as const) expect(list.some((i) => i.k === k)).toBe(true);
+    for (const k of ["rug", "ctable", "lamp", "minifridge"] as const) expect(list.some((i) => i.k === k)).toBe(true);
+    // No projector or any other light over the living room (#1044).
+    expect(list.some((i) => i.k === "projector")).toBe(false);
   });
 
   it("without a named TV wall, puts it on a wall with no glass", () => {
@@ -68,10 +70,25 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(onGlass).toBe(false);
   });
 
-  it("draws no cat tree: the tall shelf piece by the dining room was the cup shelves over the coffee maker (#1040)", () => {
-    expect(plan.items.filter((i) => i.k === "cattree")).toHaveLength(0);
-    const withTree = furnish({ ...base, items: [...base.items, { k: "cattree", x: 700, y: 60, w: 28, h: 28, round: true }] });
-    expect(withTree.items.filter((i) => i.k === "cattree")).toHaveLength(0);
+  it("draws one cat tree, the living room's, flat in the corner by its balcony door and clear of it (#1040, #1044)", () => {
+    const trees = plan.items.filter((i) => i.k === "cattree");
+    expect(trees).toHaveLength(1);
+    const tree = trees[0]!;
+    expect(inRoom("living")(tree)).toBe(true);
+    expect(tree.round).toBe(false);
+    const R = mainRect(room("living"));
+    const [, y0, x1, y1] = boxOf(tree);
+    // Against a wall and in a corner of the wall with the balcony door.
+    const door = plan.balconies.find((s) => s[0] === s[2] && Math.abs(s[0] - (R[0] + R[2])) <= 2)!;
+    expect(door).toBeTruthy();
+    expect(R[0] + R[2] - x1).toBeLessThanOrEqual(6);
+    const nearTop = Math.abs(y0 - R[1]) <= 6, nearBottom = Math.abs(R[1] + R[3] - y1) <= 6;
+    expect(nearTop || nearBottom).toBe(true);
+    // Not in front of the door.
+    expect(y1 <= Math.min(door[1], door[3]) || y0 >= Math.max(door[1], door[3])).toBe(true);
+    // A stray one anywhere else still goes.
+    const withTree = furnish({ ...base, items: [...base.items, { k: "cattree", x: 100, y: 60, w: 28, h: 28, round: true }] });
+    expect(withTree.items.filter((i) => i.k === "cattree")).toHaveLength(1);
   });
 
   it("stands the studio's DJ decks against the window wall by the north-east corner, away from the door (#959, #1022, #1035)", () => {
@@ -172,15 +189,45 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(base.doors).not.toContainEqual([220, 40, 220, 320]);
   });
 
-  it("lays out the studio: no printer, the desk on the window wall with two screens and a chair, the sofas in an L", () => {
+  it("lays out the studio: the workstation on the window wall, a small desk with the printer beside it, the sofas in an L (#1044)", () => {
     const list = plan.items.filter(inRoom("study"));
-    expect(list.some((i) => i.k === "printer")).toBe(false);
-    const desk = list.find((i) => i.k === "desk")!;
-    expect(desk.x + desk.w).toBeGreaterThan(950);
-    expect(list.filter((i) => i.k === "monitor")).toHaveLength(2);
+    const desks = list.filter((i) => i.k === "desk");
+    for (const d of desks) expect(d.x + d.w).toBeGreaterThan(950);
+    const work = desks.sort((a, b) => b.h - a.h)[0]!;
+    // Two widescreens and the tower on the workstation, two speakers in the wall behind it.
+    const onWork = (i: PlanItem) => {
+      const [x, y] = mid(i);
+      return x >= work.x && x <= work.x + work.w && y >= work.y && y <= work.y + work.h;
+    };
+    expect(list.filter((i) => i.k === "monitor" && onWork(i))).toHaveLength(2);
+    expect(list.filter((i) => i.k === "tower" && onWork(i))).toHaveLength(1);
     expect(list.filter((i) => i.k === "speaker")).toHaveLength(2);
-    for (const k of ["ochair", "dj"] as const) expect(list.some((i) => i.k === k)).toBe(true);
-    expect(list.filter((i) => i.k === "sofa").length).toBeGreaterThanOrEqual(1);
+    expect(list.some((i) => i.k === "dj")).toBe(true);
+    // No lamp and no round seat by the sofas (#1044).
+    for (const k of ["ochair", "lamp", "shelf"] as const) expect(list.some((i) => i.k === k)).toBe(false);
+    expect(list.filter((i) => i.k === "sofa")).toHaveLength(2);
+  });
+
+  it("puts the Studio's decks to the workstation's left, in its nook off the window wall, against the nook's far wall (#1044)", () => {
+    const nooked = furnish({ ...base, rooms: base.rooms.map((r) => (r.id === "study" ? { ...r, parts: [[660, 560, 300, 240], [760, 460, 200, 100]] as [number, number, number, number][] } : r)) });
+    const dj = nooked.items.find((i) => i.k === "dj")!;
+    const [x0, y0, x1, y1] = boxOf(dj);
+    expect(y0).toBeGreaterThanOrEqual(460);
+    expect(y1).toBeLessThanOrEqual(560);
+    expect(y0 - 460).toBeLessThanOrEqual(2);
+    expect(960 - x1).toBeLessThanOrEqual(6);
+    expect(x0).toBeGreaterThanOrEqual(760);
+    const [work, side] = nooked.items.filter((i) => i.k === "desk").sort((a, b) => b.h - a.h) as [PlanItem, PlanItem];
+    expect(work.y).toBeGreaterThanOrEqual(560);
+    // With the decks out of the main part, the small desk fits to the workstation's right (facing the east wall: to
+    // its south), the printer and a plant on it.
+    expect(side).toBeTruthy();
+    expect(side.y).toBeGreaterThanOrEqual(work.y + work.h);
+    for (const k of ["printer", "potplant"] as const) {
+      const it = nooked.items.find((i) => i.k === k)!;
+      const [x, y] = mid(it);
+      expect(x >= side.x && x <= side.x + side.w && y >= side.y && y <= side.y + side.h, k).toBe(true);
+    }
   });
 
   it("dresses a single bath as the guest bath (vanity, toilet, tub), two baths with the bigger as the master", () => {
@@ -358,7 +405,7 @@ describe("dressing the rooms (#747, #764)", () => {
         expect(E - (desk.x + desk.w)).toBeLessThanOrEqual(6);
         expect(desk.h).toBeGreaterThan(desk.w);
         expect(monitors).toHaveLength(2);
-        for (const m of monitors) expect(E - (m.x + m.w)).toBeLessThanOrEqual(16);
+        for (const m of monitors) expect(m.x >= desk.x && m.x + m.w <= desk.x + desk.w).toBe(true);
         expect(sofas).toHaveLength(2);
         const south = sofas.find((s) => s.w > s.h)!, west = sofas.find((s) => s.h > s.w)!;
         expect(S - (south.y + south.h)).toBeLessThanOrEqual(6);

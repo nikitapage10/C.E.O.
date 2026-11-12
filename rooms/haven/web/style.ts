@@ -53,14 +53,14 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   wc: S(0, 16, 0xf1f1ef, 0.3),
   tub: S(0, 22, 0xf1f1ef, 0.25),
   shower: S(0, 80, 0xbfd6e2, 0.05),
-  desk: S(0, 30, 0x151517, 0.5),
+  desk: S(0, 30, 0x6b4a2f, 0.6),
   monitor: S(30, 24, 0x0a0b10, 0.2, 0, [0x3a7bd5, 0.9]),
-  tower: S(0, 42, 0x0f0f12, 0.4, 0, [0x55ff99, 0.25]),
-  speaker: S(30, 26, 0x121214, 0.6),
+  tower: S(30, 40, 0x0f0f12, 0.4, 0, [0x55ff99, 0.25]),
+  speaker: S(66, 26, 0x121214, 0.6),
   ochair: S(0, 40, 0x19191c, 0.7),
   dj: S(0, 34, 0x141416, 0.5, 0, [0x39ff7a, 0.45]),
   loveseat: S(0, 28, 0x141417, 0.95),
-  printer: S(16, 30, 0xb9bcc0, 0.5, 0.3),
+  printer: S(30, 34, 0x2a2b2e, 0.5),
   bed: S(0, 22, 0x3a3b42, 1),
   night: S(0, 22, 0x121214, 0.6),
   dresser: S(0, 36, 0x16120f, 0.6),
@@ -86,8 +86,9 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   art: S(48, 80, 0xe8e8e6, 0.8), // top at 128, under the 140 cut-down wall (#892)
   coffeebar: S(0, 36, 0x111113, 0.45),
   cupshelf: S(62, 44, 0x0e0e10, 0.5),
-  bin: S(0, 28, 0xb9bcc0, 0.3, 0.85),
+  bin: S(0, 28, 0xc9ccd1, 0.35, 0.3),
   accent: S(0, 28, 0x2a2724, 0.9),
+  potplant: S(30, 22, 0x3f8f52, 0.7),
 };
 
 /** Floor finishes, drawn into the floor's texture. */

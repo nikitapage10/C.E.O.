@@ -276,12 +276,14 @@ export function HandsFree() {
       : ownListening
         ? "Hands-free waits while this page's own listening is on. Tap to stop."
         : "Hands-free waits while Skippy's chat or a call is open. Tap to stop.";
+  // Named by its label, not its words: the phone's top bar shows the mic alone (#1045, #1073).
   return (
     <button
       type="button"
       className="wv-navbtn hfree"
       data-state={state}
       aria-pressed={on}
+      aria-label={label}
       title={title}
       onClick={() => (on ? handsFreeOff() : handsFreeOn())}
       style={{ "--mic": target?.colour ?? "#8fd8ff" } as React.CSSProperties}

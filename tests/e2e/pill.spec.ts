@@ -16,6 +16,8 @@ import { startDistServer } from "./dist-server.ts";
  *   it scrolls past the fold, as under any floating button, so there only the scrolled-down look counts. Anything held
  *   in place (fixed or sticky) counts at rest on every page.
  * Overlaps of a couple of pixels (shadows, rounding) are let through.
+ * On a phone Ask Skippy is the middle slot of the phone frame's bottom bar (#1045, PhoneNav.tsx) rather than the
+ * floating pill: there the same look is at that slot, past the bar's own buttons (#1073).
  */
 
 const PORT = Number(process.env.E2E_PILL_PORT ?? 5193);
@@ -61,15 +63,19 @@ type Mode = "rest" | "end";
  * and a scroll brings it up. Runs in the page.
  */
 function overlapsInPage({ tolerance, mode }: { tolerance: number; mode: Mode }): Hit[] {
-  const pill = document.querySelector<HTMLElement>(".vdock__ask");
+  const pill = document.querySelector<HTMLElement>(".vdock__ask, .ph-ask");
   if (!pill) throw new Error("no Ask Skippy pill on the page");
   const p = pill.getBoundingClientRect();
+  // The fold: the bottom of the screen, or on a phone the top of the fixed bar that holds Ask Skippy (#1045). What's
+  // under that bar at rest is below the fold, as what's under the screen's edge is (unless it's held in place there);
+  // the scrolled-down look still makes sure the page's end comes clear of it.
+  const fold = pill.closest(".ph-bar")?.getBoundingClientRect().top ?? window.innerHeight;
   const sel =
     'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"], [role="textbox"], [contenteditable="true"]';
   const field = 'input, select, textarea, [role="textbox"], [contenteditable="true"]';
   const hits: Hit[] = [];
   for (const el of document.querySelectorAll<HTMLElement>(sel)) {
-    if (el.closest(".vdock")) continue;
+    if (el.closest(".vdock, .ph-bar")) continue;
     if (el.closest('[aria-hidden="true"], [inert]')) continue;
     if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
     // What's drawn of it: a field's whole box; otherwise its text runs and its icons and pictures (or, with neither,
@@ -111,7 +117,7 @@ function overlapsInPage({ tolerance, mode }: { tolerance: number; mode: Mode }):
     let worst = { w: 0, h: 0 };
     for (const r of parts) {
       if (r.width <= 0 || r.height <= 0) continue;
-      if (mode === "rest" && r.top < window.innerHeight && r.bottom > window.innerHeight) continue;
+      if (mode === "rest" && r.top < window.innerHeight && r.bottom > (pinned ? window.innerHeight : fold)) continue;
       const w = Math.min(r.right, cr, p.right) - Math.max(r.left, cl, p.left);
       const h = Math.min(r.bottom, cb, p.bottom) - Math.max(r.top, ct, p.top);
       if (w > tolerance && h > tolerance && w * h > worst.w * worst.h) worst = { w, h };
@@ -134,7 +140,7 @@ function overlapsInPage({ tolerance, mode }: { tolerance: number; mode: Mode }):
  */
 function layoutInPage(): string {
   const parts: string[] = [];
-  for (const el of document.querySelectorAll<HTMLElement>(".vdock__ask, a[href], button, input, select, textarea")) {
+  for (const el of document.querySelectorAll<HTMLElement>(".vdock__ask, .ph-ask, a[href], button, input, select, textarea")) {
     if (el.matches(".rt-pod, .rt-pres")) continue;
     const r = el.getBoundingClientRect();
     parts.push(`${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`);
@@ -180,7 +186,7 @@ for (const [label, width, height] of [
       await page.setViewportSize({ width, height });
       await stub(page);
       await page.goto(BASE + path);
-      await expect(page.locator(".vdock__ask")).toBeVisible();
+      await expect(page.locator(label === "phone" ? ".ph-ask" : ".vdock__ask")).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       await settle(page);
       const atTop = await page.evaluate(overlapsInPage, { tolerance: TOLERANCE, mode: "rest" as Mode });

@@ -107,9 +107,10 @@ test("signed in: rooms and lamps, the scenes apart, Edit for a Govee colour, the
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-974-panel.png` });
   const house = page.locator(".hv-house");
   if ((await house.getAttribute("data-gl")) !== "on") return;
-  // Kitchen by its name, the floor lamp by its spot: two drawn, with no marker over either (#1020); Porch and the
-  // uplight wait to be placed.
-  await expect(house).toHaveAttribute("data-lights", "2");
+  // Kitchen by its name, the floor lamp by its spot, and the uplight (a floor lamp with no spot and no room in its
+  // name) in a corner by the bedroom dresser (#1060): three drawn, with no marker over any (#1020). Porch, and the
+  // uplight's own spot, wait to be placed.
+  await expect(house).toHaveAttribute("data-lights", "3");
   await expect(page.locator(".hv-bulb")).toHaveCount(0);
   await panel.getByRole("button", { name: "Place Test Uplight on the house" }).click();
   await expect(panel).toContainText("Tap where Test Uplight stands on the house.");
@@ -117,6 +118,7 @@ test("signed in: rooms and lamps, the scenes apart, Edit for a Govee colour, the
   await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.55);
   await expect.poll(() => posts.length).toBe(6);
   expect(posts[5]).toMatchObject({ action: "light", name: "Test Uplight", x: expect.any(Number), y: expect.any(Number) });
+  // Still three: the uplight moves from the dresser's corner to where it was tapped.
   await expect(house).toHaveAttribute("data-lights", "3");
   await expect(panel.getByRole("button", { name: "Move Test Uplight on the house" })).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-974-house.png` });

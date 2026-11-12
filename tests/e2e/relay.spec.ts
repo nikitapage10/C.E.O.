@@ -187,13 +187,14 @@ const say = async (page: Page, words: string) => {
 };
 /**
  * Hands-free is switched in the Boiler Room's Settings since the Iris (#666): turn it on there, then walk into Relay
- * from the bar (the switch holds page to page, and the bar shows it while it listens).
+ * from the bar (the switch holds page to page, and the bar shows it while it listens). On a phone the bar is the
+ * phone frame's own (#1045, PhoneNav.tsx): the top bar shows Hands-free, the bottom bar leads into Relay.
  */
 const relayHandsFree = async (page: Page) => {
   await page.goto(`${BASE}/boiler/controls`);
   await page.locator("#ct-settings .bx-fold").click();
   await page.locator("#ct-settings").getByRole("button", { name: "Hands-free" }).click();
-  await expect(page.locator(".wv-navr").getByRole("button", { name: /Listening|Hands-free/ })).toBeVisible();
+  await expect(page.locator("header.wv-nav").getByRole("button", { name: /Listening|Hands-free/ })).toBeVisible();
   await page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "Relay" }).click();
   await expect(page.getByRole("region", { name: "Relay at a glance" })).toBeVisible();
 };
@@ -515,8 +516,11 @@ test("Done sticks (#914): a reload inside the Undo window still sends it, and it
   test.setTimeout(60_000);
   const posts = await stub(page);
   await page.goto(`${BASE}/relay`);
+  // Both lines in first, and Done on Sam's own card: Done shows only on the card in focus, so a bare "the focused
+  // card's Done" could land on whichever card took the focus as a line came in (#1073).
+  await expect(page.locator(".cx-count")).toContainText("3 waiting");
   await expect(focused(page)).toContainText("Sam Test");
-  await focused(page).getByRole("button", { name: /^Done/ }).click();
+  await page.locator(".cx-entry[data-focus]", { hasText: "Sam Test" }).getByRole("button", { name: /^Done/ }).click();
   await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
   // Reloaded at once, before the five seconds are up: the Done goes as the page leaves, and Sam doesn't come back.
   await page.reload();

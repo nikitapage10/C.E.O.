@@ -993,7 +993,7 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   await drawer.getByRole("button", { name: /^Cook mode/ }).click();
   const cook = page.getByRole("dialog", { name: "Cook mode: sausage pasta" });
   const text = cook.locator(".ck-text");
-  await expect(text).toHaveText("Bring a big pot of well-salted water to a boil over high heat, about 10 min.");
+  await expect(text).toHaveText("Fill a large pot with water, salt it well and set it over high heat to come to a boil.");
   await expect(cook.getByText("of 5")).toBeVisible();
   await expect(cook.getByText("Screen stays on")).toBeVisible();
   expect(await wake()).toEqual({ asked: 1, held: 1, refuse: false });
@@ -1006,7 +1006,7 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   await page.keyboard.press("ArrowRight");
   await expect(text).toHaveText(/^Brown the Italian sausage/);
   await cook.getByRole("button", { name: "Next step" }).click();
-  await expect(text).toHaveText("Cook the protein pasta two minutes short of the box, about 10 min, until just al dente; save a cup of the pasta water, then drain.");
+  await expect(text).toHaveText("Drop the protein pasta into the boiling water and cook two minutes short of the box, about 10 min, until just al dente; save a cup of the pasta water, then drain.");
   await expect(text.locator("mark")).toHaveText("protein pasta");
   if (SHOTS) await page.waitForTimeout(500).then(() => page.screenshot({ path: `${SHOTS}/haven-705-cook.png` }));
   await cook.getByRole("button", { name: "Back" }).click();
@@ -1015,7 +1015,7 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   const stage = cook.locator(".ck-stage");
   await stage.dispatchEvent("pointerdown", { pointerType: "touch", pointerId: 7, isPrimary: true, clientX: 700, clientY: 400 });
   await stage.dispatchEvent("pointerup", { pointerType: "touch", pointerId: 7, isPrimary: true, clientX: 520, clientY: 410 });
-  await expect(text).toHaveText(/^Cook the protein pasta/);
+  await expect(text).toHaveText(/^Drop the protein pasta/);
   await page.keyboard.press("End");
   await expect(text).toHaveText(/^Off the heat/);
   await expect(cook.getByRole("button", { name: "Done" })).toBeVisible();
@@ -1030,11 +1030,11 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   await page.evaluate(() => ((window as unknown as { wake: { refuse: boolean } }).wake.refuse = true));
   await page.setViewportSize({ width: 390, height: 844 });
   await drawer.getByRole("button", { name: /^Cook mode/ }).click();
-  await expect(text).toHaveText(/^Bring a big pot/);
+  await expect(text).toHaveText(/^Fill a large pot/);
   await expect(cook.getByText("Screen stays on")).toHaveCount(0);
   await cook.getByRole("button", { name: "Next step" }).click();
   await cook.getByRole("button", { name: "Next step" }).click();
-  await expect(text).toHaveText(/^Cook the protein pasta/);
+  await expect(text).toHaveText(/^Drop the protein pasta/);
   if (SHOTS) await page.waitForTimeout(500).then(() => page.screenshot({ path: `${SHOTS}/haven-705-cook-phone.png` }));
   // On a phone the parts and amounts are a panel over the step.
   await expect(side).toBeHidden();

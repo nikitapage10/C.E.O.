@@ -26,7 +26,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { completeSteps } from "./cookSteps.js";
+import { completeSteps, orderSteps } from "./cookSteps.js";
 
 export const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 export type Day = (typeof DAYS)[number];
@@ -575,7 +575,9 @@ export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Prof
   // for the part as the recipe names it (a swap renames it in cook mode, a part left out skips it). A part the night's
   // edits took out whole needs none. The stored recipe is untouched; every view reads the dish.
   const cooked = parts.map((p) => (p.base && !(r && p.base.ingredients.every((i) => droppedBy(r, i.item))) ? p.base : undefined));
-  const steps = completeSteps(meal.steps, cooked, [...meal.ingredients, ...(r?.add ?? [])].map((i) => i.item), RECIPE_STEPS_MAX);
+  // And in cooking order (#1041): the pasta water and the oven go on first, the rice and the potatoes start early.
+  const extra = [...meal.ingredients, ...(r?.add ?? [])].map((i) => i.item);
+  const steps = orderSteps(completeSteps(meal.steps, cooked, extra, RECIPE_STEPS_MAX), cooked, extra, RECIPE_STEPS_MAX);
   if (steps !== meal.steps) meal = { ...meal, steps };
   if (r) {
     const gone = ingredients.filter((i) => droppedBy(r, i.item));
@@ -598,8 +600,9 @@ export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Prof
 }
 
 /**
- * How many of the catalog's recipes leave a part uncooked (#1036), so the planner completes them as it shows them: the
- * seed's answer says it, so whoever wrote the file knows to write those steps out in full (RECIPE_RULES).
+ * How many of the catalog's recipes leave a part uncooked (#1036) or are out of cooking order (#1041), so the planner
+ * completes and orders them as it shows them: the seed's answer says it, so whoever wrote the file knows to write those
+ * steps out in full (RECIPE_RULES).
  */
 export const recipesCompleted = (f: Pick<MealsState, "catalog" | "components">): number => f.catalog.filter((m) => dishOf(f, m).meal.steps !== m.steps).length;
 

@@ -49,8 +49,9 @@ describe("cook mode's step pictures (#1010)", () => {
     const got = applyEdit(fakeMeals(), { op: "customize", day: "wed", part: { index: 1, option: "no-carb" } }, Date.now());
     if (!got.ok) throw new Error(got.error);
     const shots = stepShotsOf(cookOf(got.file, got.file.week!.slots[2]!)!);
-    expect(shots.map((s) => s.step)).toEqual([0, 1, 4]);
-    expect(shots[1]).toEqual({
+    // The pot of water for the pasta (#1041) goes with the pasta.
+    expect(shots.map((s) => s.step)).toEqual([1, 4]);
+    expect(shots[0]).toEqual({
       step: 1,
       shot: { meal: "sausage-pasta", name: "sausage pasta", description: "Brown the Italian sausage in a wide pan over medium-high heat, breaking it up, until crisp at the edges and no pink remains, 6–8 min.", components: ["Italian sausage"], style: "step" },
     });

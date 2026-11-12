@@ -67,7 +67,7 @@ export const TOOLS: readonly RoomTool[] = [
         day: DAY,
         action: { type: "string", enum: ["show", "add_step", "edit_step", "remove_step", "drop", "replace", "add"] },
         step: { type: "integer", minimum: 1, maximum: 17, description: "The step's number, 1-based." },
-        text: { type: "string", maxLength: 240, description: "The step's words, for add_step and edit_step, as a recipe card says it: the heat, the time and how to tell it's done (\"over medium-high heat until browned, 6–8 min\"), each ingredient by its name in the recipe. Never leave a part uncooked (boil the pasta, cook the rice)." },
+        text: { type: "string", maxLength: 240, description: "The step's words, for add_step and edit_step, as a recipe card says it: the heat, the time and how to tell it's done (\"over medium-high heat until browned, 6–8 min\"), each ingredient by its name in the recipe. Never leave a part uncooked (boil the pasta, cook the rice). Keep the cooking order: what takes longest starts first (the pasta water on to boil, the oven heated, the rice started), and each part is cooked when it should be, so everything finishes together." },
         ingredients: { type: "array", items: { type: "string", maxLength: 60 }, maxItems: 12, description: "Lines like \"2 roma tomatoes\", for one portion." },
         terms: { type: "array", items: { type: "string", maxLength: 40 }, maxItems: 8, description: "For drop and replace: words of the ingredients to take out." },
       },

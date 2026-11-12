@@ -79,9 +79,9 @@ export function fakeMeals(): MealsFile {
       {
         ingredients: [ing("Greek yogurt", 0.25, "cup")],
         steps: [
-          "Bring a big pot of well-salted water to a boil over high heat, about 10 min.",
+          "Fill a large pot with water, salt it well and set it over high heat to come to a boil.",
           "Brown the Italian sausage in a wide pan over medium-high heat, breaking it up, until crisp at the edges and no pink remains, 6–8 min.",
-          "Cook the rigatoni two minutes short of the box, about 10 min, until just al dente; save a cup of the pasta water, then drain.",
+          "Drop the rigatoni into the boiling water and cook two minutes short of the box, about 10 min, until just al dente; save a cup of the pasta water, then drain.",
           "Toss the rigatoni into the pan with a splash of the pasta water over medium heat until glossy and coated, 1–2 min.",
           "Off the heat, stir in the Greek yogurt and finish with black pepper; loosen it with more pasta water if it's thick.",
         ],
@@ -122,9 +122,10 @@ export function fakeMeals(): MealsFile {
       ["protein", "shrimp"],
       ["carb", "linguine"],
     ], { steps: [
-      "Bring a large pot of well-salted water to a boil over high heat, about 10 min.",
-      "Cook the linguine 1 minute short of the box time, about 9 min, until just al dente; save 1 cup of the pasta water, then drain.",
-      "Meanwhile, pat the shrimp dry, season with salt and sear in the olive oil in a wide pan over medium-high heat until pink, 1–2 min a side; set aside.",
+      "Fill a large pot with water, salt it well and set it over high heat to come to a boil.",
+      "Pat the shrimp dry, season them with salt and thinly slice the garlic while the water heats.",
+      "Drop the linguine into the boiling water and cook 1 minute short of the box time, about 9 min, until just al dente; save 1 cup of the pasta water, then drain.",
+      "While it cooks, sear the shrimp in the olive oil in a wide pan over medium-high heat until pink, 1–2 min a side; set aside.",
       "Lower the heat to medium and cook the sliced garlic in the pan until pale gold, about 1 min.",
       "Toss the linguine and the shrimp in the pan with a splash of the pasta water until glossy, 1–2 min, and serve.",
     ] }),

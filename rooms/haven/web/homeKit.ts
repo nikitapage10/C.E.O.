@@ -130,6 +130,33 @@ export function drawArt(c: HTMLCanvasElement) {
   }
 }
 
+/**
+ * The island's floor glow (#1085): a canvas the size of the island plus `pad` on every side, white where the island
+ * stands and fading smoothly to clear at the pad's edge, so the additive green reads as diffused light on the floor.
+ */
+export function islandGlow(L: number, D: number, pad: number, px = 128): HTMLCanvasElement {
+  const W = L + pad * 2, H = D + pad * 2;
+  const cw = px, ch = Math.max(16, Math.round((px * H) / W));
+  const c = document.createElement("canvas");
+  c.width = cw;
+  c.height = ch;
+  const x = c.getContext("2d");
+  if (!x) return c;
+  const img = x.createImageData(cw, ch);
+  for (let j = 0; j < ch; j++)
+    for (let i = 0; i < cw; i++) {
+      const u = ((i + 0.5) / cw) * W - W / 2, v = ((j + 0.5) / ch) * H - H / 2;
+      const dx = Math.max(0, Math.abs(u) - L / 2), dy = Math.max(0, Math.abs(v) - D / 2);
+      const t = Math.min(1, Math.hypot(dx, dy) / pad);
+      const a = Math.pow(1 - t, 2.2);
+      const k = (j * cw + i) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = 255;
+      img.data[k + 3] = Math.round(a * 255);
+    }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+
 export function homeMats(): HomeMats {
   const m = (o: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial(o);
   return {
@@ -145,8 +172,8 @@ export function homeMats(): HomeMats {
     glass: m({ color: 0xd8e6f0, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }),
     screen: m({ color: 0x08090c, roughness: 0.2, emissive: 0x0c1a2e, emissiveIntensity: 1 }),
     green: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.85 }),
-    underglow: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.95 }),
-    underhalo: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending }),
+    underglow: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.6 }),
+    underhalo: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }),
     warm: m({ color: 0xfff1d6, roughness: 0.4, emissive: 0xffd29a, emissiveIntensity: 1.2 }),
     dark: m({ color: 0x050506, roughness: 0.6 }),
     grey: m({ color: 0x8a8d92, roughness: 0.6 }),
@@ -173,6 +200,7 @@ function artMat(): THREE.MeshStandardMaterial {
 
 export function disposeHomeMats(m: HomeMats) {
   m.art.map?.dispose();
+  m.underhalo.map?.dispose();
   for (const v of Object.values(m)) v.dispose();
 }
 
@@ -230,7 +258,19 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
         b(M.underglow, inL + t, 0.008, t, 0, 0.006, s * (inD / 2 + t / 2));
         b(M.underglow, t, 0.008, inD + t, s * (inL / 2 + t / 2), 0.006, 0);
       }
-      b(M.underhalo, L + 0.22, 0.002, D + 0.22, 0, 0.003, 0);
+      // The glow on the floor (#1085, Nikita: diffused like the Studio's lamps, not a green rectangle): a soft wash that
+      // is brightest at the island's foot and fades to nothing half a metre out, drawn from a canvas falloff.
+      const pad = 0.5;
+      if (typeof document !== "undefined") {
+        M.underhalo.map?.dispose();
+        M.underhalo.map = new THREE.CanvasTexture(islandGlow(L, D, pad));
+        M.underhalo.needsUpdate = true;
+      }
+      const halo = new THREE.Mesh(new THREE.PlaneGeometry(L + pad * 2, D + pad * 2), M.underhalo);
+      halo.rotation.x = -Math.PI / 2;
+      halo.position.y = 0.004;
+      halo.renderOrder = 2;
+      g.add(halo);
       return g;
     }
     case "tv": {

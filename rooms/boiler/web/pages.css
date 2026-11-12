@@ -311,13 +311,14 @@
 }
 
 /* Phone tap targets (#1049): the tabs 44px tall; a fold button and the Threat model link keep their size, with a
-   44px hit area round them; a trust boundary's line takes a wider finger. */
+   44px hit area round them; a trust boundary's line takes a wider finger. Both are wider than 44px already, so the
+   hit areas grow up and down only: one reaching past a panel's side made it scroll sideways (#1073). */
 @media (max-width: 760px) {
   .desk .bx .bx-tabs a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding-block: 0; }
   .desk .bx .bx-fold { position: relative; }
-  .desk .bx .bx-fold::after { content: ""; position: absolute; inset: -12px -5px; }
+  .desk .bx .bx-fold::after { content: ""; position: absolute; inset: -12px 0; }
   .desk .bx .bx-psub:has(> .sx-out) { overflow: visible; }
   .desk .bx .sx-out { position: relative; }
-  .desk .bx .sx-out::after { content: ""; position: absolute; inset: -14px -4px; }
+  .desk .bx .sx-out::after { content: ""; position: absolute; inset: -16px 0; }
   .desk .bx .bx-map .tb path.hit { stroke-width: 64; }
 }

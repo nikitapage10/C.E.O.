@@ -199,6 +199,8 @@ export interface JobsView extends Omit<JobsState, "fit"> {
   hasResume: boolean;
   nextRun: string | null;
   fitCheck: FitCheckView;
+  /** On the Shelf (#1079): no scheduled runs, SerpApi and the fit check off; the key and the record are kept. */
+  shelved?: boolean;
 }
 
 export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [], near: [], big: [], rising: [] });
@@ -728,6 +730,14 @@ export function viewOf(state: JobsState, deps: Pick<JobsDeps, "key" | "budget" |
     nextRun: nextRunAt(s, deps.now),
     fitCheck: { paused: pauseOf(book, !!deps.ai, hasResume, cap), usd: Math.round(book.usd * 100) / 100, cap, checks: book.checks, pending: book.batch ? Object.keys(book.batch.ids).length : 0 },
   };
+}
+
+/**
+ * The same deps with every outside call switched off (#1079), for a shelved Job search: no SerpApi key, no fit check, and
+ * a fetcher that refuses. Nothing is deleted; the key stays in Key Vault and comes back the moment it is re-spun.
+ */
+export function pausedJobs(deps: JobsDeps): JobsDeps {
+  return { ...deps, key: "", ai: null, fetcher: async () => Promise.reject(new Error("shelved")) };
 }
 
 /** A change from the Desk: a job's state, the profile or the resume. Returns the new state, or an error word. */

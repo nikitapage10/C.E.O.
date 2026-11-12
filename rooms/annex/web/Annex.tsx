@@ -15,7 +15,8 @@ import "./annex.css";
  * a seed in the vault under the glass floor while it is on the Shelf, out on its own plot once it has graduated. Under
  * it, one console behind glass: a tab for each running pop-up's own section, and the beds and the Shelf with Shelve and
  * Re-spin. Shelving a pop-up stops it whole: its section unmounts, so its feed and timers stop, and the server stops
- * reading for it; its code and settings stay, and one tap re-spins it as it was. Skippy, the Stagehand, keeps it.
+ * reading for it; its timers skip it and its connections are off (#1079, api/_annex/route.ts `gateOf`); its keys, code
+ * and settings stay, and one tap re-spins it as it was. Skippy, the Stagehand, keeps it.
  */
 
 const ElectionNight = lazy(() => import("./ElectionNight.tsx").then((m) => ({ default: m.ElectionNight })));
@@ -49,14 +50,19 @@ function Row({ popup, status, note, lit, onSet }: { popup: Popup; status: PopupS
       <div className="an-row-text">
         <b>{popup.name}</b>
         <span>{popup.line}</span>
+        {shelved && (
+          <span className="an-paused" title={`Paused: ${popup.pauses}. Its keys and settings are kept; Re-spin turns them back on.`}>
+            Paused: no scheduled runs, connections off · keys and settings kept
+          </span>
+        )}
       </div>
-      <span className="an-until">{shelved ? "Code and settings kept" : note || (popup.until ? `Runs to ${popup.until}` : "Runs until shelved")}</span>
+      {!shelved && <span className="an-until">{note || (popup.until ? `Runs to ${popup.until}` : "Runs until shelved")}</span>}
       {shelved ? (
-        <button type="button" className="an-btn an-btn--go" onClick={() => onSet("live")} title="Back up into its bed, as it was">
+        <button type="button" className="an-btn an-btn--go" onClick={() => onSet("live")} title="Back up into its bed, as it was: its schedules and connections come back on">
           Re-spin
         </button>
       ) : (
-        <button type="button" className="an-btn" onClick={() => onSet("archived")} title="Back to seed on the Shelf: stops its reads and timers, keeps its code and settings">
+        <button type="button" className="an-btn" onClick={() => onSet("archived")} title="Back to seed on the Shelf: stops its scheduled runs and turns its connections off, keeps its keys, code and settings">
           Shelve
         </button>
       )}
@@ -100,7 +106,7 @@ function Bed({ popup, status, note, lit, onSet, onOpen, n }: { popup?: Popup; st
           Open
         </button>
       )}
-      <button type="button" className="an-btn" onClick={() => onSet("archived")} title="Back to seed on the Shelf: stops its reads and timers, keeps its code and settings">
+      <button type="button" className="an-btn" onClick={() => onSet("archived")} title="Back to seed on the Shelf: stops its scheduled runs and turns its connections off, keeps its keys, code and settings">
         Shelve
       </button>
     </li>

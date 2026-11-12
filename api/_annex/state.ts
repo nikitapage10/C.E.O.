@@ -28,6 +28,28 @@ export interface AnnexState {
 
 export const defaultState = (): AnnexState => ({ popups: { elections: { status: "live", at: null }, jobs: { status: "live", at: null } }, follows: { elections: [], jobs: [] } });
 
+/**
+ * What each pop-up connects to and runs on a schedule (#1079), the list shelving pauses. A shelved ("archived") pop-up
+ * runs nothing and calls nothing outside: its timers skip it and its routes refuse its scheduled work (`schedulesOn`,
+ * `connectionsOn`, asked by api/_annex/route.ts before every run). Pausing never deletes: its keys stay in Key Vault and
+ * its record in the private store, so re-spinning it turns everything back on without typing anything again. A new
+ * pop-up gets this by asking the same two questions before it runs or reaches out.
+ */
+export const PROJECT_PARTS: Record<PopupId, { connections: string[]; schedules: string[] }> = {
+  elections: { connections: ["civicAPI (public results, no key)"], schedules: ["the results read on each viewer's 45-second refresh"] },
+  jobs: {
+    connections: ["SerpApi Google Jobs (SERPAPI_KEY) and its account page", "Claude, for the AI fit check"],
+    schedules: ["annex_jobs_daily (the saved searches, 13:00 UTC)", "annex_jobs_fit (the fit check's batch, every 20 minutes)", "the pane's 10-minute refresh"],
+  },
+};
+
+/** On the Shelf: paused, with no scheduled runs and its connections off. */
+export const isShelved = (state: AnnexState | null, id: PopupId): boolean => !!state && state.popups[id].status === "archived";
+/** Whether a pop-up's scheduled work runs: only while it is live, and never when its record can't be read. */
+export const schedulesOn = (state: AnnexState | null, id: PopupId): boolean => !!state && state.popups[id].status === "live";
+/** Whether a pop-up may call its outside services at all: never while shelved, nor when its record can't be read. */
+export const connectionsOn = (state: AnnexState | null, id: PopupId): boolean => !!state && state.popups[id].status !== "archived";
+
 export const isPopup = (v: unknown): v is PopupId => (POPUP_IDS as readonly unknown[]).includes(v);
 export const isStatus = (v: unknown): v is PopupStatus => (POPUP_STATUSES as readonly unknown[]).includes(v);
 

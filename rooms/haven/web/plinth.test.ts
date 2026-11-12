@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import type { DeviceReading } from "@ceo/desk/homeDevices.ts";
-import { introDue, introStarted, resetIntro } from "./intro.ts";
 import { angleOf, DIAL_A0, DIAL_SWEEP, gaugesOf, setOf, threadPoint, THREAD_TO, turnTo, type GaugeInput } from "./plinth.ts";
-import { hullHits, hullOf } from "./house.ts";
+import { HOME_PH, HOME_TH, hullHits, hullOf, RISE_HOLD_MS, RISE_MS, riseFrom } from "./house.ts";
+import { HUSH } from "./surroundings.ts";
+import { HUSH_DAY, HUSH_NIGHT } from "./night.ts";
 
 /** The instrument plinth (#680), from made-up readings on the made-up plan. */
 
@@ -90,15 +91,30 @@ describe("the threads", () => {
   });
 });
 
-describe("the camera intro", () => {
-  it("plays once per page load", () => {
-    resetIntro();
-    expect(introDue()).toBe(true);
-    introStarted();
-    // Back on the Haven from another Desk page: the module is still loaded, so no intro.
-    expect(introDue()).toBe(false);
-    expect(introDue()).toBe(false);
-    resetIntro();
-    expect(introDue()).toBe(true);
+describe("the opening fly-up and the standard view (#1076)", () => {
+  const home = { tx: 1, tz: -2, th: HOME_TH, ph: HOME_PH, r: 20 };
+  it("looks down over the home from the hall's side, high and three-quarter", () => {
+    // About 45° above the floor, the camera off the plan's low-x, high-y corner (the hall's side), looking to the studio.
+    expect(HOME_PH).toBeGreaterThan(0.7);
+    expect(HOME_PH).toBeLessThan(0.9);
+    expect(Math.sin(HOME_TH)).toBeLessThan(0);
+    expect(Math.cos(HOME_TH)).toBeGreaterThan(0);
+  });
+  it("starts low beside the building, round the same target, and is short", () => {
+    const s = riseFrom(home);
+    expect([s.tx, s.tz]).toEqual([home.tx, home.tz]);
+    // Nearly level: the camera's height over the floor is a small share of its distance.
+    expect(Math.cos(s.ph)).toBeLessThan(0.25);
+    expect(s.ph).toBeGreaterThan(home.ph + 0.4);
+    expect(s.r).toBeLessThan(home.r);
+    expect(RISE_MS + RISE_HOLD_MS).toBeGreaterThanOrEqual(1500);
+    expect(RISE_MS + RISE_HOLD_MS).toBeLessThanOrEqual(2500);
+  });
+  it("holds the surroundings and the sky well back", () => {
+    expect(HUSH.keep).toBeLessThan(0.3);
+    expect(HUSH.glow).toBeLessThan(0.6);
+    expect(Math.max(...HUSH.haze)).toBeLessThan(0.1);
+    expect(HUSH_DAY).toBeLessThan(HUSH_NIGHT);
+    expect(HUSH_NIGHT).toBeLessThan(1);
   });
 });

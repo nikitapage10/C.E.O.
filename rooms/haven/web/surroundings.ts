@@ -216,6 +216,15 @@ export const LV = { base: -0.02, water: 0.004, asphalt: 0.02, paving: 0.03, gras
 
 /** A storey of the block, floor to floor, in world units (the walls are squashed to `wallH`, a slab on top). */
 export const STOREY = 1.6;
+
+/**
+ * The surroundings held back (#1076, Nikita: everything round the apartment was too bright and took the focus off it).
+ * Every surface of the block, its faces and balconies, the parking decks, the streets and the roofs keeps its art (the
+ * navy and white blocks) but is pulled toward a dark navy haze, `keep` of its own colour left: much lower in value and
+ * in contrast. The glowing windows, lamp heads and their pools and the strung lights dim by `glow`. The home's own rooms,
+ * furniture and lights are drawn by house.ts and keep their brightness.
+ */
+export const HUSH = { keep: 0.16, haze: [0.03, 0.035, 0.056] as const, glow: 0.4 };
 /** A raised block's look (#1035): its brick base storeys, the brick's tone and the dark panel above. */
 const BASE_STOREYS = 2, PANEL = 0x343d55;
 
@@ -243,8 +252,14 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   const box = shade(new THREE.BoxGeometry(1, 1, 1));
   geos.push(box);
   const dims: [THREE.MeshBasicMaterial, THREE.Color][] = [];
+  const haze = HUSH.haze.map((v) => v.toFixed(4)).join(",");
   const baked = () => {
     const m = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
+    // Held back toward the haze (#1076, HUSH): after the texture, the baked shade and the time of day's tint.
+    m.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace("#include <opaque_fragment>", `outgoingLight = mix(vec3(${haze}), outgoingLight, ${HUSH.keep.toFixed(3)});\n#include <opaque_fragment>`);
+    };
+    m.customProgramCacheKey = () => "hv-hush";
     mats.push(m);
     dims.push([m, new THREE.Color(0xffffff)]);
     return m;
@@ -619,11 +634,11 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     update(day: number) {
       const night = 1 - Math.max(0, Math.min(1, day));
       for (const [m, c] of dims) m.color.copy(c).multiply(tint.copy(DAY).lerp(NIGHT, night));
-      poolMat.opacity = 0.35 * night;
-      glowMat.color.setScalar(0.3 + 0.7 * night);
-      litMat.opacity = Math.max(0, Math.min(1, (night - 0.25) / 0.5));
+      poolMat.opacity = 0.35 * night * HUSH.glow;
+      glowMat.color.setScalar((0.3 + 0.7 * night) * HUSH.glow);
+      litMat.opacity = Math.max(0, Math.min(1, (night - 0.25) / 0.5)) * HUSH.glow;
       if (litMesh) litMesh.visible = litMat.opacity > 0.01;
-      stringMat.opacity = 0.95 * night;
+      stringMat.opacity = 0.95 * night * HUSH.glow;
       bulbs.visible = night > 0.05;
     },
     dispose() {

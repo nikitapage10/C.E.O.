@@ -33,12 +33,18 @@ float edgeA(){vec2 uv=gl_FragCoord.xy/uRes;return smoothstep(0.,0.08,uv.x)*smoot
 `;
 
 const HAZE = "vec3(0.052,0.05,0.07)";
+/**
+ * The sky, the plain and the city's lights held back with the block round the home (#1076): the share of their light
+ * kept by night and by day. The day sky's bright rim took the eye off the apartment most, so it dims the most.
+ */
+export const HUSH_NIGHT = 0.7, HUSH_DAY = 0.36;
 /** The day's horizon (#1002): the sky's pale rim, which the sunlit plain fades into. */
 const DAY_HAZE = "vec3(0.62,0.69,0.78)";
 
 const GROUND_VS = `varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`;
 const GROUND_FS = `${GLSL_COMMON}
 uniform float uDay;
+uniform float uHush;
 varying vec3 vW;
 void main(){
   float d=length(vW.xz-cameraPosition.xz);
@@ -46,7 +52,7 @@ void main(){
   vec3 col=mix(vec3(0.03,0.032,0.044),${HAZE},pow(hz,0.75));
   col+=vec3(1.,0.6,0.32)*0.035*smoothstep(80.,600.,d);
   vec3 sun=mix(vec3(0.27,0.28,0.26),${DAY_HAZE},pow(hz,0.75));
-  gl_FragColor=vec4(mix(col,sun,uDay),edgeA());
+  gl_FragColor=vec4(mix(col,sun,uDay)*uHush,edgeA());
 }`;
 
 const LIGHTS_VS = `
@@ -70,6 +76,7 @@ void main(){
 }`;
 const LIGHTS_FS = `${GLSL_COMMON}
 uniform float uDay;
+uniform float uHush;
 varying float vB;
 varying float vWarm;
 void main(){
@@ -77,7 +84,7 @@ void main(){
   // A smooth falloff over the whole sprite, so what a light shows doesn't hang on where its centre falls in a pixel.
   float a=clamp(exp(-r*r*18.)*1.2+exp(-r*r*6.)*0.2,0.,1.)*vB*edgeA();
   vec3 c=mix(vec3(1.,0.68,0.38),vec3(0.95,0.92,0.84),step(0.72,vWarm));
-  gl_FragColor=vec4(c,a*(1.-uDay));
+  gl_FragColor=vec4(c,a*(1.-uDay)*uHush);
 }`;
 
 const DOME_VS = GROUND_VS;
@@ -86,6 +93,7 @@ uniform float uT;
 uniform float uWest;
 uniform float uPix;
 uniform float uDay;
+uniform float uHush;
 varying vec3 vW;
 float wrapA(float a){return mod(a+PI,TAU)-PI;}
 float h1(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
@@ -144,7 +152,7 @@ void main(){
   if(alt<rr)sky=mix(vec3(0.47,0.53,0.62),vec3(0.55,0.61,0.7),smoothstep(0.,rr,alt));
   if(alt<hh)sky=vec3(0.4,0.44,0.47);
   if(alt<0.)sky=${DAY_HAZE};
-  gl_FragColor=vec4(mix(col,sky,uDay),edgeA());
+  gl_FragColor=vec4(mix(col,sky,uDay)*uHush,edgeA());
 }`;
 
 /** The lights on the plain: a street grid round the house, thinning nowhere, fading into the haze. */
@@ -177,10 +185,11 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
   const res = { value: new THREE.Vector2(1, 1) };
   const uT = { value: 0 };
   const uDay = { value: 0 };
+  const uHush = { value: 1 };
 
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(1000, 48, 24),
-    new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uDay, uWest: { value: o.west }, uPix: { value: 0.001 } }, vertexShader: DOME_VS, fragmentShader: DOME_FS, side: THREE.BackSide, transparent: true, depthWrite: false }),
+    new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uDay, uHush, uWest: { value: o.west }, uPix: { value: 0.001 } }, vertexShader: DOME_VS, fragmentShader: DOME_FS, side: THREE.BackSide, transparent: true, depthWrite: false }),
   );
   dome.renderOrder = -20;
   dome.frustumCulled = false;
@@ -188,7 +197,7 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(2400, 2400),
-    new THREE.ShaderMaterial({ uniforms: { uRes: res, uDay }, vertexShader: GROUND_VS, fragmentShader: GROUND_FS, transparent: true, depthWrite: false }),
+    new THREE.ShaderMaterial({ uniforms: { uRes: res, uDay, uHush }, vertexShader: GROUND_VS, fragmentShader: GROUND_FS, transparent: true, depthWrite: false }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(o.centre[0], -0.012, o.centre[1]);
@@ -207,7 +216,7 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
   const lg = new THREE.BufferGeometry();
   lg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   lg.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 3));
-  const lm = new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uDay, uPx: { value: 1 } }, vertexShader: LIGHTS_VS, fragmentShader: LIGHTS_FS, transparent: true, depthWrite: false });
+  const lm = new THREE.ShaderMaterial({ uniforms: { uRes: res, uT, uDay, uHush, uPx: { value: 1 } }, vertexShader: LIGHTS_VS, fragmentShader: LIGHTS_FS, transparent: true, depthWrite: false });
   const lights = new THREE.Points(lg, lm);
   lights.position.set(o.centre[0], 0, o.centre[1]);
   lights.renderOrder = -5;
@@ -220,6 +229,7 @@ export function makeNight(o: { centre: [number, number]; keep: { x0: number; x1:
       res.value.set(w, h);
       uT.value = t;
       uDay.value = Math.max(0, Math.min(1, day));
+      uHush.value = HUSH_NIGHT + (HUSH_DAY - HUSH_NIGHT) * uDay.value;
       lights.visible = uDay.value < 0.99;
       (dome.material as THREE.ShaderMaterial).uniforms.uPix!.value = ((camera.fov * Math.PI) / 180) / Math.max(1, h);
       lm.uniforms.uPx!.value = dpr;

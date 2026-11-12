@@ -20,7 +20,7 @@ import { moodOf, useClimateQueue } from "./climateQueue.ts";
 import type { House, ThreadState } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useRoomReady, useRoomShown } from "@ceo/engine/web/roomReady.ts";
 import { useIsPhone } from "@ceo/engine/web/phone.ts";
 import { sectionOf } from "@ceo/engine/web/sections.ts";
 import { navigateTo, routeOf, usePathname } from "../../../apps/world/src/route.ts";
@@ -132,6 +132,16 @@ export function Haven() {
   const labelHost = useRef<HTMLDivElement>(null);
   const [away, setAway] = useState(false);
   const house = useRef<House | null>(null);
+  // The opening fly-up (#1076) plays once per open of the Haven: the first house drawn on this page, and again each time
+  // the kept Haven (#759) comes back on screen. A house drawn again (a new plan) or a tab switch within the room starts
+  // on the standard view.
+  const flown = useRef(false);
+  const onScreen = useRoomShown();
+  const wasOnScreen = useRef(onScreen);
+  useEffect(() => {
+    if (onScreen && !wasOnScreen.current) house.current?.rise();
+    wasOnScreen.current = onScreen;
+  }, [onScreen]);
   const lamps = useRef<Partial<Record<GaugeId, HTMLElement | null>>>({});
   const strip = useRef<HTMLElement>(null);
 
@@ -309,7 +319,8 @@ export function Haven() {
           return [x - h.left, y - h.top];
         };
         const rail = () => strip.current?.dataset.rail === "side";
-        house.current = new House(host, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, keepClear, lampAt, rail, onOrder: setOrder, onSpot: (spot) => spot === "thermostat" && setPop("climate") });
+        house.current = new House(host, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, keepClear, lampAt, rail, onOrder: setOrder, onSpot: (spot) => spot === "thermostat" && setPop("climate"), intro: !flown.current });
+        flown.current = true;
         setGl("on");
       } catch {
         setGl("none");

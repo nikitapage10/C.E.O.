@@ -2,18 +2,20 @@ import * as THREE from "three";
 
 /**
  * What stands round the home (#1007, #1020). Nikita, 2026-11-10: the grey all round the apartment was boring; the city
- * round it should look like somewhere. So the home is the corner unit of a low courtyard block: the courtyard its
- * balconies face (about twice the home's size), the block wrapping round it, a second, larger courtyard further along
- * with a pool deck, a street with parked cars and street lamps on the home's other side, a riverside trail and parking
- * decks across it, and a boulevard with a planted median along the near end. The roofs aren't plain grey (#1020):
+ * round it should look like somewhere. So the home is a unit of a light courtyard block: since #1035 up on an upper
+ * floor (the courtyards and the street well below it, `below`) and mid-way along the block's street wing, through the
+ * wing from the street on one side to the courtyard on the other (about twice the home's size), with a small entrance
+ * alcove outside its front door; the block wrapping round, a second, larger courtyard further along with a pool deck,
+ * a street with parked cars and street lamps on the home's other side, a riverside trail and parking decks across it,
+ * and a boulevard with a planted median beyond the block's south end. The roofs aren't plain grey (#1020):
  * units of different heights and tones carrying plant, solar panels, skylights, terraces with planters and one pool;
  * by night some windows are lit and lights are strung over the courtyards and terraces. All generic and made up (no
  * real place is modelled), eight draw calls in all, unlit with the shading baked in; the street, the sidewalks and the
  * roofs carry a small baked pattern (#1022).
  *
  * World units (a metre each across, heights squashed like the house's: the walls are 1.4). `home` is the home's box
- * (its rooms), `keep` the boxes nothing may cover (every room, the decks, the walk to a detached block), `east` which
- * side the courtyard is on: the side the balconies face.
+ * (its rooms), `keep` the boxes nothing may cover (every room, the decks, the walk to a detached block, the entrance
+ * alcove), `east` which side the courtyard is on (the house puts it east, #1035).
  */
 
 export interface Box2 {
@@ -193,6 +195,8 @@ export const LV = { base: -0.02, water: 0.004, asphalt: 0.02, paving: 0.03, gras
 
 /** A storey of the block, floor to floor, in world units (the walls are squashed to `wallH`, a slab on top). */
 export const STOREY = 1.6;
+/** A raised block's look (#1035): its brick base storeys, the brick's tone and the dark panel above. */
+const BASE_STOREYS = 2, BRICK = 0xcbbca3, PANEL = 0x343d55;
 
 /**
  * `below`: storeys of the block under the home (#1035: the home is up on an upper floor, the courtyards and the street
@@ -274,15 +278,22 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
 
   // The block's ground under everything, so the light-wells round the home read as paving, not the plain.
   solid.push(slab(L.outer, LV.base - 0.02, 0.02, 0x9d9b94));
+  // A raised block's walls (#1035): a warm brick base two storeys high, dark panel above it to the roof; a light,
+  // generic version of a loft block's look.
+  const walls = (b: Box2, h: number, top: number) => {
+    if (!lift) return solid.push(slab(b, 0, h, top));
+    solid.push(slab(b, 0, h, PANEL));
+    solid.push(slab({ x0: b.x0 - 0.02, z0: b.z0 - 0.02, x1: b.x1 + 0.02, z1: b.z1 + 0.02 }, 0, Math.min(h, BASE_STOREYS * STOREY), BRICK));
+  };
   // The block's own floors under the home and what it keeps clear (#1035): up from the ground to just under the
-  // home's floor, in the block's light render.
-  if (lift > 0) for (const k of o.keep) solid.push(slab({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }, 0, lift - 0.03, 0xd2d0c9));
+  // home's floor.
+  if (lift > 0) for (const k of o.keep) walls({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }, lift - 0.03, PANEL);
 
   // The roofs (#1020): each unit its own height and tone, and on top whatever it carries; up on the home's floor
   // when the home is (#1035), the walls under them down to the ground.
   for (const u of L.roofs.map((v) => ({ ...v, h: v.h + lift }))) {
     const w = u.x1 - u.x0, d = u.z1 - u.z0, cx = (u.x0 + u.x1) / 2, cz = (u.z0 + u.z1) / 2;
-    solid.push(slab(u, 0, u.h, ROOF_TONES[u.tone]!));
+    walls(u, u.h, ROOF_TONES[u.tone]!);
     skin("roof", u, u.h + 0.004, ROOF_TONES[u.tone]!);
     const inner = { x0: u.x0 + 0.7, z0: u.z0 + 0.7, x1: u.x1 - 0.7, z1: u.z1 - 0.7 };
     const iw = inner.x1 - inner.x0, id = inner.z1 - inner.z0;

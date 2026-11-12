@@ -29,7 +29,8 @@ import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
  * lit rooms, drift up in their light, rise off the devices that are working and swarm the ones that need Nikita.
  *
  * Starts on a three-quarter view fitted to the plan (#658: about 37° up, turned so the plan's far end runs up and to the
- * right), one unit of a low courtyard block with a street, a park and a boulevard round it (surroundings.ts, #1007), on a
+ * right), one unit up on an upper floor of a courtyard block with a street, a park and a boulevard round it
+ * (surroundings.ts, #1007, #1035), on a
  * Denver plain under its sky (night.ts, #665), all in the one scene; drag to orbit, pinch or
  * scroll to zoom, tap a room to fly in (300 ms), and `resetView` comes back to the fitted view. Reduced motion: every move is
  * instant and the frame is still (drawn only when something changes). Loaded lazily, with three from the Lattice's own

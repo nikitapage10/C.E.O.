@@ -15,7 +15,10 @@ import { KIND_STYLE } from "./style.ts";
  *                 and every balcony door is one single door wide, saved or derived (#935).
  *                 Every other wall stays solid. What the plan does save wins. The kitchen and the hall are one open
  *                 space: no wall is drawn where they meet; nor between the kitchen, the dining room and the living
- *                 room, one open room (#1022, openSeams).
+ *                 room, one open room (#1022, openSeams). The hall's or corridor's wall by the litter box stays solid
+ *                 (#1035, solidByLitter): no glass and no opening there.
+ *   Open room     a kitchen or dining wall standing a little in from the living room's, in line with it, is pushed
+ *                 back to meet it: one straight wall, no corner (#1035, squareOpenRoom).
  *   Living room   the TV on its back wall across from the Gym (else facing the windows), a long low console under it, an L sectional facing
  *                 it, turned to the east and south walls (#935: the return faces the other one when the TV is on one,
  *                 else the L backs onto both), narrow (#1022) so the way to the balcony door stays clear, with a square
@@ -23,23 +26,24 @@ import { KIND_STYLE } from "./style.ts";
  *                 (kept in the corner it has always stood in when the openings come from the walls), a drinks fridge
  *                 beside it, and the cat tower flat against the wall by the balcony door, out of the doorway with room
  *                 to walk past: the home's only cat tree.
- *   Studio        turned 90° clockwise (2026-11-06, #959): the desk against the east wall (two monitors, an office
- *                 chair, speakers either side, a tall shelf at its other end), two low, narrow sofas meeting in an L
- *                 along the south and west walls, a coffee table on a rug in front of them, and the DJ decks against
- *                 the north wall by the north-east corner, whose very corner is the floor lamp's (STUDIO_WALLS). No
- *                 printer. Three tall windows on its east wall, its wall by the litter box straight with its door
- *                 beside the box (#1022).
+ *   Studio        turned 90° clockwise (2026-11-06, #959): the DJ decks against the east (window) wall by the
+ *                 north-east corner, whose very corner is the floor lamp's (#1035, STUDIO_WALLS), the desk further
+ *                 along that wall (two monitors, an office chair, speakers either side, a tall shelf at its far end
+ *                 when there is room), two low, narrow sofas meeting in an L along the south and west walls, a coffee
+ *                 table on a rug in front of them. No printer. Three tall windows across its whole east wall, no
+ *                 balcony door there (#1035); its wall by the litter box straight with its door beside the box (#1022).
  *   Kitchen       what the plan has, with the fridge at the left end of the cabinet run (looking at it), the hob
  *                 centre-left on the run, about a third of the way from the fridge's end (#1007), no sideboard or
  *                 cabinet of bottles, and on the wall across from the cabinets five tall black-and-white canvases side
- *                 by side, one picture of trees and mountains. The coffee station (#1022) just past the run's
- *                 right-hand end: a black cabinet, the espresso machine on its left, black cup shelves over it; the sink
- *                 at the run's right-hand end. A steel bin by the island's east end; only the island's stools.
+ *                 by side, one picture of trees and mountains. The coffee station (#1022): a black cabinet, the
+ *                 espresso machine on its left, three little cup shelves over it, on the dining room's north wall
+ *                 behind its table (#1035), else just past the run's right-hand end; the sink at the run's right-hand
+ *                 end. A steel bin by the island's east end; only the island's stools.
  *   Baths         the guest bath a little bigger, the tub on its west wall, the toilet about the middle of its south
- *                 wall with the vanity beside it; the master bath with its shower on the north wall and the vanity on
- *                 the south (#1022).
- *   Hall          the coat rack on its east wall, no rugs and no stray pieces, the docked vacuum on its west wall by
- *                 the plant cabinet or the hall's light (#1022).
+ *                 wall with the vanity beside it; the master bath with its shower at the east end of the north wall
+ *                 and the vanity on the south, the toilet on its left (#1022, #1035).
+ *   Hall          a wide coat and shoe rack on its east wall, no rugs, no cat tunnel, no cabinet or dresser and no
+ *                 stray pieces, the docked vacuum on its west wall by the plant cabinet or the hall's light (#1022, #1035).
  *   Main bedroom  its door at the far end of its wall, the bed moved west of it, three tall windows on its west wall;
  *                 the closet with clothes rails along its north and south walls (#1022).
  *   Balcony nook  beside a balcony door anywhere but the living room, the Studio and the main bedroom: a small lit

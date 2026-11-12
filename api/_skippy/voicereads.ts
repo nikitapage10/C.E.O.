@@ -37,7 +37,7 @@ import type { JobRun, OpenPull } from "../foundry-feed.js";
 import type { ElevenCredits } from "./voice.js";
 
 /** The reads the tools offer, by the name the webhook passes (`?read=`). */
-export const READS = ["green", "exchange", "exchange_positions", "relay", "boiler", "foundry", "voice_bill", "haven", "weather"] as const;
+export const READS = ["green", "exchange", "exchange_positions", "relay", "boiler", "foundry", "voice_bill", "haven", "weather", "house"] as const;
 export type ReadName = (typeof READS)[number];
 export const isRead = (v: unknown): v is ReadName => typeof v === "string" && (READS as readonly string[]).includes(v);
 

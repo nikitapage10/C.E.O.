@@ -62,6 +62,7 @@ import { BlobAnswerStore, timeAnswer } from "../_boot/talkTiming.js";
 import { liveScores } from "./sports.js";
 import { NO_WEATHER, homeWeather, isHomeWeather, weatherText } from "./weather.js";
 import { readKroger } from "../_haven/kroger/store.js";
+import { NO_HOUSE } from "../_haven/house.js";
 
 export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
@@ -92,6 +93,8 @@ export interface RoomSources {
   home?(): Promise<string>;
   /** The live forecast near home (#1069, api/_skippy/weather.ts): the Weather Service's, keyless. */
   weather?(): Promise<string>;
+  /** "How's the house?" (#1067, api/_haven/house.ts): one spoken line from the Haven's own reads. Private to Nikita. */
+  house?(): Promise<string>;
   /** The live scoreboard (#537); ESPN's by default. */
   scores?: (league: string | null, team: string | null, now: number) => Promise<string>;
 }
@@ -150,6 +153,8 @@ export async function readText(read: ReadName, s: RoomSources, now: number): Pro
       return s.home ? await q(s.home(), "The home devices didn't answer just now.") : "The home devices aren't set up on this copy.";
     case "weather":
       return s.weather ? await q(s.weather(), NO_WEATHER) : NO_WEATHER;
+    case "house":
+      return s.house ? await q(s.house(), NO_HOUSE) : NO_HOUSE;
     case "voice_bill": {
       const b = await q(s.bill(), null);
       return b ? billText(b) : "ElevenLabs isn't set up for the plan's credits right now.";
@@ -455,11 +460,38 @@ export function liveSources(env: Record<string, string | undefined> = process.en
       const blob = pickBlob(env);
       return weatherText(await homeWeather({ fetch: (u, i) => fetch(u, i), zip: async () => (blob ? (await readKroger(blob)).zip : ""), now: Date.now() }), Date.now());
     },
+    // The house in one line (#1067): the reads the Haven already makes, nothing new asked of a device.
+    house: () => houseNow(env),
     bill: async () => {
       const eleven = elevenFromEnv(env);
       return eleven ? { credits: await creditsReader(eleven.key)() } : null;
     },
   };
+}
+
+/**
+ * "How's the house?" (#1067): the home's lines (the same instant read as read_haven), the lights' kept view, the
+ * private plan's rooms, Today's to-dos and the Kitchen's plan, each loaded only when asked.
+ */
+async function houseNow(env: Record<string, string | undefined>): Promise<string> {
+  const blob = pickBlob(env);
+  const { houseText } = await import("../_haven/house.js");
+  return houseText(
+    {
+      home: async () => {
+        const [{ homeFromEnv }, { homeNow }] = await Promise.all([import("../_haven/devices/live.js"), import("../_haven/devices/homeread.js")]);
+        const home = homeFromEnv(env);
+        return home ? homeNow(() => home.status(), blob, Date.now()) : "";
+      },
+      lights: async () => (await (await import("../_haven/lights/live.js")).lightsFromEnv(env)?.view()) ?? null,
+      ...(blob && {
+        plan: async () => new (await import("../_haven/plan.js")).PlanStore(blob).read(),
+        todos: async () => new (await import("../_today/store.js")).BlobTodoStore(blob).load(Date.now()),
+        meals: async () => new (await import("../_haven/meals.js")).MealsStore(blob).read(),
+      }),
+    },
+    Date.now(),
+  );
 }
 
 const DAY_MS = 24 * 60 * 60_000;

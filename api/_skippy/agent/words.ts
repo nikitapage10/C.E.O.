@@ -12,6 +12,8 @@
  *             food feeder", "feed the cat two portions", "vacuum the kitchen", "run the litter box", "what's in the wet
  *             feeder?". Hyphens and a possessive are smoothed first ("wet-food", "the cat's wet food feeder").
  *
+ *   house     "how's the house?", "everything OK at home?" (#1067): the Haven's house_check line, the temperature, the
+ *             lights on, the to-dos and tonight's dinner in one sentence.
  *   lights    a plain order to switch the lights (#1011): "turn on the lights", "lights off", "switch the study lamp
  *             on". "The lights" means every light at once (`ALL_LIGHTS`); a name goes to the lights' own name match.
  *
@@ -26,8 +28,29 @@ import { deviceAsk } from "../../_haven/classify.js";
 
 /** A tool call the rules settled, with exactly the input the tool's schema takes. */
 export interface DirectAsk {
-  tool: "home_status" | "home_device" | "lights_set";
+  tool: "home_status" | "home_device" | "lights_set" | "house_check";
   input: Record<string, unknown>;
+}
+
+/** The home in words: "the house", "home", "the apartment", "the Haven". */
+const HOME = String.raw`(?:the (?:house|apartment|flat|place|haven|home front)|home|my (?:house|apartment|place|flat)|things (?:at|back) home|everything (?:at|back) home|stuff at home|it at home)`;
+const TAIL = String.raw`(?:\s+(?:looking|doing|going|holding up|been))?(?:\s+(?:today|tonight|right now|now|at the moment|lately|then))?(?:,?\s+skippy)?`;
+/** "How's the house?", "how is home looking?", "everything OK at home?", "check on the house", "house check". */
+const HOUSE = new RegExp(
+  String.raw`^(?:` +
+    String.raw`(?:so\s+)?how(?:'s| is| are|s)\s+${HOME}${TAIL}` +
+    String.raw`|(?:is\s+)?everything\s+(?:ok|okay|good|alright|all right|fine|quiet)\s+(?:at|back)\s+home${TAIL}` +
+    String.raw`|(?:what's|whats|what is)\s+(?:going on|happening|up)\s+(?:at|back)\s+home${TAIL}` +
+    String.raw`|(?:give me\s+(?:a\s+)?|do\s+(?:a\s+)?)?(?:house|home)\s+(?:check(?:-?in)?|status|report)${TAIL}` +
+    String.raw`|(?:can you\s+)?check (?:in )?on\s+${HOME}${TAIL}` +
+    String.raw`)$`,
+  "i",
+);
+
+/** "How's the house?" and the like (#1067): the house_check line, the same on every surface. */
+export function houseAsk(text: string): boolean {
+  const t = smooth(text).replace(FILLER, "").replace(/[.!?]+$/, "").trim();
+  return t.length <= DIRECT_MAX && HOUSE.test(t);
 }
 
 /** The longest ask the rules take: commands and quick questions are short; anything longer is the model's. */
@@ -105,13 +128,14 @@ const HOME_THING = /\b(?:feeders?|wet food|dry food|kibble|cat'?s? (?:food|meal|
  */
 export function homeAsk(text: string): boolean {
   const t = smooth(text);
-  return climateAsk(t) || scheduleAsk(t) !== null || deviceAsk(t) !== null || HOME_THING.test(t);
+  return houseAsk(t) || climateAsk(t) || scheduleAsk(t) !== null || deviceAsk(t) !== null || HOME_THING.test(t);
 }
 
 /** The ask the rules settle at once, or null for the model. Never calls anything. */
 export function directAsk(text: string): DirectAsk | null {
   const t = smooth(text).replace(FILLER, "").replace(/[.!?]+$/, "").trim();
   if (!t || t.length > DIRECT_MAX) return null;
+  if (houseAsk(t)) return { tool: "house_check", input: {} };
   if (climateAsk(t)) return { tool: "home_status", input: { about: "climate" } };
   const when = scheduleAsk(t);
   if (when) return { tool: "home_status", input: { about: when } };

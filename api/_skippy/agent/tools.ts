@@ -543,6 +543,7 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   weather: reader("weather"),
+  house_check: reader("house"),
   home_device: {
     prepare: async (i) => ({ ok: true, label: "Do it", summary: `${homeLine(i)} (the Haven's rails still apply)` }),
     run: async (i, host) => {

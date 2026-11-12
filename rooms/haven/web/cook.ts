@@ -7,6 +7,7 @@
  * found by name in the step's words. Nothing new is read or stored.
  */
 
+import { lineNames, partNames, usesOf } from "../../../api/_haven/cookSteps.ts";
 import { CONFIRM_MAX, type MealToShoot } from "../../../api/_haven/photoShape.ts";
 import { cooksDinner, DAY_NAME, DAYS, lunchDish, lunchSkipped, portionsOf, shopLine, slotDish, type Component, type Day, type Dish, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
 
@@ -66,10 +67,7 @@ export interface Cook {
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The words a recipe might use for a component: its name, and each ingredient's name before a comma. */
-function namesOf(c: Component): string[] {
-  const all = [c.name, ...c.ingredients.map((i) => i.item.split(",")[0]!.trim())].filter((x) => x.length >= 3);
-  return [...new Set(all.map((x) => x.toLowerCase()))].sort((a, b) => b.length - a.length);
-}
+const namesOf = (c: Component): string[] => partNames(c);
 
 /** "Protein pasta" where the recipe wrote "rigatoni", lower-cased the way the recipe had it (acronyms kept: "NY strip"). */
 function cased(found: string, name: string): string {
@@ -112,73 +110,9 @@ export function stepOf(text: string, swaps: Swap[]): CookStep {
   return { runs: runs.filter((r) => r.text.length > 0), skip, uses: [] };
 }
 
-/* ── Which ingredients a step uses (#1010) ── */
+/* ── Which ingredients a step uses (#1010): the matcher is api/_haven/cookSteps.ts, shared with the planner (#1036) ── */
 
-/** Words that say what kind, not what: never enough on their own to tie a step to an ingredient. */
-const DESCRIPTIVE = new Set(
-  "fresh ground raw large small medium italian greek boneless skinless black white red green yellow extra virgin dried dry chopped minced sliced diced whole baby plain light dark sweet hot mild lean frozen canned kosher sea unsalted salted low fat free sodium shredded grated crushed cooked uncooked thin thick cut boxed jarred block bunch each piece pieces head clove cloves".split(" "),
-);
-
-/** One ingredient line as a step might name it: its full names (the item, the part it belongs to) and its telling words. */
-export interface LineNames {
-  /** Whole names, matched as a phrase: "italian sausage", "protein pasta". */
-  names: string[];
-  /** Single words a step may use alone ("sausage", "chicken"), counted only when no other line shares them. */
-  words: string[];
-}
-
-/** "Ground beef 85/15" → "ground beef"; "Lobster tail, 5 oz" → "lobster tail". */
-const bare = (s: string) =>
-  s
-    .split(",")[0]!
-    .toLowerCase()
-    .replace(/[^\p{L}\s'-]+/gu, " ")
-    .split(/\s+/)
-    .filter((w) => w && !/\d/.test(w))
-    .join(" ")
-    .trim();
-
-/** The names a line can go by: the item, and the part it belongs to (its component's name). */
-export function lineNames(item: string, part?: string): LineNames {
-  const names = [...new Set([bare(item), part ? bare(part) : ""].filter((x) => x.length >= 3))];
-  const words = [...new Set(names.flatMap((n) => n.split(" ")).filter((w) => w.length >= 3 && !DESCRIPTIVE.has(w)))];
-  return { names, words };
-}
-
-/** A name as a pattern: whole words, an optional plural on the last ("tortilla" finds "tortillas", "peach" "peaches"). */
-function patternOf(name: string): RegExp {
-  const stem = name.replace(/(?:es|s)$/, (m) => (name.length - m.length >= 3 ? "" : m));
-  return new RegExp(`(?<![\\p{L}])${esc(stem).replace(/ /g, "[\\s-]+")}(?:s|es)?(?![\\p{L}])`, "giu");
-}
-
-/**
- * The lines a step uses: first every line whose whole name the step says ("the Italian sausage"), then any single
- * telling word only one line has ("sear the chicken" → the chicken breast). A word inside a name already found counts
- * for nothing more, and a word two lines share ("pepper") ties the step to neither. In the order the step says them.
- */
-export function usesOf(text: string, lines: LineNames[]): number[] {
-  const found = new Map<number, number>();
-  let rest = text;
-  const blank = (m: RegExpExecArray) => (rest = rest.slice(0, m.index) + " ".repeat(m[0].length) + rest.slice(m.index + m[0].length));
-  // Longest names first, so "protein pasta" wins over a shorter name inside it.
-  const whole = lines.flatMap((l, k) => l.names.map((n) => ({ k, n }))).sort((a, b) => b.n.length - a.n.length);
-  for (const { k, n } of whole) {
-    const re = patternOf(n);
-    for (let m = re.exec(rest); m; m = re.exec(rest)) {
-      if (!found.has(k) || m.index < found.get(k)!) found.set(k, m.index);
-      blank(m);
-      re.lastIndex = 0;
-    }
-  }
-  const owners = new Map<string, number[]>();
-  lines.forEach((l, k) => l.words.forEach((w) => owners.set(w, [...(owners.get(w) ?? []), k])));
-  for (const [w, ks] of owners) {
-    if (ks.length !== 1 || found.has(ks[0]!)) continue;
-    const m = patternOf(w).exec(rest);
-    if (m) found.set(ks[0]!, m.index);
-  }
-  return [...found.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k);
-}
+export { lineNames, usesOf, type LineNames } from "../../../api/_haven/cookSteps.ts";
 
 /** "Rigatoni (8 oz)" → { item: "Rigatoni", amount: "8 oz" }, with the planner's own rounding (`shopLine`). */
 function lineOf(i: Ingredient, k: number): CookLine {

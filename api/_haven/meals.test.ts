@@ -258,11 +258,15 @@ describe("/api/haven-meals", () => {
     for (const key of [undefined, LOG, "wrong-key-wrong-key-wrong-key-wrong-key"]) expect((await mealsPut(put({ meals: fixture() }, key), d)).status).toBe(401);
     const seeded = await mealsPut(put({ meals: fixture() }, FEED), d);
     const text = await seeded.text();
-    expect(JSON.parse(text)).toEqual({ ok: true, meals: 13, nights: 7 });
+    expect(JSON.parse(text)).toEqual({ ok: true, meals: 13, nights: 7, completed: 0 });
     expect(text).not.toContain("beef");
     expect((await mealsPut(put({ meals: fixture() }, FEED), d)).status).toBe(409);
     expect(d.blob.files.has(MEALS_PATH)).toBe(true);
     expect(await mealCountsOf(d.blob)).toEqual({ planned: 7, cooking: 7, helloFresh: 0, confirmed: false });
+    // A recipe that never cooks a part (#1036): stored as written, counted back so the writer knows.
+    const vague = fixture();
+    vague.catalog.find((m) => m.id === "sausage-pasta")!.steps = ["Brown the sausage.", "Toss with the rigatoni."];
+    expect(await (await mealsPut(put({ meals: vague, replace: true }, FEED), d)).json()).toEqual({ ok: true, meals: 13, nights: 7, completed: 1 });
   });
 
   it("signed in: reads the plan, makes an edit, and confirm puts the shopping on the Kitchen list and queues the customized nights for photos", async () => {

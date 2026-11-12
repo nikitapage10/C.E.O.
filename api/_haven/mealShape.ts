@@ -26,6 +26,8 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
+import { completeSteps } from "./cookSteps.js";
+
 export const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 export type Day = (typeof DAYS)[number];
 export const DAY_NAME: Record<Day, string> = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
@@ -320,7 +322,7 @@ function mealOf(v: unknown): Meal | null {
     cuisine: plain(x.cuisine, 30) || "Other",
     minutes: int(x.minutes, 5, 240, 30),
     blurb: plain(x.blurb, 240),
-    steps: arr(x.steps).map((s) => plain(s, 240)).filter(Boolean).slice(0, 12),
+    steps: arr(x.steps).map((s) => plain(s, STEP_MAX)).filter(Boolean).slice(0, RECIPE_STEPS_MAX),
     ingredients: ingredientsOf(x.ingredients),
     parts: arr(x.parts)
       .map((p) => o(p))
@@ -553,7 +555,7 @@ const round = (x: Macros, k = 1): Macros => ({ protein: Math.max(0, Math.round(x
 export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Profile, "spice"> }, base: Meal, custom: Custom = {}): Dish {
   const r = custom.recipe;
   // The night's own steps (#1027): the dish carries them, so cook mode, its step pictures and Skippy all read the same.
-  const meal = r?.steps ? { ...base, steps: r.steps } : base;
+  let meal = r?.steps ? { ...base, steps: r.steps } : base;
   let macros = meal.macros;
   let ingredients: Ingredient[] = [...meal.ingredients];
   const changes: string[] = [];
@@ -569,6 +571,12 @@ export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Prof
     if (now) ingredients.push(...now.ingredients);
     return { index, role: p.role, base, now };
   });
+  // Every part the dish uses is cooked in some step (#1036): a recipe that never boils its pasta gets the step, written
+  // for the part as the recipe names it (a swap renames it in cook mode, a part left out skips it). A part the night's
+  // edits took out whole needs none. The stored recipe is untouched; every view reads the dish.
+  const cooked = parts.map((p) => (p.base && !(r && p.base.ingredients.every((i) => droppedBy(r, i.item))) ? p.base : undefined));
+  const steps = completeSteps(meal.steps, cooked, [...meal.ingredients, ...(r?.add ?? [])].map((i) => i.item), RECIPE_STEPS_MAX);
+  if (steps !== meal.steps) meal = { ...meal, steps };
   if (r) {
     const gone = ingredients.filter((i) => droppedBy(r, i.item));
     if (gone.length) {
@@ -588,6 +596,12 @@ export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Prof
   if (custom.spice && custom.spice !== meal.spice) changes.push(spice === "mild" ? "Mild" : spice === "hot" ? "Hot" : "Medium heat");
   return { meal, parts, ingredients, macros: round(macros, portion), portion, spice, changes, customized: changes.length > 0 };
 }
+
+/**
+ * How many of the catalog's recipes leave a part uncooked (#1036), so the planner completes them as it shows them: the
+ * seed's answer says it, so whoever wrote the file knows to write those steps out in full (RECIPE_RULES).
+ */
+export const recipesCompleted = (f: Pick<MealsState, "catalog" | "components">): number => f.catalog.filter((m) => dishOf(f, m).meal.steps !== m.steps).length;
 
 /** Whether a night's recipe edits take an ingredient out (#1027): its name has one of the dropped words. */
 export const droppedBy = (r: RecipeEdit, item: string): boolean => {

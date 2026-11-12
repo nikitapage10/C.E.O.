@@ -43,7 +43,8 @@ describe("a night's recipe edits (#1027)", () => {
     expect(list(f)).toMatch(/Roma tomatoes/);
     expect(list(fakeMeals())).not.toMatch(/Roma tomatoes/);
     // Only that night: the catalog's tacos are as written.
-    expect(f.catalog.find((m) => m.id === "tacos")!.steps).toEqual(["Cook it."]);
+    expect(f.catalog.find((m) => m.id === "tacos")!.steps).toEqual(fakeMeals().catalog.find((m) => m.id === "tacos")!.steps);
+    expect(f.catalog.find((m) => m.id === "tacos")!.steps.some((t) => /pico/.test(t))).toBe(false);
     // Cook mode reads the edited step, with its ingredients and amounts, and its picture is a new one to make.
     const cook = cookOf(f, f.week!.slots[THU]!)!;
     const step = cook.steps[1]!;
@@ -70,12 +71,14 @@ describe("a night's recipe edits (#1027)", () => {
     let f = edit(fakeMeals(), { op: "recipe", day: "thu", action: "add-step", text: "Squeeze the lime over everything." });
     f = edit(f, { op: "recipe", day: "thu", action: "replace", terms: ["lime"], add: [ingredientLine("1 lemon")] });
     const d = slotDish(f, f.week!.slots[THU]!)!;
-    expect(d.meal.steps[1]).toBe("Squeeze the lemon over everything.");
+    expect(d.meal.steps.at(-1)).toBe("Squeeze the lemon over everything.");
+    expect(d.meal.steps[1]).toBe("Mash the avocado with the juice of the lemon and a pinch of salt for the guac.");
     expect(d.ingredients.map((i) => i.item)).toContain("Lemon");
     f = edit(f, { op: "recipe", day: "thu", action: "edit-step", step: 1, text: "Sear the steak hard, two minutes a side." });
     expect(slotDish(f, f.week!.slots[THU]!)!.meal.steps[0]).toMatch(/^Sear the steak/);
-    f = edit(f, { op: "recipe", day: "thu", action: "remove-step", step: 2 });
-    expect(slotDish(f, f.week!.slots[THU]!)!.meal.steps).toHaveLength(1);
+    const n = slotDish(f, f.week!.slots[THU]!)!.meal.steps.length;
+    f = edit(f, { op: "recipe", day: "thu", action: "remove-step", step: n });
+    expect(slotDish(f, f.week!.slots[THU]!)!.meal.steps).toHaveLength(n - 1);
     expect(applyEdit(f, readEdit({ op: "recipe", day: "thu", action: "edit-step", step: 9, text: "Nope." })!, NOW)).toEqual({ ok: false, error: "not-found" });
     expect(applyEdit(f, readEdit({ op: "recipe", day: "thu", action: "drop", terms: ["saffron"] })!, NOW)).toEqual({ ok: false, error: "not-found" });
     expect(readEdit({ op: "recipe", day: "thu", action: "add-step" })).toBeNull();
@@ -139,7 +142,7 @@ describe("meals_recipe, Skippy's tool (#1027)", () => {
     const drop = await callTool("meals_recipe", { day: "thu", action: "drop", terms: ["avocado", "guac", "chips"] }, h, { pending: null, surface: "desk" });
     expect(drop.ok && "text" in drop && drop.text).toMatch(/took out tortilla chips, avocado.*a draft, so its shopping list follows/);
     const show = await callTool("meals_recipe", { day: "thu", action: "show" }, h, { pending: null, surface: "desk" });
-    expect(show.ok && "text" in show && show.text).toMatch(/1\. Cook it\./);
+    expect(show.ok && "text" in show && show.text).toMatch(/1\. Rub the skirt steak/);
     const bad = await callTool("meals_recipe", { day: "thu", action: "edit_step" }, h, { pending: null, surface: "desk" });
     expect(bad.ok).toBe(false);
   });

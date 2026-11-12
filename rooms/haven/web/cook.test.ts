@@ -33,7 +33,7 @@ describe("cook mode (#705)", () => {
 
   it("names the swapped part in the steps, marked, in the recipe's own case", () => {
     const f = edited(fakeMeals(), { op: "customize", day: "wed", part: { index: 1, option: "protein-pasta" } });
-    expect(text(f, 2)).toBe("Cook the [protein pasta] two minutes short of the box, then save a cup of the water.");
+    expect(text(f, 2)).toBe("Cook the [protein pasta] two minutes short of the box, about 10 min, until just al dente; save a cup of the pasta water, then drain.");
     expect(text(f, 1)).toContain("Italian sausage");
     expect(wed(f).parts[1]).toEqual({ role: "carb", name: "Protein pasta", was: "rigatoni" });
     expect(wed(f).lines.some((l) => l.item === "Rigatoni")).toBe(false);
@@ -61,7 +61,7 @@ describe("cook mode (#705)", () => {
     const f = fakeMeals();
     const c = cookLunchOf(f, f.week!.slots[0]!)!;
     expect(c).toMatchObject({ course: "lunch", name: "chicken salad", dayName: "Monday", portions: 1, why: [] });
-    expect(c.steps).toHaveLength(2);
+    expect(c.steps).toHaveLength(3);
     expect(c.lines).toContainEqual({ item: "Chicken breast", amount: "¾ lb", pantry: false });
     expect(cookLunchOf(f, f.week!.slots[1]!)).toBeNull();
     expect(cookOf(f, f.week!.slots[0]!)!.course).toBe("dinner");

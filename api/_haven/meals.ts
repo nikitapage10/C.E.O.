@@ -31,7 +31,9 @@
  *                                                       `readMeals`); without `replace` only when there is none yet.
  *   PUT  /api/haven-meals { meals, replace? }   the feed key (SUBMIND_FEED_TOKEN, write-only) alone, no query: the
  *                                                       same load, so the Builder can seed the planner with no tap.
- *                                                       It answers counts only, never the plan.
+ *                                                       It answers counts only, never the plan: `completed` is how
+ *                                                       many recipes left a part uncooked (#1036), which the planner
+ *                                                       completes as it shows them.
  *   PUT  /api/haven-meals { meals, merge: "lunches" }   the feed key: only the seed's lunches added to the planner
  *                                                       that's there (`addLunches`: new quick lunches, the lunch days,
  *                                                       a lunch plan for a week that has none), never a replace. Undo
@@ -51,7 +53,7 @@ import { readJson, updateJson } from "./json.js";
 import { KitchenList, sameKey } from "./list.js";
 import { drainPhotos, livePhotoDeps, queueStepPhotos, type PhotoDeps } from "./photos.js";
 import { weekStepShots } from "./stepShots.js";
-import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, weekStage, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
+import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, recipesCompleted, shopLine, shoppingList, weekStage, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
 
@@ -335,8 +337,11 @@ export async function mealsPut(request: Request, deps: MealsDeps): Promise<Respo
     }
     const ok = await new MealsStore(deps.blob).seed(meals, body.replace === true);
     if (!ok) return json({ error: "already" }, 409);
-    deps.log(`haven: the meal planner was loaded with the feed key (${meals.catalog.length} meals)`);
-    return json({ ok: true, meals: meals.catalog.length, nights: meals.week?.slots.length ?? 0 });
+    // How many recipes leave a part uncooked (#1036): the planner completes them as it shows them; the count tells the
+    // writer to write those steps out in full (RECIPE_RULES in api/_haven/cookSteps.ts).
+    const completed = recipesCompleted(meals);
+    deps.log(`haven: the meal planner was loaded with the feed key (${meals.catalog.length} meals, ${completed} recipes completed)`);
+    return json({ ok: true, meals: meals.catalog.length, nights: meals.week?.slots.length ?? 0, completed });
   } catch {
     return json({ error: "store" }, 503);
   }

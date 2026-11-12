@@ -15,11 +15,12 @@
  *   3. Nothing by the deadline: an honest final line ("I couldn't get that answer in time"), so the call is never left
  *      on filler.
  *
- * Exactly one final answer is kept per question. Pure apart from what is handed in; the tests drive it with fakes.
+ * Exactly one final answer is kept per question, and its time from the question is noted (#1065, answertimes.ts). Pure apart from what is handed in; the tests drive it with fakes.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
+import type { AnswerKind } from "./answertimes.js";
 import { fitAnswer, withoutMoney } from "./kernelagent.js";
 import { STILL_SEARCHING, isEmptyLookup } from "./voicelookups.js";
 
@@ -42,6 +43,8 @@ export interface CallJob {
   depth: "talk" | "hard";
   /** The search the call started for this question (voicelookups.ts webSearch), still running. */
   search?: Promise<string> | null;
+  /** When the question reached the call's tools (ms); left out, timed from the start here. */
+  asked?: number;
 }
 
 export interface DeliverDeps {
@@ -52,6 +55,8 @@ export interface DeliverDeps {
   now(): number;
   /** One line of state for the Function's log: never the question or the answer. */
   log?: (line: string) => void;
+  /** Notes how long the question took and how it ended (#1065): only the kind and the milliseconds. */
+  timed?: ((kind: AnswerKind, ms: number) => Promise<void> | void) | null;
 }
 
 export type Delivered = "search" | "deep" | "unfit" | "timeout";
@@ -79,7 +84,12 @@ export async function deliverCallAnswer(job: CallJob, d: DeliverDeps, limits: { 
   const left = () => total - (d.now() - start);
   const done = async (how: Delivered, text: string): Promise<Delivered> => {
     const kept = await d.keep(job.id, text).catch(() => false);
-    d.log?.(`skippy-call answer ${how} ms=${d.now() - start}${kept ? "" : " unkept"}`);
+    const end = d.now();
+    d.log?.(`skippy-call answer ${how} ms=${end - start}${kept ? "" : " unkept"}`);
+    // Timed after the answer is kept, so noting it never holds the answer up.
+    await Promise.resolve()
+      .then(() => d.timed?.(how === "search" || how === "timeout" ? how : "deeper", Math.max(0, end - (job.asked ?? start))))
+      .catch(() => undefined);
     return how;
   };
   try {

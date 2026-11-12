@@ -63,6 +63,21 @@ describe("deliverCallAnswer", () => {
     expect(priv.kept[0]!.text).toBe(UNFIT);
   });
 
+  it("times each answer from the question's arrival, after it is kept, by kind only (#1065)", async () => {
+    const timed: [string, number][] = [];
+    const order: string[] = [];
+    const clock = { t: 1_000 };
+    const { d } = deps({ now: () => clock.t, keep: async () => (order.push("kept"), (clock.t += 500), true), timed: (kind, ms) => void (order.push("timed"), timed.push([kind, ms])) });
+    expect(await deliverCallAnswer({ id: "t8", ask: "q", depth: "talk", asked: 0, search: Promise.resolve('Web search for "q": Done.') }, d)).toBe("search");
+    expect(timed).toEqual([["search", 1_500]]);
+    expect(order).toEqual(["kept", "timed"]);
+    const priv = deps({ deep: async () => "Write to someone@example.com for it.", timed: (kind) => void timed.push([kind, 0]) });
+    await deliverCallAnswer({ id: "t9", ask: "q", depth: "talk" }, priv.d);
+    expect(timed.at(-1)![0]).toBe("deeper");
+    const thrown = deps({ timed: () => Promise.reject(new Error("store")) });
+    expect(await deliverCallAnswer({ id: "t10", ask: "q", depth: "talk" }, thrown.d)).toBe("timeout");
+  });
+
   it("reads a search's text as an answer: label off, nothing for a wait or an empty lookup", () => {
     expect(searchAnswer('Web search for "x": Done on Tuesday.')).toBe("Done on Tuesday.");
     expect(searchAnswer(STILL_SEARCHING)).toBe("");

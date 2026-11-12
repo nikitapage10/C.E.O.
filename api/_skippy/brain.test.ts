@@ -305,9 +305,13 @@ describe("a Talk call (#926): the passkey's own turn, quick on the call", () => 
 
   it("opens the wet feeder on the call", async () => {
     const w = await world();
+    const timed: [string, number][] = [];
+    w.tools.timed = (kind, askedAt) => void timed.push([kind, askedAt]);
     const got = await onCall(w, "POST", `act=${KERNEL_ACT}`, { ask: "open the wet food feeder" });
     expect(got.answered).toBe(true);
     expect(w.acts.map((a) => a.action)).toEqual(["wet.open"]);
+    // Timed as a quick answer from the question's arrival (#1065).
+    expect(timed).toEqual([["quick", NOW]]);
   });
 
   it("files a call that wasn't started from a signed-in Desk the old way: never answered as anyone", async () => {

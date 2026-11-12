@@ -7,10 +7,14 @@
  * POST /api/talk-timing { ok, mic, token, code, connected, firstWord, server: { stage: ms } } → 204. Stage names and
  *        milliseconds only, each checked and clamped; anything else is dropped. Never words, audio or transcripts.
  *        The server stamps the time. The last KEEP are kept in the private Blob store (desk/boot/talk-timings.json).
- * GET  /api/talk-timing → { ok: true, calls }, newest first. Never cached.
+ * GET  /api/talk-timing → { ok: true, calls, answers }, newest first. Never cached. `answers` (#1065) is how long
+ *        Skippy took to answer each question on a call (api/_skippy/answertimes.ts), kept by the call's own route
+ *        (desk/boot/answer-times.json, the last two days): milliseconds, the kind and the time only. Left out when
+ *        that file can't be read.
  */
 
 import { BlobPreconditionError, pickBlob, type BlobBackend } from "../_blob.js";
+import { cleanAnswerTime, type AnswerTime } from "../_skippy/answertimes.js";
 
 export const PATH = "/api/talk-timing";
 export const TALK_TIMINGS_PATH = "desk/boot/talk-timings.json";
@@ -42,6 +46,8 @@ export interface TalkCall {
 export interface TalkCallsView {
   ok: true;
   calls: TalkCall[];
+  /** Skippy's answer times on calls (#1065), newest first; absent when unreadable. */
+  answers?: AnswerTime[];
 }
 
 export interface TalkStore {
@@ -137,14 +143,107 @@ export class MemoryTalkStore implements TalkStore {
   }
 }
 
+/* ── Skippy's answer times on calls (#1065) ── */
+
+export const ANSWER_TIMES_PATH = "desk/boot/answer-times.json";
+/** Kept: the last two days, at most this many. */
+export const ANSWER_KEEP = 400;
+const ANSWER_KEEP_MS = 2 * 24 * 60 * 60_000;
+
+export interface AnswerStore {
+  read(): Promise<AnswerTime[]>;
+  add(t: AnswerTime, now: number): Promise<void>;
+}
+
+const answerList = (v: unknown): AnswerTime[] =>
+  (Array.isArray((v as { answers?: unknown } | null)?.answers)
+    ? (v as { answers: unknown[] }).answers
+    : []
+  )
+    .map(cleanAnswerTime)
+    .filter((t): t is AnswerTime => t !== null);
+
+/** The list with `t` first, older than two days dropped, capped. */
+const withAnswer = (list: AnswerTime[], t: AnswerTime, now: number) =>
+  [t, ...list]
+    .filter((x) => now - Date.parse(x.at) <= ANSWER_KEEP_MS)
+    .slice(0, ANSWER_KEEP);
+
+export class BlobAnswerStore implements AnswerStore {
+  constructor(private readonly blob: BlobBackend) {}
+  private async load(): Promise<{
+    list: AnswerTime[];
+    etag: string | null;
+  }> {
+    const found = await this.blob.get(ANSWER_TIMES_PATH);
+    if (!found) return { list: [], etag: null };
+    return {
+      list: answerList(await new Response(found.stream).json().catch(() => null)),
+      etag: found.etag,
+    };
+  }
+  async read(): Promise<AnswerTime[]> {
+    return (await this.load()).list;
+  }
+  async add(t: AnswerTime, now: number): Promise<void> {
+    for (let i = 0; i < 3; i++) {
+      const { list, etag } = await this.load();
+      try {
+        await this.blob.put(
+          ANSWER_TIMES_PATH,
+          JSON.stringify({ answers: withAnswer(list, t, now) }),
+          {
+            contentType: "application/json",
+            addRandomSuffix: false,
+            allowOverwrite: true,
+            ...(etag && { ifMatch: etag }),
+          },
+        );
+        return;
+      } catch (e) {
+        if (!(e instanceof BlobPreconditionError)) throw e;
+      }
+    }
+  }
+}
+
+export class MemoryAnswerStore implements AnswerStore {
+  list: AnswerTime[] = [];
+  async read(): Promise<AnswerTime[]> {
+    return [...this.list];
+  }
+  async add(t: AnswerTime, now: number): Promise<void> {
+    this.list = withAnswer(this.list, t, now);
+  }
+}
+
+/** Keeps one answer's time; never throws, and logs only that it failed. */
+export function timeAnswer(
+  store: AnswerStore | null,
+): (kind: AnswerTime["kind"], ms: number, now: number) => Promise<void> {
+  return async (kind, ms, now) => {
+    const t = cleanAnswerTime({ at: new Date(now).toISOString(), ms, kind });
+    if (!store || !t) return;
+    await store
+      .add(t, now)
+      .catch(() => console.log("skippy-call answer time unkept"));
+  };
+}
+
 export interface TalkDeps {
   store: TalkStore | null;
+  /** Skippy's answer times (#1065); left out, the view has none. */
+  answers?: AnswerStore | null;
   now: number;
 }
 
 const live = (): TalkDeps => {
   const blob = pickBlob(process.env);
-  return { store: blob ? new BlobTalkStore(blob) : null, now: Date.now() };
+  return {
+    store: blob ? new BlobTalkStore(blob) : null,
+    answers: blob ? new BlobAnswerStore(blob) : null,
+    now: Date.now(),
+  };
 };
 
 function json(body: unknown, status = 200): Response {
@@ -163,7 +262,11 @@ export async function GET(
 ): Promise<Response> {
   if (!deps.store) return json({ error: "not-set-up" }, 503);
   try {
-    const view: TalkCallsView = { ok: true, calls: await deps.store.read() };
+    const [calls, answers] = await Promise.all([
+      deps.store.read(),
+      deps.answers?.read().catch(() => null) ?? null,
+    ]);
+    const view: TalkCallsView = { ok: true, calls, ...(answers && { answers }) };
     return json(view);
   } catch {
     return json({ error: "store" }, 502);

@@ -58,6 +58,7 @@ import { edgeFactor, SOFT, wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { modelUrl } from "../../../apps/world/src/modelUrl.ts";
 import { recolor } from "../../../apps/world/src/agents/bodies/recolor.ts";
 import { foldersOf, type BoardView, type Pile } from "../data/boardroom.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Spire's boardroom in three.js (#825; Nikita, 2026-11-05: "the boardroom, a Spire and boardroom hybrid with the
@@ -235,7 +236,7 @@ export async function createBoard(host: HTMLElement, canvas: HTMLCanvasElement, 
   let view = opts.view;
   const models = Promise.all([loadModel(MODELS.suit), loadModel(MODELS.humans), loadModel(MODELS.ghost), loadModel(MODELS.flying), loadModel(MODELS.can)]);
   const renderer = new WebGLRenderer({ canvas, antialias: !PH, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.25 : 1.75));
+  renderer.setPixelRatio(sceneDpr()); // 2x on a phone, stepped down while frames run slow (#1070)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -968,6 +969,10 @@ export async function createBoard(host: HTMLElement, canvas: HTMLCanvasElement, 
     px.value = renderer.getPixelRatio();
   };
   size();
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    size();
+  });
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(size) : null;
   ro?.observe(host);
   let yaw = 0;
@@ -1118,6 +1123,7 @@ export async function createBoard(host: HTMLElement, canvas: HTMLCanvasElement, 
   const minStep = PH ? 1000 / 30 - 2 : 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (!visible || document.visibilityState === "hidden") {
       last = now;
       return;

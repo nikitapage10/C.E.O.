@@ -51,6 +51,7 @@ import {
 import { comeUndone, glyphMaterial, sigilAtlas, SIGIL_GLYPHS } from "@ceo/engine/sigils/undone.ts";
 import { edgeFactor, SOFT, wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Annex as the Glasshouse (#829, concept 3, picked by Nikita 2026-11-05): a round crystal nursery under an Ilyr
@@ -322,7 +323,7 @@ export async function createGlasshouse(host: HTMLElement, canvas: HTMLCanvasElem
   const PH = opts.phone;
   let view = opts.view;
   const renderer = new WebGLRenderer({ canvas, antialias: !PH, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.25 : 1.75));
+  renderer.setPixelRatio(sceneDpr()); // 2x on a phone, stepped down while frames run slow (#1070)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
@@ -1065,6 +1066,10 @@ export async function createGlasshouse(host: HTMLElement, canvas: HTMLCanvasElem
     px.value = renderer.getPixelRatio();
   };
   size();
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    size();
+  });
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(size) : null;
   ro?.observe(host);
   let yaw = 0;
@@ -1363,6 +1368,7 @@ export async function createGlasshouse(host: HTMLElement, canvas: HTMLCanvasElem
   const minStep = PH ? 1000 / 30 - 2 : 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (!visible || document.visibilityState === "hidden") {
       last = now;
       return;

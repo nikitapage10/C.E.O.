@@ -34,12 +34,59 @@ export function useIsPhone(): boolean {
   return useSyncExternalStore(subscribe, isPhone, () => false);
 }
 
+/** The rungs a phone's scenes draw at (#1070): sharp at 2x, then lighter while frames run slow. */
+export const PHONE_DPR_STEPS = [2, 1.5, 1.25] as const;
+/** Frames averaging slower than this for `SLOW_HOLD_MS` step a phone's scenes down a rung. */
+export const SLOW_FRAME_MS = 22;
+export const SLOW_HOLD_MS = 2000;
+
+// The rung this page view is on: it only goes down, and a scene built later starts there (#1070).
+let rung: number = PHONE_DPR_STEPS[0];
+
 /**
- * The pixel ratio a room's canvas draws at: on a phone, at most `phone` (1.25 by default, as the rooms' scenes already
- * draw there: a phone's 3x screen at 3x costs six times the pixels for a scene behind the controls), elsewhere at most
- * `desktop` (1.75).
+ * The pixel ratio a room's canvas draws at: on a phone, at most `phone` (2x by default, #1070: a phone's screen is 3x,
+ * and the old 1.25 upscaled every scene until it looked soft) and never above the rung `dprGuard` has stepped down to;
+ * elsewhere at most `desktop` (1.75).
  */
-export function sceneDpr(desktop = 1.75, phone = 1.25): number {
+export function sceneDpr(desktop = 1.75, phone = 2): number {
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-  return Math.min(dpr, isPhone() ? phone : desktop);
+  return Math.min(dpr, isPhone() ? Math.min(phone, rung) : desktop);
+}
+
+/**
+ * Keeps a phone's scene smooth at the sharper ratio (#1070). Call `frame(now)` from the scene's animation frame, every
+ * frame and before any frame-rate throttle. When frames average over `SLOW_FRAME_MS` for `SLOW_HOLD_MS`, it steps the
+ * page view down a rung (2x, 1.5x, 1.25x) and hands `apply` the scene's new `sceneDpr(desktop, phone)`; it never steps
+ * back up. A gap over a quarter second (a hidden tab, a stall while loading) starts the count again. Off a phone it
+ * does nothing.
+ */
+export function dprGuard(apply: (dpr: number) => void, desktop?: number, phone?: number): { frame: (now: number) => void } {
+  const on = isPhone();
+  let last = 0;
+  let avg = 0;
+  let slow = 0;
+  return {
+    frame(now) {
+      if (!on) return;
+      const dt = last ? now - last : 0;
+      last = now;
+      if (!(dt > 0) || dt > 250) {
+        avg = slow = 0;
+        return;
+      }
+      avg = avg ? avg * 0.9 + dt * 0.1 : dt;
+      slow = avg > SLOW_FRAME_MS ? slow + dt : 0;
+      if (slow < SLOW_HOLD_MS) return;
+      avg = slow = 0;
+      const was = sceneDpr(desktop, phone);
+      rung = PHONE_DPR_STEPS.find((s) => s < rung) ?? rung;
+      const next = sceneDpr(desktop, phone);
+      if (next !== was) apply(next);
+    },
+  };
+}
+
+/** For tests: a fresh page view, back on the top rung. */
+export function resetDprRung(): void {
+  rung = PHONE_DPR_STEPS[0];
 }

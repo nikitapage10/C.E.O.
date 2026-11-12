@@ -62,6 +62,7 @@ import { poseCompactor, rigCompactor } from "../../../apps/world/src/agents/bodi
 import { legsOf, poseRocky, rigRocky, type RockyRig } from "../../../apps/world/src/agents/bodies/rockyPose.ts";
 import { DOCK_CREW } from "../../../apps/world/src/foundry.ts";
 import { SHAFT, type CoilState } from "../data/furnace.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Deep Furnace in 3D (#813, second pass #922): a forge shaft sunk into the floor of an old lab, drawn the way the
@@ -229,7 +230,7 @@ export async function createFurnace(host: HTMLElement, canvas: HTMLCanvasElement
   // The crew's bodies load while the forge is built (each one cached for the visit).
   const models = Promise.all([loadModel(CREW_MODELS.compactor), loadModel(CREW_MODELS.rocky), loadModel(CREW_MODELS.rivet), loadModel(CREW_MODELS.humans)]);
   const renderer = new WebGLRenderer({ canvas, antialias: !PH, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.25 : 1.75));
+  renderer.setPixelRatio(sceneDpr()); // 2x on a phone, stepped down while frames run slow (#1070)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.12;
@@ -993,6 +994,10 @@ export async function createFurnace(host: HTMLElement, canvas: HTMLCanvasElement
     px.value = renderer.getPixelRatio();
   };
   size();
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    size();
+  });
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(size) : null;
   ro?.observe(host);
   let yaw = 0;
@@ -1522,6 +1527,7 @@ export async function createFurnace(host: HTMLElement, canvas: HTMLCanvasElement
   };
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (!visible || document.visibilityState === "hidden") {
       last = now;
       return;

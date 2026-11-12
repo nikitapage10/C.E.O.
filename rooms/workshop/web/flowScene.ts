@@ -39,6 +39,7 @@ import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
 import { goldVault } from "@ceo/engine/sigils/vault.ts";
 import { edgeFactor, isTyping, SOFT, wasdPan, type Typable } from "@ceo/engine/web/wasdPan.ts";
 import { LAYER_MM, PAWN, slice, STAGES, type FlowView, type Stage } from "./flow.ts";
+import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Workshop's flow in 3D (#989): one long walnut bench and Nikita's four stages along it, left to right, joined by a
@@ -109,7 +110,7 @@ interface Pose {
 export async function createFlow(host: HTMLElement, canvas: HTMLCanvasElement, opts: FlowOpts): Promise<Flow> {
   const { phone: PH, reduce } = opts;
   const renderer = new WebGLRenderer({ canvas, antialias: !PH, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PH ? 1.25 : 1.75));
+  renderer.setPixelRatio(sceneDpr()); // 2x on a phone, stepped down while frames run slow (#1070)
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.2;
@@ -845,6 +846,11 @@ export async function createFlow(host: HTMLElement, canvas: HTMLCanvasElement, o
     to = poseOf(view);
     if (flyT >= 1) from = to;
   };
+  const guard = dprGuard((d) => {
+    renderer.setPixelRatio(d);
+    edgeU.px.value = d;
+    size();
+  });
   const ro = new ResizeObserver(size);
   ro.observe(host);
 
@@ -896,6 +902,7 @@ export async function createFlow(host: HTMLElement, canvas: HTMLCanvasElement, o
   let raf = 0, last = performance.now(), T = 0, acc = 0, first = true;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    guard.frame(now);
     if (document.hidden || !visible) {
       last = now;
       return;

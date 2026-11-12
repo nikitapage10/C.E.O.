@@ -3251,6 +3251,11 @@
   [data-room="haven"][data-explore] .hv-head {
     pointer-events: none;
   }
+  /* The threads' overlay canvas sits over the house: the engine's live-scene rule (phone.css) would make it take the
+     touch, so a drag never reached the house (#1051). It stays see-through to the finger. */
+  .desk [data-room="haven"] .ph-scene[data-ph-live] canvas.hv-thr {
+    pointer-events: none !important;
+  }
   [data-room="haven"][data-explore] .hv-head > :not(.fl-eyb, .hv-h1),
   [data-room="haven"][data-explore] .hv-plinth {
     display: none;

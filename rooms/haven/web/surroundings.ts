@@ -161,10 +161,8 @@ export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) 
   const grass = { z0: cross.z0 - 1.4 - 5, z1: cross.z0 - 1.4 };
   const zs = { z0: cross.z0, z1: blvd.z0 };
   const bx0 = across - 17.2, bx1 = outer.x1 + 34;
-  const decks = [
-    { x0: across - 16.8, z0: cross.z1 + 1.5, x1: across - 0.8, z1: (cross.z1 + blvd.z0) / 2 - 0.8 },
-    { x0: across - 16.8, z0: (cross.z1 + blvd.z0) / 2 + 0.8, x1: across - 0.8, z1: blvd.z0 - 1.5 },
-  ];
+  // One long parking deck across the street from the home, four or five floors tall (#1051).
+  const decks = [{ x0: across - 16.8, z0: cross.z1 + 1.5, x1: across - 0.8, z1: blvd.z0 - 1.5 }];
   const park = { x0: bx0, z0: grass.z0, x1: bx1, z1: grass.z1 };
   const trail = { x0: bx0, z0: grass.z0 - 1.4, x1: bx1, z1: grass.z0 };
   const bank = { x0: bx0, z0: trail.z0 - 3, x1: bx1, z1: trail.z0 };
@@ -512,7 +510,7 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   // Across the street: the parking decks (levels, ramps' stripes, cars on top). Past the cross street (#1040): the strip
   // of grass, the trail, the river and its far bank with a few buildings.
   for (const d of L.decks) {
-    const lv = 3, h = H * 0.95;
+    const lv = 5, h = lv * STOREY * 0.8;
     solid.push(slab(d, 0, h, 0xc4c3bd));
     for (let k = 1; k < lv; k++) solid.push(slab({ x0: d.x0 - 0.04, z0: d.z0 - 0.04, x1: d.x1 + 0.04, z1: d.z1 + 0.04 }, (h * k) / lv - 0.03, 0.06, 0x8f9194));
     for (let z = d.z0 + 1.2; z < d.z1 - 1.5; z += 2.6) if (r() > 0.45) car(d.x0 + 3 + r() * (d.x1 - d.x0 - 6), z, h, false);

@@ -262,3 +262,8 @@
 @keyframes rt-ask-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
 @media (max-width:760px){.desk .rt-ask{top:96px}.desk .rt-ask p{font-size:14.5px}.desk .rt-said{width:min(240px,64vw)}.desk .rt-said .rt-said-p{font-size:13.5px;padding:6px 9px}}
 @media (prefers-reduced-motion:reduce){.desk .rt-ask,.desk .rt-said{animation:none}}
+/* Phone tap targets (#1049): the presence and sound buttons keep their size, with a 44px hit area round them. */
+@media (max-width:760px){
+  .desk .rt-sound::after{content:"";position:absolute;inset:-8px -5px}
+  .desk .rt-pres::after{content:"";position:absolute;inset:-4px -2px}
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from "react";
 import { navigateTo, usePathname, type RoomRoute } from "../../world/src/route.ts";
 import { sectionOf } from "@ceo/engine/web/sections.ts";
 import { sigilOf, sigilPath } from "@ceo/engine/sigils/roomSigils.ts";
@@ -15,8 +15,9 @@ import "./phonenav.css";
  * frame, not the desktop bar made small. At the top a slim fixed bar: the mark (to the Senate), the room you're in with
  * its tab, which opens the Rooms sheet, and the account and the Lattice on the right. At the bottom a fixed bar of the
  * pages used most, thumb height: the Senate, the Haven, Skippy in the middle, Relay, and Rooms (or the room you're in,
- * when it's another), which opens every page and the room's own tabs in a sheet. Neither bar scrolls, wraps or moves
- * under a held finger (`touch-action: none`), and the page under them is the one thing that scrolls.
+ * when it's another), which opens every page and the room's own tabs in a sheet (shut by the scrim, the X, Escape or
+ * a swipe down). Neither bar scrolls, wraps or moves under a held finger (`touch-action: none`), and the page under
+ * them is the one thing that scrolls.
  */
 
 const accentOf = (id: DeskPage) => (id === "today" ? "var(--ice)" : `var(--room-${id})`);
@@ -55,10 +56,39 @@ function RoomsSheet({ route, pathname, onClose }: { route: DeskPage; pathname: s
     onClose();
     navigateTo(path + (path.startsWith("/lattice") ? "" : window.location.search));
   };
+  // Swipe down to shut it (#1049): a drag that starts with the list at its top pulls the sheet down with the finger;
+  // let go past a quarter of its height (or flicked) and it shuts, short of that it springs back.
+  const drag = useRef<{ y: number; t: number; dy: number; on: boolean } | null>(null);
+  const onTouchStart = (e: ReactTouchEvent) => {
+    const el = box.current;
+    drag.current = el && el.scrollTop <= 0 && e.touches.length === 1 ? { y: e.touches[0]!.clientY, t: performance.now(), dy: 0, on: false } : null;
+  };
+  const onTouchMove = (e: ReactTouchEvent) => {
+    const d = drag.current, el = box.current;
+    if (!d || !el) return;
+    const dy = e.touches[0]!.clientY - d.y;
+    if (!d.on && (dy < 6 || el.scrollTop > 0)) {
+      if (dy < 0 || el.scrollTop > 0) drag.current = null;
+      return;
+    }
+    d.on = true;
+    d.dy = Math.max(0, dy);
+    el.style.transition = "none";
+    el.style.transform = `translateY(${d.dy}px)`;
+  };
+  const onTouchEnd = () => {
+    const d = drag.current, el = box.current;
+    drag.current = null;
+    if (!d?.on || !el) return;
+    const fast = d.dy / Math.max(1, performance.now() - d.t) > 0.6;
+    if (d.dy > el.offsetHeight / 4 || (fast && d.dy > 40)) return onClose();
+    el.style.transition = "transform 0.2s var(--wv-ease)";
+    el.style.transform = "";
+  };
   return (
     <div className="ph-sheetw">
       <div className="ph-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="ph-sheet" role="dialog" aria-modal="true" aria-label="Rooms" ref={box}>
+      <div className="ph-sheet" role="dialog" aria-modal="true" aria-label="Rooms" ref={box} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
         <div className="ph-grab" aria-hidden="true" />
         <div className="ph-sheetHead">
           <p>Rooms</p>

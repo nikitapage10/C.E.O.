@@ -286,3 +286,9 @@
 [data-room="boiler"] .bx-deck .bx-folds{border-top-color:rgba(201,168,92,.3)}
 [data-room="boiler"] .bx-deck .bx-more{border-bottom-color:rgba(201,168,92,.14)}
 [data-room="boiler"] .bx-deck .bx-more>summary::after{color:#e3c98d}
+/* Phone tap targets (#1049): the Map's folds, its cards' go buttons and the still-to-build links at least 44px. */
+@media (max-width:760px){
+  .desk .bx-page .bx-fold summary{min-height:44px;align-items:center}
+  .desk .bx-page .bx-go{min-height:44px}
+  .desk .bx-page .bx-tb a{display:flex;align-items:center;min-height:44px;margin-block:-11px}
+}

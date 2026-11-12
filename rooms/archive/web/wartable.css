@@ -629,3 +629,12 @@
     animation: none;
   }
 }
+
+/* Phone tap targets (#1049): a pin keeps its slim label, with a 44px tall hit area round it. */
+@media (max-width: 760px) {
+  .desk .wt-pin::before {
+    content: "";
+    position: absolute;
+    inset: -11px -3px;
+  }
+}

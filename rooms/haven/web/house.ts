@@ -20,6 +20,7 @@ import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type Ho
 import type { HouseCat } from "./myshkaHouse.ts";
 import { registerShotRender } from "@ceo/engine/web/screenshot.ts";
 import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
+import { sceneDpr } from "@ceo/engine/web/phone.ts";
 
 /**
  * The Haven's house in 3D (#616): a generic renderer for whatever floor plan the private store holds. Nikita's round-6
@@ -375,7 +376,8 @@ export class House {
     this.desk = !phone && !(typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
     this.N = phone ? 700 : 1400;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(phone ? 1.75 : 2, window.devicePixelRatio || 1));
+    // At most 1.25x on a phone (the engine's sceneDpr, #1049), 1.75x on a small landscape screen, 2x on a desktop.
+    this.renderer.setPixelRatio(sceneDpr(phone ? 1.75 : 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.setClearColor(0x000000, 0);

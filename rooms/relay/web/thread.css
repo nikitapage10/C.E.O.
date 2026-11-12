@@ -1998,3 +1998,15 @@
   text-underline-offset: 2px;
   padding: 0 2px;
 }
+
+/* Phone tap targets (#1049): the codex link keeps its line, with a 44px hit area round it. */
+@media (max-width: 760px) {
+  .cx .cx-codexlink {
+    position: relative;
+  }
+  .cx .cx-codexlink::after {
+    content: "";
+    position: absolute;
+    inset: -14px -4px;
+  }
+}

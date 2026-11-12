@@ -78,6 +78,17 @@ test("the phone frame: fixed bars, the Rooms sheet with the room's tabs, and bar
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
 
+  // So does a swipe down from its top (#1049); a short one springs back.
+  await bar.getByRole("button", { name: "Studio" }).tap();
+  await expect(sheet).toBeVisible();
+  await page.waitForTimeout(1000);
+  const top = (await sheet.boundingBox())!.y;
+  await drag(200, top + 20, top + 50);
+  await expect(sheet).toBeVisible();
+  expect((await sheet.boundingBox())!.y).toBeCloseTo(top, 0);
+  await drag(200, top + 20, 640);
+  await expect(sheet).toHaveCount(0);
+
   // Skippy is the middle slot.
   await bar.getByRole("button", { name: "Skippy" }).tap();
   await expect(page.getByRole("dialog", { name: "Skippy, the Magnificent" })).toBeVisible();
@@ -105,4 +116,43 @@ test("the Haven on a phone: controls first, the house behind them and still to t
   await page.getByRole("button", { name: "Back to the controls" }).tap();
   await expect(strip).toBeVisible();
   await expect(house.locator("canvas.hv-gl")).toHaveCSS("pointer-events", "none");
+});
+
+test("every tap target in the rooms is at least 44px on a phone, by its box or its hit area", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.route("https://api.github.com/**", (r) => r.fulfill({ json: [] }));
+  for (const path of ["/", "/relay", "/archive", "/annex", "/spire", "/workshop", "/foundry", "/boiler", "/boiler/controls", "/boiler/security", "/boiler/compliance"]) {
+    await page.goto(`${BASE}${path}`);
+    await page.waitForTimeout(1500);
+    // A target under 44px passes when a finger 21px either side of its centre still lands on it (a padded hit area
+    // round a smaller face), or on a neighbouring target drawn over it. A trust boundary's line on the map is drawn,
+    // not boxed, and is left out.
+    const small = await page.evaluate(() => {
+      const TAP = "a, button, summary, input, select, [role=button], [role=tab]";
+      const out: string[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>(`.desk__main :is(${TAP})`)) {
+        if (el.closest("svg")) continue;
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height || Math.min(r.width, r.height) >= 44) continue;
+        let off = getComputedStyle(el).visibility === "hidden";
+        for (let q: Element | null = el; q && !off; q = q.parentElement) off = getComputedStyle(q).pointerEvents === "none";
+        if (off) continue;
+        el.scrollIntoView({ block: "center", inline: "center" });
+        const b = el.getBoundingClientRect();
+        const [cx, cy] = [b.left + b.width / 2, b.top + b.height / 2];
+        const ok = [
+          [cx, cy - 21],
+          [cx, cy + 21],
+          [cx - 21, cy],
+          [cx + 21, cy],
+        ].every(([x, y]) => {
+          const hit = document.elementFromPoint(x!, y!);
+          return !!hit && (el.contains(hit) || !!hit.closest(TAP));
+        });
+        if (!ok) out.push(`${el.tagName.toLowerCase()}.${el.className} ${Math.round(r.width)}x${Math.round(r.height)} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 30)}"`);
+      }
+      return out;
+    });
+    expect(small, `under 44px on ${path}`).toEqual([]);
+  }
 });

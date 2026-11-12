@@ -15,12 +15,14 @@ export interface Popup {
   line: string;
   /** Until when it is meant to run (a date), shown beside its status; empty for one that runs until it is shelved. */
   until: string;
+  /** What shelving it pauses (#1079): its scheduled runs and the connections switched off, never deleted. */
+  pauses: string;
 }
 
 /** The pop-ups, newest first. Each is a small module of its own: an api route, a page section and a feed. */
 export const POPUPS: Popup[] = [
-  { id: "jobs", name: "Job search", line: "Google Jobs through SerpApi, searched once a day and ranked against your profile; private to your passkey", until: "" },
-  { id: "elections", name: "Election night", line: "Live 2026 midterm results: the Senate, governors, the House and ballot measures", until: "Nov 4, 2026" },
+  { id: "jobs", name: "Job search", line: "Google Jobs through SerpApi, searched once a day and ranked against your profile; private to your passkey", until: "", pauses: "the daily SerpApi searches, the AI fit check and its 20-minute batch" },
+  { id: "elections", name: "Election night", line: "Live 2026 midterm results: the Senate, governors, the House and ballot measures", until: "Nov 4, 2026", pauses: "civicAPI's results reads" },
 ];
 
 /**

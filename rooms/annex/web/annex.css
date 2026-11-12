@@ -433,6 +433,13 @@ button.an-tag:focus-visible {
   font-family: var(--mono);
   font-size: 11.5px;
 }
+/* A shelved pop-up's pause (#1079): nothing scheduled runs and its connections are off. */
+.an-row-text .an-paused {
+  margin-top: 2px;
+  color: var(--an-accent);
+  font: 500 11px var(--mono);
+  letter-spacing: 0.04em;
+}
 .an-btn {
   min-height: 34px;
   padding: 0 14px;
@@ -916,4 +923,9 @@ button.an-tag:focus-visible {
   .an-btn {
     min-height: 44px;
   }
+}
+
+/* A shelved row has no run-to note (#1079): its pause line says it all. */
+.an-row[data-status="archived"] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }

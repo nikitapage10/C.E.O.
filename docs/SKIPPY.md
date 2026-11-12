@@ -427,6 +427,16 @@ Skippy, who works out from the context whether the ask is about this page, anoth
     note says it as his own answer (never "the deeper you" or "the chat"), and the one waiting line is a quick, funny
     line on the question's subject (`WAIT_QUIP`; for the weather, whether he needs an umbrella for that monkey fur),
     never repeated.
+- **"How's the house?" (#1067).** One spoken line from the Haven's own state, on every surface: the quick tier
+  (`houseAsk`, agent/words.ts) and the one brain's `house_check` tool (rooms/haven/tools.ts) on the typed chat, the
+  phone, a room's mic and a call's hand_to_kernel; `read_house` on the call itself; and the Kernel responder sends it
+  to the one brain like any home ask (`homeAsk`). `api/_haven/house.ts` builds it from reads the Haven already makes:
+  the thermostat's line out of the home's instant lines (`homeNow`, so Nest offline or stale just drops the
+  temperature), the lights' kept view placed into the private plan's rooms (only when every light on has a spot),
+  Today's open to-dos (the first one's words only when short and plain), and tonight's dinner from the Kitchen's plan.
+  The vacuum and the cat's devices come in only when one has an alert or is offline. Each piece has 2.5 s; a late one
+  is left out. "All quiet: 72 inside, heat set to 70, two lights on, three to-dos, and it's chicken
+  tikka tonight." Private to Nikita: it is only behind his sign-in and the call's own token, never on the Lattice.
 - **The Senate's floor (#952).** A question about the debate ("what are you guys talking about?") goes to the members
   like a remark; a deeper answer that fails or comes back empty on the floor goes to them too. A room or floor turn
   whose model failed is asked once more before "my magnificent mind hiccupped" (`onceMore`, `roomroute.ts`).

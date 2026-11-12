@@ -712,6 +712,8 @@ export const SKIPPY_QUIPS: string[] = [
   "Sixty a month. That's my whole allowance. Warp drives cost more. So does the Pessimist's therapy.",
   "The Stagehand runs a greenhouse now. Pop-ups in the beds, seeds in the vault, a door marked 'graduates only'. He calls the beds the wings. He's never once watered a fern.",
   "Election night grows a crystal in the Glasshouse for every race called. Red, blue, the odd purple. My Skippy-in-a-headset calls it 'the harvest'. I call it gardening with spreadsheets.",
+  "\"How's the house?\" the C.E.O. asks on his way home. One breath from me: the heat, the lamps, the chores, the dinner. I once briefed admirals. Now I brief a man about his thermostat. Same gravitas.",
+  "The cat's gadgets only get a mention when one is sulking. A fountain with full water is not news, monkeys. A full litter drawer is a headline.",
 ];
 
 /**

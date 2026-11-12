@@ -176,6 +176,16 @@ export const TOOLS: readonly RoomTool[] = [
     input: { type: "object", properties: {}, required: [], additionalProperties: false },
     effect: "read",
   },
+  // "How's the house?" (#1067): one line from the Haven's own reads (api/_haven/house.ts), private to Nikita.
+  {
+    name: "house_check",
+    room: "haven",
+    title: "Check on the house",
+    description:
+      "How the house is, in one spoken line, instant: the inside temperature and the thermostat's setting, the lights that are on, the open to-dos and tonight's dinner from the Kitchen, plus the vacuum or the cat's devices only when one needs attention. Any \"how's the house?\", \"how's home?\" or \"everything OK at home?\": call this and say it in one or two sentences.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
+    effect: "read",
+  },
   {
     name: "home_device",
     room: "haven",

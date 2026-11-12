@@ -219,6 +219,16 @@ export function CompliancePage() {
               <Facts e={FRAME_EXPLAIN.regulation} />
             </Panel>
           </div>
+          <section className="bx-panel" aria-labelledby="cp-privacy-h">
+            <header className="bx-ph">
+              <h2 id="cp-privacy-h">Privacy policy</h2>
+              <span className="bx-psub">public, the one Google's sign-in links to (#1086)</span>
+              <span className="bx-psub" style={{ marginLeft: "auto" }}>
+                <Out href="/privacy.html">Read it</Out>
+              </span>
+            </header>
+            <p className="bx-note">What Google data C.E.O. reads (Nest, Tasks, Gmail), how it is sealed in private Azure storage, that it is never shared or sold, and how to remove access.</p>
+          </section>
       </BoilerFrame>
     </div>
   );

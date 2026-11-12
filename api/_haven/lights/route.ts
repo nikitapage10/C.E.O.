@@ -3,8 +3,9 @@
  * for everything: no phone key, no room key, no public view. The names come straight from the vendors' apps, and
  * switching a light changes the home, so both stay with Nikita's passkey.
  *
- *   GET  /api/haven/lights[?fresh=1]             { vendors, lights, scenes, remotes } (./lights.ts LightsView); fresh
- *                                                skips the states kept more than 4 s (#1020)
+ *   GET  /api/haven/lights[?fresh=1|?live=1]     { vendors, lights, scenes, remotes } (./lights.ts LightsView); fresh
+ *                                                skips SwitchBot's states kept more than 4 s (#1020); live says the
+ *                                                Lights panel is on screen, so Govee's lamps are read every 18 s (#1077)
  *   POST /api/haven/lights { op: "set", id, on }  one light or IR remote on or off      → { ok, say }
  *   POST /api/haven/lights { op: "scene", id }    runs one SwitchBot manual scene         → { ok, say }
  *   POST /api/haven/lights { op: "look", id, rgb | kelvin | brightness | mood }
@@ -21,6 +22,7 @@ import { requireSession, withCookie, type DeskDeps } from "../../_desk/session.j
 import { LIGHT_ID, type Lights, type LookChange } from "./lights.js";
 
 const BODY_MAX = 1024;
+const QUERIES = new Set(["", "?fresh=1", "?live=1", "?fresh=1&live=1"]);
 
 export interface LightsRouteDeps {
   desk: DeskDeps;
@@ -39,10 +41,10 @@ export async function lightsGet(request: Request, deps: LightsRouteDeps): Promis
   const send = (body: unknown, status = 200) => withCookie(json(body, status), signed);
   // `?fresh=1` (#1020): after a tap or a scene, read the vendors again rather than the states kept a moment ago.
   const search = new URL(request.url).search;
-  if (search !== "" && search !== "?fresh=1") return send({ error: "bad-request" }, 400);
+  if (!QUERIES.has(search)) return send({ error: "bad-request" }, 400);
   const lights = deps.lights();
   if (!lights) return send({ error: "not-set-up" }, 503);
-  return send(await lights.view({ fresh: search === "?fresh=1" }));
+  return send(await lights.view({ fresh: search.includes("fresh=1"), live: search.includes("live=1") }));
 }
 
 /** POST /api/haven/lights. */

@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { MemoryAuthStore } from "../../_desk/store.ts";
 import { signedInCookie } from "../../_desk/testing.ts";
 import { Govee, GOVEE_BASE } from "./govee.ts";
-import { Lights, lightId, STATE_BUDGET } from "./lights.ts";
+import { resetOf } from "../devices/http.ts";
+import { GOVEE_IDLE_MS, GOVEE_LIVE_MS, keptOf, Lights, lightId, nextMidnight, STATE_BUDGET, type LightsKeep } from "./lights.ts";
 import { lightsGet, lightsPost, type LightsRouteDeps } from "./route.ts";
 import { signedHeaders, SwitchBot, SWITCHBOT_BASE } from "./switchbot.ts";
 
@@ -19,7 +20,10 @@ const ID_KEY = Buffer.alloc(32, 7);
 type Call = { url: string; method: string; body: unknown; headers: Record<string, string> };
 
 /** A made-up SwitchBot and Govee account: two plugs, a hub, a projector remote, one scene, one Govee strip. */
-function vendors(opts: { sbDown?: boolean } = {}) {
+/** How Govee answers just now (#1077): fine, an HTTP status, or its own code in a 200. */
+type GoveeAnswer = { status?: number; code?: number; headers?: Record<string, string> };
+
+function vendors(opts: { sbDown?: boolean; hidden?: boolean; gv?: GoveeAnswer } = {}) {
   const calls: Call[] = [];
   const power: Record<string, string> = { "SB-PLUG-1": "on", "SB-BOT-2": "off" };
   let goveeOn = 0;
@@ -56,6 +60,8 @@ function vendors(opts: { sbDown?: boolean } = {}) {
     }
     if (url.startsWith(GOVEE_BASE)) {
       const path = url.slice(GOVEE_BASE.length);
+      if (opts.gv?.status) return new Response(JSON.stringify({ message: "nope" }), { status: opts.gv.status, headers: { "Content-Type": "application/json", ...opts.gv.headers } });
+      if (opts.gv?.code) return reply({ code: opts.gv.code, message: "nope" });
       if (path === "/user/devices")
         return reply({
           code: 200,
@@ -75,6 +81,7 @@ function vendors(opts: { sbDown?: boolean } = {}) {
                 { type: "devices.capabilities.dynamic_scene", instance: "lightScene", parameters: { options: [] } },
               ],
             },
+            ...(opts.hidden ? [{ sku: "H6001", device: "II:JJ", deviceName: "Bar Lights", type: "devices.types.light", capabilities: [{ type: "devices.capabilities.on_off", instance: "powerSwitch" }, { type: "devices.capabilities.dynamic_scene", instance: "lightScene" }] }] : []),
             { sku: "SameModeGroup", device: "GG:HH", deviceName: "Same-Model", type: "devices.types.light", capabilities: [{ type: "devices.capabilities.on_off", instance: "powerSwitch" }] },
           ],
         });
@@ -100,7 +107,7 @@ function vendors(opts: { sbDown?: boolean } = {}) {
   return { f, calls };
 }
 
-function lightsWith(v = vendors(), keys = { sb: true, gv: true }) {
+function lightsWith(v = vendors(), keys = { sb: true, gv: true }, keep: LightsKeep | null = null) {
   const lines: string[] = [];
   let now = NOW;
   const lights = new Lights({
@@ -109,6 +116,7 @@ function lightsWith(v = vendors(), keys = { sb: true, gv: true }) {
     idKey: ID_KEY,
     now: () => now,
     log: (l) => lines.push(l),
+    keep,
   });
   return { lights, lines, calls: v.calls, tick: (ms: number) => void (now += ms) };
 }
@@ -309,5 +317,152 @@ describe("/api/haven/lights (#931)", () => {
     const d = routeDeps(undefined, null);
     const cookie = await signedInCookie(DESK, NOW, d.store);
     expect((await lightsGet(new Request(`${ORIGIN}/api/haven/lights`, { headers: { Cookie: cookie } }), d)).status).toBe(503);
+  });
+});
+
+/** A kept file in memory, as the Haven's store keeps it (#1077). */
+function memKeep(start: unknown = null) {
+  const box = { value: start, writes: 0 };
+  const keep: LightsKeep = { read: async () => box.value, write: async (v) => void ((box.value = JSON.parse(JSON.stringify(v))), box.writes++) };
+  return { keep, box };
+}
+
+const govee = (calls: Call[], path = "") => calls.filter((c) => c.url.startsWith(`${GOVEE_BASE}${path}`));
+const states = (calls: Call[]) => govee(calls, "/device/state").map((c) => (c.body as { payload: { device: string } }).payload.device);
+
+describe("Govee within its daily limit (#1077)", () => {
+  it("reads state and moods only for the lamps the Haven shows: never a hidden light or a group", async () => {
+    const t = lightsWith(vendors({ hidden: true }));
+    const v = await t.lights.view();
+    expect(states(t.calls).sort()).toEqual(["AA:BB", "EE:FF"]);
+    expect(govee(t.calls, "/device/scenes").map((c) => (c.body as { payload: { device: string } }).payload.device)).toEqual(["EE:FF"]);
+    // Still listed (Skippy can switch it), its state unknown.
+    expect(v.lights.find((l) => l.name === "Bar Lights")).toMatchObject({ on: null, online: true });
+  });
+
+  it("keeps Govee's states 115 s for every caller, 18 s while the panel is on screen, and a fresh read doesn't re-read them", async () => {
+    const t = lightsWith();
+    await t.lights.view();
+    expect(states(t.calls)).toHaveLength(2);
+    // A fresh read (after a SwitchBot tap) re-reads SwitchBot only.
+    t.tick(20_000);
+    await t.lights.view({ fresh: true });
+    expect(states(t.calls)).toHaveLength(2);
+    // The panel on screen: every 18 s.
+    t.tick(GOVEE_LIVE_MS);
+    await t.lights.view({ live: true });
+    expect(states(t.calls)).toHaveLength(4);
+    t.tick(GOVEE_LIVE_MS);
+    await t.lights.view({ live: true });
+    expect(states(t.calls)).toHaveLength(6);
+    // Otherwise (another tab's poll, Skippy, the house check-in): the kept states while under 115 s old.
+    t.tick(60_000);
+    await t.lights.view();
+    expect(states(t.calls)).toHaveLength(6);
+    t.tick(GOVEE_IDLE_MS - 60_000);
+    await t.lights.view();
+    expect(states(t.calls)).toHaveLength(8);
+    // A normal day: the panel open two hours, the tab visible eight more, the 4 lamps of a home like Nikita's.
+    const perDay = 4 * ((2 * 3600) / 20 + (8 * 3600) / 120);
+    expect(perDay).toBeLessThan(4_000);
+  });
+
+  it("keeps a switched or recoloured lamp's new state without reading it back", async () => {
+    const t = lightsWith();
+    const v = await t.lights.view();
+    const lamp = v.lights.find((l) => l.name === "Test Floor Lamp")!;
+    const n = states(t.calls).length;
+    await t.lights.look(lamp.id, { rgb: 0x3a7bff });
+    await t.lights.set(v.lights.find((l) => l.name === "Shelf strip")!.id, true);
+    t.tick(30_000);
+    const again = await t.lights.view();
+    expect(states(t.calls)).toHaveLength(n);
+    expect(again.lights.find((l) => l.name === "Test Floor Lamp")).toMatchObject({ on: true, rgb: "#3a7bff" });
+    expect(again.lights.find((l) => l.name === "Shelf strip")).toMatchObject({ on: true });
+  });
+
+  it("keeps the lamps listed, unreachable, when Govee's list fails, and asks again a minute later, not on every read", async () => {
+    const gv: GoveeAnswer = {};
+    const t = lightsWith(vendors({ gv }));
+    const first = await t.lights.view();
+    gv.status = 500;
+    t.tick(31 * 60_000);
+    const v = await t.lights.view();
+    expect(v.vendors.govee).toBe("down");
+    expect(v.lights.filter((l) => l.vendor === "govee").map((l) => [l.name, l.online, l.on, l.stale])).toEqual([
+      ["Shelf strip", false, null, true],
+      ["Test Floor Lamp", false, null, true],
+    ]);
+    // The same ids, so their spots on the house hold.
+    expect(v.lights.map((l) => l.id).sort()).toEqual(first.lights.map((l) => l.id).sort());
+    const n = govee(t.calls).length;
+    t.tick(20_000);
+    await t.lights.view();
+    expect(govee(t.calls)).toHaveLength(n);
+    delete gv.status;
+    t.tick(41_000);
+    expect((await t.lights.view()).vendors.govee).toBe("live");
+  });
+
+  it("lists the lamps from the store on a cold instance while Govee is down", async () => {
+    const warm = memKeep();
+    await lightsWith(vendors(), { sb: true, gv: true }, warm.keep).lights.view();
+    expect(warm.box.writes).toBeGreaterThan(0);
+    expect(keptOf(warm.box.value)!.lights.map((l) => l.name)).toContain("Test Floor Lamp");
+    const cold = lightsWith(vendors({ gv: { status: 503 } }), { sb: true, gv: true }, memKeep(warm.box.value).keep);
+    const v = await cold.lights.view();
+    expect(v.lights.filter((l) => l.vendor === "govee").map((l) => [l.name, l.stale])).toEqual([
+      ["Shelf strip", true],
+      ["Test Floor Lamp", true],
+    ]);
+    expect(keptOf({ lights: [{ id: 1 }, null, "x"] })!.lights).toEqual([]);
+  });
+
+  it("stops every Govee call at its limit until midnight UTC, says so, and starts again by itself", async () => {
+    const gv: GoveeAnswer = {};
+    const store = memKeep();
+    const t = lightsWith(vendors({ gv }), { sb: true, gv: true }, store.keep);
+    const first = await t.lights.view();
+    gv.code = 429;
+    t.tick(GOVEE_IDLE_MS);
+    await t.lights.view();
+    t.tick(20_000);
+    const v = await t.lights.view();
+    expect(v.vendors.govee).toBe("down");
+    expect(v.until?.govee).toBe(nextMidnight(NOW));
+    expect(v.lights.filter((l) => l.vendor === "govee").every((l) => l.stale && !l.online)).toBe(true);
+    expect(t.lines.join("\n")).toMatch(/govee limit reached, paused until 00:00 UTC/);
+    const n = govee(t.calls).length;
+    for (let i = 0; i < 20; i++) {
+      t.tick(60_000);
+      await t.lights.view({ live: true });
+    }
+    expect(await t.lights.set(first.lights.find((l) => l.name === "Shelf strip")!.id, true)).toMatchObject({ ok: false, code: "vendor", say: expect.stringMatching(/daily limit/) });
+    expect(govee(t.calls)).toHaveLength(n);
+    // A cold instance knows the pause from the store.
+    expect(keptOf(store.box.value)!.until).toBe(nextMidnight(NOW));
+    // Past midnight, Govee's lamps come back.
+    delete gv.code;
+    t.tick(nextMidnight(NOW) - NOW);
+    const back = await t.lights.view();
+    expect(back.vendors.govee).toBe("live");
+    expect(back.until).toBeUndefined();
+    expect(back.lights.find((l) => l.name === "Test Floor Lamp")).toMatchObject({ online: true });
+    expect(back.lights.some((l) => l.stale)).toBe(false);
+  });
+
+  it("waits as long as Govee's own reset header says, on an HTTP 429", async () => {
+    const reset = Math.floor((NOW + 90 * 60_000) / 1000);
+    const t = lightsWith(vendors({ gv: { status: 429, headers: { "X-RateLimit-Reset": String(reset) } } }));
+    expect((await t.lights.view()).until?.govee).toBe(reset * 1000);
+    expect(resetOf(new Headers({ "Retry-After": "120" }), NOW)).toBe(NOW + 120_000);
+    expect(resetOf(new Headers({}), NOW)).toBeUndefined();
+  });
+
+  it("takes ?live=1 on the route", async () => {
+    const d = { desk: { deskKey: DESK, store: new MemoryAuthStore(), now: NOW }, lights: () => lightsWith().lights };
+    const cookie = await signedInCookie(DESK, NOW, d.desk.store);
+    for (const q of ["?live=1", "?fresh=1&live=1"]) expect((await lightsGet(new Request(`${ORIGIN}/api/haven/lights${q}`, { headers: { Cookie: cookie } }), d)).status).toBe(200);
+    expect((await lightsGet(new Request(`${ORIGIN}/api/haven/lights?live=2`, { headers: { Cookie: cookie } }), d)).status).toBe(400);
   });
 });

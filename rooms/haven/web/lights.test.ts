@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { readPlan } from "../../../api/_haven/planShape.ts";
 import { gymBeyond } from "./gymFill.ts";
-import { afterScene, deskRoom, fixtureOf, held, HIDDEN_LIGHTS, HOLD_MS, holdScene, isOffScene, loadLights, type Holds, placeLights, roomLightOf, shownLights, type Light, type LightsView } from "./lights.ts";
+import { afterScene, deskRoom, downNote, fixtureOf, held, HIDDEN_LIGHTS, HOLD_MS, holdScene, isOffScene, loadLights, type Holds, placeLights, roomLightOf, shownLights, type Light, type LightsView } from "./lights.ts";
 import { boxOf, colourOf, drawList, roomReach } from "./realLights.ts";
 import { dayLevel, sunAt } from "./daylight.ts";
 
@@ -179,5 +179,15 @@ describe("holding a switch or a scene against stale reads (#1022)", () => {
     expect(held(v([sb("Kitchen", false), sb("Porch", false)]), holds, 1_000).lights.map((l) => l.on)).toEqual([true, false]);
     holdScene(v([sb("Kitchen", true)]), "Movie night", holds, 0);
     expect(holds.size).toBe(1);
+  });
+});
+
+describe("the panel's note when a vendor isn't answering (#1077)", () => {
+  const at = () => "5:00 PM";
+  it("says Govee's lamps are unreachable until its reset, and when they come back", () => {
+    expect(downNote({ vendors: { switchbot: "live", govee: "live" } }, at)).toBeNull();
+    expect(downNote({ vendors: { switchbot: "live", govee: "down" }, until: { govee: 1 } }, at)).toBe("Govee's daily limit is used up: its lamps show as unreachable until 5:00 PM, then come back by themselves.");
+    expect(downNote({ vendors: { switchbot: "live", govee: "down" } }, at)).toBe("Govee didn't answer just now: its lamps show as unreachable until it does.");
+    expect(downNote({ vendors: { switchbot: "down", govee: "live" } }, at)).toBe("SwitchBot didn't answer just now.");
   });
 });

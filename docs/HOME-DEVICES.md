@@ -344,9 +344,16 @@ only (`api/_haven/lights/`).
   (`{ op: "set", id, on }` or `{ op: "scene", id }`), passkey session only. The device list is kept ten minutes and the
   states 20 s; past 7,000 state reads in a day (UTC) they're kept three minutes, inside each vendor's 10,000 calls a
   day. A switch updates the kept state without reading back; a scene drops it, so the next read is the vendor's.
-- **Live sync (#1020).** The Haven reads the lights every 25 s while it's on screen (none while the tab is hidden, a
-  fresh read when it comes back), and fresh 3 s after a switch, 1.5 s after a colour or mood, and 2.5 s and 8 s after a
-  scene. A scene that turns lights off ("Turn off lights", "All off") shows every SwitchBot switch off at once, in the
+- **Live sync (#1020, #1077).** The Haven reads the lights every 20 s while the Lights panel is on screen, every
+  2 minutes while the tab is visible otherwise, and never while it's hidden (a read when it comes back); fresh 3 s
+  after a SwitchBot switch, and 2.5 s and 8 s after a scene. A Govee switch, colour or mood shows at once and is not
+  read back.
+- **Govee's limit (#1077).** Govee's states are read only for the lamps the Haven shows (never a hidden light or a
+  group), kept 18 s while the panel is on screen (`?live=1`) and 115 s otherwise, in one cache that the Desk's tabs,
+  Skippy and the house check-in all share; no timer reads them. Every Govee call is counted (8,000 a day at most,
+  spread over the hours left when it runs short). A 429, as HTTP or as Govee's own code, stops every Govee call until
+  its reset header says, else midnight UTC. While Govee is down, its lamps stay listed from the last good list, kept
+  in the private store (`haven/lights-govee.json`, with the pause and the day's count), as unreachable, on their spots. A scene that turns lights off ("Turn off lights", "All off") shows every SwitchBot switch off at once, in the
   panel and on the house, until those reads agree or say otherwise. A switch flipped on the wall or in the SwitchBot
   app shows within about 25 s. SwitchBot's webhooks could make that instant, but they come unsigned and need a public
   endpoint and a registration call; not done.

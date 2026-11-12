@@ -12,6 +12,7 @@ import { JobBoard } from "@ceo/desk/JobBoard.tsx";
 import { LatticeTimings } from "@ceo/desk/LatticeTimings.tsx";
 import { DeskTimings } from "@ceo/desk/DeskTimings.tsx";
 import { TalkTimings } from "@ceo/desk/TalkTimings.tsx";
+import { AnswerTimes } from "@ceo/desk/AnswerTimes.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId, type GState } from "../data/systemsGraph.ts";
 import { SystemsNav, type TabScores } from "./SystemsNav.tsx";
@@ -287,6 +288,7 @@ export function Systems({ now }: { now: number }) {
           <LatticeTimings />
           <DeskTimings />
           <TalkTimings />
+          <AnswerTimes />
 
           <details className="bx-more">
             <summary>

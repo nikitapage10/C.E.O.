@@ -73,13 +73,26 @@ export function slowestStage(
   return best;
 }
 
+let reading: { at: number; view: Promise<unknown> } | null = null;
+
+/** One read of the Talk timings, shared with Skippy's answer times (AnswerTimes.tsx, #1065) when the room opens. */
+export function readTalkTiming(now = Date.now()): Promise<unknown> {
+  if (!reading || now - reading.at > 5_000)
+    reading = {
+      at: now,
+      view: fetch("/api/talk-timing", { credentials: "same-origin" })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    };
+  return reading.view;
+}
+
 export function TalkTimings() {
   const [view, setView] = useState<TalkCallsView | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "off">("loading");
   useEffect(() => {
     let gone = false;
-    fetch("/api/talk-timing", { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
+    readTalkTiming()
       .then((v: unknown) => {
         if (gone) return;
         if (isTalkCallsView(v)) {

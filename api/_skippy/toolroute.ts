@@ -16,6 +16,8 @@
  *   comes back in the tool result to be said at once. Only when the fast tier hands up (or runs out of time) is the
  *   ask filed in the `kernel` room's log and noted with the call (at most MAX_HANDOFFS): its deeper run (Sonnet or
  *   Opus with the same tools, api/skippy.ts deepAnswer) starts from that write and its answer is put into the call.
+ *   Every hand_to_kernel question is timed from its arrival to its answer (#1065, answertimes.ts): the quick pass's
+ *   when it is said, a passed-on one's when it is kept (calldeliver.ts). Milliseconds and the kind only.
  * GET ?read=answers → the check_answers tool: this call's hand-offs and their answers so far (interim or final).
  * GET ?read=player_news[&player=<name>] → the player_news tool (#491): Sleeper's injury status and FantasyPros' injury
  *   report and news on one player, or the C.E.O.'s roster (api/_skippy/voicelookups.ts).
@@ -56,6 +58,8 @@ import { BlobChatLedger, KERNEL_LEDGER_PATH, canChat, skippyBudget, skippySpent 
 import { claudeKey } from "../_world/claude.js";
 import { NEWS_PENDING, NO_MORE_LINES, SAY_WAITING_LINE, STILL_SEARCHING, claudeSearch, cleanPlayer, isEmptyLookup, mergeStatusNews, playerNews, runningSearch, waitingLine, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.js";
 import { deliverCallAnswer, type CallJob } from "./calldeliver.js";
+import type { AnswerKind } from "./answertimes.js";
+import { BlobAnswerStore, timeAnswer } from "../_boot/talkTiming.js";
 import { liveScores } from "./sports.js";
 
 export const PATH = "/api/skippy-tools";
@@ -108,6 +112,8 @@ export interface ToolDeps {
    * answers at once and the answer is kept on the turn the moment it is in. Left out, the hand-off's trigger takes it.
    */
   deliver?: ((job: CallJob) => void) | null;
+  /** Notes a quick answer's time from `askedAt` (#1065); not awaited, so the answer never waits on it. */
+  timed?: ((kind: AnswerKind, askedAt: number) => void) | null;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -282,7 +288,10 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   // The one brain (#926): quick first, on the call itself, as the passkey that started it.
   if (deps.brain && check.passkey) {
     const quick = await withTime(deps.brain(ask, check.passkey, check.screen).catch((): CallTurn => ({ error: "model" })), Math.min(QUICK_BUDGET_MS, (deps.budgetMs ?? READ_BUDGET_MS) - 300));
-    if (quick && "reply" in quick && quick.reply) return json({ ok: true, answered: true, text: `Say this to Nikita now, in your own voice, in one or two short sentences, with no waiting line first: ${said(quick.reply, 600)}` });
+    if (quick && "reply" in quick && quick.reply) {
+      deps.timed?.("quick", deps.now);
+      return json({ ok: true, answered: true, text: `Say this to Nikita now, in your own voice, in one or two short sentences, with no waiting line first: ${said(quick.reply, 600)}` });
+    }
     if (quick && "error" in quick && quick.error !== "model") return json({ ok: false, text: CALL_FAILED[quick.error] ?? CALL_FAILED["not-set-up"] });
     // Deeper (or the quick pass ran late, or its model failed): the deeper run takes it, and the answer comes in.
     return json(await fileHandoff(ask, deps, check, quick && "deeper" in quick ? quick.deeper : "talk"));
@@ -318,7 +327,7 @@ async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenChec
     return { ok: false, text: UNREACHABLE };
   }
   // Answered here, not awaited (#1054): the search when there is one, else the deeper run, else an honest line.
-  deps.deliver?.({ id, ask, depth, ...(search && { search }) });
+  deps.deliver?.({ id, ask, depth, asked: deps.now, ...(search && { search }) });
   const line = waitingLine(check.hash, deps.now)
     ? `Say one short in-character line, like "${ponderLine(id).replace(/…$/, "")}" (never "thread", "hand-off", "Kernel" or "crew"), then stop.`
     : "You already said this question's waiting line: say nothing now, and stop.";
@@ -481,13 +490,14 @@ export function webDeps(env: Record<string, string | undefined>): WebDeps {
  * The live answerer for a call's passed-on question (#1054): runs on this instance, not awaited by the response (so
  * it is not held to the route's settle time either), and keeps its one final answer as the always-on part of Skippy.
  */
-export function liveDeliver(log: RoomLog): (job: CallJob) => void {
+export function liveDeliver(log: RoomLog, timed: ReturnType<typeof timeAnswer> = timeAnswer(null)): (job: CallJob) => void {
   return (job) => {
     void deliverCallAnswer(job, {
       keep: async (id, text) => (await keepAnswer({ ...answerDeps(), log }, { id, from: "kernel-agent", text, final: true, ping: true })).ok,
       deep: (ask, depth) => deepAnswer(ask, depth),
       now: Date.now,
       log: (line) => console.log(line),
+      timed: (kind, ms) => timed(kind, ms, Date.now()),
     }).catch(() => undefined);
   };
 }
@@ -496,7 +506,17 @@ export function GET(request: Request): Promise<Response> {
   const env = process.env;
   const blob = pickBlob(env);
   const log = blob ? new BlobRoomLog(blob) : null;
-  return handle(request, { deskKey: env.FOUNDRY_DESK_KEY ?? "", crew: blob ? new BlobCrewStore(blob) : null, sources: liveSources(env), brain: (ask, passkey, screen) => callAnswer(ask, passkey, undefined, screen), log, now: Date.now(), deliver: log ? liveDeliver(log) : null });
+  const time = timeAnswer(blob ? new BlobAnswerStore(blob) : null);
+  return handle(request, {
+    deskKey: env.FOUNDRY_DESK_KEY ?? "",
+    crew: blob ? new BlobCrewStore(blob) : null,
+    sources: liveSources(env),
+    brain: (ask, passkey, screen) => callAnswer(ask, passkey, undefined, screen),
+    log,
+    now: Date.now(),
+    deliver: log ? liveDeliver(log, time) : null,
+    timed: (kind, askedAt) => void time(kind, Date.now() - askedAt, Date.now()),
+  });
 }
 
 export const POST = GET;

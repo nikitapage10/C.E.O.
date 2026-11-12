@@ -652,6 +652,188 @@
   }
 }
 
+/* The call connecting (#1053): until it's live the projection comes through garbled, the whole figure (beam, pad and
+   him) jittering, splitting into red and cyan, rows of it dropping out, the emitter stuttering. holoScene.ts garbles
+   the figure itself the same way. Connected, it glitches into clarity over 0.8 s; a call that drops glitches out, a
+   flare and a collapse to a line, instead of sinking. */
+.holo--connecting .holo__fig {
+  animation: holo-garble 1.3s steps(1) infinite;
+}
+.holo--connecting .holo__edge {
+  animation: holo-dim 0.3s ease-out 0.5s both, holo-stutter 0.9s steps(1) 0.8s infinite;
+}
+.holo--connecting .holo__wait {
+  animation: holo-blink 0.32s steps(2) infinite;
+}
+@keyframes holo-garble {
+  0% {
+    translate: 3px 0;
+    opacity: 0.75;
+    filter: drop-shadow(3px 0 0 rgba(255, 60, 110, 0.55)) drop-shadow(-3px 0 0 rgba(60, 230, 255, 0.55));
+    clip-path: inset(0 0 0 0);
+  }
+  9% {
+    translate: -5px 1px;
+    opacity: 0.35;
+    clip-path: inset(18% 0 46% 0);
+  }
+  17% {
+    translate: 1px -2px;
+    opacity: 0.85;
+    filter: drop-shadow(-4px 0 0 rgba(255, 60, 110, 0.6)) drop-shadow(4px 0 0 rgba(60, 230, 255, 0.6)) brightness(1.5);
+    clip-path: inset(0 0 22% 0);
+  }
+  26% {
+    translate: 0 0;
+    opacity: 0.15;
+  }
+  31% {
+    translate: -2px 0;
+    opacity: 0.7;
+    filter: drop-shadow(2px 0 0 rgba(255, 60, 110, 0.5)) drop-shadow(-2px 0 0 rgba(60, 230, 255, 0.5));
+    clip-path: inset(40% 0 0 0);
+  }
+  44% {
+    translate: 6px 0;
+    opacity: 0.6;
+    clip-path: inset(0 0 60% 0);
+  }
+  52% {
+    translate: -1px 1px;
+    opacity: 0.8;
+    filter: drop-shadow(5px 0 0 rgba(255, 60, 110, 0.5)) drop-shadow(-5px 0 0 rgba(60, 230, 255, 0.5)) brightness(1.8);
+    clip-path: inset(8% 0 12% 0);
+  }
+  63% {
+    translate: 2px 0;
+    opacity: 0.25;
+    clip-path: inset(55% 0 10% 0);
+  }
+  71% {
+    translate: -4px -1px;
+    opacity: 0.8;
+    filter: drop-shadow(-2px 0 0 rgba(255, 60, 110, 0.55)) drop-shadow(2px 0 0 rgba(60, 230, 255, 0.55));
+    clip-path: inset(0 0 0 0);
+  }
+  84% {
+    translate: 1px 0;
+    opacity: 0.5;
+    clip-path: inset(26% 0 30% 0);
+  }
+  92% {
+    translate: -3px 0;
+    opacity: 0.9;
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes holo-stutter {
+  0%,
+  40%,
+  70% {
+    opacity: 0.95;
+  }
+  20%,
+  55% {
+    opacity: 0.3;
+  }
+  85% {
+    opacity: 0.6;
+  }
+}
+.holo--clear .holo__fig {
+  animation: holo-resolve 0.8s linear both;
+}
+@keyframes holo-resolve {
+  0% {
+    translate: -4px 0;
+    opacity: 0.6;
+    filter: drop-shadow(4px 0 0 rgba(255, 60, 110, 0.5)) drop-shadow(-4px 0 0 rgba(60, 230, 255, 0.5)) brightness(1.6);
+    clip-path: inset(12% 0 30% 0);
+  }
+  12% {
+    translate: 3px 0;
+    opacity: 0.85;
+    clip-path: inset(0 0 14% 0);
+  }
+  24% {
+    translate: -2px 0;
+    opacity: 0.5;
+    filter: drop-shadow(-2px 0 0 rgba(255, 60, 110, 0.4)) drop-shadow(2px 0 0 rgba(60, 230, 255, 0.4)) brightness(1.3);
+    clip-path: inset(30% 0 0 0);
+  }
+  38% {
+    translate: 1px 0;
+    opacity: 0.95;
+    clip-path: inset(0 0 0 0);
+  }
+  52% {
+    translate: -1px 0;
+    opacity: 0.8;
+    filter: drop-shadow(1px 0 0 rgba(255, 60, 110, 0.3)) drop-shadow(-1px 0 0 rgba(60, 230, 255, 0.3)) brightness(1.4);
+  }
+  70% {
+    translate: 0 0;
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+  100% {
+    translate: 0 0;
+    opacity: 1;
+    filter: none;
+    clip-path: inset(0 0 0 0);
+  }
+}
+/* Dropped: no sink, he stays where he is and glitches out. */
+.holo--leaving.holo--lost .holo__riser {
+  animation: holo-rise 0.8s cubic-bezier(0.16, 0.84, 0.3, 1) 0.75s both;
+}
+.holo--lost .holo__fig {
+  transform-origin: 50% 60%;
+  animation: holo-lost 0.6s ease-in both;
+}
+.holo--lost .holo__edge {
+  animation: holo-stutter 0.25s steps(1) infinite, holo-out 0.2s ease-in 0.4s both;
+}
+@keyframes holo-lost {
+  0% {
+    translate: 5px 0;
+    filter: drop-shadow(5px 0 0 rgba(255, 60, 110, 0.6)) drop-shadow(-5px 0 0 rgba(60, 230, 255, 0.6)) brightness(1.8);
+    clip-path: inset(0 0 40% 0);
+  }
+  12% {
+    translate: -7px 0;
+    opacity: 0.4;
+    clip-path: inset(35% 0 0 0);
+  }
+  24% {
+    translate: 3px 0;
+    opacity: 1;
+    filter: brightness(2.4);
+    clip-path: inset(10% 0 20% 0);
+  }
+  36% {
+    translate: -2px 0;
+    opacity: 0.2;
+  }
+  50% {
+    translate: 0 0;
+    opacity: 1;
+    transform: scale(1, 1);
+    filter: brightness(2.6);
+    clip-path: inset(0 0 0 0);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(1.04, 0.015);
+    filter: brightness(3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0, 0.01);
+    filter: brightness(3);
+  }
+}
+
 /* The dock during a call: its edge in whoever has the mic. With his words above it (a phone, a narrow window), it
    leaves them room. */
 body.holo-call .skp-chat--dock {
@@ -702,5 +884,36 @@ body.holo-call--above .skp-chat--dock {
   }
   .holo__hold-note {
     animation: none;
+  }
+  /* Connecting (#1053): a gentle breathing flicker until it's live, a short fade into clarity, and a plain fade out
+     when the call drops. */
+  .holo--connecting .holo__fig {
+    animation: holo-breathe 1.6s ease-in-out infinite alternate;
+  }
+  .holo--connecting .holo__edge,
+  .holo--lost .holo__edge {
+    animation: holo-dim 0.3s ease both;
+  }
+  .holo--clear .holo__fig {
+    animation: holo-settle 0.6s ease-out both;
+  }
+  .holo--leaving.holo--lost .holo__riser {
+    animation: none;
+  }
+  .holo--lost .holo__fig {
+    animation: holo-out 0.3s ease both;
+  }
+}
+@keyframes holo-breathe {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
+@keyframes holo-settle {
+  from {
+    opacity: 0.6;
   }
 }

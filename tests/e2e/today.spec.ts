@@ -148,10 +148,10 @@ test("signed in: the docket in the chamber, the Council's pods and the to-dos", 
   await expect(setup.locator(".rt-floor")).toBeVisible();
   await setup.getByRole("button", { name: "Fold" }).first().click();
 
-  // Still left, under the chamber: his own to-dos and the add line. The Lists live in the Haven since #790.
-  await expect(now.getByText("still left")).toBeVisible();
-  await expect(now.locator(".td-ni.is-mine")).toHaveCount(2);
-  await expect(now.getByRole("textbox", { name: "Add a to-do" })).toBeVisible();
+  // No to-dos on the Senate floor: his own to-dos and the add line are the Haven's since #1056, the Lists since #790.
+  await expect(now.getByText("still left")).toHaveCount(0);
+  await expect(now.locator(".td-ni.is-mine")).toHaveCount(0);
+  await expect(now.getByRole("textbox", { name: "Add a to-do" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Lists" })).toHaveCount(0);
 
   // The Council: Skippy presiding and twelve pods (the ten rooms' subminds and the Desk's two), a button each.

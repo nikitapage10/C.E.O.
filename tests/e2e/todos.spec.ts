@@ -8,11 +8,12 @@ import { keepState, mergeState, type TodoState } from "../../api/_today/todos.ts
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * Today's own to-dos and talk-back (#622): the built site, signed in, with /api/today-todos stubbed in the browser by
- * the real merge (api/_today/todos.ts). A line typed into the capture box becomes a to-do in "Held for you" at once,
- * with one line saying what it did and an Undo that takes it back; a held row's mic opens a one-line talk-back that
- * snoozes it (the row goes, with Undo), and a bare time asks with two chips. Nothing opens a chat. The browser's
- * dictation is switched off here, so the words are typed.
+ * Nikita's own to-dos and talk-back (#622): the built site, signed in, with /api/today-todos stubbed in the browser by
+ * the real merge (api/_today/todos.ts). Since #1056 the to-dos live in the Haven: its To-dos gauge opens the panel,
+ * where a line typed into the capture box becomes a to-do at once, with one line saying what it did and an Undo that
+ * takes it back, and Done and Tomorrow take one tap. On the Senate a held row's mic opens a one-line talk-back that
+ * snoozes it (the row goes, with Undo), and a bare time asks with two chips; the Senate has no to-dos of its own.
+ * Nothing opens a chat. The browser's dictation is switched off here, so the words are typed.
  */
 
 const PORT = Number(process.env.E2E_TODOS_PORT ?? 5186);
@@ -44,6 +45,10 @@ async function stub(page: Page) {
   await page.route(`${BASE}/api/foundry-feed`, (r) => r.fulfill({ json: FEED }));
   await page.route((u) => u.pathname === "/api/foundry", (r) => r.fulfill({ json: new URL(r.request().url()).searchParams.has("setup") ? SETUP : { buttons: true, direct: true, shape: true, images: false } }));
   await page.route(`${BASE}/api/desk-auth`, (r) => r.fulfill({ json: { ready: true, signedIn: true, until: Date.now() + 30 * 60_000, hardUntil: Date.now() + 8 * 3_600_000, device: "Test device", devices: [] } }));
+  // The Haven, made up and quiet: no plan, nothing connected.
+  await page.route(/\/api\/haven(\?.*)?$/, (r) => r.fulfill({ json: new URL(r.request().url()).searchParams.get("view") === "status" ? { kitchen: { open: 0, done: 0 }, todos: 0, ready: true } : { items: [] } }));
+  await page.route(/\/api\/haven\/devices(\?.*)?$/, (r) => r.fulfill({ json: { vendors: { roborock: "waiting", petlibro: "waiting", whisker: "waiting", nest: "waiting" }, devices: [] } }));
+  await page.route(`${BASE}/api/haven-plan`, (r) => r.fulfill({ json: { plan: null } }));
   await page.route(`${BASE}/api/today-todos`, async (r) => {
     if (r.request().method() === "GET") return r.fulfill({ json: { state } });
     const body = r.request().postDataJSON() as { action: string; todos?: unknown[]; marks?: unknown[]; drop?: unknown[] };
@@ -66,20 +71,22 @@ async function shot(page: Page, path: string) {
 }
 
 for (const width of [1440, 400]) {
-  test(`a to-do by a line, and talking back to what needs you (${width} wide)`, async ({ page }) => {
+  test(`the Haven's To-dos gauge opens his to-dos: add by a line, Undo, Tomorrow and Done (${width} wide)`, async ({ page }) => {
     await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     const api = await stub(page);
-    await page.goto(BASE + "/");
-    const held = page.locator(".td-now");
-    await expect(held.getByText("Setup, only you can do")).toBeVisible();
+    await page.goto(BASE + "/haven");
+    const gauge = page.getByRole("button", { name: /^To-dos: 0, clear\. Opens your to-dos\./ });
+    await expect(gauge).toBeVisible();
+    await gauge.click();
+    const panel = page.getByRole("dialog", { name: "To-dos" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText("Nothing left. Say or type one above.")).toBeVisible();
 
     // T jumps to the capture line.
-    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    const box = page.getByRole("textbox", { name: "Add a to-do" });
+    const box = panel.getByRole("textbox", { name: "Add a to-do" });
     await expect(box).toBeVisible();
-    // (Pressed again while Today is still settling: the shortcut is on once the capture line is.)
     await expect(async () => {
       await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
       await page.keyboard.press("t");
@@ -88,21 +95,71 @@ for (const width of [1440, 400]) {
     await box.fill("tomorrow I need to respond to the dermatologist");
     await box.press("Enter");
 
-    const mine = held.locator(".td-ni.is-mine");
-    await expect(mine).toHaveCount(1);
-    await expect(mine.getByText("Respond to the dermatologist")).toBeVisible();
-    await expect(mine.getByText(/Your to-do · tomorrow 9:00 am/)).toBeVisible();
-    const did = page.locator(".td-did");
+    const list = panel.getByRole("list", { name: "Your to-dos" });
+    await expect(list.getByRole("listitem")).toHaveCount(1);
+    await expect(list.getByText("Respond to the dermatologist")).toBeVisible();
+    await expect(list.getByText(/tomorrow 9:00 am/)).toBeVisible();
+    const did = panel.locator(".td-did");
     await expect(did).toContainText("Added for tomorrow 9:00 am");
     await expect(box).toHaveValue("");
+    await expect(gauge).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^To-dos: 1, open\./ })).toBeVisible();
     await expect.poll(() => api.state().todos.map((t) => t.text)).toEqual(["Respond to the dermatologist"]);
-    if (SHOTS) await shot(page, `${SHOTS}/622-todo-${width}.png`);
+    if (SHOTS) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOTS}/1056-haven-todos-${width}.png` });
+    }
 
     // Undo takes it back, on the store too.
-    // Forced: the card keeps repainting on the slow renderer, so it is never "stable" for Playwright.
     await did.getByRole("button", { name: "Undo" }).click({ force: true });
-    await expect(mine).toHaveCount(0);
+    await expect(list).toHaveCount(0);
     await expect.poll(() => api.state().todos).toEqual([]);
+
+    // Two more: Tomorrow snoozes one (it leaves the list), Done ticks the other off.
+    await box.fill("water the plants");
+    await box.press("Enter");
+    await box.fill("book the vet");
+    await box.press("Enter");
+    await expect(list.getByRole("listitem")).toHaveCount(2);
+    if (SHOTS) {
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${SHOTS}/1056-haven-todos-two-${width}.png` });
+    }
+    await list.getByRole("listitem").filter({ hasText: "Water the plants" }).getByRole("button", { name: "Tomorrow" }).click();
+    await expect(list.getByRole("listitem")).toHaveCount(1);
+    await list.getByRole("button", { name: "Done: Book the vet" }).click();
+    await expect(panel.getByText("Nothing left. Say or type one above.")).toBeVisible();
+    await expect.poll(() => api.state().todos.find((t) => t.text === "Book the vet")?.done).toBeTruthy();
+
+    // A to-do's mic opens the same talk-back as the Senate's rows.
+    await box.fill("call mom");
+    await box.press("Enter");
+    const call = list.getByRole("listitem").filter({ hasText: "Call mom" });
+    await call.getByRole("button", { name: /Talk back to this to-do/ }).click();
+    const talk = call.getByRole("textbox", { name: "Say something back to it" });
+    await expect(talk).toBeFocused();
+    await talk.fill("note: ask about the weekend");
+    await talk.press("Enter");
+    await expect(call.getByText("Note: ask about the weekend")).toBeVisible();
+
+    // Escape closes it.
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test(`talking back to what needs you on the Senate, which keeps no to-dos (${width} wide)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const api = await stub(page);
+    await page.goto(BASE + "/");
+    const held = page.locator(".td-now");
+    await expect(held.getByText("Setup, only you can do")).toBeVisible();
+    // No capture line and no list of his own here since #1056.
+    await expect(held.getByRole("textbox", { name: "Add a to-do" })).toHaveCount(0);
+    await expect(held.getByText("still left")).toHaveCount(0);
+    const did = held.locator(".td-did");
 
     // Talk back to a held row: a bare time asks with two chips.
     const setupRow = held.locator(".td-ni").filter({ hasText: "Setup, only you can do" });
@@ -130,12 +187,12 @@ for (const width of [1440, 400]) {
     await expect(did).toContainText("Snoozed till tomorrow 9:00 am");
     await expect(held.getByText("Setup, only you can do")).toHaveCount(0);
     await expect.poll(() => api.state().marks).toEqual([expect.objectContaining({ ref: "setup", until: expect.any(String) })]);
-    if (SHOTS) await shot(page, `${SHOTS}/622-snoozed-${width}.png`);
+    // (Undo first: the line fades after 12 s, and the chamber's frames are slow here.)
     await did.getByRole("button", { name: "Undo" }).click();
     await expect(held.getByText("Setup, only you can do")).toBeVisible();
 
     // Nothing here opened a chat.
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(held.getByRole("dialog")).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 }

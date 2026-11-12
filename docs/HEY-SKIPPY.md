@@ -131,7 +131,8 @@ Groceries (the Kitchen list) and one for Things to buy, each with its count and 
 open or shut state is remembered on that device). Signed in, tick things off, × one away (Undo for a few seconds), add
 with the quick-add line, or **Clear ticked**; signed out it shows the counts only. The Haven's Kitchen page keeps its own
 view of the groceries. On the Desk, Skippy's chat puts things on it too ("add a desk lamp to my Amazon list"). Phone
-to-dos are kept privately until Today's own voice to-dos (#622) take them over.
+to-dos land in the Desk's own to-dos (#622), which the Haven's **To-dos** gauge opens (#1056): the add line with its
+mic first, then each open to-do with Done, Tomorrow and its mic for "remind me Friday" or "note: …".
 
 ## Privacy and limits
 

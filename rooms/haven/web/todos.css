@@ -1,0 +1,133 @@
+/* The To-dos panel (#1056, TodosPop.tsx): the add line first, then each open to-do with Done, Tomorrow and its mic.
+   In the Haven's lamplight; the shared capture line and talk-back (@ceo/desk/todos) take the Haven's type here. */
+[data-room="haven"] .hv-dp.hv-tdp {
+  --td-sans: var(--hv-text);
+  --wv-hot: rgb(var(--hv-gold));
+  --wv-hot-line: rgba(var(--hv-gold), 0.55);
+  --wv-hot-bg: rgba(var(--hv-gold), 0.08);
+  gap: 10px;
+}
+[data-room="haven"] .hv-tdp .td-cap-wrap {
+  margin: 0;
+}
+[data-room="haven"] .hv-tdp .td-cap {
+  border-color: rgba(var(--hv-gold), 0.24);
+  background: rgba(255, 255, 255, 0.03);
+}
+[data-room="haven"] .hv-tdp .td-tb {
+  margin: 4px 0 6px;
+}
+[data-room="haven"] .hv-tdList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-td {
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-tdLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 4px 0;
+}
+[data-room="haven"] .hv-tdDone {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-tdDone i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hv-soft);
+  transition: border-color 0.2s, background 0.2s;
+}
+[data-room="haven"] .hv-tdDone:hover i,
+[data-room="haven"] .hv-tdDone:focus-visible i {
+  border-color: var(--hv-ok);
+  background: rgba(134, 212, 180, 0.18);
+}
+[data-room="haven"] .hv-td.is-due .hv-tdDone i {
+  border-color: rgb(var(--hv-gold));
+  box-shadow: 0 0 14px -3px rgba(var(--hv-gold), 0.7);
+}
+[data-room="haven"] .hv-tdT {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+[data-room="haven"] .hv-tdT b {
+  font: 500 18px/1.25 var(--hv-disp);
+  color: var(--hv-ink);
+  overflow-wrap: anywhere;
+}
+[data-room="haven"] .hv-tdT em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-td.is-due .hv-tdT em {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-tdNote {
+  font-size: 12px;
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-tdBtn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--hv-line);
+  background: none;
+  color: var(--hv-soft);
+  font: 500 12px var(--hv-text);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+[data-room="haven"] .hv-tdBtn.is-mic {
+  width: 30px;
+  padding: 0;
+}
+[data-room="haven"] .hv-tdBtn svg {
+  width: 15px;
+  height: 15px;
+}
+[data-room="haven"] .hv-tdBtn:hover,
+[data-room="haven"] .hv-tdBtn:focus-visible,
+[data-room="haven"] .hv-tdBtn.is-on {
+  border-color: rgba(var(--hv-gold), 0.55);
+  color: rgb(var(--hv-gold));
+  outline: none;
+}
+/* Phone tap targets (#1049): every button 44px. */
+@media (max-width: 760px) {
+  [data-room="haven"] .hv-tdDone,
+  [data-room="haven"] .hv-tdBtn.is-mic {
+    width: 44px;
+    height: 44px;
+  }
+  [data-room="haven"] .hv-tdBtn {
+    height: 44px;
+    padding: 0 14px;
+  }
+  [data-room="haven"] .hv-tdLine {
+    gap: 6px;
+  }
+  /* The room's mic floats over the panel's lower right corner: the last row scrolls clear of it. */
+  [data-room="haven"] .hv-dp.hv-tdp {
+    padding-bottom: 68px;
+  }
+}

@@ -1,6 +1,6 @@
 /**
  * Where "Hey Skippy" puts a to-do (#627): "remind me to call the dermatologist tomorrow". It lands in Today's own
- * to-do store (#622, api/_today/store.ts), so it shows under "Held for you" with the same snooze, remind and done, and
+ * to-do store (#622, api/_today/store.ts), so it shows in the Haven's To-dos panel (#1056) with the same snooze, remind and done, and
  * a time it names ("tomorrow", "Friday at 3") is read with Today's own rules (api/_today/parse.ts).
  *
  * Phone to-dos used to wait in `haven/phone-todos.json`. The first read or add carries anything still open in that file

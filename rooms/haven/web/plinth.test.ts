@@ -26,7 +26,7 @@ describe("the gauges", () => {
     expect(g[0]).toMatchObject({ value: "73°", state: "holding · heat to 70°", tone: "on" });
     expect(g[1]).toMatchObject({ value: "Docked", tone: "on" });
     expect(g[5]).toMatchObject({ value: "1 of 2", state: "this week" });
-    expect(g[6]).toMatchObject({ value: "3", state: "open, on Today" });
+    expect(g[6]).toMatchObject({ value: "3", state: "open" });
   });
 
   it("lights a down device ember and leaves an unconnected one waiting", () => {

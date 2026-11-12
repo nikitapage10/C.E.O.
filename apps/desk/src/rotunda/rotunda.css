@@ -164,25 +164,10 @@
 .desk .rt-floor-x:hover{color:var(--rt-ink)}
 .desk .rt-clear{display:inline-block;max-width:560px;margin:0;padding:12px 16px;background:rgba(11,12,18,.9);border:1px solid var(--rt-line);font:italic 400 17px/1.45 var(--rt-serif);color:var(--rt-soft)}
 
-/* ---------- under the chamber: still left, and the Lists ---------- */
-.desk .rt-below{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px clamp(24px,5vw,80px);max-width:1120px;margin:0 auto;padding:12px clamp(16px,4vw,48px) 36px}
-.desk .ti-left-k{display:flex;align-items:center;gap:14px;margin:28px 0 6px;font:500 12px var(--rt-sans);letter-spacing:.08em;color:var(--rt-faint)}
-.desk .ti-left-k::before,.desk .ti-left-k::after{content:"";flex:1;height:1px;background:var(--rt-line)}
 .desk .ti-clear{font-size:15px;line-height:1.55;color:var(--rt-soft)}
-.desk .td-now.is-rotunda .ti-left{gap:0}
-.desk .td-now.is-rotunda .ti-left .td-ni-row{grid-template-columns:34px minmax(0,1fr);gap:0 10px;padding:9px 8px 9px 0;border-radius:6px}
-.desk .td-now.is-rotunda .ti-left .td-ni-ic{display:none}
-.desk .td-now.is-rotunda .ti-left .td-ni-n{grid-row:1/3;font-size:0;line-height:1;align-self:center}
-.desk .td-now.is-rotunda .ti-left .td-ni-n::before{content:"";display:block;width:15px;height:15px;border-radius:50%;border:1.4px solid var(--rt-soft)}
-.desk .td-now.is-rotunda .ti-left .td-ni.is-due .td-ni-n::before{border-color:var(--wv-hot)}
-.desk .td-now.is-rotunda .ti-left .td-ni-t b{font:400 17px/1.35 var(--rt-serif)}
-.desk .td-now.is-rotunda .ti-left .td-ni-t em{order:2;font-size:10px;letter-spacing:.16em;color:var(--rt-mute)}
-.desk .td-now.is-rotunda .ti-left .td-ni-t>span{order:3;font-size:13px;color:var(--rt-faint)}
-.desk .td-now.is-rotunda .ti-left .td-ni-end{grid-column:2;margin-top:4px}
-.desk .td-now.is-rotunda .ti-left .td-ni-go{height:24px;font-size:9px}
-.desk .td-now.is-rotunda .ti-left .td-ni-card{margin:4px 0 12px 44px}
-.desk .td-now.is-rotunda .td-cap-wrap{margin-top:14px}
-.desk .td-now.is-rotunda .td-cap{border-radius:0;border:0;border-bottom:1px solid var(--rt-line);background:transparent;padding-left:0}
+/* What a talk-back did, under the docket (#1056: the to-dos themselves are the Haven's). */
+.desk .rt-dock .td-did{display:inline-flex;margin:8px 0 0;padding:4px 12px;background:rgba(11,12,18,.9);border:1px solid var(--rt-line)}
+.desk .rt-dock .td-did:empty{display:none}
 
 /* ---------- a member's card (MemberCard.tsx) ---------- */
 .desk .rt-stage .ti-card{position:absolute;z-index:7;right:20px;top:96px;width:min(340px,calc(100% - 16px));max-height:calc(100% - 300px);overflow:auto;display:grid;gap:12px;padding:18px 18px 16px;background:rgba(10,10,16,.96);border:1px solid rgba(var(--c),.36);border-top:3px solid rgba(var(--c),.8);box-shadow:0 30px 60px -30px #000,0 0 40px -20px rgba(var(--c),.5);outline:none;animation:rt-card .3s ease-out both}
@@ -230,7 +215,6 @@
   .desk .td-now-l.rt-docket{flex-direction:column;overflow:visible}
   .desk .rt-docket>.td-ni{position:relative;flex:none;min-width:0}
   .desk .rt-docket .td-ni-card.rt-floor,.desk .rt-docket .rt-talk{position:static;width:auto;max-height:none;margin:0 8px 10px;box-shadow:none}
-  .desk .rt-below{display:block;padding:4px 16px 24px}
   .desk .rt-stage .ti-card{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:calc(100% - 80px);scroll-margin-bottom:96px}
   .desk .rt-tip{display:none}
   /* Under the heading, icon and level only. */

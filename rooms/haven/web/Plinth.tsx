@@ -226,7 +226,7 @@ export interface PlinthProps {
   /** The gauges left to right by where their rooms stand on screen (house.ts, `order`), so the threads never cross. */
   order?: GaugeId[] | null;
   thermo: DeviceReading | null;
-  /** The gauge whose pop-up is open (Climate's control, a device's controls). */
+  /** The gauge whose pop-up is open (Climate's control, a device's controls, the To-dos panel, #1056). */
   pop: GaugeId | null;
   onPop: (id: GaugeId) => void;
   /** Does this gauge open a pop-up of controls? */
@@ -288,15 +288,9 @@ export function Plinth({ gauges, order, thermo, pop, onPop, canPop, onOpen, canO
               <span className="hv-gState">{g.state}</span>
             </>
           );
-          if (g.id === "todos")
-            return (
-              <a key={g.id} className="hv-gauge is-btn" data-tone={g.tone} data-gauge={g.id} href="/">
-                {inner}
-              </a>
-            );
           if (canPop(g.id))
             return (
-              <button key={g.id} type="button" className="hv-gauge is-btn" data-tone={g.tone} data-gauge={g.id} aria-expanded={pop === g.id} aria-label={`${g.name}: ${g.value}, ${g.state}. Opens its controls.`} onClick={() => onPop(g.id)}>
+              <button key={g.id} type="button" className="hv-gauge is-btn" data-tone={g.tone} data-gauge={g.id} aria-expanded={pop === g.id} aria-label={`${g.name}: ${g.value}, ${g.state}. ${g.id === "todos" ? "Opens your to-dos." : "Opens its controls."}`} onClick={() => onPop(g.id)}>
                 {inner}
               </button>
             );

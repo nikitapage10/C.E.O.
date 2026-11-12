@@ -18,7 +18,7 @@ describe("grocery photos (#677)", () => {
 });
 
 describe("Shopping (#737)", () => {
-  const reply = (matched: number, left: number, ok = true): GReply => ({ ok, status: ok ? 200 : 502, error: ok ? null : "vendor", view: null, url: null, items: 0, already: 0, matched, left, by: null, usd: 0 });
+  const reply = (matched: number, left: number, ok = true): GReply => ({ ok, status: ok ? 200 : 502, error: ok ? null : "vendor", view: null, url: null, items: 0, already: 0, off: 0, matched, left, by: null, usd: 0 });
 
   it("matches everything in one press, telling how far it got", async () => {
     const answers = [reply(25, 13), reply(13, 0)];

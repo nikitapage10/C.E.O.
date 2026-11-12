@@ -30,6 +30,10 @@
  *                                        its items. The status view carries each list's counts only.
  *   POST /api/haven { action: "list-add", list, text }   passkey session: the Desk's quick add onto a list.
  *   POST /api/haven { action: "clear-done", list }       passkey session: clear a list's ticked items.
+ *   POST /api/haven { action: "clear-list", list }       passkey session: clear a whole list (#1091); answers `at`.
+ *   POST /api/haven { action: "undo-clear", list, at }   passkey session: bring back what that Clear list took.
+ *   POST /api/haven { action: "list-new", name }         passkey session: make a new, empty list (#1091).
+ *   POST /api/haven { action: "list-delete", list }      passkey session: delete a list he made (built-in ones stay).
  *   GET  /api/haven?view=gym             passkey session: the Gym's plan, this week's log and the last weeks' counts
  *                                        (#660, api/_haven/gym.ts). The status view carries its counts only.
  *   POST /api/haven { action: "gym-log", session? }      passkey session: log a session done now (the named letter,
@@ -40,7 +44,7 @@
  *   GET  /api/haven?view=phones          passkey session: the phones (label, added, last used, revoked) and the
  *                                        greeting clips' state. Never a key or a hash.
  *   POST /api/haven { action: "tick", id, done }         passkey session: tick an item off, or back on. Each list
- *                                                        action takes `list` ("kitchen" when left out, or "buy").
+ *                                                        action takes `list` ("kitchen" when left out, "buy", or a made list's id).
  *   POST /api/haven { action: "remove", id }            passkey session: take an item off the list (hidden at once, kept
  *                                                        ten minutes, #657). 404 when there is no such item.
  *   POST /api/haven { action: "undo-remove", id }        passkey session: bring a removed item back. 404 when it is gone.
@@ -64,7 +68,7 @@ import { GYM_BODY_MAX, gymCounts, gymView, editGymPlan, logGymSession, readGymEd
 import { classify, itemsOf, sayAdded, sayRemoved, sayTodo, spokenOf } from "./classify.js";
 import { PhoneConvo, type ConvoTurn } from "./convo.js";
 import { privateParts } from "../_privacy.js";
-import { allLists, isListId, KitchenList, listCounts, listOf, type ListId } from "./list.js";
+import { allLists, deleteList, findList, KitchenList, listAt, listCounts, listOf, makeList } from "./list.js";
 import { mealCountsOf } from "./meals.js";
 import { PhoneKeys, KEY_SHAPE } from "./phones.js";
 import { phoneKeyOf } from "./links.js";
@@ -276,27 +280,44 @@ export async function havenPost(request: Request, deps: HavenDeps): Promise<Resp
     return reply({ error: "bad-request" }, 400);
   }
   const now = deps.desk.now;
-  // Which list (#735): the Kitchen list when none is named, as it always was.
-  if (body.list !== undefined && !isListId(body.list)) return reply({ error: "bad-request" }, 400);
-  const which: ListId = isListId(body.list) ? body.list : "kitchen";
-  if (body.action === "tick") {
-    if (typeof body.done !== "boolean") return reply({ error: "bad-request" }, 400);
-    const ok = await listOf(deps.blob, which).tick(body.id, body.done, now);
+  if (body.action === "list-new") {
+    // New list (#1091): an empty list with his name for it. The name is his own words, so the log has none.
+    const made = await makeList(deps.blob, body.name);
+    if (!made.ok) return reply({ error: made.error }, made.error === "bad-name" ? 400 : 409);
+    deps.log("haven: a new list was made");
+    return reply({ ok: true, list: { id: made.list.id, name: made.list.name, custom: true, items: [] } });
+  }
+  if (body.action === "list-delete") {
+    // Delete list (#1091): only a list he made, after the Desk's "Are you sure".
+    const ok = await deleteList(deps.blob, body.list);
+    if (ok) deps.log("haven: a list was deleted");
     return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
   }
-  if (body.action === "list-add") {
-    // The Desk's quick add: one line, split on commas ("a phone charger, batteries").
-    const names = typeof body.text === "string" ? body.text.split(/\s*[,;\n]\s*/).filter(Boolean).slice(0, 12) : [];
-    if (!names.length) return reply({ error: "bad-request" }, 400);
-    const got = await listOf(deps.blob, which).add(names, now, "desk");
-    return reply({ ok: true, ...got, items: await listOf(deps.blob, which).items(now) });
-  }
-  if (body.action === "clear-done") {
-    const cleared = await listOf(deps.blob, which).clearDone(now);
-    return reply({ ok: true, cleared });
-  }
-  if (body.action === "remove" || body.action === "undo-remove") {
-    const list = listOf(deps.blob, which);
+  const LIST_ACTIONS = new Set(["tick", "list-add", "clear-done", "clear-list", "undo-clear", "remove", "undo-remove"]);
+  if (typeof body.action === "string" && LIST_ACTIONS.has(body.action)) {
+    // Which list (#735): the Kitchen list when none is named, as it always was; a list he made by its id (#1091).
+    const def = body.list === undefined ? null : await findList(deps.blob, body.list);
+    if (body.list !== undefined && !def) return reply({ error: "bad-request" }, 400);
+    const list = def ? listAt(deps.blob, def) : listOf(deps.blob, "kitchen");
+    if (body.action === "tick") {
+      if (typeof body.done !== "boolean") return reply({ error: "bad-request" }, 400);
+      const ok = await list.tick(body.id, body.done, now);
+      return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
+    }
+    if (body.action === "list-add") {
+      // The Desk's quick add: one line, split on commas ("a phone charger, batteries").
+      const names = typeof body.text === "string" ? body.text.split(/\s*[,;\n]\s*/).filter(Boolean).slice(0, 12) : [];
+      if (!names.length) return reply({ error: "bad-request" }, 400);
+      const got = await list.add(names, now, "desk");
+      return reply({ ok: true, ...got, items: await list.items(now) });
+    }
+    if (body.action === "clear-done") return reply({ ok: true, cleared: await list.clearDone(now) });
+    if (body.action === "clear-list") {
+      // Clear list (#1091), after the Desk's "Are you sure": every item hidden at once; `at` brings them back (Undo).
+      const cleared = await list.clearAll(now);
+      return reply({ ok: true, cleared, at: new Date(now).toISOString() });
+    }
+    if (body.action === "undo-clear") return reply({ ok: true, back: await list.restoreCleared(body.at, now) });
     const ok = body.action === "remove" ? await list.remove(body.id, now) : await list.restore(body.id, now);
     return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
   }

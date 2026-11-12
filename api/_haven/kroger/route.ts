@@ -216,7 +216,7 @@ export async function krogerGet(request: Request, deps: KrogerDeps): Promise<Res
 const noteCall = (blob: BlobBackend, ok: boolean, now: number) =>
   changeKroger(blob, (cur) => ({ next: { ...cur, last: { at: new Date(now).toISOString(), ok } }, result: undefined })).catch(() => undefined);
 
-export type SendResult = { result: "sent"; items: number; already: number } | { result: "not-set-up" | "not-connected" | "empty" | "too-many" | "changed" | "refused" | "vendor" };
+export type SendResult = { result: "sent"; items: number; already: number; off?: number } | { result: "not-set-up" | "not-connected" | "empty" | "too-many" | "changed" | "refused" | "vendor" };
 
 /**
  * Adds exactly these picks to the King Soopers cart: each still on the list, still the current pick, in stock and not
@@ -238,19 +238,23 @@ export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "clien
   const upcs = new Map<string, number>();
   const fresh: { key: string; productId: string }[] = [];
   let already = 0;
+  // What was asked and is in the cart once this goes (#1091): bought, so it leaves the Kitchen list.
+  const bought = new Set<string>();
+  const takeOff = () => new KitchenList(blob).removeKeys(bought, now).catch(() => 0);
   for (const a of asked) {
     const p = cur.picks[a.key];
     if (!open.has(a.key) || !counts(p) || p.product.productId !== a.productId) return { result: "changed" };
     // Already added from here (#737): Kroger's cart can't be read, so a resend would double it.
     if (cur.inCart[a.key]?.productId === a.productId) {
       already++;
+      bought.add(a.key);
       continue;
     }
     fresh.push(a);
     const n = typeof a.qty === "number" && Number.isInteger(a.qty) && a.qty >= 1 && a.qty <= QTY_MAX ? a.qty : qtyOf(p);
     upcs.set(p.product.upc, Math.min(QTY_MAX, (upcs.get(p.product.upc) ?? 0) + n));
   }
-  if (!upcs.size) return { result: "sent", items: 0, already };
+  if (!upcs.size) return { result: "sent", items: 0, already, off: await takeOff() };
   const add = async (refresh: string) => {
     const t = await cartToken(deps.fetch, client, refresh, now);
     if (t.refresh !== refresh) await vault.write("kroger", { ...grant, refresh: t.refresh } satisfies StoredKroger);
@@ -283,7 +287,11 @@ export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "clien
   }).catch(() => undefined);
   const units = [...upcs.values()].reduce((a, b) => a + b, 0);
   deps.log(`kroger: send ${result === "vendor" ? "failed" : result} (${upcs.size} items, ${units} units${already ? `, ${already} already in the cart` : ""})`);
-  return result === "sent" ? { result, items: upcs.size, already } : { result };
+  if (result !== "sent") return { result };
+  for (const a of fresh) bought.add(a.key);
+  const off = await takeOff();
+  deps.log(`kroger: ${off} sent items taken off the list`);
+  return { result, items: upcs.size, already, off };
 }
 
 /** What a send would add right now, as the Kitchen shows it: the matched, in-stock picks not left out, and the open items still unmatched. */
@@ -546,7 +554,7 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
       return { key: line(o.key, 60), productId: typeof o.productId === "string" ? o.productId : "", ...(typeof o.qty === "number" && { qty: o.qty }) };
     });
     const got = await sendPicks(deps, asked);
-    if (got.result === "sent") return reply({ ok: true, items: got.items, already: got.already, url: CART_URL, ...(await view()) });
+    if (got.result === "sent") return reply({ ok: true, items: got.items, already: got.already, off: got.off ?? 0, url: CART_URL, ...(await view()) });
     if (got.result === "not-set-up") return reply({ error: "not-set-up" }, 503);
     if (got.result === "not-connected" || got.result === "empty") return reply({ error: got.result }, 409);
     if (got.result === "too-many") return reply({ error: "too-many" }, 400);

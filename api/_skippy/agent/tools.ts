@@ -66,7 +66,7 @@ export interface ToolHost {
    */
   cart?: {
     now: () => Promise<{ picks: { key: string; productId: string }[]; unmatched: number; connected: boolean; store: boolean } | null>;
-    send: (picks: { key: string; productId: string }[]) => Promise<{ result: string; items?: number }>;
+    send: (picks: { key: string; productId: string }[]) => Promise<{ result: string; items?: number; off?: number }>;
   } | null;
   /**
    * The home devices' rails (api/_haven/devices/home.ts). `via` and `said` are for the Council: where the ask came from
@@ -517,7 +517,7 @@ const EXECUTORS: Record<string, Executor> = {
       const now = host.cart ? await host.cart.now() : null;
       if (!host.cart || !now?.picks.length) return { ok: false, text: "There's nothing matched to send to King Soopers now." };
       const got = await host.cart.send(now.picks);
-      if (got.result === "sent") return { ok: true, text: `Added ${got.items} item${got.items === 1 ? "" : "s"} to the King Soopers cart. Check out in the King Soopers app.`, did: "Sent the picks to King Soopers" };
+      if (got.result === "sent") return { ok: true, text: `Added ${got.items} item${got.items === 1 ? "" : "s"} to the King Soopers cart${got.off ? " and took them off the Kitchen list" : ""}. Check out in the King Soopers app.`, did: "Sent the picks to King Soopers" };
       const no: Record<string, string> = {
         "not-connected": "King Soopers isn't connected. Connect it once in Boiler Room, Controls, Connections.",
         changed: "The picks changed while you were deciding. Look at the Kitchen page and ask again.",

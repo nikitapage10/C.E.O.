@@ -272,12 +272,17 @@ describe("Send to King Soopers (#664)", () => {
     // A pick the Desk didn't show is refused; the shown ones go to the cart, once each, and the cart link comes back.
     expect((await call({ action: "send", picks: [{ key: "lemon", productId: "0001111000004" }] })).body.error).toBe("changed");
     const sent = await call({ action: "send", picks });
-    expect(sent.body).toMatchObject({ ok: true, items: 2, url: CART_URL, connected: true, state: "live" });
+    expect(sent.body).toMatchObject({ ok: true, items: 2, off: 2, url: CART_URL, connected: true, state: "live" });
     const put = f.calls.find((c) => c.init.method === "PUT")!;
     expect(JSON.parse(String(put.init.body))).toEqual({ items: [{ upc: "0001111000001", quantity: 1 }, { upc: "0001111000005", quantity: 1 }] });
     expect((put.init.headers as Record<string, string>).Authorization).toBe("Bearer test-cart-access");
+    // Sent is bought (#1091): both leave the Kitchen list; the unmatched one stays.
+    expect(sent.body.lines.map((l) => l.key)).toEqual(["ox"]);
+    expect((await new KitchenList(blob).items(NOW)).map((i) => i.name)).toEqual(["ox"]);
+    expect((await call({ action: "send", picks })).body.error).toBe("changed");
 
-    // Sent once is remembered (#737): the lines say so, and a resend adds nothing twice.
+    // Sent once is remembered (#737): put back on the list before a new Match, the lines say so, and a resend adds nothing twice.
+    await new KitchenList(blob).add(["oat milk", "lemons"], NOW);
     const view = await call({ action: "skip", key: "oat milk", skip: false });
     expect(
       view.body.lines
@@ -286,8 +291,9 @@ describe("Send to King Soopers (#664)", () => {
         .sort(),
     ).toEqual(["lemon", "oat milk"]);
     const again = await call({ action: "send", picks });
-    expect(again.body).toMatchObject({ ok: true, items: 0, already: 2 });
+    expect(again.body).toMatchObject({ ok: true, items: 0, already: 2, off: 2 });
     expect(f.calls.filter((c) => c.init.method === "PUT")).toHaveLength(1);
+    await new KitchenList(blob).add(["lemons"], NOW);
 
     // Rematch one item from scratch: a fresh search, its own pick again, no longer marked as sent.
     const before = products();
@@ -298,7 +304,7 @@ describe("Send to King Soopers (#664)", () => {
 
     // Signed out, still only a state and a count.
     const pub = await (await krogerGet(get("/api/haven/kroger?view=status"), deps)).json();
-    expect(pub).toEqual({ ready: true, state: "live", picks: 2 });
+    expect(pub).toEqual({ ready: true, state: "live", picks: 1 });
 
     // Nothing private in the logs; no secret or token in the store in the clear.
     const log = lines.join("\n");
@@ -397,7 +403,7 @@ describe("The cart's quantity check (#761)", () => {
   it("gives each match the rules' count at once, then the model's review for the lot, and sends those quantities", async () => {
     const asked: string[] = [];
     const spent: number[] = [];
-    const { call, matched, f, lines } = await matchedSetup({
+    const { call, matched, f, lines, blob } = await matchedSetup({
       review: {
         ask: async (_system, user) => {
           asked.push(user);
@@ -438,7 +444,9 @@ describe("The cart's quantity check (#761)", () => {
     expect(lines.join("\n")).toMatch(/reviewed 2 picks by ai, 1 flagged, \$0\.000120/);
     expect(lines.join("\n")).not.toMatch(/garlic|panko/i);
 
-    // Swapping to the better pick checks the new product at once, and drops his old count.
+    // Sent is bought (#1091): both left the list. Back on it, swapping to the better pick checks the new product at once, and drops his old count.
+    expect(sent.lines).toEqual([]);
+    await new KitchenList(blob).add(["panko, 1 cup"], NOW, "meals");
     const swapped = await call({ action: "choose", key: "panko, 1 cup", productId: "0002222000004" });
     expect(lineOf(swapped, "panko, 1 cup")).toMatchObject({ qty: 1, pick: { review: { productId: "0002222000004", by: "rules" } } });
   });

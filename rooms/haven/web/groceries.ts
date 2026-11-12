@@ -211,6 +211,8 @@ export interface GReply {
   items: number;
   /** Skipped by a send: already in the cart from here (#737). */
   already: number;
+  /** Taken off the Kitchen list by a send (#1091): in the cart, so bought. */
+  off: number;
   /** Matched by this Match call, and how many still wait for the next (#737). */
   matched: number;
   left: number;
@@ -273,13 +275,14 @@ export async function groceryAction(body: GAction, f: typeof fetch = fetch): Pro
       url,
       items: cents(got.items) ?? 0,
       already: cents(got.already) ?? 0,
+      off: cents(got.off) ?? 0,
       matched: cents(got.matched) ?? 0,
       left: cents(got.left) ?? 0,
       by: got.by === "ai" || got.by === "rules" ? got.by : null,
       usd: typeof got.usd === "number" && Number.isFinite(got.usd) && got.usd >= 0 ? got.usd : 0,
     };
   } catch {
-    return { ok: false, status: 0, error: "failed", view: null, url: null, items: 0, already: 0, matched: 0, left: 0, by: null, usd: 0 };
+    return { ok: false, status: 0, error: "failed", view: null, url: null, items: 0, already: 0, off: 0, matched: 0, left: 0, by: null, usd: 0 };
   }
 }
 

@@ -54,17 +54,17 @@ function Img({ p, eager }: { p: GProduct; eager?: boolean }) {
 }
 
 /**
- * A Clear that asks first, on the page (#761: confirm() doesn't work there): the first tap turns it into "Clear? Yes
- * No", which falls back after a few seconds.
+ * A Clear that asks first, on the page (#761: confirm() doesn't work there): the first tap turns it into "Are you sure
+ * you want to delete this? Yes No" (#1091), which falls back after a few seconds.
  */
-function ConfirmClear({ label, busy, onYes }: { label: string; busy: boolean; onYes: () => void }) {
+function ConfirmClear({ label, busy, onYes, ask = "Are you sure you want to delete this?" }: { label: string; busy: boolean; onYes: () => void; ask?: string }) {
   const [armed, setArmed] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const arm = () => {
     setArmed(true);
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setArmed(false), 5000);
+    timer.current = window.setTimeout(() => setArmed(false), 8000);
   };
   const off = () => {
     window.clearTimeout(timer.current);
@@ -72,7 +72,7 @@ function ConfirmClear({ label, busy, onYes }: { label: string; busy: boolean; on
   };
   return armed ? (
     <span className="hv-confirm" role="group" aria-label={`${label}?`}>
-      <span>Clear?</span>
+      <span>{ask}</span>
       <button type="button" className="hv-gSwap is-yes" disabled={busy} onClick={() => (off(), onYes())}>
         Yes
       </button>
@@ -410,10 +410,10 @@ function KingSoopersFoot({ g, onCheck }: { g: G; onCheck: () => void }) {
         win.location.href = r.url;
       }
       setCart(r.url);
-      g.setNote(`Added ${r.items} to your King Soopers cart${r.already ? ` (${r.already} already there, not added again)` : ""}. Pick pickup or delivery and check out there.`);
+      g.setNote(`Added ${r.items} to your King Soopers cart${r.already ? ` (${r.already} already there, not added again)` : ""}${r.off ? ` and took ${plural(r.off, "item")} off your list` : ""}. Pick pickup or delivery and check out there.`);
     } else {
       win?.close();
-      if (r.ok) g.setNote(`Nothing new to add: ${plural(r.already, "pick is", "picks are")} already in your cart.`);
+      if (r.ok) g.setNote(`Nothing new to add: ${plural(r.already, "pick is", "picks are")} already in your cart${r.off ? `, so ${r.off === 1 ? "it's" : "they're"} off your list now` : ""}.`);
     }
   };
   const clear = () => {
@@ -473,7 +473,7 @@ function KingSoopersFoot({ g, onCheck }: { g: G; onCheck: () => void }) {
       </p>
       {matched ? (
         <div className="hv-clearRow">
-          <ConfirmClear label="Clear matches" busy={busy} onYes={clear} />
+          <ConfirmClear label="Clear matches" ask="Clear the matches?" busy={busy} onYes={clear} />
           <p className="hv-note">Clears the matches here only: anything already sent stays in your King Soopers cart, which the Desk can add to but not empty.</p>
         </div>
       ) : null}

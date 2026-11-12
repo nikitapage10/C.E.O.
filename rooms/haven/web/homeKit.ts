@@ -17,6 +17,8 @@ export const HOME_MODELS = new Set<Kind>([
   "minifridge", "projector", "rail", "coffeebar", "cupshelf", "bin", "accent",
   // #1044: the Studio's workstation and the small desk beside it.
   "desk", "monitor", "tower", "speaker", "printer", "potplant",
+  // #1060: the coffee things, the balcony's patio set, the bedroom's dresser with its mirror.
+  "coffeekit", "patiochair", "patiotable", "dresser",
 ]);
 
 export interface HomeMats {
@@ -38,6 +40,13 @@ export interface HomeMats {
   dark: THREE.MeshStandardMaterial;
   grey: THREE.MeshStandardMaterial;
   leaf: THREE.MeshStandardMaterial;
+  /** A mirror's glass (#1060: the dresser's): pale and bright, so it reads as a mirror with nothing to reflect. */
+  mirror: THREE.MeshStandardMaterial;
+  /** White outdoor cushions (#1060: the patio chairs), a touch of their own light so they read white out in the dark. */
+  cushion: THREE.MeshStandardMaterial;
+  /** Syrup bottles (#1060): caramel and vanilla. */
+  caramel: THREE.MeshStandardMaterial;
+  vanilla: THREE.MeshStandardMaterial;
   /** The canvases' picture (#764): black-and-white trees and mountains, drawn here, no image file. */
   art: THREE.MeshStandardMaterial;
 }
@@ -134,6 +143,10 @@ export function homeMats(): HomeMats {
     dark: m({ color: 0x050506, roughness: 0.6 }),
     grey: m({ color: 0x8a8d92, roughness: 0.6 }),
     leaf: m({ color: 0x3f8f52, roughness: 0.7, emissive: 0x7dff9a, emissiveIntensity: 0.15 }),
+    mirror: m({ color: 0xc9d3e2, roughness: 0.05, metalness: 0.9, emissive: 0x5a6578, emissiveIntensity: 0.45 }),
+    cushion: m({ color: 0xf4f4f2, roughness: 0.85, emissive: 0x9a9a98, emissiveIntensity: 0.35 }),
+    caramel: m({ color: 0xa8641e, roughness: 0.25, emissive: 0x3a1e06, emissiveIntensity: 0.4 }),
+    vanilla: m({ color: 0xf1e3c0, roughness: 0.3, emissive: 0x3a3424, emissiveIntensity: 0.3 }),
     art: artMat(),
   };
 }
@@ -440,12 +453,91 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "cupshelf": {
-      // Three little black wall shelves over the coffee station, cups and mugs along them (#1022, #1035).
-      for (const y of [lift + 0.04, lift + 0.2, lift + 0.36]) {
-        b(M.black, L, 0.018, D, 0, y, 0);
-        const n = Math.max(2, Math.floor(L / 0.11));
-        for (let i = 0; i < n; i++) c(i % 3 === 1 ? M.black : M.white, 0.025, 0.06, -L / 2 + (i + 0.5) * (L / n), y + 0.039, 0);
+      // The black wall shelf over the coffee station (#1060): one tall open rectangular frame on the wall, three flat
+      // shelves passing through it, staggered (the top and bottom ones reaching out to the left, the middle one to the
+      // right); cups and mugs on them, a little plant on the top one.
+      const fw = L * 0.2, bar = 0.022, back = D / 2 - bar / 2;
+      for (const sx of [-1, 1]) b(M.black, bar, H, bar, (sx * (fw - bar)) / 2, lift + H / 2, back);
+      for (const y of [lift + bar / 2, lift + H - bar / 2]) b(M.black, fw, bar, bar, 0, y, back);
+      // Turned to face the room, local +X is the left-hand side looking at it.
+      const shelves: [number, number, number][] = [
+        [lift + H * 0.78, -fw / 2 - L * 0.13, L / 2],
+        [lift + H * 0.47, -L / 2, fw / 2 + L * 0.12],
+        [lift + H * 0.14, -fw / 2 - L * 0.14, L / 2 - L * 0.04],
+      ];
+      for (const [i, [y, x0, x1]] of shelves.entries()) {
+        b(M.black, x1 - x0, 0.016, D, (x0 + x1) / 2, y, 0);
+        // Cups along the part of the shelf clear of the frame (the top one's plant at its left-hand end).
+        const spots = i === 1 ? [-fw / 2 - 0.05, -fw / 2 - 0.12, x1 - 0.04] : i === 0 ? [x1 - 0.12, -fw / 2 - 0.04] : [x1 - 0.05, x1 - 0.12, -fw / 2 - 0.04];
+        for (const [j, x] of spots.entries()) c(j === 1 ? M.black : M.white, 0.024, 0.055, x, y + 0.036, -0.005);
       }
+      c(M.white, 0.03, 0.05, L / 2 - 0.04, shelves[0]![0] + 0.033, 0);
+      G.s(g, M.leaf, 0.045, L / 2 - 0.04, shelves[0]![0] + 0.09, 0);
+      return g;
+    }
+    case "coffeekit": {
+      // The coffee things beside the espresso machine (#1060), on a black mat on the cabinet's top: two syrup bottles
+      // with pumps at the back (caramel, vanilla), a tamping station with the tamper and a distribution tool in front,
+      // and a knock box for the spent pucks at the end.
+      const y = lift;
+      b(M.dark, L, 0.008, D, 0, y + 0.004, 0);
+      for (const [i, mat] of [M.caramel, M.vanilla].entries()) {
+        const x = -L / 2 + 0.05 + i * 0.075, z = D / 2 - 0.06;
+        c(mat, 0.026, 0.15, x, y + 0.083, z);
+        c(M.black, 0.009, 0.05, x, y + 0.183, z);
+        b(M.black, 0.045, 0.01, 0.01, x - 0.02, y + 0.205, z);
+      }
+      // The tamping station: a black block with the tamper standing in its cut-out, the distributor beside it.
+      const tx = -L / 2 + 0.07;
+      b(M.black, 0.12, 0.035, 0.1, tx + 0.02, y + 0.026, -D / 2 + 0.07);
+      c(M.steel, 0.026, 0.022, tx, y + 0.055, -D / 2 + 0.07);
+      c(M.black, 0.014, 0.06, tx, y + 0.096, -D / 2 + 0.07);
+      c(M.steel, 0.028, 0.024, tx + 0.055, y + 0.056, -D / 2 + 0.07);
+      // The knock box: a black tub with a bar across its top, a puck knocked out in it.
+      const kx = L / 2 - 0.07;
+      b(M.black, 0.11, 0.09, 0.1, kx, y + 0.053, 0);
+      c(M.steel, 0.007, 0.1, kx, y + 0.092, 0, "x");
+      c(M.dark, 0.028, 0.02, kx, y + 0.095, 0.02);
+      return g;
+    }
+    case "patiochair": {
+      // A black patio chair with white cushions (#1060): a slim black frame, four legs and arms, a white seat cushion
+      // and a white back cushion against its back.
+      const seat = H * 0.48;
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b(M.black, 0.025, seat, 0.025, sx * (L / 2 - 0.02), seat / 2, sz * (D / 2 - 0.02));
+      b(M.black, L, 0.03, D, 0, seat, 0);
+      for (const sx of [-1, 1]) {
+        b(M.black, 0.03, 0.025, D, sx * (L / 2 - 0.015), seat + 0.13, 0);
+        b(M.black, 0.025, 0.13, 0.025, sx * (L / 2 - 0.015), seat + 0.065, -D / 2 + 0.03);
+      }
+      b(M.black, L, H * 1.3 - seat, 0.03, 0, (seat + H * 1.3) / 2, D / 2 - 0.015);
+      b(M.cushion, L - 0.07, 0.07, D - 0.08, 0, seat + 0.05, -0.02);
+      b(M.cushion, L - 0.07, H * 1.3 - seat - 0.1, 0.07, 0, (seat + 0.08 + H * 1.3 - 0.02) / 2, D / 2 - 0.065);
+      return g;
+    }
+    case "patiotable": {
+      // A small round black patio table on one pedestal (#1060).
+      const r = Math.min(L, D) / 2;
+      c(M.black, r, 0.02, 0, H - 0.01, 0);
+      c(M.black, 0.018, H - 0.02, 0, (H - 0.02) / 2, 0);
+      c(M.black, r * 0.55, 0.015, 0, 0.008, 0);
+      return g;
+    }
+    case "dresser": {
+      // The bedroom's dresser (#1060): a dark chest of drawers in two columns with steel pulls, and a large mirror in a
+      // slim black frame standing on it against the wall.
+      b(M.black, L, H - 0.03, D, 0, 0.03 + (H - 0.03) / 2, 0);
+      b(M.dark, L + 0.01, 0.015, D + 0.01, 0, H - 0.0075, 0);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b(M.dark, 0.03, 0.03, 0.03, sx * (L / 2 - 0.03), 0.015, sz * (D / 2 - 0.03));
+      for (let row = 0; row < 3; row++) {
+        const y = 0.03 + ((H - 0.03) * (row + 0.5)) / 3;
+        b(M.dark, L - 0.02, 0.004, 0.004, 0, 0.03 + ((H - 0.03) * row) / 3, fz - 0.002);
+        for (const sx of [-1, 1]) b(M.steel, Math.min(0.12, L * 0.12), 0.01, 0.012, (sx * L) / 4, y, fz - 0.008);
+      }
+      b(M.dark, 0.004, H - 0.04, 0.004, 0, 0.03 + (H - 0.03) / 2, fz - 0.002);
+      const mw = L * 0.82, mh = Math.min(0.82, 1.32 - H);
+      b(M.black, mw + 0.04, mh + 0.04, 0.02, 0, H + 0.02 + mh / 2, D / 2 - 0.02);
+      b(M.mirror, mw, mh, 0.006, 0, H + 0.02 + mh / 2, D / 2 - 0.033);
       return g;
     }
     case "bin": {

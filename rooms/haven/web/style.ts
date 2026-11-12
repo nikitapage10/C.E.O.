@@ -87,7 +87,11 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   projector: S(104, 10, 0x1a1a1c, 0.4, 0, [0x9fd0ff, 0.4]),
   art: S(48, 80, 0xe8e8e6, 0.8), // top at 128, under the 140 cut-down wall (#892)
   coffeebar: S(0, 36, 0x111113, 0.45),
-  cupshelf: S(62, 44, 0x0e0e10, 0.5),
+  // A black wall shelf over the espresso machine (#1060): one upright frame, flat shelves staggered through it.
+  cupshelf: S(80, 54, 0x0e0e10, 0.5),
+  coffeekit: S(36, 22, 0x0c0c0e, 0.8),
+  patiochair: S(0, 34, 0x111113, 0.6),
+  patiotable: S(0, 20, 0x111113, 0.4),
   bin: S(0, 28, 0xc9ccd1, 0.35, 0.3),
   accent: S(0, 28, 0x2a2724, 0.9),
   potplant: S(30, 22, 0x3f8f52, 0.7),

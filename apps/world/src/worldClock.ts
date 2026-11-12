@@ -92,19 +92,47 @@ function syncLink(now = Date.now()): void {
   useSystems.getState().setLink("world", { state, load: clockLoad(reading, now), lastSeen: reading?.at ? Date.parse(reading.at) : null, note });
 }
 
+/**
+ * Failed reads in a row before the clock reads as not answering (#1084). One missed read (the functions restarting
+ * during a deploy, a dropped connection) keeps the last good reading, so the pipe doesn't burst for a blip; three in a
+ * row, about three minutes, is a real outage.
+ */
+export const CLOCK_FAILS_DOWN = 3;
+let fails = 0;
+
+/** A read that got no usable answer: "failed" only once it keeps failing, or when there is no good reading to keep. */
+function missed(set: ClockStore["set"]): void {
+  fails += 1;
+  const { status, reading } = useWorldClock.getState();
+  if (fails >= CLOCK_FAILS_DOWN || status !== "ready" || !reading) set({ status: "failed", checkedAt: Date.now() });
+  else set({ checkedAt: Date.now() });
+}
+
 export async function refreshWorldClock(): Promise<void> {
   const { set } = useWorldClock.getState();
   try {
     const res = await fetch("/api/world-step", { headers: { Accept: "application/json" } });
     const json = (res.headers.get("content-type") ?? "").includes("json");
+    // The site gate's 503 (an instance that can't check yet, as during a deploy) is a missed read, not "off".
+    const gate = res.headers.get("x-ceo-site-gate") === "locked";
     // A local preview serves the app's HTML for /api/…; a world with no store connected answers 503.
-    if (res.status === 404 || res.status === 503 || !json) set({ status: "off", checkedAt: Date.now() });
-    else if (!res.ok) set({ status: "failed", checkedAt: Date.now() });
-    else set({ status: "ready", reading: (await res.json()) as WorldClock, checkedAt: Date.now() });
+    if (!gate && (res.status === 404 || res.status === 503 || !json)) {
+      fails = 0;
+      set({ status: "off", checkedAt: Date.now() });
+    } else if (!res.ok) missed(set);
+    else {
+      fails = 0;
+      set({ status: "ready", reading: (await res.json()) as WorldClock, checkedAt: Date.now() });
+    }
   } catch {
-    set({ status: "failed", checkedAt: Date.now() });
+    missed(set);
   }
   syncLink();
+}
+
+/** For tests: forget the run of failed reads. */
+export function resetClockFails(): void {
+  fails = 0;
 }
 
 let started = false;

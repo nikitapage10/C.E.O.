@@ -256,7 +256,9 @@ export function readPipes(input: PipeInput): PipeMap {
     claudecode: node("claudecode") === "dry" ? dry("not connected to GitHub") : ok(nodes.claudecode?.state === "run" ? "building right now" : "the Builder's thread, idle"),
     github: worst([
       L("checks") === "down" ? { state: "leak", title: "Checks are failing on main.", body: "Types, lint, tests or the build failed on main, so the GitHub stretch is cracked. Nothing new ships until they pass.", fix: { kind: "url", label: "Open the checks", url: GITHUB_RUNS }, steps: ["Open the failing run on GitHub", "The Builder picks up the fix", "A green run seals the pipe"] } : node("github") === "dry" ? dry("not connected") : ok("issues, checks and Actions"),
-      ...[jobCause("The nightly checks", job("checks.yml"), now), jobCause("The browser tests", job("e2e.yml"), now)].filter((c) => c.state !== "dry" && c.state !== "ok"),
+      // The nightly browser tests have their own gauge in the Foundry (rooms.ts, its jobs), so a red test run doesn't
+      // also crack GitHub's own pipe (#1084): this one is about GitHub answering and the checks on main.
+      ...[jobCause("The nightly checks", job("checks.yml"), now)].filter((c) => c.state !== "dry" && c.state !== "ok"),
     ]),
     vqa: (() => {
       if (!vqa) return dry("no run yet");

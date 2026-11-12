@@ -269,6 +269,35 @@ describe("/api/haven-meals", () => {
     expect(await (await mealsPut(put({ meals: vague, replace: true }, FEED), d)).json()).toEqual({ ok: true, meals: 13, nights: 7, completed: 1 });
   });
 
+  it("the feed key upgrades only the recipes' written steps: the weeks, the edits, the list and the cart as they were (#1041)", async () => {
+    const d = deps();
+    const steps = { "sausage-pasta": ["Fill a large pot with water, salt it well and set it over high heat to come to a boil.", "Brown the Italian sausage, 6–8 min.", "Drop the rigatoni into the boiling water and cook 10 min.", "Toss it all together, 1 min."] };
+    expect((await mealsPut(put({ merge: "steps", steps }, FEED), d)).status).toBe(404);
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    await mealsPost(post({ action: "seed", meals: fixture() }, cookie), d);
+    await mealsPost(post({ action: "edit", edit: { op: "recipe", day: "thu", action: "drop", terms: ["avocado"] } }, cookie), d);
+    await mealsPost(post({ action: "confirm" }, cookie), d);
+    const before = JSON.parse(new TextDecoder().decode(d.blob.files.get(MEALS_PATH)!)) as { catalog: Array<{ id: string; steps: string[] }> };
+    const list = await new KitchenList(d.blob).items(NOW);
+
+    for (const key of [undefined, LOG]) expect((await mealsPut(put({ merge: "steps", steps }, key), d)).status).toBe(401);
+    // Only steps: never a whole file with it, never a step too long, empty or one too many.
+    for (const bad of [{ merge: "steps", steps, meals: fixture() }, { merge: "steps", steps, replace: true }, { merge: "steps", steps: { "sausage-pasta": ["x".repeat(241)] } }, { merge: "steps", steps: { "sausage-pasta": [] } }, { merge: "steps", steps: { "sausage-pasta": Array(17).fill("Stir.") } }, { merge: "steps", steps: { "Bad id!": ["Stir."] } }, { merge: "steps", steps: [] }])
+      expect((await mealsPut(put(bad, FEED), d)).status, JSON.stringify(bad).slice(0, 80)).toBe(400);
+
+    const res = await mealsPut(put({ merge: "steps", steps: { ...steps, "not-a-meal": ["Stir."], tacos: before.catalog.find((m) => m.id === "tacos")!.steps } }, FEED), d);
+    expect(await res.json()).toEqual({ ok: true, updated: 1, unchanged: 1, missing: 1 });
+    const after = JSON.parse(new TextDecoder().decode(d.blob.files.get(MEALS_PATH)!)) as typeof before;
+    expect(after.catalog.find((m) => m.id === "sausage-pasta")!.steps).toEqual(steps["sausage-pasta"]);
+    after.catalog.find((m) => m.id === "sausage-pasta")!.steps = before.catalog.find((m) => m.id === "sausage-pasta")!.steps;
+    expect(after).toEqual(before);
+    expect(await new KitchenList(d.blob).items(NOW)).toEqual(list);
+    // Counts only in the log, never a meal.
+    expect(d.lines.at(-1)).toBe("haven: recipe steps were rewritten with the feed key (1 updated, 1 unchanged, 1 not found)");
+    // Again: nothing to write.
+    expect(await (await mealsPut(put({ merge: "steps", steps }, FEED), d)).json()).toEqual({ ok: true, updated: 0, unchanged: 1, missing: 0 });
+  });
+
   it("signed in: reads the plan, makes an edit, and confirm puts the shopping on the Kitchen list and queues the customized nights for photos", async () => {
     const d = deps();
     const cookie = await signedInCookie(DESK, NOW, d.store);

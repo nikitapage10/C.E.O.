@@ -11,6 +11,10 @@
  *   - `completeSteps`: the steps with one written step added for each part that's missing, where it belongs (rice and
  *     potatoes first, the pasta just before the step that tosses it, a raw side at the end), with the heat, the time
  *     and how to tell it's done. A recipe that already cooks everything comes back as it was, so it is idempotent.
+ *     A long-lead part (#1041) is split: the pot of water put on (or the oven heated) as the first step, the pasta
+ *     dropped in just before the step that tosses it.
+ *   - `orderSteps` (#1041): the steps in cooking order, what takes longest first: a "bring the water to a boil" or "heat
+ *     the oven" inside a later step becomes its own first step, and a rice, roast potato or marinade step moves up.
  *   - `RECIPE_RULES`: the bar a written recipe meets, for whoever writes one (docs/HOME-DEVICES.md, "Writing a recipe").
  *
  * Also the step matcher cook mode uses (moved here from rooms/haven/web/cook.ts so the planner can use it too):
@@ -23,7 +27,7 @@ import type { Component, Role } from "./mealShape.js";
 
 /** The bar for a written recipe (#1036), as said to whoever writes one. */
 export const RECIPE_RULES =
-  "Write every recipe as a cook would follow it: a dinner in about 5 to 8 steps (combine actions in one step where it reads naturally), each step at most 240 characters. Cook every part the dish uses in some step: boil the pasta in well-salted water (time, save pasta water), simmer the rice, roast the potatoes, warm the tortillas, sear or brown the protein; serve a raw side in a step. Give each cooking step the heat, the time and a doneness cue (\"over medium-high heat until browned, 6–8 min\"; \"until it darkens to brick red, about 2 min\"). Name each part by its name in the recipe (\"the rigatoni\", \"the chicken thighs\"), so swaps and the per-step amounts find it.";
+  "Write every recipe as a cook would follow it: a dinner in about 5 to 8 steps (combine actions in one step where it reads naturally), each step at most 240 characters. Cook every part the dish uses in some step: boil the pasta in well-salted water (time, save pasta water), simmer the rice, roast the potatoes, warm the tortillas, sear or brown the protein; serve a raw side in a step. Give each cooking step the heat, the time and a doneness cue (\"over medium-high heat until browned, 6–8 min\"; \"until it darkens to brick red, about 2 min\"). Name each part by its name in the recipe (\"the rigatoni\", \"the chicken thighs\"), so swaps and the per-step amounts find it. Write the steps in cooking order, so the parts finish together and the cook never waits: what takes longest starts first, as its own first step (put the pasta water on to boil, heat the oven, start the rice or the potatoes, marinate the protein), and each part is cooked when it should be, timed to be done with the rest (\"Drop the rigatoni into the boiling water and cook …\" while the sauce simmers).";
 
 /* ── The step matcher (#1010) ── */
 
@@ -167,7 +171,7 @@ const VERBS: Record<PartKind, string | null> = {
 
 /** The step written for a part no step cooks: the heat, the time and how to tell it's done (`{n}`: the part's name). */
 const COOK_STEP: Record<PartKind, string> = {
-  pasta: "Bring a large pot of well-salted water to a boil. Cook the {n} 1–2 min short of the box time, about 10 min, until just al dente; save 1 cup of pasta water, then drain.",
+  pasta: "Drop the {n} into the boiling water and cook 1–2 min short of the box time, about 10 min, until just al dente; save 1 cup of pasta water, then drain.",
   rice: "Rinse the {n}, bring it to a boil with 1¼ times its volume of water and a pinch of salt, then cover and simmer on low until the water is gone, about 15 min; rest 5 min and fluff.",
   "brown-rice": "Rinse the {n}, bring it to a boil with twice its volume of water and a pinch of salt, then cover and simmer on low until tender, about 40 min; rest 10 min and fluff.",
   quinoa: "Rinse the {n}, bring it to a boil with twice its volume of salted water, then cover and simmer on low until the water is absorbed, about 15 min; rest 5 min and fluff.",
@@ -182,12 +186,26 @@ const COOK_STEP: Record<PartKind, string> = {
   shrimp: "Pat the {n} dry, season with salt and sear in a hot oiled skillet over medium-high heat until pink and just opaque, 1–2 min a side.",
   fish: "Pat the {n} dry, season with salt and sear in a hot oiled skillet over medium-high heat until golden and it flakes easily, 3–4 min a side.",
   lobster: "Split the {n}, brush with oil, season and broil 5 inches from the heat until the meat is opaque (140°F), 6–8 min.",
-  pork: "Season the {n} and sear it on all sides in a hot oiled skillet, about 5 min, then roast at 425°F until 145°F inside, 12–15 min; rest 5 min and slice.",
+  pork: "Season the {n} and sear it on all sides in a hot oiled skillet, about 5 min, then roast in the hot oven until 145°F inside, 12–15 min; rest 5 min and slice.",
   tofu: "Press the {n} for 10 min, cut it into cubes and pan-fry in oil over medium-high heat until golden and crisp on all sides, 8–10 min.",
   protein: "Season the {n} with salt and cook it in an oiled skillet over medium-high heat until browned and cooked through, 5–8 min.",
   beans: "Warm the {n} with a splash of their liquid and a pinch of salt in a small pot over medium heat until hot, about 5 min.",
   veg: "Cook the {n} in an oiled skillet over medium-high heat until tender and lightly browned, 5–7 min; season with salt.",
   raw: "Serve the {n} on the side.",
+};
+
+/** The pot of water put on first, so it boils while the rest is cooked (#1041). */
+export const WATER_START = "Fill a large pot with water, salt it well and set it over high heat to come to a boil.";
+/** The oven heated first. */
+export const ovenStart = (temp = "425°F") => `Heat the oven to ${temp}.`;
+
+/**
+ * A part whose cooking starts long before it's done (#1041): its start step goes first, its cook step where it belongs.
+ * `one` is the single step written instead when there's no room for two (at most `max` steps).
+ */
+const START: Partial<Record<PartKind, { start: string; one: string }>> = {
+  pasta: { start: WATER_START, one: "Bring a large pot of well-salted water to a boil. Cook the {n} 1–2 min short of the box time, about 10 min, until just al dente; save 1 cup of pasta water, then drain." },
+  pork: { start: ovenStart(), one: "Season the {n} and sear it on all sides in a hot oiled skillet, about 5 min, then roast at 425°F until 145°F inside, 12–15 min; rest 5 min and slice." },
 };
 
 /** Where a missing step goes: first (it takes longest), just before the step that first uses the part, or last. */
@@ -272,10 +290,145 @@ export function completeSteps(steps: string[], parts: Array<Part | undefined>, e
     if (out.length >= max) break;
     const c = ps[p]!;
     const kind = kindOf(c);
-    const step = COOK_STEP[kind].replace("{n}", stepName(c));
     const place = PLACE[kind];
     const at = place === "first" ? 0 : place === "last" ? out.length : seen.named.length ? seen.named[0]! : kind === "pasta" || kind === "flatbread" || kind === "beans" || kind === "veg" ? Math.max(0, out.length - 1) : 0;
-    out = [...out.slice(0, at), step, ...out.slice(at)];
+    // A long-lead part (#1041): its start goes first (unless a step already starts it), its cooking where it belongs.
+    const lead = START[kind];
+    const started = !lead || out.some((t) => t.split(SENTENCES).some((x) => startIn(x)?.kind === startOf(lead.start)));
+    if (lead && !started && out.length + 2 > max) {
+      out = [...out.slice(0, at), lead.one.replace("{n}", stepName(c)), ...out.slice(at)];
+      continue;
+    }
+    out = [...out.slice(0, at), COOK_STEP[kind].replace("{n}", stepName(c)), ...out.slice(at)];
+    if (lead && !started) out = [lead.start, ...out];
   }
   return out;
+}
+
+/* ── Cooking order (#1041) ── */
+
+/** "Bring a big pot of well-salted water to a boil": the clause that puts the water on. */
+const WATER_CLAUSE = String.raw`(?:bring|set|put|get)\b[^.;,]*?\bwater\b[^.;,]*?\bto (?:a )?(?:rolling )?boil\b|fill a (?:large |big )?pot with water,[^.;]*?\bto (?:come to )?(?:a )?boil\b`;
+/** "Heat the oven to 425°F". */
+const OVEN_CLAUSE = String.raw`(?:pre)?heat the oven to (\d{3}\s*°?\s*[FC]?)`;
+/** What may follow a start clause and still be part of it: the heat, how long it takes. */
+const CLAUSE_TAIL = String.raw`(?:\s+over (?:high|medium-high) heat)?(?:,?\s*(?:about|for)?\s*\d+(?:\s*[–-]\s*\d+)?\s*min(?:utes)?)?`;
+/** Where a start clause ends and the rest of its sentence carries on. */
+const CLAUSE_END = String.raw`(?:\s*[.!]\s*$|;\s+|,\s+then\s+|\s+and\s+then\s+|\s+then\s+|\s+and\s+)`;
+const WATER_RE = new RegExp(`^(?:${WATER_CLAUSE})${CLAUSE_TAIL}${CLAUSE_END}`, "iu");
+const OVEN_RE = new RegExp(`^${OVEN_CLAUSE}${CLAUSE_TAIL}${CLAUSE_END}`, "iu");
+/** A step that puts water on to boil: cook mode skips it when tonight's pasta is left out. */
+export const WATER_STEP = /\bwater\b[^.;]*?\bto (?:come to )?(?:a )?(?:rolling )?boil\b/giu;
+
+type StartKind = "water" | "oven";
+
+/** The start a sentence opens with (written as the first step says it), and the rest of the sentence after it. */
+function startIn(sentence: string): { kind: StartKind; text: string; rest: string } | null {
+  const t = sentence.trim();
+  const w = WATER_RE.exec(t);
+  if (w) return { kind: "water", text: WATER_START, rest: t.slice(w[0].length) };
+  const o = OVEN_RE.exec(t);
+  if (o) return { kind: "oven", text: ovenStart(o[1]!.replace(/\s+/g, "")), rest: t.slice(o[0].length) };
+  return null;
+}
+
+/** The start a whole step is (nothing else in it), or null. */
+const startOf = (step: string): StartKind | null => {
+  const s = startIn(step);
+  return s && !s.rest.trim() ? s.kind : null;
+};
+
+const SENTENCES = /(?<=[.!?])\s+(?=[A-Z])/u;
+const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
+
+/** The most minutes a step says it takes ("30–35 min" is 35; hours or overnight count as 60). */
+function minutesIn(text: string): number {
+  let most = /\b(?:hours?|overnight)\b/i.test(text) ? 60 : 0;
+  for (const m of text.matchAll(/(\d+)(?:\s*[–-]\s*(\d+))?\s*min/giu)) most = Math.max(most, Number(m[2] ?? m[1]));
+  return most;
+}
+
+/** The parts that take long enough to start first. */
+const LEAD_KINDS = new Set<PartKind>(["rice", "brown-rice", "quinoa", "grain", "potato", "fries"]);
+
+interface Lines {
+  parts: Part[];
+  lines: Array<{ p: number; n: LineNames }>;
+  names: string[];
+}
+
+/**
+ * Whether a whole step is a long-lead start that belongs at the front: it only puts the water on or heats the oven, it
+ * marinates, or it cooks only a part that takes long (the rice, the roast potatoes) and says 15 min or more.
+ */
+function isLead(step: string, l: Lines): boolean {
+  if (startOf(step)) return true;
+  if (/\bmarinat(?:e|ing)\b/i.test(step)) return true;
+  if (!l.parts.length || minutesIn(step) < 15) return false;
+  const named = [...new Set(usesOf(step, l.lines.map((x) => x.n)).map((i) => l.lines[i]!.p).filter((p) => p >= 0))];
+  if (named.length !== 1) return false;
+  const kind = kindOf(l.parts[named[0]!]!);
+  if (!LEAD_KINDS.has(kind)) return false;
+  let verbsIn = step;
+  for (const n of l.names) verbsIn = verbsIn.replace(patternOf(n), " ");
+  return new RegExp(`(?<![\\p{L}])(?:${VERBS[kind]})\\p{L}*`, "iu").test(verbsIn);
+}
+
+/**
+ * The steps in cooking order (#1041), so the parts finish together and the cook isn't waiting: what takes longest
+ * starts first. A later step that puts the pasta water on to boil or heats the oven gives that sentence up as its own
+ * first step, and the rest of the step stays where it was ("Cook the rigatoni …" reads "Drop the rigatoni into the
+ * boiling water and cook …"); a later step that is a long-lead start on its own (the rice, the roast potatoes, a
+ * marinade) moves up whole. Conservative: only those, never past `max` steps, the moved ones in the order they were
+ * written, a second water or oven start dropped. Steps already in order come back unchanged (the same array), so it is
+ * idempotent.
+ */
+export function orderSteps(steps: string[], parts: Array<Part | undefined> = [], extra: string[] = [], max = 16): string[] {
+  const ps = cookable(parts);
+  const lines = [...ps.flatMap((c, p) => c.ingredients.map((i) => ({ p, n: lineNames(i.item, c.name) }))), ...extra.map((x) => ({ p: -1, n: lineNames(x) }))];
+  const l: Lines = { parts: ps, lines, names: lines.flatMap((x) => x.n.names).sort((a, b) => b.length - a.length) };
+  let k = 0;
+  while (k < steps.length && isLead(steps[k]!, l)) k++;
+  const front = steps.slice(0, k);
+  const started = new Set(front.map(startOf).filter((x): x is StartKind => x !== null));
+  const rest: string[] = [];
+  let count = steps.length;
+  let changed = false;
+  for (const t of steps.slice(k)) {
+    if (isLead(t, l)) {
+      changed = true;
+      const kind = startOf(t);
+      if (kind && started.has(kind)) {
+        count--;
+        continue;
+      }
+      if (kind) started.add(kind);
+      front.push(cap(t.replace(/^(?:meanwhile|while (?:that|it|the \p{L}+) \p{L}+),\s*/iu, "")));
+      continue;
+    }
+    // A start inside the step: the sentence that opens with it gives it up; the rest of the step stays here.
+    const sentences = t.split(SENTENCES);
+    let left = t;
+    for (let j = 0; j < sentences.length; j++) {
+      const s = startIn(sentences[j]!);
+      if (!s) continue;
+      const dup = started.has(s.kind);
+      if (!dup && count + 1 > max) break;
+      const after = s.rest.trim();
+      const kept = [...sentences.slice(0, j), ...(after ? [cap(after)] : []), ...sentences.slice(j + 1)];
+      // What came right after the water now says where the pasta goes: "Drop the rigatoni into the boiling water and cook …".
+      if (s.kind === "water" && kept[j]) kept[j] = kept[j]!.replace(/^cook the (.+?)(?=\s+(?:\d|(?:one|two|three|until|for|in|al)\b)|,|;)/iu, "Drop the $1 into the boiling water and cook");
+      left = kept.join(" ").trim();
+      if (!dup) {
+        front.push(s.text);
+        started.add(s.kind);
+        count++;
+      }
+      changed = true;
+      break;
+    }
+    if (left) rest.push(left);
+    else count--;
+  }
+  return changed ? [...front, ...rest] : steps;
 }

@@ -7,7 +7,7 @@
  * found by name in the step's words. Nothing new is read or stored.
  */
 
-import { lineNames, partNames, usesOf } from "../../../api/_haven/cookSteps.ts";
+import { kindOf, lineNames, partNames, usesOf, WATER_STEP } from "../../../api/_haven/cookSteps.ts";
 import { CONFIRM_MAX, type MealToShoot } from "../../../api/_haven/photoShape.ts";
 import { cooksDinner, DAY_NAME, DAYS, lunchDish, lunchSkipped, portionsOf, shopLine, slotDish, type Component, type Day, type Dish, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
 
@@ -153,6 +153,9 @@ function cookDish(d: Dish, day: Day, course: Cook["course"], portions: number, w
       was: p.base.name.toLowerCase(),
     });
   }
+  // The pot of water put on first (#1041) is for the pasta: with tonight's pasta left out and none in its place, skip it.
+  const pastaOut = d.parts.find((p) => p.base && p.now && p.base.id !== p.now.id && !p.now.ingredients.length && kindOf(p.base) === "pasta");
+  if (pastaOut && !d.parts.some((p) => p.now?.ingredients.length && kindOf(p.now) === "pasta")) swaps.push({ find: new RegExp(WATER_STEP.source, "giu"), to: null, was: pastaOut.base!.name.toLowerCase() });
   // Each line with the part it belongs to, so "the rigatoni" finds the pasta and "the protein" finds nothing new.
   const partOf = (x: Ingredient) => d.parts.find((p) => p.now?.ingredients.includes(x))?.now?.name;
   const names = d.ingredients.map((x) => lineNames(x.item, partOf(x)));

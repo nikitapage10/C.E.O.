@@ -3,7 +3,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
-import { makeSurroundings, nearFor, type Box2, type Surroundings } from "./surroundings.ts";
+import { makeSurroundings, nearFor, STOREY, type Box2, type Surroundings } from "./surroundings.ts";
 import { introDue, introStarted } from "./intro.ts";
 import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
@@ -29,7 +29,8 @@ import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
  * lit rooms, drift up in their light, rise off the devices that are working and swarm the ones that need Nikita.
  *
  * Starts on a three-quarter view fitted to the plan (#658: about 37° up, turned so the plan's far end runs up and to the
- * right), one unit of a low courtyard block with a street, a park and a boulevard round it (surroundings.ts, #1007), on a
+ * right), one unit up on an upper floor of a courtyard block with a street, a park and a boulevard round it
+ * (surroundings.ts, #1007, #1035), on a
  * Denver plain under its sky (night.ts, #665), all in the one scene; drag to orbit, pinch or
  * scroll to zoom, tap a room to fly in (300 ms), and `resetView` comes back to the fitted view. Reduced motion: every move is
  * instant and the frame is still (drawn only when something changes). Loaded lazily, with three from the Lattice's own
@@ -143,6 +144,31 @@ export function fitView(box: { x0: number; x1: number; z0: number; z1: number; h
 }
 
 /** The walls: every room part's edges, merged where they run together, with the doors and balcony doors cut out. Generic. */
+/** Storeys of the building under the home (#1035): it is up on an upper floor, the ground and the street well below. */
+export const STOREYS_BELOW = 5;
+
+/**
+ * The front door (#1035): a door with a room of the home on one side and nothing of the home on the other, a hall's
+ * first; with the way out from it, a unit step in plan (and world) axes. Null when the plan has none.
+ */
+export function frontDoor(plan: HavenPlan): { seg: Seg; out: [number, number] } | null {
+  const home = plan.rooms.filter((r) => !r.detached);
+  const roomAt = (x: number, y: number) => home.find((r) => r.parts.some(([px, py, w, h]) => x > px && x < px + w && y > py && y < py + h));
+  const found: { seg: Seg; out: [number, number]; hall: boolean }[] = [];
+  for (const d of plan.doors) {
+    const hz = d[1] === d[3];
+    if (!hz && d[0] !== d[2]) continue;
+    const mx = (d[0] + d[2]) / 2, my = (d[1] + d[3]) / 2;
+    for (const k of [-1, 1]) {
+      const out: [number, number] = hz ? [0, k] : [k, 0];
+      const inner = roomAt(mx - out[0] * 12, my - out[1] * 12);
+      if (inner && !roomAt(mx + out[0] * 12, my + out[1] * 12)) found.push({ seg: d, out, hall: /\b(hall|hallway|entry|foyer|corridor)\b/i.test(inner.name) });
+    }
+  }
+  const pick = found.find((f) => f.hall) ?? found[0];
+  return pick ? { seg: pick.seg, out: pick.out } : null;
+}
+
 export function wallsOf(plan: HavenPlan): Seg[] {
   const H = new Map<number, [number, number][]>(), V = new Map<number, [number, number][]>();
   const add = (m: Map<number, [number, number][]>, k: number, a: number, b: number) => {
@@ -434,6 +460,8 @@ export class House {
       west: Math.atan2(-Math.sin(HOME_TH), -Math.cos(HOME_TH)),
       phone: Math.min(window.innerWidth, window.innerHeight) < 600,
     });
+    // The plain and its lights down at the street, under the upper floor the home is on (#1035).
+    this.night.group.position.y = -STOREYS_BELOW * STOREY;
     this.scene.add(this.night.group);
     // Frosted glass walls with bright top edges.
     const boxes = (segs: Seg[], h: number, t: number, y0: number) =>
@@ -474,10 +502,17 @@ export class House {
     if (!home.length) return null;
     const hx0 = Math.min(...home.map((p) => p[0])), hx1 = Math.max(...home.map((p) => p[0] + p[2]));
     const hy0 = Math.min(...home.map((p) => p[1])), hy1 = Math.max(...home.map((p) => p[1] + p[3]));
-    // The courtyard on the balconies' side (the east when the plan has none).
-    const bal = P.balconies.map((b) => (b[0] + b[2]) / 2);
-    const east = !bal.length || bal.reduce((a, b) => a + b, 0) / bal.length >= (hx0 + hx1) / 2;
-    this.around = makeSurroundings({ home: W(hx0, hy0, hx1, hy1), keep, east, phone: Math.min(window.innerWidth, window.innerHeight) < 600, wallH: WH });
+    // The home as it sits in its building (#1035): the courtyard on its east, the street on its west, up on an upper
+    // floor; its front door off a small entrance alcove.
+    const door = frontDoor(P);
+    let alcove: { x: number; z: number; out: [number, number]; w: number } | undefined;
+    if (door) {
+      const [x0, y0, x1, y1] = door.seg;
+      alcove = { x: this.wx((x0 + x1) / 2), z: this.wz((y0 + y1) / 2), out: door.out, w: Math.hypot(x1 - x0, y1 - y0) / U };
+      const pts = [-1, 1].flatMap((k) => [0, 1.1].map((v) => [alcove!.x - door.out[1] * k * (alcove!.w / 2 + 0.35) + door.out[0] * v, alcove!.z + door.out[0] * k * (alcove!.w / 2 + 0.35) + door.out[1] * v]));
+      keep.push({ x0: Math.min(...pts.map((p) => p[0]!)), z0: Math.min(...pts.map((p) => p[1]!)), x1: Math.max(...pts.map((p) => p[0]!)), z1: Math.max(...pts.map((p) => p[1]!)) });
+    }
+    this.around = makeSurroundings({ home: W(hx0, hy0, hx1, hy1), keep, east: true, phone: Math.min(window.innerWidth, window.innerHeight) < 600, wallH: WH, below: STOREYS_BELOW, door: alcove });
     this.world.add(this.around.group);
     return this.around.bounds;
   }

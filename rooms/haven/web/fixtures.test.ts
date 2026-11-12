@@ -76,20 +76,17 @@ describe("the home's fixtures (#1007)", () => {
     expect(strip.out).toEqual([0, 1]);
   });
 
-  it("lights the open kitchen, dining room and living room as one, in two halves, and part of the hall (#1020, #1022)", () => {
+  it("lights the open kitchen and dining room in two halves, and part of the hall, never the living room (#1020, #1022, #1035)", () => {
     const [a, b] = overheadZones(plan)!;
     const part = (id: string) => plan.rooms.find((r) => r.id === id)!.parts[0]!;
     const k = part("kitchen"), d = part("nook"), l = part("living"), hall = part("hall");
-    // The made-up open room runs west to east from the kitchen (x 220) to the living room's far wall (x 960), y 40 to
-    // 460: the first half at the kitchen's end, the second on to the far end, meeting with no gap.
-    expect(a.x1).toBe(b.x0);
-    expect(b.x1).toBe(l[0] + l[2]);
-    expect(a.x0).toBeLessThan(k[0]);
+    // The made-up kitchen (y 40 to 320) and dining room (y 320 to 460) run north to south, x 220 to 600: the first half
+    // at the kitchen's end, the second on to the dining room's far end, meeting with no gap.
+    expect(b.y0).toBeLessThanOrEqual(a.y1);
     expect(Math.min(a.y0, b.y0)).toBe(k[1]);
     expect(Math.max(a.y1, b.y1)).toBe(d[1] + d[3]);
-    // The whole living room across, not a spot.
-    expect(b.y0).toBeLessThanOrEqual(l[1]);
-    expect(b.y1).toBeGreaterThanOrEqual(l[1] + l[3]);
+    // No zone over the living room (x 600 to 960): it has no ceiling light.
+    expect(Math.max(a.x1, b.x1)).toBeLessThanOrEqual(l[0]);
     // Part of the hall beside the kitchen, up to 150 into it, not all of it.
     expect(a.x0).toBeGreaterThanOrEqual(hall[0] + hall[2] - 150);
     expect(a.x0).toBeLessThan(hall[0] + hall[2]);
@@ -177,20 +174,22 @@ describe("the block round the home (#1007)", () => {
     expect(W.street.a).toBeGreaterThan(home.x1);
   });
 
-  it("puts the home on the block's outer corner, the courtyard past it about twice its size, a larger one beyond (#1020)", () => {
+  it("puts the home mid-way along the block's street wing, its courtyard right off it about twice its size, a larger one beyond (#1020, #1035)", () => {
     const home = { x0: 0, z0: 0, x1: 9, z1: 8 };
     const L = layout(home, [home], true);
     const area = (b: { x0: number; z0: number; x1: number; z1: number }) => (b.x1 - b.x0) * (b.z1 - b.z0);
-    // The home at the block's street face and its near end (the boulevard's side).
+    // The home on the block's street face, the block carrying on past it both ways along the street.
     expect(L.outer.x0).toBeCloseTo(home.x0 - 0.3);
-    expect(L.outer.z1).toBeCloseTo(home.z1 + 0.3);
-    expect(L.blvd.z0).toBeGreaterThan(home.z1);
-    // The courtyard past the home's balcony side and further back, about twice its size.
+    expect(L.outer.z1).toBeGreaterThan(home.z1 + 6);
+    expect(L.outer.z0).toBeLessThan(home.z0 - 6);
+    expect(L.blvd.z0).toBeGreaterThan(L.outer.z1);
+    // The courtyard right off the home's courtyard side, along its whole depth, about twice its size.
     const ratio = area(L.yard1) / area(home);
     expect(ratio).toBeGreaterThan(1.7);
     expect(ratio).toBeLessThan(2.3);
-    expect((L.yard1.z0 + L.yard1.z1) / 2).toBeLessThan((home.z0 + home.z1) / 2);
-    expect(L.yard1.z1).toBeGreaterThan(home.z0);
+    expect(L.yard1.x0 - home.x1).toBeLessThan(1);
+    expect(L.yard1.z0).toBeLessThanOrEqual(home.z0);
+    expect(L.yard1.z1).toBeGreaterThanOrEqual(home.z1);
     // The block wraps it; the second courtyard larger, further along and further back, its pool at the far end.
     expect(L.yard1.z1).toBeLessThan(L.outer.z1 - 3);
     expect(L.yard1.z0).toBeGreaterThan(L.outer.z0 + 3);

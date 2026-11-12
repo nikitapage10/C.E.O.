@@ -36,6 +36,12 @@ export interface HomeMats {
   glass: THREE.MeshStandardMaterial;
   screen: THREE.MeshStandardMaterial;
   green: THREE.MeshBasicMaterial;
+  /**
+   * The kitchen island's under-light (#1085): the green strip under its kick and the glow it throws on the floor round
+   * the island. The house turns it on and off with the real light (house.ts `setLights`); lit until the lights are read.
+   */
+  underglow: THREE.MeshBasicMaterial;
+  underhalo: THREE.MeshBasicMaterial;
   warm: THREE.MeshStandardMaterial;
   dark: THREE.MeshStandardMaterial;
   grey: THREE.MeshStandardMaterial;
@@ -139,6 +145,8 @@ export function homeMats(): HomeMats {
     glass: m({ color: 0xd8e6f0, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }),
     screen: m({ color: 0x08090c, roughness: 0.2, emissive: 0x0c1a2e, emissiveIntensity: 1 }),
     green: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.85 }),
+    underglow: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.95 }),
+    underhalo: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending }),
     warm: m({ color: 0xfff1d6, roughness: 0.4, emissive: 0xffd29a, emissiveIntensity: 1.2 }),
     dark: m({ color: 0x050506, roughness: 0.6 }),
     grey: m({ color: 0x8a8d92, roughness: 0.6 }),
@@ -211,12 +219,18 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "island": {
-      // A white island on a recessed kick, green light under it.
+      // A white island on a recessed kick, its green under-light all the way round (#1085): a bright strip at the
+      // kick's foot on every side and a soft glow spilling out onto the floor, on and off with the real light.
       const kick = 0.06;
       b(M.white, L, H - kick, D, 0, kick + (H - kick) / 2, 0);
       b(M.stone, L + 0.03, 0.03, D + 0.03, 0, H - 0.015, 0);
       b(M.dark, L - 0.06, kick, D - 0.06, 0, kick / 2, 0);
-      b(M.green, L - 0.02, 0.006, D - 0.02, 0, 0.004, 0);
+      const t = 0.012, inL = L - 0.06, inD = D - 0.06;
+      for (const s of [-1, 1]) {
+        b(M.underglow, inL + t, 0.008, t, 0, 0.006, s * (inD / 2 + t / 2));
+        b(M.underglow, t, 0.008, inD + t, s * (inL / 2 + t / 2), 0.006, 0);
+      }
+      b(M.underhalo, L + 0.22, 0.002, D + 0.22, 0, 0.003, 0);
       return g;
     }
     case "tv": {

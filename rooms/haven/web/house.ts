@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
+import { islandGlowOn } from "./fixtures.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
 import { makeSurroundings, nearFor, STOREY, type Box2 } from "./surroundings.ts";
@@ -1681,6 +1682,13 @@ export class House {
     const moved = spots?.map((s) => ({ ...s, x: s.x - this.shift[0], y: s.y - this.shift[1], ...(s.x2 !== undefined && s.y2 !== undefined ? { x2: s.x2 - this.shift[0], y2: s.y2 - this.shift[1] } : {}) }));
     const list = lights ? drawList(this.plan, lights, moved, this.desk) : [];
     this.real?.set(list, this.opts.reduce);
+    // The island's green underglow follows its real light (#1085).
+    if (this.mats) {
+      const on = islandGlowOn(lights);
+      this.mats.underglow.visible = on;
+      this.mats.underhalo.visible = on;
+      this.host.dataset.islandGlow = on ? "on" : "off";
+    }
     const placed = list.filter((d) => !d.virtual);
     this.host.dataset.lights = String(placed.length);
     this.host.dataset.lightsOn = String(placed.filter((d) => d.light.online && d.light.on === true).length);

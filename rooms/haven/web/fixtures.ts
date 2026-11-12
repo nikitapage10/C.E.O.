@@ -53,6 +53,20 @@ export interface FixturePlace {
   out?: [number, number];
 }
 
+/**
+ * The kitchen island's under-light (#1085): whether the island's green underglow is lit. It follows the light whose
+ * name says island (an under, glow or kick light, or the one island light that isn't a top or pendant light); lit
+ * while the lights aren't read yet (null) or no such light is found, as the model always showed it; off when that
+ * light is off or offline.
+ */
+export function islandGlowOn(lights: readonly { name: string; on: boolean | null; online: boolean }[] | null): boolean {
+  if (!lights) return true;
+  const island = lights.filter((l) => /\bisland\b/i.test(l.name) && !/\b(top|tops|pendant|pendants|over|above)\b/i.test(l.name));
+  const under = island.find((l) => /\b(under|underneath|below|bottom|glow|kick|base)\b/i.test(l.name)) ?? (island.length === 1 ? island[0] : undefined);
+  if (!under) return true;
+  return under.online && under.on === true;
+}
+
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const KITCHEN = /\bkitchen\b/i;
 const LIVING = /\bliving\b/i;

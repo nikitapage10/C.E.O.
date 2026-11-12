@@ -16,7 +16,7 @@ export type { LightKind };
  *
  *   spots      the overhead lights: since #1020 soft light filling a zone (overheadZones), the first from the cabinet
  *              run to the island's middle across the open kitchen and the hall, the second from there on through the
- *              dining room; a saved run is a band along it, a saved point a band across the space through it.
+ *              dining room, never over the living room (#1035); a saved run or point lights those same zones.
  *   backlight  the wall behind the cabinet run, between the hob and the coffee maker (or the run's far end).
  *   glow       a soft glow at the far end of the hall from the kitchen (the laundry end).
  *
@@ -55,6 +55,7 @@ export interface FixturePlace {
 
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const KITCHEN = /\bkitchen\b/i;
+const LIVING = /\bliving\b/i;
 const HALL = /\b(hall|hallway|entry|foyer|corridor)\b/i;
 
 /** A light's kind: the saved spot's, else its name's, else null (the older fixtures). */
@@ -172,14 +173,15 @@ export function spotRows(plan: HavenPlan): [Run, Run] | null {
 }
 
 /**
- * The floor the two overhead switches fill (#1020, #1022, Nikita: all the way through the dining room, the kitchen and
- * the living room to its far edge, and part of the hall): the kitchen, dining room and living room are one open room
- * (furnish.ts OPEN_ROOM); it is split across its length in two, the first ("left") at the kitchen's end, the second
- * on to the far end, meeting with no gap. A hall beside it carries the zone it touches up to 150 into it.
+ * The floor the two overhead switches fill (#1020, #1022): the kitchen and the dining room (furnish.ts OPEN_ROOM, less
+ * the living room), split across their length in two, the first ("left") at the kitchen's end, the second on to the
+ * far end, meeting with no gap. A hall beside them carries the zone it touches up to 150 into it. The living room has
+ * no ceiling light (#1035, Nikita): it is lit only by what spills in from these and by its floor lamp (realLights.ts
+ * spillOf), so no zone reaches into it.
  */
 export function overheadZones(plan: HavenPlan): [Run, Run] | null {
   const home = plan.rooms.filter((r) => !r.detached);
-  const open = home.filter((r) => OPEN_ROOM.test(r.name));
+  const open = home.filter((r) => OPEN_ROOM.test(r.name) && !LIVING.test(r.name));
   const kitchen = open.find((r) => /\bkitchen\b/i.test(r.name));
   if (!kitchen) return null;
   const parts = open.flatMap((r) => r.parts);

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { readPlan } from "../../../api/_haven/planShape.ts";
 import type { HavenPlan, PlanItem } from "./data.ts";
-import { BALCONY_DOOR, biggerGuestBath, furnish, LITTER_WALL, mainRect, openSeams, withOpenings } from "./furnish.ts";
-import { wallsOf } from "./house.ts";
+import { BALCONY_DOOR, biggerGuestBath, furnish, LITTER_WALL, mainRect, openSeams, PUSH_BACK, withOpenings } from "./furnish.ts";
+import { frontDoor, wallsOf } from "./house.ts";
 import { KIND_STYLE } from "./style.ts";
 
 /** The main rooms dressed by rule (#747), on the made-up plan: nothing here is anyone's real home. */
@@ -17,6 +17,10 @@ const inRoom = (id: string) => (i: PlanItem) => {
   return room(id).parts.some(([px, py, w, h]) => x >= px && x <= px + w && y >= py && y <= py + h);
 };
 const solid = (i: PlanItem) => KIND_STYLE[i.k].height > 2 && KIND_STYLE[i.k].lift < 20;
+const overlap = (a: PlanItem, b: PlanItem) => {
+  const p = boxOf(a), q = boxOf(b);
+  return p[0] < q[2] - 1 && p[2] > q[0] + 1 && p[1] < q[3] - 1 && p[3] > q[1] + 1;
+};
 
 describe("dressing the rooms (#747, #764)", () => {
   it("keeps every dressed piece inside its room, and no two standing pieces in one footprint", () => {
@@ -292,16 +296,27 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(biggerGuestBath(base).rooms).toBe(base.rooms);
   });
 
-  it("turns the master bath 180°: the shower on the north wall, the vanity on the south (#1022)", () => {
+  it("lays out the master bath: the shower at the north wall's east end, the toilet left of the vanity on the south (#1022, #1035)", () => {
     const two: HavenPlan = furnish({
       ...base,
       rooms: [...base.rooms.map((r) => (r.id === "bedroom" ? { ...r, parts: [[220, 460, 240, 340] as [number, number, number, number]] } : r)), { id: "mbath", name: "Master bath", parts: [[460, 460, 200, 340]], floor: "tile", tab: null, vacuum: null, detached: false }],
-      doors: [...base.doors, [460, 520, 460, 610]],
+      // Its only door from the bedroom (the made-up Studio door on its east wall left out).
+      doors: [...base.doors.filter((d) => d[0] !== 660), [460, 520, 460, 610]],
     });
     const m = two.items.filter((i) => mid(i)[0] >= 460 && mid(i)[0] <= 660 && mid(i)[1] >= 460 && mid(i)[1] <= 800);
-    const shower = m.find((i) => i.k === "shower")!, vanity = m.find((i) => i.k === "vanity")!;
+    const one = (k: string) => m.find((i) => i.k === k)!;
+    const shower = one("shower"), vanity = one("vanity"), wc = one("wc"), litter = one("litterbox");
+    // The shower against the north wall, in its east corner (the closet's side), not the west.
     expect(shower.y - 460).toBeLessThanOrEqual(4);
+    expect(660 - (shower.x + shower.w)).toBeLessThanOrEqual(4);
+    // The vanity on the south wall and the toilet beside it, on its left looking at it (east of it).
     expect(800 - (vanity.y + vanity.h)).toBeLessThanOrEqual(6);
+    expect(800 - (wc.y + wc.h)).toBeLessThanOrEqual(6);
+    expect(wc.x).toBeGreaterThanOrEqual(vanity.x + vanity.w);
+    expect(wc.x - (vanity.x + vanity.w)).toBeLessThanOrEqual(16);
+    // The litter box on the west wall, away from the shower.
+    expect(litter.x - 460).toBeLessThanOrEqual(10);
+    for (const i of m.filter(solid)) for (const o of m.filter(solid)) if (i !== o) expect(overlap(i, o), `${i.k} and ${o.k}`).toBe(false);
   });
 
   it("hangs clothes rails along the closet's north and south walls, nothing else in it (#1022)", () => {
@@ -584,5 +599,96 @@ describe("dressing the rooms (#747, #764)", () => {
   it("leaves the stored plan alone", () => {
     expect(readPlan(FAKE_PLAN)).toEqual(base);
     expect(plan.rooms).toEqual(base.rooms);
+  });
+});
+
+describe("round two (#1035), on made-up plans", () => {
+  type R4 = [number, number, number, number];
+  // A made-up open room in a row: the kitchen, then the dining room set in 60 from the living room's north wall.
+  const row: HavenPlan = {
+    ...base,
+    rooms: base.rooms.map((r) => (r.id === "kitchen" ? { ...r, parts: [[220, 40, 200, 420] as R4] } : r.id === "nook" ? { ...r, parts: [[420, 100, 180, 360] as R4] } : r)),
+    windows: [...base.windows.filter((w) => !(w[1] === 40 && w[0] === 300)), [566, 100, 596, 100]],
+    items: [
+      ...base.items.filter((i) => !["counter", "upper", "range", "sink", "fridge", "island", "stool", "table", "chair", "jar"].includes(i.k)),
+      { k: "counter", x: 224, y: 44, w: 180, h: 30, round: false },
+      { k: "range", x: 300, y: 46, w: 60, h: 26, round: false },
+      { k: "table", x: 450, y: 300, w: 120, h: 60, round: false },
+      { k: "chair", x: 470, y: 290, w: 20, h: 20, round: true },
+    ],
+  };
+  const got = furnish(row);
+  const dining = got.rooms.find((r) => r.id === "nook")!;
+  const inDining = (i: PlanItem) => mid(i)[0] >= 420 && mid(i)[0] <= 600 && mid(i)[1] >= 40 && mid(i)[1] <= 460;
+
+  it("pushes the dining room back in line with the living room: one straight wall, its window moved with it", () => {
+    expect(dining.parts[0]).toEqual([420, 40, 180, 420]);
+    expect(got.windows).toContainEqual([566, 40, 596, 40]);
+    expect(got.windows).not.toContainEqual([566, 100, 596, 100]);
+    // No wall is drawn along the old corner.
+    expect(wallsOf(got).some((w) => w[1] === 100 && w[3] === 100 && Math.min(w[0], w[2]) >= 420 && Math.max(w[0], w[2]) <= 600)).toBe(false);
+  });
+
+  it("leaves a wall further in than PUSH_BACK, or with a room in the way, where it is", () => {
+    const y0 = 40 + PUSH_BACK + 70;
+    const deep = furnish({ ...row, rooms: row.rooms.map((r) => (r.id === "nook" ? { ...r, parts: [[420, y0, 180, 460 - y0] as R4] } : r)) });
+    expect(deep.rooms.find((r) => r.id === "nook")!.parts[0]).toEqual([420, y0, 180, 460 - y0]);
+    const pantry = { id: "pantry", name: "Pantry", parts: [[420, 40, 180, 60] as R4], floor: "wood" as const, tab: null, vacuum: null, detached: false };
+    const held = furnish({ ...row, rooms: [...row.rooms, pantry] });
+    expect(held.rooms.find((r) => r.id === "nook")!.parts[0]).toEqual([420, 100, 180, 360]);
+  });
+
+  it("puts the coffee station on the dining room's north wall behind its table: three cup shelves over it, the table in front", () => {
+    const d = got.items.filter(inDining);
+    const bar = d.find((i) => i.k === "coffeebar")!, shelf = d.find((i) => i.k === "cupshelf")!, machine = d.find((i) => i.k === "espresso")!;
+    expect(bar.y - 40).toBeLessThanOrEqual(6);
+    // Behind the table, centred on it.
+    const table = d.find((i) => i.k === "table")!;
+    expect(Math.abs(mid(bar)[0] - mid(table)[0])).toBeLessThanOrEqual(2);
+    expect(table.y).toBeGreaterThan(bar.y + bar.h);
+    // The shelves over the cabinet, the machine on it; one station in the home.
+    expect(shelf.x).toBe(bar.x);
+    expect(shelf.w).toBe(bar.w);
+    expect(machine.x).toBeGreaterThanOrEqual(bar.x);
+    expect(machine.x + machine.w).toBeLessThanOrEqual(bar.x + bar.w);
+    expect(got.items.filter((i) => i.k === "espresso")).toHaveLength(1);
+    expect(got.items.filter((i) => i.k === "coffeebar")).toHaveLength(1);
+  });
+
+  it("keeps the station by the run when the dining room's north side opens onto the kitchen", () => {
+    // The made-up flat's dining room is south of its kitchen: no north wall to stand it on.
+    const k = plan.items.filter((i) => i.k === "coffeebar");
+    expect(k).toHaveLength(1);
+    expect(k[0]!.y).toBeLessThan(320);
+  });
+
+  it("clears the hall: no cat tunnel, no black box or dresser; a wide coat and shoe rack", () => {
+    const stray: PlanItem[] = [
+      { k: "tunnel", x: 60, y: 300, w: 130, h: 52, round: false },
+      { k: "dresser", x: 46, y: 200, w: 40, h: 90, round: false },
+      { k: "box", x: 46, y: 320, w: 30, h: 30, round: false },
+    ];
+    const p = furnish({ ...base, items: [...base.items, ...stray] });
+    const hall = p.items.filter((i) => mid(i)[0] >= 40 && mid(i)[0] <= 220 && mid(i)[1] >= 40 && mid(i)[1] <= 540);
+    for (const k of ["tunnel", "dresser", "box"]) expect(hall.some((i) => i.k === k)).toBe(false);
+    const rack = hall.find((i) => i.k === "coatrack")!;
+    expect(Math.max(rack.w, rack.h)).toBeGreaterThanOrEqual(90);
+    expect(220 - (rack.x + rack.w)).toBeLessThanOrEqual(6);
+  });
+
+  it("finds the front door for the entrance alcove: the hall's door out of the home, and its way out", () => {
+    expect(frontDoor(plan)).toEqual({ seg: [90, 40, 170, 40], out: [0, -1] });
+    expect(frontDoor({ ...plan, doors: plan.doors.filter((d) => d[1] !== 40 || d[3] !== 40) })).toBeNull();
+  });
+
+  it("spans the Studio's east wall with three windows and no balcony door", () => {
+    const studio = mainRect(plan.rooms.find((r) => r.id === "study")!);
+    const east = studio[0] + studio[2];
+    const on = (segs: number[][]) => segs.filter((s) => s[0] === east && s[2] === east && Math.min(s[1]!, s[3]!) >= studio[1] && Math.max(s[1]!, s[3]!) <= studio[1] + studio[3]);
+    const win = on(plan.windows);
+    expect(win).toHaveLength(3);
+    expect(on(plan.balconies)).toHaveLength(0);
+    const span = Math.max(...win.map((s) => Math.max(s[1]!, s[3]!))) - Math.min(...win.map((s) => Math.min(s[1]!, s[3]!)));
+    expect(span).toBeGreaterThan(studio[3] - 40);
   });
 });

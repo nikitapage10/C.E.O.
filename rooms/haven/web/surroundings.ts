@@ -116,18 +116,20 @@ export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) 
   const K = keep.map(mb);
   const cluster = K.reduce(union, home);
   const wing = Math.max(8, Math.min(12, Math.min(W, D)));
-  // The courtyard by the home: off its balcony side, from beside its far half on past it, about twice its size.
+  // The courtyard by the home (#1035): right off its courtyard side, the home's whole depth through the wing from the
+  // street to it, a little more of the courtyard south of the home than north, about twice its size.
   const y1w = Math.max(8, W * 1.3), y1d = Math.max(8, (2 * W * D) / y1w);
-  const y1z1 = home.z0 + D * 0.45;
-  const yard1 = { x0: home.x1 + 0.6, z0: y1z1 - y1d, x1: home.x1 + 0.6 + y1w, z1: y1z1 };
-  // The larger one, a wing further along and further back, its pool deck at the far end.
+  const y1z0 = home.z0 - Math.min(D * 0.25, Math.max(0, y1d - D) * 0.4);
+  const yard1 = { x0: home.x1 + 0.6, z0: y1z0, x1: home.x1 + 0.6 + y1w, z1: y1z0 + y1d };
+  // The larger one, a wing further along and a little further back, its pool deck at the far end.
   const y2w = Math.max(10, W * 1.6), y2d = Math.max(12, D * 2.2);
-  const yard2 = { x0: yard1.x1 + wing, z0: yard1.z0 + y1d * 0.35 - y2d, x1: yard1.x1 + wing + y2w, z1: yard1.z0 + y1d * 0.35 };
+  const yard2 = { x0: yard1.x1 + wing, z0: yard1.z1 - y1d * 0.1 - y2d, x1: yard1.x1 + wing + y2w, z1: yard1.z1 - y1d * 0.1 };
   const poolD = Math.min(4, y2d * 0.22);
   const pool = { x0: yard2.x0 + 1.6, z0: yard2.z0 + 1.4, x1: yard2.x1 - 1.6, z1: yard2.z0 + 1.4 + poolD };
   const poolDeck = { x0: yard2.x0 + 0.3, z0: yard2.z0 + 0.3, x1: yard2.x1 - 0.3, z1: pool.z1 + 1.6 };
-  // The block: its outer corner at the home (the street face and the boulevard face), wrapping both courtyards.
-  const outer = { x0: cluster.x0 - 0.3, z0: yard2.z0 - wing * 0.8, x1: yard2.x1 + wing * 0.9, z1: cluster.z1 + 0.3 };
+  // The block (#1035): the home in the middle of its street wing, the block carrying on past it both ways along the
+  // street, wrapping both courtyards; the boulevard beyond its south end.
+  const outer = { x0: cluster.x0 - 0.3, z0: Math.min(yard1.z0, yard2.z0) - wing * 0.8, x1: yard2.x1 + wing * 0.9, z1: Math.max(cluster.z1 + Math.max(wing, D * 0.9), yard1.z1 + wing * 0.8) };
   const pad = K.map((k) => ({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }));
   // No roof inside the home's own outline (#1022): an empty stretch between its rooms is a light well, paved, not a
   // neighbour's roof standing in the flat.
@@ -189,12 +191,23 @@ export const nearFor = (r: number) => Math.max(0.05, Math.min(0.8, r * 0.04));
 
 export const LV = { base: -0.02, water: 0.004, asphalt: 0.02, paving: 0.03, grass: 0.035, lane: 0.04, trail: 0.05, lawn: 0.06, walk: 0.07, median: 0.1, glow: 0.12 };
 
-export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: boolean; phone?: boolean; wallH: number }): Surroundings & { bounds: Box2 } {
+/** A storey of the block, floor to floor, in world units (the walls are squashed to `wallH`, a slab on top). */
+export const STOREY = 1.6;
+
+/**
+ * `below`: storeys of the block under the home (#1035: the home is up on an upper floor, the courtyards and the street
+ * well below it). The group sits that far down, so the home's floor stays at 0: the block's walls rise from the ground
+ * to round the home's floor, its roofs just above it, and the home and what `keep` holds stand on the block's own
+ * floors. `door`: the front door, in world units with its way out, for the small entrance alcove outside it.
+ */
+export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: boolean; phone?: boolean; wallH: number; below?: number; door?: { x: number; z: number; out: [number, number]; w: number } }): Surroundings & { bounds: Box2 } {
   const H = o.wallH;
   const L = layout(o.home, o.keep, o.east ?? true, H);
   const { s } = L;
+  const below = Math.max(0, o.below ?? 0), lift = below * STOREY;
   const group = new THREE.Group();
   group.name = "surroundings";
+  group.position.y = -lift;
   const geos: THREE.BufferGeometry[] = [];
   const mats: THREE.Material[] = [];
   const r = rand(31);
@@ -261,9 +274,13 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
 
   // The block's ground under everything, so the light-wells round the home read as paving, not the plain.
   solid.push(slab(L.outer, LV.base - 0.02, 0.02, 0x9d9b94));
+  // The block's own floors under the home and what it keeps clear (#1035): up from the ground to just under the
+  // home's floor, in the block's light render.
+  if (lift > 0) for (const k of o.keep) solid.push(slab({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }, 0, lift - 0.03, 0xd2d0c9));
 
-  // The roofs (#1020): each unit its own height and tone, and on top whatever it carries.
-  for (const u of L.roofs) {
+  // The roofs (#1020): each unit its own height and tone, and on top whatever it carries; up on the home's floor
+  // when the home is (#1035), the walls under them down to the ground.
+  for (const u of L.roofs.map((v) => ({ ...v, h: v.h + lift }))) {
     const w = u.x1 - u.x0, d = u.z1 - u.z0, cx = (u.x0 + u.x1) / 2, cz = (u.z0 + u.z1) / 2;
     solid.push(slab(u, 0, u.h, ROOF_TONES[u.tone]!));
     skin("roof", u, u.h + 0.004, ROOF_TONES[u.tone]!);
@@ -318,14 +335,36 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     }
   }
 
+  // The entrance alcove (#1035): a little recess outside the front door, up on the home's floor, its two side walls
+  // and a warm light over the door.
+  if (o.door) {
+    const { x, z, out, w } = o.door;
+    const deep = 1.1, half = w / 2 + 0.3;
+    const along: [number, number] = [-out[1], out[0]];
+    const at = (u: number, v: number): [number, number] => [x + along[0] * u + out[0] * v, z + along[1] * u + out[1] * v];
+    const box2 = (u0: number, v0: number, u1: number, v1: number): Box2 => {
+      const [ax, az] = at(u0, v0), [bx, bz] = at(u1, v1);
+      return { x0: Math.min(ax, bx), z0: Math.min(az, bz), x1: Math.max(ax, bx), z1: Math.max(az, bz) };
+    };
+    solid.push(slab(box2(-half, 0, half, deep), 0, lift - 0.01, 0xcfccc4));
+    for (const sgn of [-1, 1]) solid.push(slab(box2(sgn * half - 0.04, 0, sgn * half + 0.04, deep), lift, H * 0.9, 0xe2e0da));
+    const [lx, lz] = at(0, 0.06);
+    glow.push({ x: lx, y: lift + H * 0.78, z: lz, sx: out[0] ? 0.05 : 0.22, sy: 0.05, sz: out[0] ? 0.22 : 0.05, c: 0xffd29a });
+    const [px, pz] = at(0, deep / 2);
+    pools.push({ x: px, y: lift + 0.01, z: pz, sx: 1.6, sy: 1, sz: 1.6 });
+  }
+
   // Windows on the courtyard walls and the street face: dark glass by day, some lit warm at night.
+  // A row on every storey up to the home's (#1035).
   const windows = (x0: number, z0: number, x1: number, z1: number, out: [number, number]) => {
     const len = Math.hypot(x1 - x0, z1 - z0);
     for (let t = 0.8; t < len - 0.5; t += 1.3) {
       const x = x0 + ((x1 - x0) * t) / len + out[0] * 0.03, z = z0 + ((z1 - z0) * t) / len + out[1] * 0.03;
       if (!clear(x - out[0] * 0.5, z - out[1] * 0.5)) continue;
-      const lit = r() < 0.32;
-      glow.push({ x, y: H * 0.3, z, sx: out[0] ? 0.03 : 0.55, sy: 0.22, sz: out[0] ? 0.55 : 0.03, c: lit ? 0xffd9a0 : 0x2b3138 });
+      for (let k = 0; k <= below; k++) {
+        const lit = r() < 0.32;
+        glow.push({ x, y: k * STOREY + H * 0.3, z, sx: out[0] ? 0.03 : 0.55, sy: 0.22, sz: out[0] ? 0.55 : 0.03, c: lit ? 0xffd9a0 : 0x2b3138 });
+      }
     }
   };
   for (const y of [L.yard1, L.yard2]) {

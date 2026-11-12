@@ -661,16 +661,18 @@ function bath(R: Rect, doors: Seg[], master: boolean): PlanItem[] {
     out.push(item("vanity", against(R, "s", vt, vLen, 54)));
     out.push(item("wc", against(R, "s", vt + vLen + 12, wcLen, 66)));
     out.push(item("mat", inFrom(R, "s", vt + vLen / 2 - 40, 80, 46, 64)));
-    // The side wall away from the shower, from the north down: the litter box on its mat, the towel bar.
+    // The side wall away from the shower, from the north down, clear of a door and the vanity: the litter box on its
+    // mat, then the towel bar.
     const side: Side = OPP[from];
     const stop = Hh - 76;
-    let t = 10;
-    if (free(side, t - 4, 56)) {
-      out.push(item("mat", along(side, "n", t - 4, 56, 54, 2)));
-      out.push(item("litterbox", along(side, "n", t, 46, 40, 6)));
+    const spots = Array.from({ length: 40 }, (_, k) => 10 + k * 10).filter((t) => t + 46 <= stop);
+    const box = spots.find((t) => free(side, t - 4, 56));
+    if (box !== undefined) {
+      out.push(item("mat", along(side, "n", box - 4, 56, 54, 2)));
+      out.push(item("litterbox", along(side, "n", box, 46, 40, 6)));
     }
-    t += 66;
-    if (t + 50 <= stop && free(side, t, 50)) out.push(item("towelbar", along(side, "n", t, 50, 6, 0)));
+    const bar = spots.find((t) => t + 50 <= stop && free(side, t, 50) && (box === undefined || t >= box + 62 || t + 50 <= box - 10));
+    if (bar !== undefined) out.push(item("towelbar", along(side, "n", bar, 50, 6, 0)));
   } else {
     // The guest bath (#1022, Nikita): the tub and shower against the west wall, the toilet about the middle of the
     // south wall facing north, the vanity beside it; a towel bar on the east wall.
@@ -1444,7 +1446,7 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
   for (const k of home.filter((r) => KITCHEN.test(r.name)))
     for (const h of home.filter((r) => HALL.test(r.name) && !KITCHEN.test(r.name))) doors.push(...sharedEdges(k, h).flatMap(solid.cut));
   return {
-    plan: { ...plan, windows: windows.flatMap(solid.cut).filter((w) => segLen(w) >= 40), balconies: balconies.filter(solid.keep), tv, doors, decks: decks.filter(solid.keep) },
+    plan: { ...plan, windows: windows.flatMap((w) => { const c = solid.cut(w); return c[0] === w ? c : c.filter((g) => segLen(g) >= 40); }), balconies: balconies.filter(solid.keep), tv, doors, decks: decks.filter(solid.keep) },
     derivedLiving,
     walled: balconies.filter((b) => !solid.keep(b)),
   };

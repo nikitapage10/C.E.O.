@@ -316,11 +316,18 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "coatrack": {
-      // A black coat rack, a coat or two on it, shoes on the floor by it.
-      c(M.black, 0.015, H, 0, H / 2, 0.06);
-      c(M.black, Math.min(L, D) * 0.35, 0.02, 0, 0.01, 0.06);
-      b(M.soft, 0.18, 0.45, 0.1, 0, H - 0.32, 0.04);
-      for (const x of [-0.12, 0.02, 0.14]) b(M.black, 0.08, 0.05, 0.2, x * (L / 0.44), 0.025, -0.1);
+      // A wide black coat and shoe rack (#1035): two uprights, a hat shelf on top, a rail of coats under it, and two
+      // low shelves of shoes.
+      for (const sx of [-1, 1]) b(M.black, 0.025, H, 0.025, sx * (L / 2 - 0.0125), H / 2, 0);
+      b(M.black, L, 0.02, D, 0, H - 0.01, 0);
+      c(M.steel, 0.008, L - 0.04, 0, H - 0.1, 0, "x");
+      const coats = Math.max(2, Math.floor(L / 0.22));
+      for (let i = 0; i < coats; i++) b(i % 2 ? M.black : M.soft, 0.14, 0.5, 0.08, -L / 2 + (i + 0.5) * (L / coats), H - 0.38, 0.01);
+      for (const y of [0.05, 0.2]) {
+        b(M.black, L - 0.03, 0.018, D, 0, y, 0);
+        const pairs = Math.max(2, Math.floor(L / 0.16));
+        for (let i = 0; i < pairs; i++) b(i % 3 === 1 ? M.white : M.dark, 0.09, 0.05, D * 0.75, -L / 2 + (i + 0.5) * (L / pairs), y + 0.034, 0);
+      }
       return g;
     }
     case "tunnel": {
@@ -425,8 +432,8 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "cupshelf": {
-      // Two little black wall shelves over the coffee station, cups and mugs along them (#1022).
-      for (const y of [lift + 0.06, lift + 0.26]) {
+      // Three little black wall shelves over the coffee station, cups and mugs along them (#1022, #1035).
+      for (const y of [lift + 0.04, lift + 0.2, lift + 0.36]) {
         b(M.black, L, 0.018, D, 0, y, 0);
         const n = Math.max(2, Math.floor(L / 0.11));
         for (let i = 0; i < n; i++) c(i % 3 === 1 ? M.black : M.white, 0.025, 0.06, -L / 2 + (i + 0.5) * (L / n), y + 0.039, 0);

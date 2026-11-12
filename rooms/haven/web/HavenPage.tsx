@@ -13,6 +13,7 @@ import { lightKey, type PlanLight } from "../../../api/_haven/planShape.ts";
 import { isRun, kindOf } from "./fixtures.ts";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
+import { TodosPop } from "./TodosPop.tsx";
 import { Plinth } from "./Plinth.tsx";
 import { gaugesOf, type GaugeId } from "./plinth.ts";
 import { moodOf, useClimateQueue } from "./climateQueue.ts";
@@ -432,7 +433,8 @@ export function Haven() {
   }, [gl]);
   const lamp = useCallback((id: GaugeId) => (el: HTMLElement | null) => void (lamps.current[id] = el), []);
   const togglePop = useCallback((id: GaugeId) => setPop((v) => (v === id ? null : id)), []);
-  const canPop = useCallback((id: GaugeId) => (id === "climate" ? !!thermo : signedIn && (id === "roborock" || id === "petlibro" || id === "whisker")), [thermo, signedIn]);
+  // The To-dos gauge opens his to-dos (#1056; on the Senate floor before); signed out it is a count only.
+  const canPop = useCallback((id: GaugeId) => (id === "climate" ? !!thermo : signedIn && (id === "roborock" || id === "petlibro" || id === "whisker" || id === "todos")), [thermo, signedIn]);
   // The pop-up sits above its gauge: when the order changes, the threads move with it.
   useEffect(() => house.current?.touch(), [order]);
   const openGauge = useCallback((id: GaugeId) => (id === "kitchen" || id === "gym") && setOpen({ tab: id }), [setOpen]);
@@ -536,6 +538,8 @@ export function Haven() {
               <PetlibroPop devices={devices} state={vendors.petlibro} onClose={closePop} />
             ) : pop === "whisker" ? (
               <WhiskerPop devices={devices} state={vendors.whisker} onClose={closePop} />
+            ) : pop === "todos" ? (
+              <TodosPop onClose={closePop} />
             ) : null}
           </Plinth>
         </div>

@@ -19,8 +19,8 @@ import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { mtTime, roman, until, upcoming } from "../data/todaySchedule.ts";
 import { HANDED_LINE, handedState, type FloorItem } from "../../../api/_today/floor.ts";
 import { useHanded } from "@ceo/desk/todos/floorTalk.ts";
-import { TalkBack, TodoCapture, TodoCard, useTodosOn } from "@ceo/desk/todos/TodoBits.tsx";
-import { awayRefs, openTodos, useTodos, type Target } from "@ceo/desk/todos/todos.ts";
+import { DidLine, TalkBack, useTodosOn } from "@ceo/desk/todos/TodoBits.tsx";
+import { awayRefs, useTodos, type Target } from "@ceo/desk/todos/todos.ts";
 
 /**
  * Right now (#363, Nikita 2026-10-24: "the focus is what do I need to know right now?"), "Held for you" in the top right
@@ -31,9 +31,9 @@ import { awayRefs, openTodos, useTodos, type Target } from "@ceo/desk/todos/todo
  * answer opens its card in place, a row about a room walks into it. When nothing needs him, it says so, and what runs
  * next. Real data only.
  *
- * Nikita's own to-dos sit in the same list (#622), added from the capture line under the heading, and every row can be
- * talked back to: its mic, or a held Space on it, then a few words ("snooze till tomorrow", "remind me Friday",
- * "note: …", "done", "make it a to-do"). A reminder that has come due rises to the top.
+ * Every row can be talked back to (#622): its mic, or a held Space on it, then a few words ("snooze till tomorrow",
+ * "remind me Friday", "note: …", "done", "make it a to-do"). A reminder that has come due rises to the top. Nikita's
+ * own to-dos and their capture line live in the Haven since #1056 (its To-dos gauge), not on the Senate floor.
  */
 
 type Tier = "fire" | "ask" | "fyi";
@@ -102,8 +102,7 @@ export interface NowInput {
   label?: string;
   /**
    * The Senate (#740): what needs him is the docket, one card per item along the foot of the chamber, each a
-   * duty, a decision or a repair that plays on the floor; his own to-dos sit under the chamber under "still left", with
-   * the add line beside them.
+   * duty, a decision or a repair that plays on the floor. His own to-dos are the Haven's (#1056).
    */
   rotunda?: { name: string; bench: string[]; chamber: (c: ChamberLink) => ReactNode };
 }
@@ -297,30 +296,12 @@ export function TodayNow(p: NowInput) {
         sub: note ? <Private>Note: {note}</Private> : r.sub,
       };
     });
-  const mine = openTodos(todoState, now).map<Row>((t) => {
-    const due = t.due ? Date.parse(t.due) : NaN;
-    const isDue = due <= now;
-    const note = t.notes?.at(-1);
-    return {
-      key: `todo:${t.id}`,
-      tier: "ask",
-      icon: isDue ? "bell" : "todo",
-      room: "today",
-      label: isDue ? `Your to-do · due ${whenLabel(due, now)}` : Number.isFinite(due) ? `Your to-do · ${whenLabel(due, now)}` : "Your to-do",
-      title: <Private>{t.text}</Private>,
-      sub: note ? <Private>Note: {note}</Private> : undefined,
-      at: Date.parse(t.at),
-      card: () => <TodoCard todo={t} />,
-      talk: { type: "todo", id: t.id },
-      due: isDue,
-    };
-  });
-  // Due reminders first, then what's on fire, then what needs an answer (Nikita's own after the rooms'), then the FYI.
+  // Due reminders first, then what's on fire, then what needs an answer, then the FYI. Nikita's own to-dos live in
+  // the Haven since #1056 (its To-dos gauge), not on the Senate floor.
   const rows: Row[] = [
-    ...[...system, ...mine].filter((r) => r.due),
+    ...system.filter((r) => r.due),
     ...system.filter((r) => !r.due && r.tier === "fire"),
     ...system.filter((r) => !r.due && r.tier === "ask"),
-    ...mine.filter((r) => !r.due),
     ...system.filter((r) => r.tier === "fyi"),
   ];
 
@@ -449,7 +430,6 @@ export function TodayNow(p: NowInput) {
 
   if (p.rotunda) {
     const R = p.rotunda;
-    const left = rows.filter((r) => r.room === "today");
     const onFloor = docket.find((d) => d.key === floor) ?? null;
     const count = shown.length;
     const putAway = (r: Row) => {
@@ -655,15 +635,8 @@ export function TodayNow(p: NowInput) {
                 <NextLine />
               </p>
             )}
-          </div>
-        </div>
-        <div className="rt-below">
-          <div className="rt-left">
-            <p className="ti-left-k">
-              <span>still left</span>
-            </p>
-            {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, shown.length + i, "○"))}</ol>}
-            <TodoCapture />
+            {/* What a talk-back did (snoozed, noted, made a to-do), with its Undo. */}
+            {talkOn && <DidLine />}
           </div>
         </div>
       </section>
@@ -681,7 +654,7 @@ export function TodayNow(p: NowInput) {
         <h2 id="td-now-h" className="td-h2">
           {head}
         </h2>
-        <TodoCapture />
+        {talkOn && <DidLine />}
       </header>
       {fire + ask === 0 && (
         <div className="td-clear" role="status">

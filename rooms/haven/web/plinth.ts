@@ -98,7 +98,7 @@ export function gaugesOf(i: GaugeInput): Gauge[] {
     vendor("whisker"),
     count("kitchen", "Kitchen list", i.kitchenOpen, "nothing to get", "to get"),
     i.gym ? { id: "gym", name: "Gym", value: `${i.gym.doneThisWeek} of ${i.gym.perWeek}`, state: "this week", tone: "on" } : { id: "gym", name: "Gym", value: "–", state: "waiting", tone: "wait" },
-    count("todos", "To-dos", i.todos, "clear", "open, on Today"),
+    count("todos", "To-dos", i.todos, "clear", "open"),
   ];
 }
 

@@ -36,7 +36,7 @@ const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore
  * loads). What needs Nikita is the docket along the chamber's foot, one card per item, each a duty, a decision or a
  * repair that plays on the floor in turn (rotunda/rite.ts): a duty is moved and seconded, a decision is debated and
  * put to him as buttons, a repair is reported with one fix. Every card still answers in place (TodayNow, TodayActs).
- * Under the chamber, his own to-dos under "still left", the add line. Under the fold,
+ * His own to-dos and their add line live in the Haven since #1056 (its To-dos gauge). Under the fold,
  * everything that can wait stays folded away under "Not worth knowing now" (TodayMore, loaded on demand). Ask Skippy
  * stays bottom right. Real data only: a part that isn't connected says it's waiting.
  */

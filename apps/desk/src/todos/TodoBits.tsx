@@ -5,13 +5,15 @@ import type { Todo } from "../../../../api/_today/todos.ts";
 import { askSkippyAbout, handToSkippy } from "./floorTalk.ts";
 import { useDictation } from "../dictate.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import { useRoomShown } from "@ceo/engine/web/roomReady.ts";
 import { Icon } from "../../../../rooms/today/web/todayIcons.tsx";
 import { useTodos, type Target } from "./todos.ts";
 import "./todos.css";
 
 /**
- * Today's quick words (#622): the capture line under "Held for you" (a mic, a one-line box, T to jump to it), the line
- * that says what a word did with its Undo, and the talk-back strip a held row opens from its mic or a held Space. None
+ * Today's quick words (#622): the capture line (a mic, a one-line box, T to jump to it), in the Haven's To-dos panel
+ * since #1056; the line that says what a word did with its Undo; and the talk-back strip a held row on the Senate (or a
+ * to-do in the Haven) opens from its mic or a held Space. None
  * of it is a chat: one line in, one thing done, one line back. Dictation is the browser's own (../dictate.ts).
  */
 
@@ -84,6 +86,8 @@ export function TodoCapture() {
   const local = useTodos((s) => s.status === "local");
   const [text, setText] = useState("");
   const box = useRef<HTMLInputElement>(null);
+  // A kept room out of sight (the Haven, keptRooms.ts) leaves T alone.
+  const shown = useRoomShown();
   const send = useCallback(
     async (words: string) => {
       if (await capture(words)) setText("");
@@ -92,8 +96,9 @@ export function TodoCapture() {
   );
   const mic = useSaying(setText, (w) => void send(w));
 
-  // T, anywhere on the Desk's Today outside a text box: straight to the line.
+  // T, anywhere on the page outside a text box: straight to the line.
   useEffect(() => {
+    if (!shown) return;
     const key = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || (e.key !== "t" && e.key !== "T")) return;
       if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable]")) return;
@@ -102,7 +107,7 @@ export function TodoCapture() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, []);
+  }, [shown]);
 
   if (!on) return null;
   const submit = (e: FormEvent) => {

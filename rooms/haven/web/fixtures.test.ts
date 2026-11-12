@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../api/_haven/plan.fixture.ts";
 import { placeLight, readPlan } from "../../../api/_haven/planShape.ts";
 import { furnish } from "./furnish.ts";
-import { backlightRun, kindOf, kitchenRun, laundrySpot, overheadZones, placeFixture, spotRows, studioLampCorner } from "./fixtures.ts";
+import { backlightRun, bedLampSpots, kindOf, kitchenRun, laundrySpot, overheadZones, placeFixture, spotRows, studioLampCorner } from "./fixtures.ts";
 import { drawList, spillOf } from "./realLights.ts";
 import type { Light } from "./lights.ts";
 import { cut, cutAll, layout, LV, nearFor } from "./surroundings.ts";
@@ -150,6 +150,35 @@ describe("the Studio's floor lamps (#1007)", () => {
   it("leaves a saved spot where it is", () => {
     const list = drawList(studio, [govee("Studio Floor Lamp")], [{ name: "studio floor lamp", x: 700, y: 500 }], false);
     expect([list[0]!.x, list[0]!.y]).toEqual([700, 500]);
+  });
+});
+
+describe("the main bedroom's floor lamps (#1060)", () => {
+  const govee = (name: string, rgb = "#ffd6a0"): Light => ({ ...sb(name), vendor: "govee", rgb });
+
+  it("stands a floor lamp naming no room, or the bedroom, in the corners either side of the dresser", () => {
+    // The made-up bedroom (x 220 to 660, y 460 to 800), its dresser against the south wall.
+    expect(bedLampSpots(plan)).toEqual([{ x: 644, y: 784 }, { x: 236, y: 784 }]);
+    const list = drawList(plan, [govee("Floor Lamp"), govee("Bedroom Floor Lamp")], undefined, false);
+    expect(list.map((d) => [d.fixture, d.x, d.y])).toEqual([
+      ["floor", 644, 784],
+      ["floor", 236, 784],
+    ]);
+    // By left and right in the name, facing the dresser.
+    const named = drawList(plan, [govee("Floor Lamp Right"), govee("Floor Lamp Left")], undefined, false);
+    expect(named.map((d) => [d.light.name, d.x])).toEqual([
+      ["Floor Lamp Right", 236],
+      ["Floor Lamp Left", 644],
+    ]);
+  });
+
+  it("leaves a saved spot, another room's lamp and a plain light where they are", () => {
+    const list = drawList(plan, [govee("Floor Lamp"), govee("Living room floor lamp"), govee("Desk light")], [{ name: "floor lamp", x: 300, y: 500 }], false);
+    expect(list.map((d) => [d.light.name, d.x, d.y])).toEqual([
+      ["Floor Lamp", 300, 500],
+      ["Living room floor lamp", expect.any(Number), expect.any(Number)],
+    ]);
+    expect(list[1]!.y).toBeLessThan(460);
   });
 });
 

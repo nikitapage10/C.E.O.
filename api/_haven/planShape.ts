@@ -39,6 +39,8 @@ export const KINDS = [
   "coffeebar", "cupshelf", "bin", "accent",
   // #1044: a small potted plant standing on a desk.
   "potplant",
+  // #1060: the coffee things on a mat beside the espresso machine, and a balcony's patio chair and table.
+  "coffeekit", "patiochair", "patiotable",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 

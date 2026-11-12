@@ -308,6 +308,8 @@ export interface WasdPan {
   readonly z: number;
   /** Keep drawing frames while this is true (a held key, a glide, a return). */
   readonly busy: boolean;
+  /** A key is held down right now (#1076: a scene's own camera move, such as an opening fly-up, gives way to it). */
+  readonly keys: boolean;
   step(dt: number): boolean;
   home(): void;
   dispose(): void;
@@ -337,7 +339,7 @@ export function wasdPan(o: WasdPanOpts): WasdPan {
   const el = o.el;
   // Phones and touch-only tablets: no keys to read.
   if (typeof window === "undefined" || !mm("(any-pointer: fine)")) {
-    return { x: 0, z: 0, busy: false, step: () => false, home: () => undefined, dispose: () => undefined };
+    return { x: 0, z: 0, busy: false, keys: false, step: () => false, home: () => undefined, dispose: () => undefined };
   }
   let hovered = false;
   let hint: HTMLElement | null = null;
@@ -415,6 +417,9 @@ export function wasdPan(o: WasdPanOpts): WasdPan {
     },
     get busy() {
       return core.busy;
+    },
+    get keys() {
+      return core.held.size > 0;
     },
     step: (dt) => core.step(dt),
     home: () => core.home(),

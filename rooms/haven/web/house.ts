@@ -4,7 +4,6 @@ import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
 import { makeSurroundings, nearFor, STOREY, type Box2 } from "./surroundings.ts";
-import { introDue, introStarted } from "./intro.ts";
 import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
 import { gymBeyond, gymRoom, withGym } from "./gymFill.ts";
@@ -29,8 +28,8 @@ import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
  * ones stay dim. Sigil nanites (the code-and-rune glyphs Ilyr is built from, relay/sigils.ts) hang in the glass of the
  * lit rooms, drift up in their light, rise off the devices that are working and swarm the ones that need Nikita.
  *
- * Starts on a three-quarter view fitted to the plan (#658: about 37° up, turned so the plan's far end runs up and to the
- * right), one unit up on an upper floor of a courtyard block with a street, a park and a boulevard round it
+ * Starts on a high three-quarter view fitted to the plan (#1076: about 45° up, looking down over the whole home from the
+ * hall's side toward the studio, the Gym block at the top), after a quick fly-up from beside the building, one unit up on an upper floor of a courtyard block with a street, a park and a boulevard round it
  * (surroundings.ts, #1007, #1035), on a
  * Denver plain under its sky (night.ts, #665), all in the one scene; drag to orbit, pinch or
  * scroll to zoom, tap a room to fly in (300 ms), and `resetView` comes back to the fitted view. Reduced motion: every move is
@@ -52,6 +51,8 @@ export interface HouseOpts {
   onAway?: (away: boolean) => void;
   /** A device's marker was tapped (the Nest's opens the climate control, #671). */
   onSpot?: (spot: Spot) => void;
+  /** Play the opening fly-up (#1076): once per open of the Haven, the page decides; never under reduced motion. */
+  intro?: boolean;
   /** Pixels at the top of the house's box to keep clear on a narrow screen (the page's heading sits there). */
   clearTop?: () => number;
   /** A box (px, in the house's own frame) the fitted view keeps the rooms out of: the instrument strip (#680). */
@@ -90,12 +91,30 @@ const T = 0.06; // wall thickness
 const FLY_MS = 300;
 const GLYPHS = SIGILS.slice(0, 64);
 
-/** The orbit: target (tx, tz, and `ly` above the floor, 0 unless the intro looks up), turn, tilt from straight down, distance. */
-type Cam = { tx: number; tz: number; th: number; ph: number; r: number; ly?: number };
+/** The orbit: target (tx, tz, and `ly` above the floor, 0 unless a view looks up), turn, tilt from straight down, distance. */
+export type Cam = { tx: number; tz: number; th: number; ph: number; r: number; ly?: number };
 
-/** The default view (#658): turned about 43° and tilted about 37° above the floor. */
-export const HOME_TH = 0.75;
-export const HOME_PH = 0.93;
+/**
+ * The standard view (#1076, Nikita's pick): a high three-quarter view, the camera on the hall's side of the home looking
+ * across it toward the studio, the Gym block at the top of the frame, about 45° above the floor. "Reset view" comes back
+ * here too.
+ */
+export const HOME_TH = -0.82;
+export const HOME_PH = 0.8;
+/**
+ * The opening fly-up (#1076): a short hold on the street view (long enough for the room loader's cover to fade off it),
+ * then a quick ease-out rise into the standard view.
+ */
+export const RISE_HOLD_MS = 550;
+export const RISE_MS = 1900;
+
+/**
+ * Where the fly-up starts (#1076): low beside the building, a little round from the standard view's turn, nearly level,
+ * looking along the street face of the block across to the home, so the rise reads as coming up from the street.
+ */
+export function riseFrom(home: Cam): Cam {
+  return { ...home, th: home.th - 0.12, ph: 1.37, r: home.r * 0.82, ly: 0 };
+}
 const FOV = 30;
 type V3 = [number, number, number];
 
@@ -297,7 +316,7 @@ export class House {
   private night: Night | null = null;
   /** The courtyard block, the street and the rest round the home (#1007, surroundings.ts). */
   private around: ReturnType<typeof makeSurroundings> | null = null;
-  private tween: { from: Cam; to: Cam; t0: number; ms: number; sweep?: boolean } | null = null;
+  private tween: { from: Cam; to: Cam; t0: number; ms: number; intro?: boolean } | null = null;
   private W = 1;
   private H = 1;
   private raf = 0;
@@ -424,20 +443,19 @@ export class House {
       this.seeds[i] = s / 2147483647;
     }
     this.walls = wallsOf(this.plan);
-    this.wasd = wasdPan({ el: host, reduce: opts.reduce, enabled: () => !this.backdrop, bounds: () => ({ kind: "box", x0: this.wx(0), x1: this.wx(this.plan.w), z0: this.wz(0), z1: this.wz(this.plan.h) }), origin: () => [this.cam.tx, this.cam.tz], forward: () => [-Math.sin(this.cam.th), -Math.cos(this.cam.th)], rotate: (d) => ((this.tween = null), (this.cam.th += d), (this.lastUser = performance.now())) });
+    this.wasd = wasdPan({ el: host, reduce: opts.reduce, enabled: () => !this.backdrop, bounds: () => ({ kind: "box", x0: this.wx(0), x1: this.wx(this.plan.w), z0: this.wz(0), z1: this.wz(this.plan.h) }), origin: () => [this.cam.tx, this.cam.tz], forward: () => [-Math.sin(this.cam.th), -Math.cos(this.cam.th)], rotate: (d) => (this.stopIntro(), (this.tween = null), (this.cam.th += d), (this.lastUser = performance.now())) });
     this.disposers.push(() => this.wasd.dispose());
     this.build();
     this.startCat();
     this.bind();
     this.resize();
     this.cam = { ...this.home };
-    // The intro (#671): the camera starts low, looking out over the plain to the range and the sky, and sweeps down
-    // to the house's view. Once per page load (#680): back on the Haven from another Desk page it starts on the
-    // house. Reduced motion starts on the house's view.
-    if (!opts.reduce && introDue()) {
-      const ph = 1.46, r = this.home.r * 1.08;
-      this.cam = { ...this.home, ph, r, th: this.home.th - 0.12, ly: r * Math.cos(ph) + r * 0.09 };
-      this.tween = { from: { ...this.cam }, to: this.home, t0: -1, ms: 3200, sweep: true };
+    // The opening fly-up (#1076): the camera starts low beside the building and rises quickly into the standard view.
+    // Once per open of the Haven (the page says when, `intro`); reduced motion starts on the standard view. Any drag,
+    // pinch, scroll, tap or key hands the camera straight over (stopIntro).
+    if (!opts.reduce && opts.intro) {
+      this.cam = riseFrom(this.home);
+      this.tween = { from: { ...this.cam }, to: this.home, t0: -1, ms: RISE_MS, intro: true };
     }
     this.apply();
     const ro = new ResizeObserver(() => this.resize());
@@ -1424,6 +1442,23 @@ export class House {
     return { tx: this.wx((x0 + x1) / 2), tz: this.wz((y0 + y1) / 2) + 0.1, th: HOME_TH + turn * 0.5, ph: 0.55, r: Math.max(3.4, r0) };
   }
 
+  /** The fit changed under the fly-up: it lands on the new standard view, and starts from the new street view if it hasn't begun. */
+  private retarget() {
+    if (!this.tween?.intro) return;
+    this.tween.to = this.home;
+    if (this.tween.t0 < 0) {
+      this.tween.from = riseFrom(this.home);
+      this.cam = { ...this.tween.from };
+    }
+  }
+
+  /** The user took the camera (#1076): any move stops the fly-up where it is; the view is theirs, so "Reset view" shows. */
+  private stopIntro() {
+    if (!this.tween?.intro) return;
+    this.tween = null;
+    if (!this.focusId) this.setAway(true);
+  }
+
   private clampR = (r: number) => Math.max(this.fitR * 0.2, Math.min(this.fitR * 1.6, r));
 
   private resize() {
@@ -1439,7 +1474,7 @@ export class House {
     if (!this.focusId && !this.tween) {
       this.cam = { ...this.home };
       this.setAway(false);
-    } else if (this.tween?.sweep) this.tween.to = this.home;
+    } else if (this.tween?.intro) this.retarget();
     else if (this.focusId) this.cam = this.roomView(this.focusId) ?? this.cam;
     this.apply();
   }
@@ -1472,6 +1507,7 @@ export class House {
       ptrs.set(e.pointerId, [e.clientX, e.clientY]);
       cv.setPointerCapture?.(e.pointerId);
       this.lastUser = performance.now();
+      this.stopIntro();
       this.tween = null;
       if (ptrs.size === 1) down = { moved: 0 };
       else {
@@ -1544,6 +1580,7 @@ export class House {
         if (this.backdrop) return;
         e.preventDefault();
         this.lastUser = performance.now();
+        this.stopIntro();
         this.tween = null;
         this.cam.r = this.clampR(this.cam.r * Math.exp(e.deltaY * 0.0012));
         this.apply();
@@ -1593,6 +1630,18 @@ export class House {
     this.go(this.home, 450);
   }
 
+  /**
+   * Play the opening fly-up again (#1076): the kept Haven has come back on screen. Not under reduced motion, nor with a
+   * room open over the house; its clock starts on the first frame drawn.
+   */
+  rise() {
+    if (this.opts.reduce || this.focusId || this.backdrop) return;
+    this.setAway(false);
+    this.cam = riseFrom(this.home);
+    this.tween = { from: { ...this.cam }, to: this.home, t0: -1, ms: RISE_MS, intro: true };
+    this.apply();
+  }
+
   /** While the room's content is open over the house: no input, and a slow drift. */
   setBackdrop(on: boolean) {
     this.backdrop = on;
@@ -1605,7 +1654,7 @@ export class House {
   refit() {
     this.frameHome();
     if (!this.focusId && !this.tween && !this.away) this.cam = { ...this.home };
-    else if (this.tween?.sweep) this.tween.to = this.home;
+    else if (this.tween?.intro) this.retarget();
     this.apply();
   }
 
@@ -1656,13 +1705,10 @@ export class House {
     this.last = now;
     if (!this.visible || document.visibilityState === "hidden") return;
     if (this.tween && this.tween.t0 < 0) {
-      // The intro's clock starts once the first frame is drawn (the shaders compile on it), after a short hold.
-      if (!this.dirty) {
-        this.tween.t0 = now + 450;
-        introStarted();
-      }
+      // The fly-up's clock starts once the first frame is drawn (the shaders compile on it), after a short hold.
+      if (!this.dirty) this.tween.t0 = now + RISE_HOLD_MS;
     } else if (this.tween) {
-      const f = Math.max(0, Math.min(1, (now - this.tween.t0) / this.tween.ms)), e = this.tween.sweep ? f * f * (3 - 2 * f) : ease(f);
+      const f = Math.max(0, Math.min(1, (now - this.tween.t0) / this.tween.ms)), e = ease(f);
       const { from, to } = this.tween;
       let dth = to.th - from.th;
       dth = Math.atan2(Math.sin(dth), Math.cos(dth));
@@ -1673,6 +1719,8 @@ export class House {
       this.cam.th += (this.backdrop ? 0.03 : 0.012 * Math.sin((now - this.t0) / 7000)) * dt;
       this.apply();
     }
+    // WASD (#776) takes the camera from the fly-up the moment a key goes down (#1076).
+    if (this.wasd.keys) this.stopIntro();
     if (this.wasd.step(dt)) {
       this.lastUser = now;
       this.apply();

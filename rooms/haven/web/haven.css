@@ -43,6 +43,16 @@
   inset: -18px calc(-1 * var(--fl-pad, 16px)) -18px;
   z-index: 1;
 }
+/* The surroundings fall away toward the edges (#1076): a soft dark vignette over the scene, under the threads and the
+   labels, so the eye lands on the apartment in the middle. */
+[data-room="haven"] .hv-house::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 72% 70% at 50% 52%, transparent 58%, rgba(6, 7, 12, 0.5) 100%);
+}
 [data-room="haven"] .hv-house .hv-gl {
   display: block;
   width: 100%;
@@ -176,7 +186,8 @@
 [data-room="haven"] .hv-lab.is-needs em {
   color: var(--hv-warn);
 }
-/* The streets' and the river's names round the block (#1040), only when the private plan carries them. */
+/* The streets' and the river's names round the block (#1040), only when the private plan carries them: as quiet as the
+   held-back surroundings they sit over (#1076), readable but never louder than a room's name. */
 [data-room="haven"] .hv-lab.hv-street {
   pointer-events: none;
 }
@@ -184,7 +195,8 @@
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(236, 223, 203, 0.4);
+  color: rgba(236, 223, 203, 0.28);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 [data-room="haven"] .hv-lab.is-hover b {
   color: var(--hv-ink);
@@ -1048,6 +1060,7 @@
 [data-room="haven"] .hv-thr {
   position: absolute;
   inset: 0;
+  z-index: 2;
   width: 100%;
   height: 100%;
   pointer-events: none;

@@ -53,6 +53,8 @@ export interface HoloFrame {
   speaking: boolean;
   /** Holds the flicker and glitch bands still. */
   still: boolean;
+  /** The call connecting (#1053, connect.ts): 1 fully garbled, 0 clear. With less motion only a gentle dimming. */
+  garble?: number;
 }
 
 export interface Holo {
@@ -79,14 +81,21 @@ const HEAD_TURN: Record<Expression, [number, number, number]> = {
 
 const VERT = "varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0., 1.); }";
 const FRAG = `
-uniform sampler2D t; uniform vec2 res; uniform float time; uniform float still; uniform vec3 tint; uniform float gl; varying vec2 v;
+uniform sampler2D t; uniform vec2 res; uniform float time; uniform float still; uniform vec3 tint; uniform float gl; uniform float cn; varying vec2 v;
 float h(float n){ return fract(sin(n * 91.345) * 43758.5453); }
 float h2(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 vec4 S(vec2 p){ return texture2D(t, p); }
 void main(){
   vec2 p = v;
   float y = p.y * res.y;
-  float g = gl * (1.0 - still);
+  // Connecting (#1053): cn garbles him on top of the switch glitch, a jitter, a tear rolling up and rows dropping out.
+  float cg = cn * (1.0 - still);
+  float ct = floor(time * 18.0);
+  p.y += (h(ct * 3.7) - 0.5) * 0.03 * cg * step(0.6, h(ct + 0.3));
+  float tearY = fract(time * 0.55 + h(floor(time * 0.55)) * 0.5);
+  float tear = smoothstep(0.05, 0.0, abs(v.y - tearY)) * cg;
+  p.x += tear * (h(ct + v.y * 40.0) - 0.5) * 0.22;
+  float g = max(gl, cg * 0.85) * (1.0 - still);
   float tick = floor(time * mix(7.0, 34.0, g)) * (1.0 - still);
   float band = floor(p.y * mix(60.0, 22.0, g));
   p.x += step(0.965 - g * 0.6, h(band + tick * 13.1)) * (h(band + 1.7 + tick) - 0.5) * (0.04 + g * 0.3) * (1.0 - still);
@@ -112,6 +121,10 @@ void main(){
   float flick = 1.0 - (1.0 - still) * (0.08 + g * 0.5) * step(0.9 - g * 0.5, h(floor(time * 12.0 + g * 40.0)));
   float alpha = a * 0.8 * (0.82 + 0.18 * sl) * flick;
   alpha *= mix(0.25, 1.0, smoothstep(0.06, 0.3, v.y));
+  float rows = floor(v.y * mix(14.0, 40.0, h(ct * 0.13)));
+  alpha *= 1.0 - step(1.0 - cg * 0.42, h(rows * 1.31 + ct * 7.7));
+  alpha *= mix(1.0, 0.45 + 0.55 * h(ct * 5.1 + 2.0), cg);
+  alpha *= 1.0 - cn * still * 0.55;
   float ga = glow * (1.0 - a) * 0.7;
   vec3 outc = (col * alpha + mix(tint, vec3(1.0), 0.2) * ga) / max(alpha + ga, 1e-4);
   gl_FragColor = vec4(outc, clamp(alpha + ga, 0.0, 1.0));
@@ -210,7 +223,7 @@ export async function createHolo(canvas: HTMLCanvasElement): Promise<Holo> {
   const camera = new PerspectiveCamera(26, 1, 0.01, 50);
   const quadMat = new ShaderMaterial({
     transparent: true,
-    uniforms: { t: { value: rt.texture }, res: { value: new Vector2(2, 2) }, time: { value: 0 }, still: { value: 0 }, tint: { value: new Color(SKIPPY_HOLO) }, gl: { value: 0 } },
+    uniforms: { t: { value: rt.texture }, res: { value: new Vector2(2, 2) }, time: { value: 0 }, still: { value: 0 }, tint: { value: new Color(SKIPPY_HOLO) }, gl: { value: 0 }, cn: { value: 0 } },
     vertexShader: VERT,
     fragmentShader: FRAG,
   });
@@ -319,6 +332,7 @@ export async function createHolo(canvas: HTMLCanvasElement): Promise<Holo> {
       renderer.setRenderTarget(null);
       quadMat.uniforms.time!.value = time;
       quadMat.uniforms.still!.value = f.still ? 1 : 0;
+      quadMat.uniforms.cn!.value = f.garble ?? 0;
       renderer.clear();
       renderer.render(post, postCam);
     },

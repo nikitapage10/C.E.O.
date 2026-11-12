@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createLanding, shortSpoken } from "./landing.ts";
+import { CALL_GIVE_UP_MS, GIVE_UP_NOTE, createLanding, shortSpoken } from "./landing.ts";
+import { LIVE_POLL_MS } from "./handoff.ts";
 import { landedNote } from "./talk.ts";
 
 describe("an answer that lands on a live call is said once, at once, short (#952)", () => {
@@ -27,5 +28,14 @@ describe("an answer that lands on a live call is said once, at once, short (#952
     expect(note).toContain("Turnout is up in the made-up county.");
     expect(note).not.toContain("Results are due at nine");
     expect(note).toMatch(/no waiting line/i);
+  });
+});
+
+describe("a call's slow question always ends (#1054)", () => {
+  it("looks every two seconds on a live call, and gives up plainly after the server's own 45 s deadline", () => {
+    expect(LIVE_POLL_MS).toBeLessThanOrEqual(2_000);
+    expect(CALL_GIVE_UP_MS).toBeGreaterThan(45_000 + 2 * LIVE_POLL_MS);
+    expect(GIVE_UP_NOTE).toMatch(/couldn't get it/);
+    expect(GIVE_UP_NOTE).not.toMatch(/thread|kernel|hand-?off|crew/i);
   });
 });

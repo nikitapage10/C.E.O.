@@ -34,6 +34,8 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   jar: S(60, 16, 0xd9c79a, 0.4),
   mat: S(0, 1, 0x202024, 1),
   rug: S(0, 1, 0x5b4d48, 1),
+  // The living room's big white and grey rug (#1057).
+  lrug: S(0, 1, 0xe6e5e1, 1),
   runner: S(0, 1, 0x4c4a48, 1),
   plant: S(0, 74, 0xcfe9d0, 0.2, 0, [0x6fdc88, 0.55]),
   purifier: S(0, 30, 0xf2f2f0, 0.5),
@@ -85,7 +87,11 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   projector: S(104, 10, 0x1a1a1c, 0.4, 0, [0x9fd0ff, 0.4]),
   art: S(48, 80, 0xe8e8e6, 0.8), // top at 128, under the 140 cut-down wall (#892)
   coffeebar: S(0, 36, 0x111113, 0.45),
-  cupshelf: S(62, 44, 0x0e0e10, 0.5),
+  // A black wall shelf over the espresso machine (#1060): one upright frame, flat shelves staggered through it.
+  cupshelf: S(80, 54, 0x0e0e10, 0.5),
+  coffeekit: S(36, 22, 0x0c0c0e, 0.8),
+  patiochair: S(0, 34, 0x111113, 0.6),
+  patiotable: S(0, 20, 0x111113, 0.4),
   bin: S(0, 28, 0xc9ccd1, 0.35, 0.3),
   accent: S(0, 28, 0x2a2724, 0.9),
   potplant: S(30, 22, 0x3f8f52, 0.7),

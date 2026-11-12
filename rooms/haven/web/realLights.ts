@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { centreOf, type HavenPlan, type PlanRoom } from "./data.ts";
 import { deskRoom, fixtureOf, placeLights, roomLightOf, type Fixture, type Light, type PlacedLight } from "./lights.ts";
-import { inStudio, kindOf, placeFixture, rowIndex, studioLampCorner, studioLampSpots, type FixturePlace, type LightKind } from "./fixtures.ts";
+import { bedLampSpots, inBedroom, inStudio, kindOf, placeFixture, rowIndex, studioLampCorner, studioLampSpots, type FixturePlace, type LightKind } from "./fixtures.ts";
 import type { PlanLight } from "../../../api/_haven/planShape.ts";
 import { LIGHT } from "./style.ts";
 
@@ -118,11 +118,22 @@ export function drawList(plan: HavenPlan, lights: readonly Light[], spots: reado
   // The Studio's floor lamps with no saved spot stand in its corners (#1007, fixtures.ts studioLampSpots).
   const corners = studioLampSpots(plan);
   let studioLamps = 0;
-  const out: DrawItem[] = placeLights(plan, lights, spots).placed.map((p) => {
+  // The main bedroom's pair (#1060): a floor lamp with no saved spot that names the bedroom, or no room at all, stands
+  // in a corner either side of the dresser (fixtures.ts bedLampSpots), by "left" or "right" in its name, else by order.
+  const bedSpots = bedLampSpots(plan);
+  let bedLamps = 0;
+  const bedLamp = (light: Light): DrawItem => {
+    const n = ` ${light.name.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+    const at = bedSpots![/ left /.test(n) ? 0 : / right /.test(n) ? 1 : bedLamps++ % 2]!;
+    return { light, ...at, fixture: "floor", virtual: false };
+  };
+  const { placed, loose } = placeLights(plan, lights, spots);
+  const out: DrawItem[] = placed.map((p) => {
     if (corners && !p.spot && fixtureOf(p.light.name) === "floor" && inStudio(plan, p.x, p.y)) {
       const at = corners[studioLampCorner(p.light.name, studioLamps++)];
       return { ...p, ...at, fixture: "floor" as const, virtual: false };
     }
+    if (bedSpots && !p.spot && fixtureOf(p.light.name) === "floor" && inBedroom(plan, p.x, p.y)) return bedLamp(p.light);
     const kind = kindOf(p.light.name, p.spot);
     const place = kind ? placeFixture(plan, kind, p.spot ?? null, rowIndex(p.light.name)) : null;
     if (place) {
@@ -132,6 +143,7 @@ export function drawList(plan: HavenPlan, lights: readonly Light[], spots: reado
     const room = roomLightOf(plan, p.light, p);
     return room ? { ...p, fixture: "room", virtual: false, room: boxOf(room) } : { ...p, fixture: fixtureOf(p.light.name), virtual: false };
   });
+  if (bedSpots) for (const l of loose) if (fixtureOf(l.name) === "floor") out.push(bedLamp(l));
   const spill = spillOf(plan, out);
   if (spill) out.push(spill);
   const studio = desk ? deskRoom(plan) : null;

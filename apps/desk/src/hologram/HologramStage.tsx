@@ -8,6 +8,7 @@ import { personaOf } from "./persona.ts";
 import { expressionOf, stripTags, useHolo, type Expression } from "./signal.ts";
 import { PHONE, placeFor, type Place } from "./place.ts";
 import { captionTop, spokenShare } from "./captions.ts";
+import { RESOLVE_MS, callLost, garbleNext, garbleShape } from "./connect.ts";
 import "./hologram.css";
 
 /**
@@ -17,6 +18,8 @@ import "./hologram.css";
  * beside, as on a phone, where the dock is a sheet from the bottom). On End he sinks back down and the chat returns;
  * with less motion it all fades. His face follows the call (signal.ts) and his mouth his voice. When a submind takes
  * the mic the whole projection turns its room's colour, the label takes its name, and the channel glitches over.
+ * Until the call connects he comes through garbled, and glitches into clarity once it does; a call that drops
+ * glitches out (#1053, connect.ts).
  */
 
 const STILL = "(prefers-reduced-motion: reduce)";
@@ -35,6 +38,7 @@ export default function HologramStage({ route, leaving = false }: { route: strin
   const mode = useTalk((s) => s.mode);
   const elapsed = useTalk((s) => s.elapsed);
   const end = useTalk((s) => s.end);
+  const reason = useTalk((s) => s.reason);
   const speaker = useHolo((s) => s.speaker);
   const muted = useHolo((s) => s.muted);
   const hidden = useHolo((s) => s.hidden);
@@ -55,8 +59,11 @@ export default function HologramStage({ route, leaving = false }: { route: strin
   const canvas = useRef<HTMLCanvasElement>(null);
   const holo = useRef<Holo | null>(null);
   const levelBars = useRef<HTMLSpanElement>(null);
-  const inputs = useRef({ phase, mode, line });
-  inputs.current = { phase, mode, line };
+  const connecting = phase === "starting" && !leaving;
+  const lost = leaving && callLost(reason);
+  const [clearing, setClearing] = useState(false);
+  const inputs = useRef({ phase, mode, line, lost });
+  inputs.current = { phase, mode, line, lost };
   const capBox = useRef<HTMLParagraphElement>(null);
   const caption = stripTags(line);
 
@@ -124,6 +131,17 @@ export default function HologramStage({ route, leaving = false }: { route: strin
     else document.body.style.removeProperty("--holo-call");
   }, [speaker]);
 
+  // Connected (#1053): the garble clears over RESOLVE_MS, the projection settling with it.
+  const wasPhase = useRef(phase);
+  useEffect(() => {
+    const was = wasPhase.current;
+    wasPhase.current = phase;
+    if (was !== "starting" || phase !== "live") return;
+    setClearing(true);
+    const t = window.setTimeout(() => setClearing(false), RESOLVE_MS + 100);
+    return () => window.clearTimeout(t);
+  }, [phase]);
+
   // The channel switch (#490): a short glitch whenever the mic changes hands.
   useEffect(() => {
     if (!swappedAt) return;
@@ -169,6 +187,10 @@ export default function HologramStage({ route, leaving = false }: { route: strin
     let last = performance.now();
     let acc = 0;
     let shown: Expression | "" = "";
+    // He comes through garbled until the call connects (#1053): counted only once the projection is up.
+    let garble = 1;
+    // Counted in wall time, so a slow device still clears in RESOLVE_MS rather than after so many frames.
+    let wall = performance.now();
     const tick = (t: number) => {
       raf = requestAnimationFrame(tick);
       const dt = Math.min(0.1, (t - last) / 1000);
@@ -186,7 +208,9 @@ export default function HologramStage({ route, leaving = false }: { route: strin
       }
       const level = i.phase === "live" ? talkLevel() : 0;
       if (levelBars.current) levelBars.current.style.setProperty("--lvl", level.toFixed(3));
-      if (!s.hidden) holo.current?.frame(step, { expr: e, persona: personaOf(s.speaker), level, speaking: i.mode === "speaking", still });
+      if (holo.current) garble = garbleNext(garble, (t - wall) / 1000, i.phase === "starting" || i.lost);
+      wall = t;
+      if (!s.hidden) holo.current?.frame(step, { expr: e, persona: personaOf(s.speaker), level, speaking: i.mode === "speaking", still, garble: garbleShape(garble) });
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -211,7 +235,7 @@ export default function HologramStage({ route, leaving = false }: { route: strin
 
   return (
     <div
-      className={`holo holo--${place.kind}${leaving ? " holo--leaving" : ""}${hidden ? " holo--hidden" : ""}${ready ? " holo--ready" : ""}${failed ? " holo--failed" : ""}${switching ? " holo--switch" : ""}`}
+      className={`holo holo--${place.kind}${leaving ? " holo--leaving" : ""}${hidden ? " holo--hidden" : ""}${ready ? " holo--ready" : ""}${failed ? " holo--failed" : ""}${switching ? " holo--switch" : ""}${connecting ? " holo--connecting" : ""}${clearing && !leaving ? " holo--clear" : ""}${lost ? " holo--lost" : ""}`}
       style={style}
       role="region"
       aria-label={`Call with ${who}`}
@@ -220,6 +244,7 @@ export default function HologramStage({ route, leaving = false }: { route: strin
       data-face={personaOf(speaker).faces[expr]}
       data-manner={personaOf(speaker).manner}
       data-hold={holding ? "playing" : holdMuted ? "muted" : "ready"}
+      data-link={lost ? "lost" : leaving ? "ended" : connecting ? "connecting" : "live"}
     >
       <div className="holo__veil" aria-hidden="true" />
       {/* The chat box he takes over: it dims, boots with a glitch, and he rises from its foot. */}

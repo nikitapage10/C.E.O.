@@ -640,6 +640,17 @@ export class House {
       const st = KIND_STYLE[it.k];
       if (st.height > 2) continue;
       c.fillStyle = `#${st.colour.toString(16).padStart(6, "0")}`;
+      if (it.k === "lrug") {
+        // White with a soft grey border and a faint grey weave (#1057).
+        c.fillRect(it.x, it.y, it.w, it.h);
+        const b = Math.min(it.w, it.h) * 0.06;
+        c.strokeStyle = "#9c9da1";
+        c.lineWidth = b * 0.5;
+        c.strokeRect(it.x + b, it.y + b, it.w - 2 * b, it.h - 2 * b);
+        c.fillStyle = "rgba(120,122,128,0.10)";
+        for (let gx = it.x + 2 * b; gx < it.x + it.w - 2 * b; gx += 10) c.fillRect(gx, it.y + 2 * b, 1.2, it.h - 4 * b);
+        continue;
+      }
       if (it.round) {
         c.beginPath();
         c.arc(it.x, it.y, it.w / 2, 0, 7);
@@ -771,13 +782,33 @@ export class House {
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     const part = this.plan.rooms.flatMap((r) => r.parts).find(([x, y, pw, ph]) => cx >= x && cx < x + pw && cy >= y && cy < y + ph);
     const w = x1 - x0, h = y1 - y0;
-    if (!part) return { rot: 0, along: w, into: h };
+    if (!part) {
+      // Outside on a balcony (#1060: the patio set): its back against the outside wall it stands just beyond.
+      const out: [number, number, number, number][] = [];
+      for (const [px, py, pw, ph] of this.plan.rooms.filter((r) => !r.detached).flatMap((r) => r.parts)) {
+        const overX = x1 > px && x0 < px + pw, overY = y1 > py && y0 < py + ph;
+        if (overY && x1 <= px) out.push([px - x1, Math.PI / 2, h, w]);
+        if (overY && x0 >= px + pw) out.push([x0 - px - pw, -Math.PI / 2, h, w]);
+        if (overX && y1 <= py) out.push([py - y1, 0, w, h]);
+        if (overX && y0 >= py + ph) out.push([y0 - py - ph, Math.PI, w, h]);
+      }
+      const near = out.filter((g) => g[0] <= 60).sort((a, b) => a[0] - b[0])[0];
+      return near ? { rot: near[1], along: near[2], into: near[3] } : { rot: 0, along: w, into: h };
+    }
     const [px, py, pw, ph] = part;
+    // An edge where the same room carries on into another of its parts is no wall to back onto (#1060: the Studio's
+    // left-hand screen by its nook).
+    const room = this.plan.rooms.find((r) => r.parts.includes(part));
+    const open = (s: "n" | "s" | "w" | "e") =>
+      !!room?.parts.some(([qx, qy, qw, qh]) => {
+        if (s === "n" || s === "s") return Math.abs(s === "n" ? qy + qh - py : qy - (py + ph)) <= 2 && qx < x1 && qx + qw > x0;
+        return Math.abs(s === "w" ? qx + qw - px : qx - (px + pw)) <= 2 && qy < y1 && qy + qh > y0;
+      });
     const gaps: [number, number, number, number][] = [
-      [y0 - py, Math.PI, w, h], // north
-      [py + ph - y1, 0, w, h], // south
-      [x0 - px, -Math.PI / 2, h, w], // west
-      [px + pw - x1, Math.PI / 2, h, w], // east
+      [open("n") ? Infinity : y0 - py, Math.PI, w, h], // north
+      [open("s") ? Infinity : py + ph - y1, 0, w, h], // south
+      [open("w") ? Infinity : x0 - px, -Math.PI / 2, h, w], // west
+      [open("e") ? Infinity : px + pw - x1, Math.PI / 2, h, w], // east
     ];
     const [, rot, along, into] = gaps.reduce((a, b) => (b[0] < a[0] ? b : a));
     return { rot, along, into };

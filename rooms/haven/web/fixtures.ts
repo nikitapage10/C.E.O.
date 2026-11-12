@@ -1,5 +1,5 @@
 import type { HavenPlan, PlanItem, PlanRoom } from "./data.ts";
-import { OPEN_ROOM, STUDIO_WALLS } from "./furnish.ts";
+import { OPEN_ROOM, STUDIO_WALLS, flushWall } from "./furnish.ts";
 import type { PlanLight } from "../../../api/_haven/planShape.ts";
 import { LIGHT_KINDS as KINDS, type LightKind } from "../../../api/_haven/planShape.ts";
 
@@ -302,14 +302,53 @@ const STUDIO = /\b(studio|study)\b/i;
 export function studioLampSpots(plan: HavenPlan): { dj: { x: number; y: number }; sofas: { x: number; y: number } } | null {
   const room = plan.rooms.find((r) => !r.detached && STUDIO.test(r.name));
   if (!room) return null;
-  const [x0, y0, x1, y1] = largest(room);
-  const corner = ([a, b]: readonly [string, string]) => {
+  const corner = ([a, b]: readonly [string, string], [x0, y0, x1, y1]: Box) => {
     const side = [a, b];
     // Right in the corner, against both walls (#1022): the lamp's base is about 30 across.
     const inset = 16;
     return { x: side.includes("w") ? x0 + inset : x1 - inset, y: side.includes("n") ? y0 + inset : y1 - inset };
   };
-  return { dj: corner(STUDIO_WALLS.dj), sofas: corner(STUDIO_WALLS.sofas) };
+  // The decks' lamp at the end of the whole window wall, the nook off it included (#1060: the decks stand along it).
+  const [ex, ey, ew, eh] = flushWall(room, STUDIO_WALLS.desk);
+  return { dj: corner(STUDIO_WALLS.dj, [ex, ey, ex + ew, ey + eh]), sofas: corner(STUDIO_WALLS.sofas, largest(room)) };
+}
+
+const MASTER_BED = /\b(master|primary)\b/i;
+const BED = /\bbed/i;
+
+/**
+ * Where the main bedroom's floor lamps stand (#1060): the two corners either side of its dresser, on the wall the
+ * dresser backs onto, a little in from both walls; facing that wall, the left-hand corner first. Null with no bedroom
+ * or no dresser in it. `plan` is the drawn (furnished) plan.
+ */
+export function bedLampSpots(plan: HavenPlan): [{ x: number; y: number }, { x: number; y: number }] | null {
+  const beds = plan.rooms.filter((r) => !r.detached && BED.test(r.name) && !/\bbath/i.test(r.name));
+  const room = beds.find((r) => MASTER_BED.test(r.name)) ?? beds[0];
+  if (!room) return null;
+  const R = largest(room);
+  const dresser = plan.items.find((i) => i.k === "dresser" && inside(mid(box(i)), R));
+  if (!dresser) return null;
+  const b = box(dresser);
+  const gaps: [string, number][] = [["n", b[1] - R[1]], ["s", R[3] - b[3]], ["w", b[0] - R[0]], ["e", R[2] - b[2]]];
+  const wall = gaps.reduce((a, c) => (c[1] < a[1] ? c : a))[0];
+  const inset = 16;
+  const [x0, y0, x1, y1] = [R[0] + inset, R[1] + inset, R[2] - inset, R[3] - inset];
+  // Facing the wall: on the north wall the left is west, on the south east, on the east north, on the west south.
+  const pair: Record<string, [[number, number], [number, number]]> = {
+    n: [[x0, y0], [x1, y0]],
+    s: [[x1, y1], [x0, y1]],
+    e: [[x1, y0], [x1, y1]],
+    w: [[x0, y1], [x0, y0]],
+  };
+  const [l, r] = pair[wall]!;
+  return [{ x: l[0], y: l[1] }, { x: r[0], y: r[1] }];
+}
+
+/** Whether a point is in the main bedroom (the room bedLampSpots goes by). */
+export function inBedroom(plan: HavenPlan, x: number, y: number): boolean {
+  const beds = plan.rooms.filter((r) => !r.detached && BED.test(r.name) && !/\bbath/i.test(r.name));
+  const room = beds.find((r) => MASTER_BED.test(r.name)) ?? beds[0];
+  return !!room && room.parts.some(([px, py, pw, ph]) => x >= px && x <= px + pw && y >= py && y <= py + ph);
 }
 
 /** Which Studio corner a floor lamp takes: by "left" or "right" in its name, else by its order among the Studio's lamps. */

@@ -318,3 +318,18 @@ export const CONNECT_NOTE: Record<string, string> = {
   failed: "Connecting King Soopers didn't work. Try again.",
   refused: "That connect link had run out. Try again from here.",
 };
+
+/**
+ * When the King Soopers cart was last sent (#1055), from the Shopping card's view, so the meal planner can tell the
+ * week's shopping is done and open on Cook. The last value is kept for a planner that mounts after the card read it.
+ */
+let cartSentAt: string | null = null;
+const cartWatch = new Set<(at: string | null) => void>();
+export const lastCartSent = () => cartSentAt;
+export const onCartSent = (fn: (at: string | null) => void): (() => void) => (cartWatch.add(fn), () => void cartWatch.delete(fn));
+export function noteCartSent(sent: { at: string; ok: boolean } | null | undefined) {
+  const at = sent?.ok ? sent.at : null;
+  if (at === cartSentAt) return;
+  cartSentAt = at;
+  cartWatch.forEach((fn) => fn(at));
+}

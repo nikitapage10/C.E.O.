@@ -58,7 +58,12 @@ describe("dressing the rooms (#747, #764)", () => {
     expect(tv.x).toBe(600);
     expect(list.find((i) => i.k === "console")!.x).toBeLessThan(650);
     expect(list.filter((i) => i.k === "sofa")).toHaveLength(2);
-    for (const k of ["rug", "ctable", "lamp", "minifridge"] as const) expect(list.some((i) => i.k === k)).toBe(true);
+    for (const k of ["lrug", "ctable", "lamp", "minifridge"] as const) expect(list.some((i) => i.k === k)).toBe(true);
+    // One big white and grey rug round the coffee table, reaching under the sofa (#1057).
+    const rug = list.find((i) => i.k === "lrug")!, ct = list.find((i) => i.k === "ctable")!;
+    expect(rug.x <= ct.x && rug.y <= ct.y && rug.x + rug.w >= ct.x + ct.w && rug.y + rug.h >= ct.y + ct.h).toBe(true);
+    const sofa = list.find((i) => i.k === "sofa")!;
+    expect(rug.x < sofa.x + sofa.w && sofa.x < rug.x + rug.w && rug.y < sofa.y + sofa.h && sofa.y < rug.y + rug.h).toBe(true);
     // No projector or any other light over the living room (#1044).
     expect(list.some((i) => i.k === "projector")).toBe(false);
   });

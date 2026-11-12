@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import type { KitchenItem } from "@ceo/desk/haven.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, listCleared, loadGroceries, matchAll, money, QTY_MAX, reviewOf, shelfOf, VERDICT_BADGE, type GAction, type GLine, type GProduct, type GReply, type Groceries as View } from "./groceries.ts";
+import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, listCleared, loadGroceries, matchAll, money, noteCartSent, QTY_MAX, reviewOf, shelfOf, VERDICT_BADGE, type GAction, type GLine, type GProduct, type GReply, type Groceries as View } from "./groceries.ts";
 
 /**
  * The Kitchen's Shopping card (#737; Send to King Soopers, #664): one card, two tabs. **List** is the Kitchen list by
@@ -143,6 +143,11 @@ function useGroceries(listOpen: number) {
     });
   }, []);
   useEffect(refresh, [refresh, listOpen]);
+  // The planner opens on Cook once the cart's been sent after the week was finalized (#1055).
+  const sentAt = view ? (view.sent?.ok ? view.sent.at : "") : null;
+  useEffect(() => {
+    if (sentAt !== null) noteCartSent(sentAt ? { at: sentAt, ok: true } : null);
+  }, [sentAt]);
   const take = (r: GReply, done?: string | null) => {
     if (r.status === 401) useDeskAuth.getState().lost();
     if (r.view) setView(r.view);

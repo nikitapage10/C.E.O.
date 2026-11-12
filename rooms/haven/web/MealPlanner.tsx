@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
+import type { KitchenItem } from "@ceo/desk/haven.ts";
 import {
   DAY_NAME,
   DAYS,
@@ -44,7 +45,8 @@ import { onWrote, touchesList, touchesMeals } from "@ceo/desk/skippy/wrote.ts";
 import { useScreenContext } from "@ceo/engine/web/screen.ts";
 import { cookLunchOf, cookOf, type Cook } from "./cook.ts";
 import { CookMode } from "./CookMode.tsx";
-import { onListCleared } from "./groceries.ts";
+import { openingStep, weekDays, type Phase } from "./kitchenDay.ts";
+import { lastCartSent, onCartSent, onListCleared } from "./groceries.ts";
 import "./meals.css";
 
 /**
@@ -442,7 +444,14 @@ function Recipe({ steps, d }: { steps: string[]; d: Dish }) {
   );
 }
 
-/** Cook (#721): the week's recipes once the food's in, each with cook mode. Dinners cooked here and quick lunches. */
+/** Why a night has no dinner to cook from the plan, for its day's card in Cook. */
+const noDinner = (s: Slot): string | null => (s.skip?.dinner ? "No dinner planned" : s.helloFresh ? "HelloFresh night" : !s.inCart ? "Dinner isn't cooked from the plan" : null);
+
+/**
+ * Cook (#721): the week's recipes once the food's in, each with cook mode, dinners cooked here and quick lunches. Day by
+ * day (#1055): each day has its own header (weekday, date, Today or Tomorrow), today's is marked and brought into view,
+ * and the days gone by fold away under "Earlier this week".
+ */
 function CookList({ f }: { f: MealsFile }) {
   // Which recipe is in cook mode, by night: drawn from the plan as it stands, so an edit Skippy makes while Nikita
   // cooks (#1027, meals_recipe) shows at once.
@@ -450,42 +459,81 @@ function CookList({ f }: { f: MealsFile }) {
   const cookSlot = cookingAt ? f.week!.slots[DAYS.indexOf(cookingAt.day)] : undefined;
   const cooking: Cook | null = cookingAt && cookSlot ? (cookingAt.lunch ? cookLunchOf(f, cookSlot) : cookOf(f, cookSlot)) : null;
   const [open, setOpen] = useState<string | null>(null);
-  const rows = f.week!.slots.flatMap((s) => {
-    const out: Array<{ key: string; s: Slot; d: Dish; lunch: boolean }> = [];
+  const [now] = useState(() => new Date());
+  const dates = weekDays(f.week!.start, now);
+  const days = f.week!.slots.map((s, i) => {
+    const rows: Array<{ key: string; d: Dish; lunch: boolean }> = [];
     const l = lunchDish(f, s);
-    if (l && !s.skip?.lunch) out.push({ key: `${s.day}-lunch`, s, d: l, lunch: true });
+    if (l && !s.skip?.lunch) rows.push({ key: `${s.day}-lunch`, d: l, lunch: true });
     const d = slotDish(f, s);
-    if (d && cooksDinner(s) && s.inCart) out.push({ key: `${s.day}-dinner`, s, d, lunch: false });
-    return out;
+    if (d && cooksDinner(s) && s.inCart) rows.push({ key: `${s.day}-dinner`, d, lunch: false });
+    return { s, at: dates[i]!, rows, why: noDinner(s) };
   });
+  const any = days.some((x) => x.rows.length);
+  // The days gone by fold away only while there's a day still to come; a week that's all past shows in full.
+  const past = days.filter((x) => x.at.when === "past");
+  const fold = past.length > 0 && past.length < days.length;
+  const today = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    const el = today.current;
+    if (!el) return;
+    const b = el.getBoundingClientRect();
+    if (b.top > window.innerHeight - 160 || b.top < 0) el.scrollIntoView?.({ block: "start" });
+  }, []);
+
+  const dayCard = ({ s, at, rows, why }: (typeof days)[number]) => (
+    <li key={s.day} ref={at.when === "today" ? today : undefined} className={`mp-cookDay is-${at.when}`} aria-label={`${at.tag ? `${at.tag}, ` : ""}${at.name}, ${at.date}`}>
+      <h4 className="mp-cookHead">
+        {at.tag ? <em>{at.tag}</em> : null}
+        <span>{at.name}</span>
+        <small>{at.date}</small>
+        {s.helloFresh && !s.skip?.dinner ? <i className="mp-cookHF">HelloFresh</i> : null}
+      </h4>
+      {rows.length ? (
+        <ul>
+          {rows.map(({ key, d, lunch }) => (
+            <li key={key} className="mp-cookRow">
+              <Photo meal={d.meal} photo={lunch ? null : s.photo} className="is-mini" />
+              <span className="mp-cookTxt">
+                <small>
+                  {lunch ? "Lunch" : "Dinner"} · {d.meal.minutes} min
+                  {d.meal.steps.length ? ` · ${d.meal.steps.length} step${d.meal.steps.length === 1 ? "" : "s"}` : ""}
+                </small>
+                <b>{d.meal.name}</b>
+                {d.customized ? <small>{d.changes.join(" · ")}</small> : null}
+              </span>
+              <span className="mp-cookActs">
+                <button type="button" className="mp-link" aria-expanded={open === key} onClick={() => setOpen((v) => (v === key ? null : key))}>
+                  {open === key ? "Hide" : "Recipe"}
+                </button>
+                <button type="button" className="mp-cook is-small" onClick={() => setCooking({ day: s.day, lunch })}>
+                  Cook mode
+                </button>
+              </span>
+              {open === key ? <Recipe steps={d.meal.steps} d={d} /> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {why ? <p className="mp-cookWhy">{rows.length ? `Dinner: ${why === "HelloFresh night" ? "HelloFresh" : why.toLowerCase()}` : why}</p> : null}
+    </li>
+  );
+
   return (
     <section className="mp-cookList" aria-label="Recipes this week">
-      <p className="mp-note">{f.week!.confirmedAt ? "The week's recipes, in order. Cook mode keeps the screen on, one step at a time." : "The week isn't finalized yet; these are the recipes as planned."}</p>
-      <ul>
-        {rows.map(({ key, s, d, lunch }) => (
-          <li key={key} className="mp-cookRow">
-            <Photo meal={d.meal} photo={lunch ? null : s.photo} className="is-mini" />
-            <span className="mp-cookTxt">
-              <small>
-                {DAY_NAME[s.day]} · {lunch ? "lunch" : "dinner"} · {d.meal.minutes} min
-                {d.meal.steps.length ? ` · ${d.meal.steps.length} step${d.meal.steps.length === 1 ? "" : "s"}` : ""}
-              </small>
-              <b>{d.meal.name}</b>
-              {d.customized ? <small>{d.changes.join(" · ")}</small> : null}
-            </span>
-            <span className="mp-cookActs">
-              <button type="button" className="mp-link" aria-expanded={open === key} onClick={() => setOpen((v) => (v === key ? null : key))}>
-                {open === key ? "Hide" : "Recipe"}
-              </button>
-              <button type="button" className="mp-cook is-small" onClick={() => setCooking({ day: s.day, lunch })}>
-                Cook mode
-              </button>
-            </span>
-            {open === key ? <Recipe steps={d.meal.steps} d={d} /> : null}
-          </li>
-        ))}
-      </ul>
-      {rows.length ? null : <p className="mp-note">Nothing to cook this week: every night is HelloFresh, skipped or left out.</p>}
+      <p className="mp-note">{f.week!.confirmedAt ? "The week's recipes, day by day. Cook mode keeps the screen on, one step at a time." : "The week isn't finalized yet; these are the recipes as planned."}</p>
+      {fold ? (
+        <details className="mp-cookPast">
+          <summary>
+            Earlier this week <small>{past.length === 1 ? past[0]!.at.name : `${past[0]!.at.name} – ${past.at(-1)!.at.name}`}</small>
+          </summary>
+          <ol className="mp-cookDays">{past.map(dayCard)}</ol>
+        </details>
+      ) : null}
+      <ol className="mp-cookDays" aria-label="Days">
+        {(fold ? days.filter((x) => x.at.when !== "past") : days).map(dayCard)}
+      </ol>
+      {any ? null : <p className="mp-note">Nothing to cook this week: every night is HelloFresh, skipped or left out.</p>}
       {cooking ? <CookMode cook={cooking} onClose={() => setCooking(null)} /> : null}
     </section>
   );
@@ -901,14 +949,16 @@ const PHASES = [
   { id: "customize", name: "Customize", hint: "Switch them up" },
   { id: "shop", name: "Shop", hint: "Cart and send" },
   { id: "cook", name: "Cook", hint: "Recipes" },
-] as const;
-type Phase = (typeof PHASES)[number]["id"];
+] as const satisfies ReadonlyArray<{ id: Phase; name: string; hint: string }>;
 
 /**
  * The planner (#678; the phases and weeks ahead, #721). `onListChanged` rereads the Kitchen list after Finalize puts
  * the shopping on it; `rail` is the Kitchen list and King Soopers, shown in the Shop step.
  */
-export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void; rail: ReactNode }) {
+export function MealPlanner({ onListChanged, rail, items = null }: { onListChanged: () => void; rail: ReactNode; items?: KitchenItem[] | null }) {
+  /** When the King Soopers cart was last sent (#1055): with the list, how the planner tells the shopping is done. */
+  const [cartSentAt, setCartSent] = useState<string | null>(lastCartSent);
+  useEffect(() => onCartSent(setCartSent), []);
   const [load, setLoad] = useState<"idle" | "off" | "failed" | "ready">("idle");
   const [file, setFile] = useState<MealsFile | null>(null);
   /** The week shown: null for the current one, else a week ahead by its Monday. */
@@ -936,7 +986,7 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
           tab: "Kitchen",
           item: pickSlot ? `${DAY_NAME[pickSlot.day]}'s ${pick!.course}` : "The week's meal plan",
           stage: weekStage(shownWeek),
-          fields: { week: shownWeek.start, phase: phase ?? "plan", ...(pickSlot && { day: pickSlot.day }), ...(over && { panel: over }) },
+          fields: { week: shownWeek.start, phase: phase ?? openingStep(shownWeek, { items, cartSentAt }), ...(pickSlot && { day: pickSlot.day }), ...(over && { panel: over }) },
           private: {
             ...(pickDish && { meal: pickDish.meal.name, steps: pickDish.meal.steps.map((t, k) => `${k + 1}. ${t}`.slice(0, 120)) }),
             nights: shownWeek.slots.map((s) => `${s.day}: ${file ? (mealNamed(file, s.meal)?.name ?? s.meal) : s.meal}${s.helloFresh ? " (HelloFresh)" : ""}`),
@@ -1133,8 +1183,9 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
 
   const view = viewOf(file, at);
   const w = view.week!;
-  // The step to open on: Plan while the week's a draft, Shop once it's finalized.
-  const step: Phase = phase ?? (w.confirmedAt ? "shop" : "plan");
+  // The step to open on (#1055): where the week really is. Plan while it's a draft; once it's finalized, Shop until
+  // the shopping's done (the list's week items ticked or gone, or the cart sent), then Cook. A step tapped stays.
+  const step: Phase = phase ?? openingStep(w, { items, cartSentAt });
   const totals = w.slots.map((s) => dayProtein(view, s).total);
   const avg = Math.round(totals.reduce((a, b) => a + b, 0) / 7);
   const met = totals.filter((t) => t >= view.profile.proteinGoal).length;

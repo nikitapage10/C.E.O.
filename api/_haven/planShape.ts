@@ -25,7 +25,7 @@ export type Spot = (typeof SPOTS)[number];
  */
 export const KINDS = [
   "box", "counter", "upper", "range", "sink", "fridge", "island", "stool", "cabinet", "shelf", "jar",
-  "mat", "rug", "runner", "plant", "purifier", "petbed", "tunnel", "table", "chair", "armchair",
+  "mat", "rug", "lrug", "runner", "plant", "purifier", "petbed", "tunnel", "table", "chair", "armchair",
   "console", "tv", "sofa", "ctable", "lamp", "cattree", "minifridge", "vanity", "wc", "tub", "shower",
   "desk", "monitor", "tower", "speaker", "ochair", "dj", "loveseat", "printer", "bed", "night", "dresser", "rail",
   "rack", "barbell", "bench", "dbrack", "kettle", "treadmill", "bike", "gmat", "mirror",

@@ -252,14 +252,15 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   out.push(item("sofa", inFrom(R, tvWall, t0, sofaLen, sofaDep, sofaOff)));
   const retLen = clampLen(sofaOff * 0.55, 110, 190);
   out.push(item("sofa", inFrom(R, tvWall, retEnd === "lo" ? t0 : t0 + sofaLen - sofaDep, sofaDep, retLen, sofaOff - retLen)));
-  // A square coffee table on a light rug, between the TV and the sofa.
+  // A square coffee table between the TV and the sofa, all of it on one big white and grey rug (#1057, Nikita): from
+  // just in front of the media console to under the sofas' front edge, the whole run of the sectional wide.
   const gapMid = 44 + (sofaOff - 44) / 2;
   // Centred on the sectional's open run, clear of its return.
   const open0 = retEnd === "lo" ? t0 + sofaDep : t0, open1 = retEnd === "lo" ? t0 + sofaLen : t0 + sofaLen - sofaDep;
   const tMid = (open0 + open1) / 2;
-  const rugLen = clampLen(sofaLen * 0.85, 140, 260), rugDep = clampLen(sofaOff - 70, 100, 200);
-  out.push(item("rug", inFrom(R, tvWall, clampLen(tMid - rugLen / 2, 4, L - rugLen - 4), rugLen, rugDep, gapMid - rugDep / 2)));
-  const ct = clampLen(Math.min(open1 - open0 - 30, rugDep * 0.75), 60, 110);
+  const rugLen = Math.min(L - 8, sofaLen + 24), rugOff = 30, rugDep = Math.max(100, Math.min(D - rugOff - 4, sofaOff + sofaDep * 0.55 - rugOff));
+  out.push(item("lrug", inFrom(R, tvWall, clampLen(t0 + sofaLen / 2 - rugLen / 2, 4, L - rugLen - 4), rugLen, rugDep, rugOff)));
+  const ct = clampLen(Math.min(open1 - open0 - 30, (sofaOff - 70) * 0.75), 60, 110);
   out.push(item("ctable", inFrom(R, tvWall, tMid - ct / 2, ct, ct, gapMid - ct / 2)));
   // The drinks fridge beside the sofa at its open end; the arc lamp behind the sofa at its return end, or, with the
   // sofa against the wall, just past the fridge.
@@ -770,7 +771,7 @@ function tunnel(R: Rect, p: HavenPlan, items: PlanItem[]): PlanItem[] {
   if (taken.some((t) => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1])) return [];
   return [item("tunnel", box)];
 }
-const KIND_TALL = (i: PlanItem) => !["rug", "mat", "runner", "gmat"].includes(i.k);
+const KIND_TALL = (i: PlanItem) => !["rug", "lrug", "mat", "runner", "gmat"].includes(i.k);
 
 /** The raised double bowls on their stand, at the end of the feeding station's row. */
 function bowls(p: HavenPlan): PlanItem[] {
@@ -880,7 +881,7 @@ const CLOSET = /\b(closet|wardrobe|walk-?in)\b/i;
  * What never stands in the hall (#1022), and the round strays drawn there as plain cylinders. #1035 (Nikita): nor the
  * cat tunnel's two rings, nor a black cabinet, dresser or box across from the coat rack.
  */
-const HALL_GONE = new Set<Kind>(["rug", "runner", "mat", "petbed", "minifridge", "projector", "tunnel", "box", "cabinet", "dresser", "shelf", "sideboard", "armchair", "tubchair", "purifier"]);
+const HALL_GONE = new Set<Kind>(["rug", "lrug", "runner", "mat", "petbed", "minifridge", "projector", "tunnel", "box", "cabinet", "dresser", "shelf", "sideboard", "armchair", "tubchair", "purifier"]);
 const HALL_STRAYS = new Set<Kind>(["purifier", "jar", "stool", "tubchair", "box", "plant"]);
 
 /** Clothes rails along the closet's north and south walls, clear of a door on either (#1022). */

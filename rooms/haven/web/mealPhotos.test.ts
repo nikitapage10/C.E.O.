@@ -52,7 +52,7 @@ describe("cook mode's step pictures (#1010)", () => {
     expect(shots.map((s) => s.step)).toEqual([0, 1, 4]);
     expect(shots[1]).toEqual({
       step: 1,
-      shot: { meal: "sausage-pasta", name: "sausage pasta", description: "Brown the Italian sausage in a wide pan over medium-high heat, breaking it up, about 6 minutes.", components: ["Italian sausage"], style: "step" },
+      shot: { meal: "sausage-pasta", name: "sausage pasta", description: "Brown the Italian sausage in a wide pan over medium-high heat, breaking it up, until crisp at the edges and no pink remains, 6–8 min.", components: ["Italian sausage"], style: "step" },
     });
   });
 

@@ -993,7 +993,7 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   await drawer.getByRole("button", { name: /^Cook mode/ }).click();
   const cook = page.getByRole("dialog", { name: "Cook mode: sausage pasta" });
   const text = cook.locator(".ck-text");
-  await expect(text).toHaveText("Bring a big pot of well-salted water to a boil.");
+  await expect(text).toHaveText("Bring a big pot of well-salted water to a boil over high heat, about 10 min.");
   await expect(cook.getByText("of 5")).toBeVisible();
   await expect(cook.getByText("Screen stays on")).toBeVisible();
   expect(await wake()).toEqual({ asked: 1, held: 1, refuse: false });
@@ -1006,7 +1006,7 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   await page.keyboard.press("ArrowRight");
   await expect(text).toHaveText(/^Brown the Italian sausage/);
   await cook.getByRole("button", { name: "Next step" }).click();
-  await expect(text).toHaveText("Cook the protein pasta two minutes short of the box, then save a cup of the water.");
+  await expect(text).toHaveText("Cook the protein pasta two minutes short of the box, about 10 min, until just al dente; save a cup of the pasta water, then drain.");
   await expect(text.locator("mark")).toHaveText("protein pasta");
   if (SHOTS) await page.waitForTimeout(500).then(() => page.screenshot({ path: `${SHOTS}/haven-705-cook.png` }));
   await cook.getByRole("button", { name: "Back" }).click();

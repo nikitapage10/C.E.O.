@@ -976,6 +976,8 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   });
   await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => r.fulfill({ status: 404, json: { error: "not-found" } }));
   const wake = () => page.evaluate(() => (window as unknown as { wake: { asked: number; held: number } }).wake);
+  // The fixture's week is Monday 9 November 2026: the page reads the clock as its Tuesday, so Wednesday is Tomorrow.
+  await page.clock.setFixedTime(new Date(2026, 10, 10, 12));
 
   await page.goto(`${BASE}/haven?open=kitchen`);
   const sheet = page.getByRole("dialog", { name: "Kitchen" });
@@ -986,9 +988,11 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
   await custom.getByRole("group", { name: "Carb for Wednesday" }).getByRole("button", { name: /^Protein pasta/ }).click();
   await expect(custom.getByText("Protein pasta for rigatoni")).toBeVisible();
 
-  // Cook (#721): the week's recipes, each with cook mode.
+  // Cook (#721): the week's recipes, each with cook mode, day by day (#1055).
   await steps.getByRole("button", { name: /Cook/ }).click();
-  const drawer = sheet.getByRole("region", { name: "Recipes this week" }).getByRole("listitem").filter({ hasText: "Wednesday · dinner" });
+  const recipes = sheet.getByRole("region", { name: "Recipes this week" });
+  await expect(recipes.getByRole("listitem", { name: "Today, Tuesday, Nov 10" })).toBeVisible();
+  const drawer = recipes.getByRole("listitem", { name: "Tomorrow, Wednesday, Nov 11" }).getByRole("listitem").filter({ hasText: "Dinner ·" });
   await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
   await drawer.getByRole("button", { name: /^Cook mode/ }).click();
   const cook = page.getByRole("dialog", { name: "Cook mode: sausage pasta" });
@@ -1053,6 +1057,46 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${SHOTS}/haven-705-drawer.png` });
   }
+});
+
+test("signed in, the Kitchen opens where the week is: Cook once the shopping's done, today's meals first (#1055)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  // The made-up week, finalized; the clock on its Wednesday.
+  const got = applyEdit(fakeMeals(), { op: "confirm" }, Date.parse("2026-11-08T20:00:00Z"));
+  if (!got.ok) throw new Error(got.error);
+  const file: MealsFile = { ...got.file, week: { ...got.file.week!, sentAt: got.file.week!.confirmedAt } };
+  await page.route(`${BASE}/api/haven-meals`, (r) => r.fulfill({ json: { meals: file, components: allComponents(file) } }));
+  await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => r.fulfill({ status: 404, json: { error: "not-found" } }));
+  let open = false;
+  const item = (id: string, name: string, source: string, done: boolean) => ({ id, name, addedAt: "2026-11-08T20:00:00.000Z", source, done });
+  await page.route(/\/api\/haven\?view=list$/, (r) => r.fulfill({ json: { items: [item("m1", "Lemons", "meals", !open), item("m2", "Rigatoni", "meals", true), item("p1", "Oat milk", "phone", false)] } }));
+  await page.clock.setFixedTime(new Date(2026, 10, 11, 18));
+
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  const steps = sheet.getByRole("list", { name: "Steps" });
+  // The week's items are all ticked off (Oat milk was added by hand): straight to Cook.
+  await expect(steps.getByRole("button", { name: /Cook/ })).toHaveAttribute("aria-current", "step");
+  const recipes = sheet.getByRole("region", { name: "Recipes this week" });
+  const today = recipes.getByRole("listitem", { name: "Today, Wednesday, Nov 11" });
+  await expect(today).toHaveClass(/is-today/);
+  await expect(today.getByRole("heading", { level: 4 })).toContainText("Today");
+  await expect(recipes.getByRole("listitem", { name: "Tomorrow, Thursday, Nov 12" })).toBeVisible();
+  // Monday and Tuesday fold away under Earlier this week, and open on a tap.
+  const earlier = recipes.locator("details.mp-cookPast");
+  await expect(earlier.locator("summary")).toContainText("Monday – Tuesday");
+  await expect(recipes.getByRole("listitem", { name: "Yesterday, Tuesday, Nov 10" })).toBeHidden();
+  await earlier.locator("summary").click();
+  await expect(recipes.getByRole("listitem", { name: "Yesterday, Tuesday, Nov 10" })).toBeVisible();
+  if (SHOTS) await page.waitForTimeout(400).then(() => page.screenshot({ path: `${SHOTS}/haven-1055-cook.png` }));
+  // The steps still switch by hand.
+  await steps.getByRole("button", { name: /Shop/ }).click();
+  await expect(steps.getByRole("button", { name: /Shop/ })).toHaveAttribute("aria-current", "step");
+
+  // With a week item still open, it opens on Shop.
+  open = true;
+  await page.reload();
+  await expect(steps.getByRole("button", { name: /Shop/ })).toHaveAttribute("aria-current", "step");
 });
 
 test("signed in, the Kitchen follows what Skippy changes: a swap said in his chat shows on the week at once (#698)", async ({ page }) => {

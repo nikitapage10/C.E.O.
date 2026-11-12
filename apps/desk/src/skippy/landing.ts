@@ -61,3 +61,14 @@ export function createLanding() {
     },
   };
 }
+
+/**
+ * The call's own seatbelt (#1054): the server keeps a final answer on every passed-on question within 45 s, an honest
+ * "couldn't get it" when nothing came (api/_skippy/calldeliver.ts). Should even that never land (the instance went
+ * away), the call stops waiting after this long and says so plainly, once, instead of filling the line.
+ */
+export const CALL_GIVE_UP_MS = 70_000;
+
+/** What Skippy is told when a question's answer never landed: say it plainly, once, and stop. */
+export const GIVE_UP_NOTE =
+  "The deeper you couldn't get an answer to what Nikita asked you to look into. Tell him plainly, in one short sentence in character, that you couldn't get it this time and he can ask again or type it into the chat. No guess at the answer, no waiting line, and stop talking about it.";

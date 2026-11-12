@@ -397,3 +397,9 @@
   [data-room="boiler"] .bp .bp-rooms { flex-wrap: wrap; height: auto; min-height: 40px; padding-block: 6px; overflow: visible; }
   [data-room="boiler"] .bp .bp-rooms button { height: 32px; }
 }
+
+/* Phone tap targets (#1049): the Map's tabs and room chips at least 44px. */
+@media (max-width: 760px) {
+  [data-room="boiler"] .bp .bp-rooms button { height: 44px; }
+  [data-room="boiler"] .bp .bp-tabs a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding-block: 0; }
+}

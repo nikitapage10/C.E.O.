@@ -1785,3 +1785,9 @@
 }
 .desk .wv-dock-m i.has-pic{width:72px;height:72px;margin:0 -9px;border-width:2px}
 @media (max-width:720px){.desk .wv-dock-m i.has-pic{width:58px;height:58px;margin:0 -7px}}
+
+/* ---------- Phone tap targets (#1049): the shared buttons and sub-menus at least 44px on a phone ---------- */
+@media (max-width: 760px){
+  .desk .wv-btn,.desk .wv-btn.is-sm{height:44px}
+  .desk .wv-subnav button,.desk .wv-subnav a{display:inline-flex;align-items:center;min-height:44px;padding-block:0}
+}

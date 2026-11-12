@@ -65,3 +65,9 @@
 .desk .td-handed{margin:6px 14px 0;font-family:var(--td-sans);font-size:12px;line-height:1.4;color:var(--wv-soft);overflow-wrap:anywhere}
 .desk .td-handed b{font-weight:600;color:var(--wv-hot)}
 .desk .td-handed[data-state="builder"] b{color:var(--wv-ok)}
+/* Phone tap targets (#1049): the capture line 44px tall inside, the mic's hit area 44px round its 30px ring. */
+@media (max-width:760px){
+  .desk .td-cap{height:46px}
+  .desk .td-mic{position:relative}
+  .desk .td-mic::after{content:"";position:absolute;inset:-8px}
+}

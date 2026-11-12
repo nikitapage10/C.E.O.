@@ -194,3 +194,8 @@
   [data-room="workshop"] .ws-hall { height: max(520px, calc(100svh - var(--ph-top) - var(--ph-bot))); }
   [data-room="workshop"] .ws-deck-tabs { flex-wrap: wrap; overflow: visible; }
 }
+
+/* Phone tap targets (#1049). */
+@media (max-width: 760px) {
+  .desk .ws-views button { height: 44px; }
+}

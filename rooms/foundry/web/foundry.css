@@ -569,3 +569,10 @@
 .desk .fo-deck .fo-crew-l>li>*,.desk .fo-deck .fo-crew-l>li::before{grid-column:1}
 .desk .fo-deck .fo-crew-l .fo-dock-m{display:flex;flex-direction:row;gap:6px;align-self:end}
 .desk .fo-deck .fo-crew-l>li{align-content:start}
+
+/* On a phone (#1045): the room's scene fills the one screen between the Desk's bars (@ceo/engine phone.css), so its
+   readings sit above the bottom bar, and a row of tabs wraps instead of scrolling sideways under a finger. */
+@media (max-width: 760px) {
+  [data-room="foundry"] .fo-hall { height: max(540px, calc(100svh - var(--ph-top) - var(--ph-bot))); }
+  [data-room="foundry"] .fo-deck-tabs { flex-wrap: wrap; overflow: visible; }
+}

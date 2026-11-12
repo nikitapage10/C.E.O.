@@ -20,11 +20,11 @@ describe("the phone layout (#1045)", () => {
     screen(1440, 2);
     expect(isPhone()).toBe(false);
   });
-  it("draws a phone's scene at no more than 1.5x, a desktop's at no more than 2x", () => {
+  it("draws a phone's scene at no more than 1.25x, a desktop's at no more than 1.75x", () => {
     screen(393, 3);
-    expect(sceneDpr()).toBe(1.5);
+    expect(sceneDpr()).toBe(1.25);
     screen(1440, 3);
-    expect(sceneDpr()).toBe(2);
+    expect(sceneDpr()).toBe(1.75);
     screen(1440, 1);
     expect(sceneDpr()).toBe(1);
   });

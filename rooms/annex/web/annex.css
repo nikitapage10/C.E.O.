@@ -904,3 +904,9 @@ button.an-tag:focus-visible {
       linear-gradient(180deg, transparent 63px, rgba(227, 194, 122, 0.22) 64px, transparent 65px);
   }
 }
+
+/* On a phone (#1045): the room's scene fills the one screen between the Desk's bars (@ceo/engine phone.css), so its
+   readings sit above the bottom bar, and a row of tabs wraps instead of scrolling sideways under a finger. */
+@media (max-width: 760px) {
+  [data-room="annex"] .an-gh { height: max(520px, calc(100svh - var(--ph-top) - var(--ph-bot))); }
+}

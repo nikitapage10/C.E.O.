@@ -389,3 +389,11 @@
   [data-room="boiler"] .bp .sc-link.is-late .sc-flow { animation-duration: 3.2s; }
 }
 @keyframes sc-flow { to { stroke-dashoffset: -16; } }
+
+/* On a phone (#1045): the room's scene fills the one screen between the Desk's bars (@ceo/engine phone.css), so its
+   readings sit above the bottom bar, and a row of tabs wraps instead of scrolling sideways under a finger. */
+@media (max-width: 760px) {
+  [data-room="boiler"] .bp { grid-template-rows: auto auto max(460px, calc(100svh - 230px)) auto; }
+  [data-room="boiler"] .bp .bp-rooms { flex-wrap: wrap; height: auto; min-height: 40px; padding-block: 6px; overflow: visible; }
+  [data-room="boiler"] .bp .bp-rooms button { height: 32px; }
+}

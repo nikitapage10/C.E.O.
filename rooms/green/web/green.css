@@ -1978,3 +1978,9 @@
   [data-room="green"] .gd-call { gap: 6px; padding: 5px 9px; font-size: 11.5px; }
   [data-room="green"] .gd-call b { font-size: 10px; letter-spacing: 0.14em; }
 }
+
+/* On a phone (#1045): the room's scene fills the one screen between the Desk's bars (@ceo/engine phone.css), so its
+   readings sit above the bottom bar, and a row of tabs wraps instead of scrolling sideways under a finger. */
+@media (max-width: 760px) {
+  [data-room="green"] .gd-bowl { height: max(500px, calc(100svh - var(--ph-top) - var(--ph-bot))); }
+}

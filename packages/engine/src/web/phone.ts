@@ -35,10 +35,11 @@ export function useIsPhone(): boolean {
 }
 
 /**
- * The pixel ratio a room's canvas draws at: on a phone, at most `phone` (1.5 by default: a phone's 3x screen at 3x
- * costs four times the pixels for a scene that sits dimmed behind the controls), elsewhere at most `desktop`.
+ * The pixel ratio a room's canvas draws at: on a phone, at most `phone` (1.25 by default, as the rooms' scenes already
+ * draw there: a phone's 3x screen at 3x costs six times the pixels for a scene behind the controls), elsewhere at most
+ * `desktop` (1.75).
  */
-export function sceneDpr(desktop = 2, phone = 1.5): number {
+export function sceneDpr(desktop = 1.75, phone = 1.25): number {
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   return Math.min(dpr, isPhone() ? phone : desktop);
 }

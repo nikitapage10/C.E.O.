@@ -10,8 +10,10 @@
  *                            (422, kinds only) when it looks private. Kept in the private blob store, never in the
  *                            repo and never on a public path. Only the time is logged, never a word of it.
  *   POST /api/kernel-agent   { id }: runs the responder for one hand-off, in its own invocation. The same write key.
- *                            The listener calls it on the Function App's own address and does not wait for it, so a
- *                            long answer never holds up the chat that handed the question off. 200 { state, usd }.
+ *                            The listener calls it on the site's address (else the Function App's own) and does not
+ *                            wait for it, so a long answer never holds up the chat that handed the question off. A
+ *                            Talk call's ask is not started here: the call's route answers it (calldeliver.ts).
+ *                            200 { state, usd }.
  *
  * Neither route reads or returns the brief, a question or an answer.
  *
@@ -34,7 +36,7 @@ import { contextLines, deskContext } from "./context.js";
 import { BRIEF_MAX_BYTES, BRIEF_PATH, KERNEL_LEDGER_PATH, kernelAgentOn, respond, whyOf, type AgentDeps } from "./kernelagent.js";
 import { leagueText } from "./kernelleague.js";
 import { claudeAgent } from "./kernelrun.js";
-import { BlobRoomLog, isTurnId, onHandoff } from "./log.js";
+import { BlobRoomLog, isCallAsk, isTurnId, onHandoff } from "./log.js";
 import { liveRoomReads } from "./roomReads.js";
 import { roomLines } from "./rooms.js";
 
@@ -174,25 +176,30 @@ export async function runAgent(request: Request, deps: { env: Env; agent: () => 
  */
 export function startFor(id: string, env: Env = process.env, send: typeof fetch = fetch, run: (id: string) => Promise<unknown> = (i) => respond(i, liveAgent(env))): void {
   if (!kernelAgentOn(env) || !claudeKey(env)) return;
-  // The Function App's own address, else the site's (the same functions behind the proxy): never in-process on a plan
-  // that may stop the work once the response is out.
-  const host = env.WEBSITE_HOSTNAME?.trim() || siteHost(env.CEO_SITE_URL);
+  // The site's address (the same functions behind the Static Web App), else the Function App's own: never in-process
+  // on a plan that may stop the work once the response is out. The site first (#1054): the Function App's own address
+  // answers only the Static Web App that links it as its backend, so a self-call there was always refused (401).
+  const host = siteHost(env.CEO_SITE_URL) || env.WEBSITE_HOSTNAME?.trim();
   const token = env.SUBMIND_FEED_TOKEN?.trim();
   if (host && token) {
-    waitUntil(
-      send(`https://${host}${AGENT_ROUTE}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-        signal: AbortSignal.timeout(10 * 60_000),
+    const sent = send(`https://${host}${AGENT_ROUTE}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+      signal: AbortSignal.timeout(10 * 60_000),
+    })
+      .then((res) => {
+        if (!res.ok) console.log(`kernel-agent start refused status=${res.status}`);
       })
-        .then((res) => {
-          if (!res.ok) console.log(`kernel-agent start refused status=${res.status}`);
-        })
-        .catch((e: unknown) => console.log(`kernel-agent start failed why=${whyOf(e)}`)),
-    );
+      .catch((e: unknown) => console.log(`kernel-agent start failed why=${whyOf(e)}`));
+    // The route that handed it off waits only until the request is on its way, not for the answer (which comes back
+    // when the run is done): the request carries on, on this warm instance.
+    waitUntil(Promise.race([sent, new Promise((resolve) => setTimeout(resolve, START_WAIT_MS))]));
   } else waitUntil(run(id).catch(() => undefined));
 }
+
+/** How long a route that handed something off waits for the start request to be on its way. */
+export const START_WAIT_MS = 1_000;
 
 /** The host of the site's address, or "". */
 function siteHost(url: string | undefined): string {
@@ -205,7 +212,10 @@ function siteHost(url: string | undefined): string {
 
 /** Sets the listener: every hand-off to Skippy that is kept starts the responder. Called once at start-up. */
 export function registerKernelAgent(env: Env = process.env): void {
-  onHandoff((turn) => startFor(turn.id, env));
+  // A Talk call's ask is answered by the call's own route as soon as it is filed (#1054, api/_skippy/calldeliver.ts).
+  onHandoff((turn) => {
+    if (!isCallAsk(turn.model)) startFor(turn.id, env);
+  });
 }
 
 /* ── The handlers Azure registers ── */

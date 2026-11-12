@@ -18,9 +18,9 @@ export const WAIT_ROOMS: readonly AskedRoom[] = ["green", "exchange", "boiler", 
 export const WAIT_MAX_MS = 2 * 60 * 60_000;
 
 /** How often it looks while a Talk call is live (#506): an answer reaches the call within a few seconds of landing. */
-export const LIVE_POLL_MS = 3_000;
+export const LIVE_POLL_MS = 2_000;
 
-/** How often it looks: every 15 seconds for the first five minutes, then every 30 (a submind's watcher wakes it in about 30 s); every 3 on a live call. */
+/** How often it looks: every 15 seconds for the first five minutes, then every 30 (a submind's watcher wakes it in about 30 s); every 2 on a live call. */
 export const pollEvery = (waitedMs: number): number => (callIsLive() ? LIVE_POLL_MS : waitedMs < 5 * 60_000 ? 15_000 : 30_000);
 
 /**

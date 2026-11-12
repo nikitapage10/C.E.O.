@@ -140,7 +140,7 @@ export function KitchenTab({ items, onTick, onDrop, onReread }: { items: Kitchen
     <>
       <p className="hv-say">{items === null ? "Reading the Kitchen list…" : open.length ? `${open.length} thing${open.length === 1 ? "" : "s"} on the list.` : "Nothing on the list."}</p>
       {/* The meal planner (#678) with the list and King Soopers as its rail: one page, no second row of tabs. */}
-      <MealPlanner onListChanged={onReread} rail={rail} />
+      <MealPlanner onListChanged={onReread} rail={rail} items={items} />
     </>
   );
 }

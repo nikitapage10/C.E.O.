@@ -358,7 +358,13 @@ steps (#721): **Plan** (the week as a list on the left, each day's dinner and lu
 goal, at least 200 g; nothing open at first, then the meal picked opens on the right with its swaps: backups, Not for
 me, "Try something new?", the night's switches for HelloFresh, for two and in the cart; Finalize the week), **Customize**
 (the picked dinner's parts, portion and spice, and its recipe), **Shop** (the week's shopping, the Kitchen list and
-King Soopers with its product swaps and Send) and **Cook** (the week's recipes, each with cook mode). A week picker
+King Soopers with its product swaps and Send) and **Cook** (the week's recipes, each with cook mode, day by day: a
+header per day with its weekday and date, Today and Tomorrow marked, today's card lit and brought into view, the days
+gone by folded under "Earlier this week", HelloFresh and skipped nights said, #1055). The Kitchen opens on the step the
+week is at (`openingStep` in [`kitchenDay.ts`](../rooms/haven/web/kitchenDay.ts), #1055): Plan while it's a draft;
+finalized, Shop while anything it put on the Kitchen list is still open, else Cook (the list's week items ticked off
+or gone, nothing sent to the list, or the King Soopers cart sent after it was finalized; things added by hand don't
+count). A step tapped stays. A week picker
 above holds this week and up to three planned ahead ("Plan ahead": a month in all). The catalog and taste profile open
 as drawers. Every week plans as cook-yourself; HelloFresh is a switch per night (it counts a fixed protein and buys
 nothing). Server side: [`api/_haven/meals.ts`](../api/_haven/meals.ts); the shapes and every edit, pure and shared by

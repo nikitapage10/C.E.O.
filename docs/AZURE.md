@@ -453,10 +453,13 @@ Talk question no longer waits for a cloud chat to be awake. Nikita approved it w
 Logic in `api/_skippy/kernelagent.ts`, the Claude loop in `kernelrun.ts`, the routes and trigger in `kernelroute.ts`.
 
 - **Trigger.** The hand-off write itself: when `BlobRoomLog.add` keeps a turn with `needs: "skippy"`, it calls the
-  listener `registerKernelAgent` set at start-up (`azure/src/index.ts`). The listener posts to the Function App's own
-  address (`WEBSITE_HOSTNAME`) at `POST /api/kernel-agent` with the write key and does not wait, so the responder runs in
-  an invocation of its own (up to the 10-minute function timeout) and never holds up the chat. The `skippy` and
-  `skippy-tools` routes wait for that request at most 2.5 seconds. No polling, no timer. Without the address (a local
+  listener `registerKernelAgent` set at start-up (`azure/src/index.ts`). The listener posts to the site's address
+  (`CEO_SITE_URL`, else `WEBSITE_HOSTNAME`) at `POST /api/kernel-agent` with the write key and does not wait, so the
+  responder runs in an invocation of its own (up to the 10-minute function timeout) and never holds up the chat. The
+  site comes first (#1054): the Function App's own address answers only the Static Web App that links it as its backend
+  (401 for anyone else, the self-call included). The route that handed it off waits at most one second, for the request
+  to be on its way. A Talk call's ask is not started here: the call's route answers it itself (`api/_skippy/calldeliver.ts`,
+  [SKIPPY.md](SKIPPY.md)). No polling, no timer. Without the address (a local
   run) it runs in-process.
 - **Off switch.** App setting `KERNEL_AGENT_ENABLED` (`true` by default; `false`, `off`, `0` or `no` stops it). It is a
   template parameter (`kernelAgentEnabled` in `infra/main.bicep`, `plainSettings` in `infra/resources.bicep`) and the
@@ -490,7 +493,7 @@ Logic in `api/_skippy/kernelagent.ts`, the Claude loop in `kernelrun.ts`, the ro
   hand-off stays open for the Magnificent). If the model writes its answer without calling `deliver`, the text is used. It
   stays quiet only when off, over its cap, or without a key. Logs carry state, cost and an error class only
   (`kernel-agent answered usd=0.003 `, `kernel-agent failed why=APIError-400`, `kernel-agent start refused status=401`),
-  never a question, an answer or the brief. The self-call goes to `WEBSITE_HOSTNAME`, else the site's `CEO_SITE_URL`.
+  never a question, an answer or the brief. The self-call goes to the site's `CEO_SITE_URL`, else `WEBSITE_HOSTNAME`.
 
 - **What it answers.** Facts and look-ups (scores, injuries, build status, room counts, web facts). Anything that hinges on a
   decision, a plan, a preference or judgment gets an in-character "pondering" line as an interim answer, and the hand-off

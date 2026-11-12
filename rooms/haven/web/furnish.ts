@@ -21,33 +21,36 @@ import { KIND_STYLE } from "./style.ts";
  *                 back to meet it: one straight wall, no corner (#1035, squareOpenRoom).
  *   Living room   the TV on its back wall across from the Gym (else facing the windows), a long low console under it, an L sectional facing
  *                 it, turned to the east and south walls (#935: the return faces the other one when the TV is on one,
- *                 else the L backs onto both), narrow (#1022) so the way to the balcony door stays clear, with a square
+ *                 else the L backs onto both), narrow (#1022); with the balcony door on the wall the return backs
+ *                 onto, the L comes forward so a way's width runs behind it to the door (#1040, WALKWAY). A square
  *                 coffee table on a rug between and two round accent chairs facing it, an arc lamp snug behind the sofa
  *                 (kept in the corner it has always stood in when the openings come from the walls), a drinks fridge
- *                 beside it, and the cat tower flat against the wall by the balcony door, out of the doorway with room
- *                 to walk past: the home's only cat tree.
+ *                 beside it. No cat tree anywhere (#1040: the tall shelf piece was the cup shelves over the coffee maker).
  *   Studio        turned 90° clockwise (2026-11-06, #959): the DJ decks against the east (window) wall by the
  *                 north-east corner, whose very corner is the floor lamp's (#1035, STUDIO_WALLS), the desk further
  *                 along that wall (two monitors, an office chair, speakers either side, a tall shelf at its far end
  *                 when there is room), two low, narrow sofas meeting in an L along the south and west walls, a coffee
- *                 table on a rug in front of them. No printer. Three tall windows across its whole east wall, no
- *                 balcony door there (#1035); its wall by the litter box straight with its door beside the box (#1022).
+ *                 table on a rug in front of them. No printer. Three tall windows across its whole east wall, every
+ *                 part flush with it (#1040, flushWall), no balcony door there (#1035); its wall by the litter box
+ *                 straight with its door beside the box (#1022), its other doorway off that corridor walled up (#1040,
+ *                 oneDoorByLitter).
  *   Kitchen       what the plan has, with the fridge at the left end of the cabinet run (looking at it), the hob
  *                 centre-left on the run, about a third of the way from the fridge's end (#1007), no sideboard or
  *                 cabinet of bottles, and on the wall across from the cabinets five tall black-and-white canvases side
  *                 by side, one picture of trees and mountains. The coffee station (#1022): a black cabinet, the
  *                 espresso machine on its left, three little cup shelves over it, on the dining room's north wall
- *                 behind its table (#1035), else just past the run's right-hand end; the sink at the run's right-hand
- *                 end. A steel bin by the island's east end; only the island's stools.
+ *                 behind its table, where no loose armchair stands (#1035, #1040), else just past the run's right-hand
+ *                 end; the sink at the run's right-hand end. A steel bin by the island's east end; only the island's stools.
  *   Baths         the guest bath a little bigger, the tub on its west wall, the toilet about the middle of its south
  *                 wall with the vanity beside it; the master bath with its shower at the east end of the north wall
- *                 and the vanity on the south, the toilet on its left (#1022, #1035).
- *   Hall          a wide coat and shoe rack on its east wall, no rugs, no cat tunnel, no cabinet or dresser and no
- *                 stray pieces, the docked vacuum on its west wall by the plant cabinet or the hall's light (#1022, #1035).
+ *                 (short of a door on the east wall, #1040) and the vanity on the south, the toilet on its left (#1022,
+ *                 #1035).
+ *   Hall          a wide coat and shoe rack on its east wall, no rugs, no cat tunnel, no cabinet, dresser or purifier
+ *                 and no stray pieces (#1040: nothing across from the rack), the docked vacuum on its west wall by the plant cabinet or the hall's light (#1022, #1035).
  *   Main bedroom  its door at the far end of its wall, the bed moved west of it, three tall windows on its west wall;
  *                 the closet with clothes rails along its north and south walls (#1022).
  *   Balcony nook  beside a balcony door anywhere but the living room, the Studio and the main bedroom: a small lit
- *                 greenhouse in the corner on its solid side and an air purifier under the nearest window.
+ *                 greenhouse in the corner on its solid side and an air purifier under the nearest window (not in a hall).
  *
  * Pure and deterministic, and only the drawing uses it: the stored plan is untouched. Devices stay where they are, but
  * the docked vacuum.
@@ -135,7 +138,6 @@ function windowWall(R: Rect, p: HavenPlan): Side {
 
 /** Pieces that stand on the floor and take it up (not rugs and mats, not what hangs or sits on something else). */
 const solid = (it: PlanItem) => KIND_STYLE[it.k].height > 2 && KIND_STYLE[it.k].lift < 20;
-const grow = (b: Box, m: number): Box => [b[0] - m, b[1] - m, b[2] + m, b[3] + m];
 const overlaps = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 /** Whether a piece would stand in another's footprint (a rug only clashes with another rug). */
 const clash = (list: PlanItem[], it: PlanItem) => list.some((o) => (solid(it) ? solid(o) : o.k === it.k) && overlaps(boxOf(o), boxOf(it)));
@@ -175,6 +177,8 @@ function tvWallOf(R: Rect, p: HavenPlan): Side {
 
 /** How deep the living room's sofas are (#1022, Nikita: narrower, so the way to the balcony door stays clear). */
 const SOFA_DEP = 66;
+/** The way kept clear along a wall to a balcony door (#1040). */
+export const WALKWAY = 76;
 
 /** The walls the living room's sectional turns to when the plan names none (Nikita, 2026-11-06, #935). */
 const SECTIONAL: [Side, Side] = ["e", "s"];
@@ -193,15 +197,8 @@ function sectionalOf(tvWall: Side, faces: [Side, Side]): { backed: boolean; retE
   return { backed, retEnd: endSide(tvWall, "lo") === want ? "lo" : "hi" };
 }
 
-/** Whether a piece stands in front of the doorway [a, b] on wall s (within a door's swing of it). */
-function onDoorway(R: Rect, s: Side, a: number, b: number, it: PlanItem): boolean {
-  const door = against(R, s, a - 10, b - a + 20, 90, 0);
-  return overlaps(boxOf(it), [door[0], door[1], door[0] + door[2], door[1] + door[3]]);
-}
-
 /** `pinLamp`: the openings came from the walls, so the arc lamp keeps the spot it had before they did (#764). */
 function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
-  const win = windowWall(R, p);
   const tvWall = tvWallOf(R, p);
   const L = wallLen(R, tvWall), D = depthTo(R, tvWall);
   const out: PlanItem[] = [];
@@ -209,15 +206,22 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   out.push(item("console", against(R, tvWall, (L - conLen) / 2, conLen, 40)));
   const tvLen = clampLen(L * 0.5, 110, 220);
   out.push(item("tv", against(R, tvWall, (L - tvLen) / 2, tvLen, 6, 0)));
-  // Where the balcony door is on this room, if anywhere: the cat tree's corner.
-  let door: { s: Side; at: number } | null = null;
-  for (const s of SIDES) for (const [a, b] of runs(R, s, p.balconies ?? [])) door ??= { s, at: (a + b) / 2 };
   // The sectional turns to two walls (Nikita, 2026-11-06, #935: the east and the south unless the plan says otherwise).
   // With the TV on one, the long run faces the TV and the return faces the other; else the L backs onto both, in their
   // corner, still facing the TV: against the walls, unless a balcony door is on the one behind it.
   const turn = sectionalOf(tvWall, p.sectional ?? SECTIONAL);
   const retEnd = turn.retEnd, backed = turn.backed && !runs(R, OPP[tvWall], p.balconies ?? []).length;
-  const sofaDep = SOFA_DEP, sofaOff = backed ? D - sofaDep - 6 : clampLen(D * 0.58, 200, D - sofaDep - 30);
+  const sofaDep = SOFA_DEP;
+  let sofaOff = backed ? D - sofaDep - 6 : clampLen(D * 0.58, 200, D - sofaDep - 30);
+  // A balcony door on the side wall the return backs onto keeps its way clear (#1040, Nikita: the path to the balcony):
+  // the sectional comes forward, toward the TV, until its back is a way's width (WALKWAY) short of the door, and the
+  // way runs behind it to the door.
+  const sideWall = endSide(tvWall, retEnd), sideLen = wallLen(R, sideWall);
+  const tvLo = tvWall === "n" || tvWall === "w";
+  for (const [a, b] of runs(R, sideWall, p.balconies ?? [])) {
+    const [near] = tvLo ? [a, b] : [sideLen - b, sideLen - a];
+    if (near < sofaOff + sofaDep + 6) sofaOff = Math.max(150, Math.min(sofaOff, near - sofaDep - 4, D - sofaDep - WALKWAY));
+  }
   const sofaLen = clampLen(L * 0.62, 180, 300);
   const t0 = backed ? (retEnd === "lo" ? 6 : L - sofaLen - 6) : (L - sofaLen) / 2;
   out.push(item("sofa", inFrom(R, tvWall, t0, sofaLen, sofaDep, sofaOff)));
@@ -249,24 +253,6 @@ function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
   }
   if (!backed || (fits(R, lamp) && !clash(out, lamp))) out.push(lamp);
   if (fT > 10 && fT + 46 < L - 10 && !clash(out, fridge)) out.push(fridge);
-  // The tall cat tree in the corner by the balcony door, else the corner of the window wall; another corner when
-  // something already stands there.
-  const ctSide: Side = door ? door.s : win;
-  const ctEnd: "lo" | "hi" = door ? (door.at < wallLen(R, door.s) / 2 ? "lo" : "hi") : "hi";
-  const other = (e: "lo" | "hi"): "lo" | "hi" => (e === "lo" ? "hi" : "lo");
-  // Flat and shallow against the wall (#1022, Nikita: a square block stood in the way to the balcony).
-  // Into the corner by the door, else just beside the door on that wall, else the other corners.
-  const tw = 80, td = 28;
-  const drun = door ? runs(R, door.s, p.balconies ?? [])[0] : undefined;
-  const beside = door && drun ? [drun[0] - 12 - tw, drun[1] + 12].filter((t) => t >= 4 && t + tw <= wallLen(R, door.s) - 4).map((t) => item("cattree", against(R, door.s, t, tw, td, 0))) : [];
-  const corners = ([[ctSide, ctEnd], [ctSide, other(ctEnd)], [OPP[ctSide], ctEnd], [OPP[ctSide], other(ctEnd)]] as [Side, "lo" | "hi"][]).map(([s, e]) =>
-    item("cattree", against(R, s, e === "lo" ? 4 : wallLen(R, s) - 4 - tw, tw, td, 0)),
-  );
-  const trees = [corners[0]!, ...beside, ...corners.slice(1)];
-  const inDoorway = (it: PlanItem) => !!door && runs(R, door.s, p.balconies ?? []).some(([a, b]) => onDoorway(R, door.s, a, b, it));
-  // Room to walk past it: nothing else standing within a way's width (45) of it.
-  const roomy = (it: PlanItem) => !out.some((o) => solid(o) && overlaps(boxOf(o), grow(boxOf(it), 45)));
-  out.push(trees.find((it) => !clash(out, it) && !inDoorway(it) && roomy(it)) ?? trees.find((it) => !clash(out, it) && !inDoorway(it)) ?? trees[0]!);
   // Two round accent chairs on the coffee table's open side, facing it (#1022): the first side, not the TV's, where
   // both stand clear of the sofas and the walls.
   const table = out.find((it) => it.k === "ctable")!;
@@ -653,8 +639,11 @@ function bath(R: Rect, doors: Seg[], master: boolean): PlanItem[] {
   if (master) {
     // The glass shower on the north wall at its east end, by the closet (#1035, Nikita: the east side, not the west),
     // the long vanity on the south wall with the toilet to its left (looking at it, its east side).
-    const from: Side = door === "e" ? "w" : "e";
-    const shLen = clampLen(W * 0.5, 90, 150), shDep = clampLen(Hh * 0.35, 80, 110);
+    // Always the east end (#1040: on the real layout the door was on the east wall and the shower went west); with a
+    // door on that wall the shower stops short of it.
+    const from: Side = "e";
+    const eastDoor = runs(R, "e", doors).map(([a]) => a);
+    const shLen = clampLen(W * 0.5, 90, 150), shDep = clampLen(Math.min(Hh * 0.35, ...eastDoor.map((a) => a - 8)), 70, 110);
     out.push(item("shower", along("n", from, 2, shLen, shDep, 2)));
     out.push(item("mat", inFrom(R, "n", tFrom(R, "n", from, shLen * 0.2, 60), 60, 44, shDep + 6)));
     // Facing the vanity (south), the left hand is east: the toilet on that side of it.
@@ -744,7 +733,7 @@ function bowls(p: HavenPlan): PlanItem[] {
 
 /** The plan as drawn: its openings as the walls give them, these rooms dressed by the rules above, the rest as stored. */
 export function furnish(stored: HavenPlan): HavenPlan {
-  const opened = withOpenings(masterDoor(straightenStudio(biggerGuestBath(squareOpenRoom(stored)))));
+  const opened = withOpenings(oneDoorByLitter(masterDoor(straightenStudio(biggerGuestBath(squareOpenRoom(stored))))));
   const derivedLiving = opened.derivedLiving;
   const plan = tallWindows(opened.plan);
   let items = [...plan.items];
@@ -762,9 +751,10 @@ export function furnish(stored: HavenPlan): HavenPlan {
     if (LIVING.test(r.name)) relay(r, (R) => living(R, plan, derivedLiving));
     else if (STUDIO.test(r.name)) relay(r, (R) => studio(R, plan, plan.doors));
   }
-  // The cat tree stands in the living room only.
-  const lounge = home.find((r) => LIVING.test(r.name));
-  if (lounge) items = items.filter((it) => it.k !== "cattree" || within(lounge, it));
+  // No cat tree (#1040, Nikita: the tall shelf piece by the dining room is only three wall shelves, the cup shelves
+  // over the coffee maker). The open room keeps no tub chair or loose armchair either (#1022): the coffee station
+  // stands where one was.
+  items = items.filter((it) => it.k !== "cattree" && !((it.k === "tubchair" || it.k === "armchair") && home.some((r) => OPEN_ROOM.test(r.name) && !LIVING.test(r.name) && within(r, it))));
   items = [...items, ...bowls(plan)];
   for (const r of home) if (KITCHEN.test(r.name)) items = kitchen(r, mainRect(r), items, plan);
   // The coffee station is by the counter now (#1022), and no tub chair: Nikita has neither in the dining area.
@@ -836,7 +826,7 @@ const CLOSET = /\b(closet|wardrobe|walk-?in)\b/i;
  * What never stands in the hall (#1022), and the round strays drawn there as plain cylinders. #1035 (Nikita): nor the
  * cat tunnel's two rings, nor a black cabinet, dresser or box across from the coat rack.
  */
-const HALL_GONE = new Set<Kind>(["rug", "runner", "mat", "petbed", "minifridge", "projector", "tunnel", "box", "cabinet", "dresser", "shelf", "sideboard", "armchair", "tubchair"]);
+const HALL_GONE = new Set<Kind>(["rug", "runner", "mat", "petbed", "minifridge", "projector", "tunnel", "box", "cabinet", "dresser", "shelf", "sideboard", "armchair", "tubchair", "purifier"]);
 const HALL_STRAYS = new Set<Kind>(["purifier", "jar", "stool", "tubchair", "box", "plant"]);
 
 /** Clothes rails along the closet's north and south walls, clear of a door on either (#1022). */
@@ -939,6 +929,25 @@ function masterDoor(plan: HavenPlan): HavenPlan {
  * Three tall windows on the main bedroom's west wall and the Studio's east wall (#1022), clear of doors and balcony
  * doors. The Studio's span that whole wall (#1035, Nikita: three windows across it, no balcony door there).
  */
+/** The room's main part grown along wall `s` over the parts flush with that wall line and touching it, end to end. */
+export function flushWall(room: PlanRoom, s: Side): Rect {
+  const R = mainRect(room);
+  const hz = s === "n" || s === "s";
+  const line = (p: Rect) => (s === "n" ? p[1] : s === "s" ? p[1] + p[3] : s === "w" ? p[0] : p[0] + p[2]);
+  let [lo, hi] = hz ? [R[0], R[0] + R[2]] : [R[1], R[1] + R[3]];
+  for (let grown = true; grown; ) {
+    grown = false;
+    for (const p of room.parts) {
+      if (Math.abs(line(p) - line(R)) > 2) continue;
+      const [a, b] = hz ? [p[0], p[0] + p[2]] : [p[1], p[1] + p[3]];
+      if (a <= hi + 2 && b >= lo - 2 && (a < lo || b > hi)) {
+        [lo, hi, grown] = [Math.min(lo, a), Math.max(hi, b), true];
+      }
+    }
+  }
+  return hz ? [lo, R[1], hi - lo, R[3]] : [R[0], lo, R[2], hi - lo];
+}
+
 function tallWindows(plan: HavenPlan): HavenPlan {
   const home = plan.rooms.filter((r) => !r.detached);
   const studio = home.find((r) => STUDIO.test(r.name));
@@ -949,7 +958,9 @@ function tallWindows(plan: HavenPlan): HavenPlan {
   const tall: Seg[] = [];
   for (const [room, s] of want) {
     if (!room) continue;
-    const R = mainRect(room), L = wallLen(R, s);
+    // The Studio's whole east wall (#1040): every part of it standing flush on that wall line and joined to the main
+    // part, so the three windows span it end to end.
+    const R = room === studio ? flushWall(room, s) : mainRect(room), L = wallLen(R, s);
     if (room === studio) {
       balconies = balconies.filter((b) => !onWall(R, s, b));
       decks = decks?.filter((b) => !onWall(R, s, b));
@@ -1454,6 +1465,36 @@ export function withOpenings(plan: HavenPlan): { plan: HavenPlan; derivedLiving:
     derivedLiving,
     walled: balconies.filter((b) => !solid.keep(b)),
   };
+}
+
+/**
+ * One doorway by the litter box (#1040, Nikita: the corridor still had an open wall next to the litter box): when the
+ * hall, landing or corridor with the Litter-Robot has two or more doorways into the same room, the one nearest the box
+ * stays and the others within LITTER_WALL of it become plain wall.
+ */
+export function oneDoorByLitter(plan: HavenPlan): HavenPlan {
+  const box = plan.devices.find((d) => d.kind === "litter");
+  const home = plan.rooms.filter((r) => !r.detached);
+  const room = box && home.find((r) => r.parts.some((pt) => inRect(box.x, box.y, pt)));
+  if (!box || !room || !LANDING.test(room.name) || OPEN_ROOM.test(room.name)) return plan;
+  const dist = (g: Seg) => Math.hypot(box.x - Math.max(Math.min(g[0], g[2]), Math.min(box.x, Math.max(g[0], g[2]))), box.y - Math.max(Math.min(g[1], g[3]), Math.min(box.y, Math.max(g[1], g[3]))));
+  // Each doorway on the room's own walls, with the room across it (a step out from its middle).
+  const across = new Map<Seg, PlanRoom>();
+  for (const g of plan.doors) {
+    const pt = room.parts.find((q) => SIDES.some((s) => onWall(q, s, g)));
+    if (!pt) continue;
+    const s = SIDES.find((x) => onWall(pt, x, g))!;
+    const [mx, my] = [(g[0] + g[2]) / 2, (g[1] + g[3]) / 2];
+    const [ox, oy] = s === "n" ? [0, -10] : s === "s" ? [0, 10] : s === "w" ? [-10, 0] : [10, 0];
+    const other = home.find((r) => r !== room && r.parts.some((q) => inRect(mx + ox, my + oy, q)));
+    if (other) across.set(g, other);
+  }
+  const drop = new Set<Seg>();
+  for (const other of new Set(across.values())) {
+    const ds = [...across].filter(([, r]) => r === other).map(([g]) => g).sort((a, b) => dist(a) - dist(b));
+    for (const g of ds.slice(1)) if (dist(g) < LITTER_WALL) drop.add(g);
+  }
+  return drop.size ? { ...plan, doors: plan.doors.filter((g) => !drop.has(g)) } : plan;
 }
 
 /** How near the litter box the corridor it stands in keeps a solid wall (#1035). */

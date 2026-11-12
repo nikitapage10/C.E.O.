@@ -56,7 +56,7 @@ describe("Myshka and the furniture (#747)", () => {
 
   it("counts every piece standing on the floor and the pets' devices, not rugs, mats or what hangs on the wall", () => {
     const kinds = new Set(plan.items.filter((i) => boxes.some((b) => b[0] === (i.round ? i.x - i.w / 2 : i.x) && b[1] === (i.round ? i.y - i.w / 2 : i.y))).map((i) => i.k));
-    for (const k of ["sofa", "cattree", "island", "counter", "table", "desk"] as const) expect(kinds.has(k)).toBe(true);
+    for (const k of ["sofa", "island", "counter", "table", "desk"] as const) expect(kinds.has(k)).toBe(true);
     for (const k of ["rug", "mat", "tv", "upper", "petbed"] as const) expect(kinds.has(k)).toBe(false);
     expect(boxes.length).toBeGreaterThan(plan.items.filter((i) => i.k === "sofa").length + 4);
   });

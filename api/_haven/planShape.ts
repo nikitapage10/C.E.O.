@@ -133,7 +133,16 @@ export interface HavenPlan {
   lights?: PlanLight[];
   /** The walk from the front door to a detached block, as points. */
   path: [number, number][];
+  /**
+   * What stands round the home, private like the rest of the plan (#1040): the names drawn on the long street, the
+   * cross street, the boulevard and the river. Optional; the build itself carries no names.
+   */
+  surroundings?: { labels: Partial<Record<SurroundLabel, string>> };
 }
+
+/** The places round the block a name can sit on (#1040). */
+export const SURROUND_LABELS = ["street", "cross", "boulevard", "river"] as const;
+export type SurroundLabel = (typeof SURROUND_LABELS)[number];
 
 const LIMITS = { rooms: 24, parts: 6, doors: 80, windows: 80, balconies: 12, tv: 4, items: 400, devices: 16, path: 24, lights: 32 } as const;
 
@@ -209,6 +218,8 @@ export function readPlan(v: unknown): HavenPlan | null {
     const x2 = n(l.x2), y2 = n(l.y2);
     lights.push({ name: nm, x, y, ...(x2 !== null && y2 !== null ? { x2, y2 } : {}), ...(LIGHT_KINDS.includes(l.kind as LightKind) ? { kind: l.kind as LightKind } : {}) });
   }
+  const named = SURROUND_LABELS.map((k) => [k, name(o(o(b.surroundings).labels)[k])] as const).filter(([, v]) => v);
+  const labels = named.length ? (Object.fromEntries(named) as Partial<Record<SurroundLabel, string>>) : null;
   const path: [number, number][] = [];
   for (const p of arr(b.path, LIMITS.path)) {
     if (!Array.isArray(p) || p.length !== 2) continue;
@@ -230,6 +241,7 @@ export function readPlan(v: unknown): HavenPlan | null {
     devices,
     ...(lights.length ? { lights } : {}),
     path,
+    ...(labels ? { surroundings: { labels } } : {}),
   };
 }
 

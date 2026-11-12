@@ -176,6 +176,16 @@
 [data-room="haven"] .hv-lab.is-needs em {
   color: var(--hv-warn);
 }
+/* The streets' and the river's names round the block (#1040), only when the private plan carries them. */
+[data-room="haven"] .hv-lab.hv-street {
+  pointer-events: none;
+}
+[data-room="haven"] .hv-lab.hv-street b {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(236, 223, 203, 0.4);
+}
 [data-room="haven"] .hv-lab.is-hover b {
   color: var(--hv-ink);
 }

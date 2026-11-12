@@ -3,7 +3,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
-import { makeSurroundings, nearFor, STOREY, type Box2, type Surroundings } from "./surroundings.ts";
+import { makeSurroundings, nearFor, STOREY, type Box2 } from "./surroundings.ts";
 import { introDue, introStarted } from "./intro.ts";
 import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
@@ -15,7 +15,7 @@ import { BALCONY_DOOR, furnish } from "./furnish.ts";
 import type { Light } from "./lights.ts";
 import { drawList, RealLights } from "./realLights.ts";
 import { dayLevel, sunAt } from "./daylight.ts";
-import type { PlanLight } from "../../../api/_haven/planShape.ts";
+import { SURROUND_LABELS, type PlanLight } from "../../../api/_haven/planShape.ts";
 import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
 import { registerShotRender } from "@ceo/engine/web/screenshot.ts";
@@ -151,6 +151,20 @@ export const STOREYS_BELOW = 5;
  * The front door (#1035): a door with a room of the home on one side and nothing of the home on the other, a hall's
  * first; with the way out from it, a unit step in plan (and world) axes. Null when the plan has none.
  */
+/**
+ * Which side the courtyard is on (#1040): across the home from the long street, which runs along the side its living
+ * room's balcony door faces (Nikita: his balcony is on the street). East when there is no balcony to go by.
+ */
+export function courtyardEast(plan: HavenPlan, x0: number, x1: number): boolean {
+  const living = plan.rooms.find((r) => !r.detached && /\bliving\b/i.test(r.name));
+  const own = (s: Seg) => !living || living.parts.some(([px, py, w, h]) => s[0] >= px - 6 && s[0] <= px + w + 6 && s[1] >= py - 6 && s[1] <= py + h + 6);
+  const xs = plan.balconies.filter((s) => s[0] === s[2] && own(s)).map((s) => s[0]);
+  if (!xs.length) return true;
+  const mid = (x0 + x1) / 2;
+  // A balcony on the east half puts the street east, the courtyard west.
+  return !(xs.reduce((a, b) => a + b, 0) / xs.length > mid);
+}
+
 export function frontDoor(plan: HavenPlan): { seg: Seg; out: [number, number] } | null {
   const home = plan.rooms.filter((r) => !r.detached);
   const roomAt = (x: number, y: number) => home.find((r) => r.parts.some(([px, py, w, h]) => x > px && x < px + w && y > py && y < py + h));
@@ -281,7 +295,7 @@ export class House {
   private away = false;
   private night: Night | null = null;
   /** The courtyard block, the street and the rest round the home (#1007, surroundings.ts). */
-  private around: (Surroundings & { bounds: Box2 }) | null = null;
+  private around: ReturnType<typeof makeSurroundings> | null = null;
   private tween: { from: Cam; to: Cam; t0: number; ms: number; sweep?: boolean } | null = null;
   private W = 1;
   private H = 1;
@@ -502,8 +516,9 @@ export class House {
     if (!home.length) return null;
     const hx0 = Math.min(...home.map((p) => p[0])), hx1 = Math.max(...home.map((p) => p[0] + p[2]));
     const hy0 = Math.min(...home.map((p) => p[1])), hy1 = Math.max(...home.map((p) => p[1] + p[3]));
-    // The home as it sits in its building (#1035): the courtyard on its east, the street on its west, up on an upper
-    // floor; its front door off a small entrance alcove.
+    // The home as it sits in its building (#1035, #1040): the long street on the side its living room's balcony faces
+    // (Nikita: his balcony is on the street), the courtyard on the other, up on an upper floor; its front door off a
+    // small entrance alcove.
     const door = frontDoor(P);
     let alcove: { x: number; z: number; out: [number, number]; w: number } | undefined;
     if (door) {
@@ -512,7 +527,7 @@ export class House {
       const pts = [-1, 1].flatMap((k) => [0, 1.1].map((v) => [alcove!.x - door.out[1] * k * (alcove!.w / 2 + 0.35) + door.out[0] * v, alcove!.z + door.out[0] * k * (alcove!.w / 2 + 0.35) + door.out[1] * v]));
       keep.push({ x0: Math.min(...pts.map((p) => p[0]!)), z0: Math.min(...pts.map((p) => p[1]!)), x1: Math.max(...pts.map((p) => p[0]!)), z1: Math.max(...pts.map((p) => p[1]!)) });
     }
-    this.around = makeSurroundings({ home: W(hx0, hy0, hx1, hy1), keep, east: true, phone: Math.min(window.innerWidth, window.innerHeight) < 600, wallH: WH, below: STOREYS_BELOW, door: alcove });
+    this.around = makeSurroundings({ home: W(hx0, hy0, hx1, hy1), keep, east: courtyardEast(P, hx0, hx1), phone: Math.min(window.innerWidth, window.innerHeight) < 600, wallH: WH, below: STOREYS_BELOW, door: alcove });
     this.world.add(this.around.group);
     return this.around.bounds;
   }
@@ -1173,6 +1188,25 @@ export class House {
       }
       this.labelHost.appendChild(el);
       this.labels.push({ el, p: new THREE.Vector3(this.wx(d.x), d.lift / U + 0.42, this.wz(d.y)), spot: d.kind });
+    }
+    this.aroundLabels();
+  }
+
+  /** The streets' and the river's names round the block (#1040), only when the plan carries them (private, never built in). */
+  private aroundLabels() {
+    const names = this.plan.surroundings?.labels;
+    if (!names || !this.around) return;
+    for (const k of SURROUND_LABELS) {
+      const text = names[k];
+      if (!text) continue;
+      const el = document.createElement("div");
+      el.className = "hv-lab hv-street";
+      const b = document.createElement("b");
+      b.textContent = text;
+      el.append(b);
+      this.labelHost.appendChild(el);
+      const a = this.around.anchors[k];
+      this.labels.push({ el, p: new THREE.Vector3(a.x, a.y, a.z) });
     }
   }
 

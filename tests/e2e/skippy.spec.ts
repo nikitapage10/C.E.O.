@@ -341,6 +341,57 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   expect(errors).toEqual([]);
 });
 
+test("until the call connects he comes through garbled, clears once it is live, and glitches out when it drops (#1053)", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await startCall(page);
+  // The start answer is held back until the test lets it through, so the call sits connecting.
+  let connect = () => {};
+  const held = new Promise<void>((done) => (connect = done));
+  await page.route(`${BASE}/api/skippy-voice`, async (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: { ready: true } });
+    await held;
+    return r.fulfill({ json: { ok: true, token: "t", conversation: "", desk: "" } });
+  });
+  // A flat room, as in the call test above (#990).
+  await page.goto(BASE + "/boiler/controls");
+  await page.locator(".desk__skippy").click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await chat.getByRole("button", { name: /live voice call/ }).click();
+  const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
+  await expect(call).toHaveClass(/holo--connecting/);
+  await expect(call).toHaveAttribute("data-link", "connecting");
+  await expect(call.getByText("Calling", { exact: true })).toBeVisible();
+  // His model comes up while it connects, garbled; on a software renderer the 3D boot can take a while (#798).
+  await expect(page.locator(".holo--ready")).toBeVisible({ timeout: 90_000 });
+  await page.waitForTimeout(900);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/1053-connecting.png` });
+
+  connect();
+  await expect(call).toHaveAttribute("data-link", "live");
+  await expect(call).not.toHaveClass(/holo--connecting/);
+  await expect(call.getByText("Live", { exact: true })).toBeVisible();
+  await expect(call).not.toHaveClass(/holo--clear/, { timeout: 15_000 });
+  await mainThreadFree(page);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/1053-connected.png` });
+
+  // The line drops: he glitches out instead of sinking, and then the chat is back.
+  const sawLost = page.evaluate(
+    () =>
+      new Promise<boolean>((done) => {
+        const seen = () => Boolean(document.querySelector(".holo.holo--lost"));
+        const watch = new MutationObserver(() => seen() && (watch.disconnect(), done(true)));
+        watch.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+        setTimeout(() => (watch.disconnect(), done(seen())), 15_000);
+      }),
+  );
+  await page.waitForFunction(() => Boolean((window as { __holoCall?: unknown }).__holoCall));
+  await page.evaluate(() => (window as unknown as { __holoCall: { onError: () => void } }).__holoCall.onError());
+  expect(await sawLost).toBe(true);
+  await expect(call).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("Talk plays hold music on a long wait, ducks it the moment anyone speaks, and mutes from the pill (#546)", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));

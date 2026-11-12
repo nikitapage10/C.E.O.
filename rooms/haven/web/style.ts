@@ -34,6 +34,8 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
   jar: S(60, 16, 0xd9c79a, 0.4),
   mat: S(0, 1, 0x202024, 1),
   rug: S(0, 1, 0x5b4d48, 1),
+  // The living room's big white and grey rug (#1057).
+  lrug: S(0, 1, 0xe6e5e1, 1),
   runner: S(0, 1, 0x4c4a48, 1),
   plant: S(0, 74, 0xcfe9d0, 0.2, 0, [0x6fdc88, 0.55]),
   purifier: S(0, 30, 0xf2f2f0, 0.5),

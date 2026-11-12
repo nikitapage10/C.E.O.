@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · C.E.O.</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #04060b; color: #e8f1ff; font: 16px/1.6 Georgia, "Times New Roman", serif; }
+  main { max-width: 42rem; margin: 0 auto; padding: 48px max(20px, env(safe-area-inset-left, 0px)) 64px; }
+  h1 { font-weight: 400; letter-spacing: .04em; margin: 0 0 4px; }
+  h2 { font-weight: 400; color: #d8b45a; margin: 32px 0 8px; font-size: 1.15rem; }
+  p, li { color: #c9d3e4; }
+  .muted { color: #8a93a6; font-size: .9rem; }
+  a { color: #d8b45a; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy</h1>
+  <p class="muted">C.E.O. (Command Everything, Obviously) · last updated 12 November 2026</p>
+
+  <p>C.E.O. is a personal app built and used by one person, its owner. It isn't offered to the public, and nobody else can sign in to its private parts, which need the owner's passkey.</p>
+
+  <h2>Google data it uses</h2>
+  <ul>
+    <li><b>Google Nest (Smart Device Management):</b> reads the owner's thermostat (temperature, mode, setpoints) and changes it only when the owner asks.</li>
+    <li><b>Google Tasks:</b> reads one task list the owner chooses, so quick-adds land on the kitchen list.</li>
+    <li><b>Gmail</b> (when connected): reads the inbox read-only, so the owner can see who is waiting on a reply.</li>
+  </ul>
+
+  <h2>How it is kept</h2>
+  <p>Google's sign-in tokens are sealed (encrypted) and stored in the owner's private Azure storage. The app's keys live in Azure Key Vault. Nothing from Google is put on the public pages, in logs, or in the code repository; the public pages show counts and states at most.</p>
+
+  <h2>Sharing</h2>
+  <p>Google data is never sold, shared with anyone, or used for advertising. It is used only to show the owner their own home and lists. Its use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+  <h2>Removing access</h2>
+  <p>The owner can disconnect Nest, Tasks or Gmail from the app's settings at any time, which deletes the stored token, or remove the app's access from their Google Account's security settings.</p>
+</main>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { backlightRun, kindOf, kitchenRun, laundrySpot, overheadZones, placeFixt
 import { drawList, spillOf } from "./realLights.ts";
 import type { Light } from "./lights.ts";
 import { cut, cutAll, layout, LV, nearFor } from "./surroundings.ts";
+import { courtyardEast } from "./house.ts";
 
 /** The home's own fixtures, the hob's place and the block round the home (#1007), on the made-up plan only. */
 
@@ -174,7 +175,7 @@ describe("the block round the home (#1007)", () => {
     expect(W.street.a).toBeGreaterThan(home.x1);
   });
 
-  it("puts the home mid-way along the block's street wing, its courtyard right off it about twice its size, a larger one beyond (#1020, #1035)", () => {
+  it("puts the home in the block's street wing beside a same-sized neighbour, the two the courtyard's length, the cross street and river past the block's end (#1020, #1035, #1040)", () => {
     const home = { x0: 0, z0: 0, x1: 9, z1: 8 };
     const L = layout(home, [home], true);
     const area = (b: { x0: number; z0: number; x1: number; z1: number }) => (b.x1 - b.x0) * (b.z1 - b.z0);
@@ -183,26 +184,35 @@ describe("the block round the home (#1007)", () => {
     expect(L.outer.z1).toBeGreaterThan(home.z1 + 6);
     expect(L.outer.z0).toBeLessThan(home.z0 - 6);
     expect(L.blvd.z0).toBeGreaterThan(L.outer.z1);
-    // The courtyard right off the home's courtyard side, along its whole depth, about twice its size.
-    const ratio = area(L.yard1) / area(home);
-    expect(ratio).toBeGreaterThan(1.7);
-    expect(ratio).toBeLessThan(2.3);
+    // The courtyard right off the home's courtyard side, from its near end, two units long: the home's and the
+    // neighbour's, the same size beside it along the wing.
     expect(L.yard1.x0 - home.x1).toBeLessThan(1);
-    expect(L.yard1.z0).toBeLessThanOrEqual(home.z0);
-    expect(L.yard1.z1).toBeGreaterThanOrEqual(home.z1);
-    // The block wraps it; the second courtyard larger, further along and further back, its pool at the far end.
+    expect(L.yard1.z0).toBeCloseTo(home.z0);
+    expect(L.yard1.z1 - L.yard1.z0).toBeCloseTo(2 * (home.z1 - home.z0));
+    expect(L.neighbour).toEqual({ x0: home.x0, z0: home.z1, x1: home.x1, z1: home.z1 + (home.z1 - home.z0) });
+    const inNext = (r: { x0: number; z0: number; x1: number; z1: number }) => r.x0 >= L.neighbour.x0 - 0.01 && r.x1 <= L.neighbour.x1 + 0.01 && r.z0 >= L.neighbour.z0 - 0.01 && r.z1 <= L.neighbour.z1 + 0.01;
+    expect(L.roofs.filter(inNext).length).toBeGreaterThan(0);
+    // The block wraps it; the second courtyard about as large, further back, its pool at its near end.
     expect(L.yard1.z1).toBeLessThan(L.outer.z1 - 3);
     expect(L.yard1.z0).toBeGreaterThan(L.outer.z0 + 3);
-    expect(area(L.yard2)).toBeGreaterThan(area(L.yard1));
+    expect(area(L.yard2)).toBeGreaterThan(area(L.yard1) * 0.9);
     expect(L.yard2.x0).toBeGreaterThan(L.yard1.x1);
-    expect(L.yard2.z0).toBeLessThan(L.yard1.z0);
     expect(L.pool.z0).toBeLessThan((L.yard2.z0 + L.yard2.z1) / 2);
     expect(L.pool.x0).toBeGreaterThan(L.yard2.x0);
-    // Across the street: the decks toward the boulevard, the trail and river beyond.
+    // Across the long street: the decks, before the boulevard.
     for (const d of L.decks) expect(d.x1).toBeLessThan(L.across);
     expect(Math.max(...L.decks.map((d) => d.z1))).toBeLessThan(L.blvd.z0);
-    expect(L.trail.x1).toBeLessThan(L.decks[0]!.x0);
-    expect(L.river.x1).toBeLessThan(L.trail.x0);
+    // The cross street along the block's near end, square to the long street; the trail and the river past it.
+    expect(L.cross.z1).toBeLessThan(L.outer.z0);
+    expect(L.cross.x0).toBeLessThan(L.street.b);
+    expect(L.cross.x1).toBeGreaterThan(L.outer.x1);
+    expect(L.trail.z1).toBeLessThanOrEqual(L.cross.z0);
+    expect(L.river.z1).toBeLessThanOrEqual(L.trail.z0);
+    expect(L.river.x1 - L.river.x0).toBeGreaterThan(L.outer.x1 - L.outer.x0);
+    // A place for each name, on its street or the river.
+    expect(L.anchors.street.x).toBeCloseTo((L.street.a + L.street.b) / 2);
+    expect(L.anchors.cross.z).toBeCloseTo((L.cross.z0 + L.cross.z1) / 2);
+    expect(L.anchors.river.z).toBeCloseTo((L.river.z0 + L.river.z1) / 2);
     // Roofs of every kind, one pool among them, in a few tones and heights.
     const uses = new Set(L.roofs.map((r) => r.use));
     expect(L.roofs.filter((r) => r.use === "pool")).toHaveLength(1);
@@ -216,6 +226,20 @@ describe("the block round the home (#1007)", () => {
       expect(b.z0).toBeGreaterThanOrEqual(L.bounds.z0);
       expect(b.z1).toBeLessThanOrEqual(L.bounds.z1);
     }
+  });
+
+  it("puts the long street on the living room's balcony side, the courtyard across the home from it (#1040)", () => {
+    const plan = readPlan(FAKE_PLAN)!;
+    // The made-up living room's balcony door is on its east wall (x 960).
+    expect(courtyardEast(plan, 40, 960)).toBe(false);
+    expect(courtyardEast({ ...plan, balconies: [[40, 200, 40, 280]] }, 40, 960)).toBe(true);
+    expect(courtyardEast({ ...plan, balconies: [] }, 40, 960)).toBe(true);
+  });
+
+  it("reads the names round the block only from the plan, cleaned, and drops anything else (#1040)", () => {
+    const got = readPlan({ ...FAKE_PLAN, surroundings: { labels: { street: "  Long  St <b>", river: "", other: "x", cross: 7 } } })!;
+    expect(got.surroundings).toEqual({ labels: { street: "Long St b" } });
+    expect(readPlan(FAKE_PLAN)!.surroundings).toBeUndefined();
   });
 
   it("keeps the ground's layers far enough apart for the depth buffer when the view is out wide (#1020, the strobe)", () => {

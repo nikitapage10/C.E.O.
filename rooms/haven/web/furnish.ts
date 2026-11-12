@@ -21,33 +21,36 @@ import { KIND_STYLE } from "./style.ts";
  *                 back to meet it: one straight wall, no corner (#1035, squareOpenRoom).
  *   Living room   the TV on its back wall across from the Gym (else facing the windows), a long low console under it, an L sectional facing
  *                 it, turned to the east and south walls (#935: the return faces the other one when the TV is on one,
- *                 else the L backs onto both), narrow (#1022) so the way to the balcony door stays clear, with a square
+ *                 else the L backs onto both), narrow (#1022); with the balcony door on the wall the return backs
+ *                 onto, the L comes forward so a way's width runs behind it to the door (#1040, WALKWAY). A square
  *                 coffee table on a rug between and two round accent chairs facing it, an arc lamp snug behind the sofa
  *                 (kept in the corner it has always stood in when the openings come from the walls), a drinks fridge
- *                 beside it, and the cat tower flat against the wall by the balcony door, out of the doorway with room
- *                 to walk past: the home's only cat tree.
+ *                 beside it. No cat tree anywhere (#1040: the tall shelf piece was the cup shelves over the coffee maker).
  *   Studio        turned 90° clockwise (2026-11-06, #959): the DJ decks against the east (window) wall by the
  *                 north-east corner, whose very corner is the floor lamp's (#1035, STUDIO_WALLS), the desk further
  *                 along that wall (two monitors, an office chair, speakers either side, a tall shelf at its far end
  *                 when there is room), two low, narrow sofas meeting in an L along the south and west walls, a coffee
- *                 table on a rug in front of them. No printer. Three tall windows across its whole east wall, no
- *                 balcony door there (#1035); its wall by the litter box straight with its door beside the box (#1022).
+ *                 table on a rug in front of them. No printer. Three tall windows across its whole east wall, every
+ *                 part flush with it (#1040, flushWall), no balcony door there (#1035); its wall by the litter box
+ *                 straight with its door beside the box (#1022), its other doorway off that corridor walled up (#1040,
+ *                 oneDoorByLitter).
  *   Kitchen       what the plan has, with the fridge at the left end of the cabinet run (looking at it), the hob
  *                 centre-left on the run, about a third of the way from the fridge's end (#1007), no sideboard or
  *                 cabinet of bottles, and on the wall across from the cabinets five tall black-and-white canvases side
  *                 by side, one picture of trees and mountains. The coffee station (#1022): a black cabinet, the
  *                 espresso machine on its left, three little cup shelves over it, on the dining room's north wall
- *                 behind its table (#1035), else just past the run's right-hand end; the sink at the run's right-hand
- *                 end. A steel bin by the island's east end; only the island's stools.
+ *                 behind its table, where no loose armchair stands (#1035, #1040), else just past the run's right-hand
+ *                 end; the sink at the run's right-hand end. A steel bin by the island's east end; only the island's stools.
  *   Baths         the guest bath a little bigger, the tub on its west wall, the toilet about the middle of its south
  *                 wall with the vanity beside it; the master bath with its shower at the east end of the north wall
- *                 and the vanity on the south, the toilet on its left (#1022, #1035).
- *   Hall          a wide coat and shoe rack on its east wall, no rugs, no cat tunnel, no cabinet or dresser and no
- *                 stray pieces, the docked vacuum on its west wall by the plant cabinet or the hall's light (#1022, #1035).
+ *                 (short of a door on the east wall, #1040) and the vanity on the south, the toilet on its left (#1022,
+ *                 #1035).
+ *   Hall          a wide coat and shoe rack on its east wall, no rugs, no cat tunnel, no cabinet, dresser or purifier
+ *                 and no stray pieces (#1040: nothing across from the rack), the docked vacuum on its west wall by the plant cabinet or the hall's light (#1022, #1035).
  *   Main bedroom  its door at the far end of its wall, the bed moved west of it, three tall windows on its west wall;
  *                 the closet with clothes rails along its north and south walls (#1022).
  *   Balcony nook  beside a balcony door anywhere but the living room, the Studio and the main bedroom: a small lit
- *                 greenhouse in the corner on its solid side and an air purifier under the nearest window.
+ *                 greenhouse in the corner on its solid side and an air purifier under the nearest window (not in a hall).
  *
  * Pure and deterministic, and only the drawing uses it: the stored plan is untouched. Devices stay where they are, but
  * the docked vacuum.
@@ -135,7 +138,6 @@ function windowWall(R: Rect, p: HavenPlan): Side {
 
 /** Pieces that stand on the floor and take it up (not rugs and mats, not what hangs or sits on something else). */
 const solid = (it: PlanItem) => KIND_STYLE[it.k].height > 2 && KIND_STYLE[it.k].lift < 20;
-const grow = (b: Box, m: number): Box => [b[0] - m, b[1] - m, b[2] + m, b[3] + m];
 const overlaps = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 /** Whether a piece would stand in another's footprint (a rug only clashes with another rug). */
 const clash = (list: PlanItem[], it: PlanItem) => list.some((o) => (solid(it) ? solid(o) : o.k === it.k) && overlaps(boxOf(o), boxOf(it)));
@@ -195,15 +197,8 @@ function sectionalOf(tvWall: Side, faces: [Side, Side]): { backed: boolean; retE
   return { backed, retEnd: endSide(tvWall, "lo") === want ? "lo" : "hi" };
 }
 
-/** Whether a piece stands in front of the doorway [a, b] on wall s (within a door's swing of it). */
-function onDoorway(R: Rect, s: Side, a: number, b: number, it: PlanItem): boolean {
-  const door = against(R, s, a - 10, b - a + 20, 90, 0);
-  return overlaps(boxOf(it), [door[0], door[1], door[0] + door[2], door[1] + door[3]]);
-}
-
 /** `pinLamp`: the openings came from the walls, so the arc lamp keeps the spot it had before they did (#764). */
 function living(R: Rect, p: HavenPlan, pinLamp = false): PlanItem[] {
-  const win = windowWall(R, p);
   const tvWall = tvWallOf(R, p);
   const L = wallLen(R, tvWall), D = depthTo(R, tvWall);
   const out: PlanItem[] = [];

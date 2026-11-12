@@ -1,21 +1,24 @@
 import * as THREE from "three";
 
 /**
- * What stands round the home (#1007, #1020). Nikita, 2026-11-10: the grey all round the apartment was boring; the city
- * round it should look like somewhere. So the home is a unit of a light courtyard block: since #1035 up on an upper
- * floor (the courtyards and the street well below it, `below`) and mid-way along the block's street wing, through the
- * wing from the street on one side to the courtyard on the other (about twice the home's size), with a small entrance
- * alcove outside its front door; the block wrapping round, a second, larger courtyard further along with a pool deck,
- * a street with parked cars and street lamps on the home's other side, a riverside trail and parking decks across it,
- * and a boulevard with a planted median beyond the block's south end. The roofs aren't plain grey (#1020):
- * units of different heights and tones carrying plant, solar panels, skylights, terraces with planters and one pool;
- * by night some windows are lit and lights are strung over the courtyards and terraces. All generic and made up (no
- * real place is modelled), eight draw calls in all, unlit with the shading baked in; the street, the sidewalks and the
- * roofs carry a small baked pattern (#1022).
+ * What stands round the home (#1007, #1020, #1035, #1040). Nikita, 2026-11-10: the grey all round the apartment was
+ * boring; the city round it should look like somewhere. So the home is a unit of a courtyard block, up on an upper
+ * floor (the courtyards and the streets well below it, `below`), through the block's long street wing from the street
+ * (on its balcony side, #1040) to the courtyard, with a small entrance alcove outside its front door. A neighbouring
+ * unit of the same size stands beside it along the wing, the two together the courtyard's whole length on that side
+ * (#1040). The block wraps round, a second, larger courtyard further back with a pool deck; across the long street
+ * the parking decks; the cross street along the block's near end, square to the long street, with a strip of grass, a
+ * trail, the river and a few buildings across it; a boulevard with a planted median beyond the far end. The roofs
+ * aren't plain grey (#1020): units of different heights and tones carrying plant, solar panels, skylights, terraces
+ * with planters and one pool. The block's faces carry the street's look (#1040): a brick base two storeys high with
+ * tall dark windows, dark vertical panels above with a grid of windows, black balconies on the street face; by night
+ * some windows are lit and lights are strung over the courtyards and terraces. All generic and made up (no real place
+ * is modelled, no names: the streets' names come only from the private plan, house.ts), eleven draw calls in all,
+ * unlit with the shading baked in; the street, the sidewalks and the roofs carry a small baked pattern (#1022).
  *
  * World units (a metre each across, heights squashed like the house's: the walls are 1.4). `home` is the home's box
  * (its rooms), `keep` the boxes nothing may cover (every room, the decks, the walk to a detached block, the entrance
- * alcove), `east` which side the courtyard is on (the house puts it east, #1035).
+ * alcove), `east` which side the courtyard is on (across the home from its balcony, house.ts courtyardEast).
  */
 
 export interface Box2 {
@@ -103,12 +106,13 @@ function units(b: Box2, r: () => number, H: number): RoofUnit[] {
 const ROOF_TONES = [0xc9c8c1, 0xb7b9b6, 0xd8d6cf, 0x8e9194, 0xc2b8a8, 0xe4e3de, 0x9fa4a6];
 
 /**
- * The plan of the surroundings, pure (for the tests), from the home's box (#1007, re-proportioned in #1020): the home
- * on the block's outer corner by the street and the boulevard; the courtyard its balconies face just past that corner,
- * about twice the home's size; the block wrapping round it; a second, larger courtyard further along with a pool deck
- * at its far end; the street on the home's other side with a riverside trail and parking decks across it; the
- * boulevard with a planted median along the block's near end. Laid out as if the courtyard were to the east, then
- * mirrored when it's to the west. Generic and made up: proportions only.
+ * The plan of the surroundings, pure (for the tests), from the home's box (#1007, #1020, #1035, #1040): the home in the
+ * block's long street wing, through the wing from the street (on its balcony side) to the courtyard; a neighbouring
+ * unit of the same size beside it along the wing, the two together the courtyard's whole length on that side; the
+ * block wrapping round it, a second, larger courtyard further back with a pool deck; across the street the parking
+ * decks. The cross street runs along the block's near end, square to the long street, with a strip of grass, a trail
+ * and the river beyond it and a few buildings across the water; the boulevard along the far end. Laid out as if the
+ * courtyard were to the east, then mirrored when it's to the west. Generic and made up: proportions only.
  */
 export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) {
   const X = (x: number) => (east ? x : home.x0 + home.x1 - x);
@@ -118,59 +122,77 @@ export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) 
   const K = keep.map(mb);
   const cluster = K.reduce(union, home);
   const wing = Math.max(8, Math.min(12, Math.min(W, D)));
-  // The courtyard by the home (#1035): right off its courtyard side, the home's whole depth through the wing from the
-  // street to it, a little more of the courtyard south of the home than north, about twice its size.
-  const y1w = Math.max(8, W * 1.3), y1d = Math.max(8, (2 * W * D) / y1w);
-  const y1z0 = home.z0 - Math.min(D * 0.25, Math.max(0, y1d - D) * 0.4);
-  const yard1 = { x0: home.x1 + 0.6, z0: y1z0, x1: home.x1 + 0.6 + y1w, z1: y1z0 + y1d };
-  // The larger one, a wing further along and a little further back, its pool deck at the far end.
+  // The courtyard by the home (#1040, Nikita: his unit and the one beside it take half the courtyard's length each):
+  // right off its courtyard side, from the home's near end along two units' length.
+  const y1w = Math.max(8, W * 1.5), y1d = 2 * D;
+  const yard1 = { x0: home.x1 + 0.6, z0: home.z0, x1: home.x1 + 0.6 + y1w, z1: home.z0 + y1d };
+  // The neighbour: a unit the home's size beside it along the wing, on the courtyard's far half.
+  const neighbour = { x0: home.x0, z0: home.z1, x1: home.x1, z1: home.z1 + D };
+  // The larger one, a wing further back, its pool deck at the near end.
   const y2w = Math.max(10, W * 1.6), y2d = Math.max(12, D * 2.2);
-  const yard2 = { x0: yard1.x1 + wing, z0: yard1.z1 - y1d * 0.1 - y2d, x1: yard1.x1 + wing + y2w, z1: yard1.z1 - y1d * 0.1 };
+  const y2z0 = yard1.z0 - Math.min(2, D * 0.2);
+  const yard2 = { x0: yard1.x1 + wing, z0: y2z0, x1: yard1.x1 + wing + y2w, z1: y2z0 + y2d };
   const poolD = Math.min(4, y2d * 0.22);
   const pool = { x0: yard2.x0 + 1.6, z0: yard2.z0 + 1.4, x1: yard2.x1 - 1.6, z1: yard2.z0 + 1.4 + poolD };
   const poolDeck = { x0: yard2.x0 + 0.3, z0: yard2.z0 + 0.3, x1: yard2.x1 - 0.3, z1: pool.z1 + 1.6 };
-  // The block (#1035): the home in the middle of its street wing, the block carrying on past it both ways along the
-  // street, wrapping both courtyards; the boulevard beyond its south end.
-  const outer = { x0: cluster.x0 - 0.3, z0: Math.min(yard1.z0, yard2.z0) - wing * 0.8, x1: yard2.x1 + wing * 0.9, z1: Math.max(cluster.z1 + Math.max(wing, D * 0.9), yard1.z1 + wing * 0.8) };
+  // The block: a wing past the home's near end (along the cross street) and on past the courtyards to the boulevard.
+  const outer = { x0: cluster.x0 - 0.3, z0: Math.min(yard1.z0, yard2.z0, cluster.z0) - wing, x1: yard2.x1 + wing * 0.9, z1: Math.max(cluster.z1 + 1, yard1.z1, yard2.z1) + wing * 0.8 };
   const pad = K.map((k) => ({ x0: k.x0 - 0.25, z0: k.z0 - 0.25, x1: k.x1 + 0.25, z1: k.z1 + 0.25 }));
   // No roof inside the home's own outline (#1022): an empty stretch between its rooms is a light well, paved, not a
   // neighbour's roof standing in the flat.
   const homeBox = mb(home);
-  const roofs = cutAll(outer, [yard1, yard2, { x0: homeBox.x0 - 0.25, z0: homeBox.z0 - 0.25, x1: homeBox.x1 + 0.25, z1: homeBox.z1 + 0.25 }, ...pad]).flatMap((b) => units(b, r, H));
+  const homePad = { x0: homeBox.x0 - 0.25, z0: homeBox.z0 - 0.25, x1: homeBox.x1 + 0.25, z1: homeBox.z1 + 0.25 };
+  const next = cutAll(neighbour, [homePad, ...pad]);
+  const roofs = cutAll(outer, [yard1, yard2, homePad, ...next, ...pad]).flatMap((b) => units(b, r, H));
+  // The neighbour's roof, one plain unit at the home's own height (#1040: the scale beside the home).
+  const nextRoofs: RoofUnit[] = next.map((b) => ({ ...b, h: H * 0.72, tone: 2, use: "plain" }));
   // One roof has the pool (the largest unit clear of the home), a terrace or two the others' way.
   const big = roofs.filter((u) => u.x1 - u.x0 >= 5 && u.z1 - u.z0 >= 5 && !overlaps(u, { x0: cluster.x0 - 6, z0: cluster.z0 - 6, x1: cluster.x1 + 6, z1: cluster.z1 + 6 }));
   const top = big.sort((a, b) => area(b) - area(a))[0];
   if (top) top.use = "pool";
-  // The street along the block's street face: sidewalks, the carriageway, then across it the trail, river and decks.
+  // The long street along the block's street face (the home's balcony side): sidewalks, the carriageway, then across
+  // it the parking decks.
   const face = outer.x0;
   const street = { a: face - 1.2, b: face - 10.2 };
   const across = face - 11.6;
   const blvd = { z0: outer.z1 + 1.6, z1: outer.z1 + 17.6 };
-  const zs = { z0: outer.z0 - 34, z1: blvd.z0 };
-  const deckZ0 = blvd.z0 - Math.max(22, D * 2.5);
-  const decks = [
-    { x0: across - 16.8, z0: deckZ0, x1: across - 0.8, z1: (deckZ0 + blvd.z0 - 1.5) / 2 - 0.8 },
-    { x0: across - 16.8, z0: (deckZ0 + blvd.z0 - 1.5) / 2 + 0.8, x1: across - 0.8, z1: blvd.z0 - 1.5 },
-  ];
-  const park = { x0: across - 16.8, z0: zs.z0 - 40, x1: across - 0.4, z1: deckZ0 - 1 };
-  const trail = { x0: across - 19, z0: zs.z0 - 40, x1: across - 17.6, z1: blvd.z0 - 0.5 };
-  const bank = { x0: across - 22, z0: zs.z0 - 40, x1: across - 17.2, z1: blvd.z1 + 40 };
-  const river = { x0: across - 36, z0: zs.z0 - 40, x1: across - 22, z1: blvd.z1 + 40 };
-  const farBank = { x0: across - 50, z0: zs.z0 - 40, x1: across - 36, z1: blvd.z1 + 40 };
+  // The cross street along the block's near end, square to the long one; the grass, the trail and the river beyond.
+  const cross = { z0: outer.z0 - 1.6 - 9, z1: outer.z0 - 1.6 };
+  const grass = { z0: cross.z0 - 1.4 - 5, z1: cross.z0 - 1.4 };
+  const zs = { z0: cross.z0, z1: blvd.z0 };
   const bx0 = across - 17.2, bx1 = outer.x1 + 34;
-  const bounds = { x0: farBank.x0, z0: zs.z0 - 40, x1: bx1, z1: blvd.z1 + 40 };
+  const decks = [
+    { x0: across - 16.8, z0: cross.z1 + 1.5, x1: across - 0.8, z1: (cross.z1 + blvd.z0) / 2 - 0.8 },
+    { x0: across - 16.8, z0: (cross.z1 + blvd.z0) / 2 + 0.8, x1: across - 0.8, z1: blvd.z0 - 1.5 },
+  ];
+  const park = { x0: bx0, z0: grass.z0, x1: bx1, z1: grass.z1 };
+  const trail = { x0: bx0, z0: grass.z0 - 1.4, x1: bx1, z1: grass.z0 };
+  const bank = { x0: bx0, z0: trail.z0 - 3, x1: bx1, z1: trail.z0 };
+  const river = { x0: bx0 - 30, z0: bank.z0 - 14, x1: bx1 + 30, z1: bank.z0 };
+  const farBank = { x0: bx0 - 30, z0: river.z0 - 16, x1: bx1 + 30, z1: river.z0 };
+  const bounds = { x0: bx0 - 30, z0: farBank.z0, x1: bx1 + 30, z1: blvd.z1 + 40 };
   const m = (x: number) => X(x);
+  const hx = (home.x0 + home.x1) / 2, hz = (home.z0 + home.z1) / 2;
+  // Where a street's or the river's name sits, when the plan carries names (#1040: private, never in the build).
+  const anchors = {
+    street: { x: m((street.a + street.b) / 2), z: hz },
+    cross: { x: hx, z: (cross.z0 + cross.z1) / 2 },
+    boulevard: { x: hx, z: (blvd.z0 + blvd.z1) / 2 },
+    river: { x: hx, z: (river.z0 + river.z1) / 2 },
+  };
   return {
     outer: mb(outer),
     yard1: mb(yard1),
     yard2: mb(yard2),
+    neighbour: mb(neighbour),
     pool: mb(pool),
     poolDeck: mb(poolDeck),
-    roofs: roofs.map((u) => ({ ...u, ...mb(u) })),
+    roofs: [...roofs, ...nextRoofs].map((u) => ({ ...u, ...mb(u) })),
     face: m(face),
     street: { a: m(street.a), b: m(street.b) },
     across: m(across),
     zs,
+    cross: { ...cross, x0: Math.min(m(bx0), m(bx1)), x1: Math.max(m(bx0), m(bx1)) },
     blvd: { ...blvd, x0: Math.min(m(bx0), m(bx1)), x1: Math.max(m(bx0), m(bx1)) },
     decks: decks.map(mb),
     park: mb(park),
@@ -179,6 +201,7 @@ export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) 
     river: mb(river),
     farBank: mb(farBank),
     bounds: mb(bounds),
+    anchors,
     s: east ? 1 : -1,
     wing,
   };
@@ -196,7 +219,7 @@ export const LV = { base: -0.02, water: 0.004, asphalt: 0.02, paving: 0.03, gras
 /** A storey of the block, floor to floor, in world units (the walls are squashed to `wallH`, a slab on top). */
 export const STOREY = 1.6;
 /** A raised block's look (#1035): its brick base storeys, the brick's tone and the dark panel above. */
-const BASE_STOREYS = 2, BRICK = 0xcbbca3, PANEL = 0x343d55;
+const BASE_STOREYS = 2, PANEL = 0x343d55;
 
 /**
  * `below`: storeys of the block under the home (#1035: the home is up on an upper floor, the courtyards and the street
@@ -204,7 +227,7 @@ const BASE_STOREYS = 2, BRICK = 0xcbbca3, PANEL = 0x343d55;
  * to round the home's floor, its roofs just above it, and the home and what `keep` holds stand on the block's own
  * floors. `door`: the front door, in world units with its way out, for the small entrance alcove outside it.
  */
-export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: boolean; phone?: boolean; wallH: number; below?: number; door?: { x: number; z: number; out: [number, number]; w: number } }): Surroundings & { bounds: Box2 } {
+export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: boolean; phone?: boolean; wallH: number; below?: number; door?: { x: number; z: number; out: [number, number]; w: number } }): Surroundings & { bounds: Box2; anchors: Record<"street" | "cross" | "boulevard" | "river", { x: number; y: number; z: number }> } {
   const H = o.wallH;
   const L = layout(o.home, o.keep, o.east ?? true, H);
   const { s } = L;
@@ -248,7 +271,7 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     group.add(m);
     return m;
   };
-  const solid: Piece[] = [], crowns: Piece[] = [], glow: Piece[] = [], pools: Piece[] = [];
+  const solid: Piece[] = [], crowns: Piece[] = [], glow: Piece[] = [], pools: Piece[] = [], lights: Piece[] = [];
   // Textured tops (#1022, Nikita: texture on the street, the sidewalks and the roofs): flat quads with the pattern laid
   // in world units, still unlit, one draw call a surface.
   const skins: Record<Skin, Quad[]> = { asphalt: [], walk: [], roof: [] };
@@ -280,10 +303,25 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   solid.push(slab(L.outer, LV.base - 0.02, 0.02, 0x9d9b94));
   // A raised block's walls (#1035): a warm brick base two storeys high, dark panel above it to the roof; a light,
   // generic version of a loft block's look.
+  // Since #1040 the faces carry textures from the street: courses of brick with tall dark windows on the base, dark
+  // vertical panels with a grid of windows above (one draw call each, `facades`).
+  const fac: Record<Facade, VQuad[]> = { brick: [], panel: [] };
+  const faces = (b: Box2, y0: number, y1: number, k: Facade) => {
+    if (y1 - y0 < 0.05) return;
+    const e = 0.015;
+    fac[k].push(
+      { ax: b.x0, az: b.z1 + e, bx: b.x1, bz: b.z1 + e, y0, y1, nx: 0, nz: 1 },
+      { ax: b.x1, az: b.z0 - e, bx: b.x0, bz: b.z0 - e, y0, y1, nx: 0, nz: -1 },
+      { ax: b.x1 + e, az: b.z1, bx: b.x1 + e, bz: b.z0, y0, y1, nx: 1, nz: 0 },
+      { ax: b.x0 - e, az: b.z0, bx: b.x0 - e, bz: b.z1, y0, y1, nx: -1, nz: 0 },
+    );
+  };
   const walls = (b: Box2, h: number, top: number) => {
     if (!lift) return solid.push(slab(b, 0, h, top));
     solid.push(slab(b, 0, h, PANEL));
-    solid.push(slab({ x0: b.x0 - 0.02, z0: b.z0 - 0.02, x1: b.x1 + 0.02, z1: b.z1 + 0.02 }, 0, Math.min(h, BASE_STOREYS * STOREY), BRICK));
+    const base = Math.min(h, BASE_STOREYS * STOREY);
+    faces(b, 0, base, "brick");
+    faces(b, base, h, "panel");
   };
   // The block's own floors under the home and what it keeps clear (#1035): up from the ground to just under the
   // home's floor.
@@ -369,12 +407,17 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   // A row on every storey up to the home's (#1035).
   const windows = (x0: number, z0: number, x1: number, z1: number, out: [number, number]) => {
     const len = Math.hypot(x1 - x0, z1 - z0);
-    for (let t = 0.8; t < len - 0.5; t += 1.3) {
-      const x = x0 + ((x1 - x0) * t) / len + out[0] * 0.03, z = z0 + ((z1 - z0) * t) / len + out[1] * 0.03;
+    // On the faces' bays (#1040): the texture's windows sit mid-bay counted from the world's origin along the face.
+    const a0 = Math.min(x1 - x0 ? x0 : z0, x1 - x0 ? x1 : z1);
+    const first = (Math.ceil(a0 / BAY - 0.5) + 0.5) * BAY - a0;
+    for (let t = Math.max(first, 0.3); t < len - 0.3; t += BAY) {
+      const x = (x1 - x0 ? Math.min(x0, x1) + t : x0) + out[0] * 0.03, z = (z1 - z0 ? Math.min(z0, z1) + t : z0) + out[1] * 0.03;
       if (!clear(x - out[0] * 0.5, z - out[1] * 0.5)) continue;
       for (let k = 0; k <= below; k++) {
+        // The faces' texture draws every window (#1040); only the lit ones glow over it, and only at night.
         const lit = r() < 0.32;
-        glow.push({ x, y: k * STOREY + H * 0.3, z, sx: out[0] ? 0.03 : 0.55, sy: 0.22, sz: out[0] ? 0.55 : 0.03, c: lit ? 0xffd9a0 : 0x2b3138 });
+        if (lift && !lit) continue;
+        (lift ? lights : glow).push({ x, y: k * STOREY + H * 0.3, z, sx: out[0] ? 0.03 : 0.55, sy: 0.22, sz: out[0] ? 0.55 : 0.03, c: lit ? 0xffd9a0 : 0x2b3138 });
       }
     }
   };
@@ -386,6 +429,21 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   }
   windows(L.face, L.outer.z0, L.face, L.outer.z1, [-s, 0]);
   windows(L.outer.x0, L.outer.z1, L.outer.x1, L.outer.z1, [0, 1]);
+
+  // Black balconies on the street face (#1040, from the street view): one every other bay on the panel storeys, a slab
+  // and a railing round it, where the block stands (not off the home or what it keeps clear).
+  if (lift) {
+    const ox = -s;
+    for (let z = L.outer.z0 + 1.6; z < L.outer.z1 - 1.6; z += BAY * 2) {
+      if (!clear(L.face + ox * 0.3, z) || r() < 0.25) continue;
+      for (let k = BASE_STOREYS; k <= below; k++) {
+        const y = k * STOREY;
+        solid.push({ x: L.face + ox * 0.32, y: y + 0.03, z, sx: 0.64, sy: 0.06, sz: 1.7, c: 0x1a1b1e });
+        solid.push({ x: L.face + ox * 0.62, y: y + 0.24, z, sx: 0.03, sy: 0.38, sz: 1.7, c: 0x1a1b1e });
+        for (const e of [-1, 1]) solid.push({ x: L.face + ox * 0.32, y: y + 0.24, z: z + e * 0.84, sx: 0.6, sy: 0.38, sz: 0.03, c: 0x1a1b1e });
+      }
+    }
+  }
 
   // The courtyards: paving, four lawns with a cross of paths, beds of shrubs, trees, and lights strung across.
   for (const [y, i] of [[L.yard1, 0], [L.yard2, 1]] as const) {
@@ -417,18 +475,26 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   const { a: sa, b: sb } = L.street;
   const zs = L.zs;
   const xs = (p: number, q: number) => ({ x0: Math.min(p, q), x1: Math.max(p, q) });
-  skin("asphalt", { ...xs(sa, sb), z0: zs.z0, z1: zs.z1 }, LV.asphalt, 0x3a3c40);
-  skin("walk", { ...xs(L.face, sa), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
-  skin("walk", { ...xs(sb, L.across), z0: zs.z0, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
+  skin("asphalt", { ...xs(sa, sb), z0: L.cross.z1, z1: zs.z1 }, LV.asphalt, 0x3a3c40);
+  skin("walk", { ...xs(L.face, sa), z0: L.cross.z1, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
+  skin("walk", { ...xs(sb, L.across), z0: L.cross.z1, z1: L.blvd.z0 - 0.01 }, LV.walk, 0xb8b6ae);
   const mid = (sa + sb) / 2;
-  for (let z = zs.z0 + 1; z < zs.z1 - 1; z += 4) solid.push({ x: mid, y: LV.lane - 0.01, z, sx: 0.2, sy: 0.02, sz: 1.8, c: 0xd9d4c2 });
+  for (let z = L.cross.z1 + 1; z < zs.z1 - 1; z += 4) solid.push({ x: mid, y: LV.lane - 0.01, z, sx: 0.2, sy: 0.02, sz: 1.8, c: 0xd9d4c2 });
+  // The cross street along the block's near end (#1040), square to the long street: asphalt, a dashed line, the
+  // sidewalks either side, a few cars at the curb.
+  const cz = L.cross;
+  skin("asphalt", { x0: cz.x0, z0: cz.z0, x1: cz.x1, z1: cz.z1 }, LV.asphalt, 0x3a3c40);
+  for (let x = cz.x0 + 1; x < cz.x1 - 1; x += 4) if (x < Math.min(sa, sb) || x > Math.max(sa, sb)) solid.push({ x, y: LV.lane - 0.01, z: (cz.z0 + cz.z1) / 2, sx: 1.8, sy: 0.02, sz: 0.2, c: 0xd9d4c2 });
+  skin("walk", { x0: L.outer.x0, z0: cz.z1, x1: L.outer.x1, z1: L.outer.z0 }, LV.walk, 0xb8b6ae);
+  skin("walk", { x0: cz.x0, z0: cz.z0 - 1.4, x1: cz.x1, z1: cz.z0 }, LV.walk, 0xb8b6ae);
   const carCols = [0xe8e8e6, 0x1d1f22, 0x7d8288, 0x9e2b25, 0x2b4a73, 0xc9c6bd, 0x3b3f44, 0xb0b4b8];
   const car = (x: number, z: number, y0: number, along = true) => {
     const c = carCols[Math.floor(r() * carCols.length)]!;
     solid.push({ x, y: y0 + 0.17, z, sx: along ? 1.8 : 4.3, sy: 0.3, sz: along ? 4.3 : 1.8, c });
     solid.push({ x, y: y0 + 0.42, z, sx: along ? 1.6 : 2.2, sy: 0.22, sz: along ? 2.2 : 1.6, c: 0x23262b });
   };
-  for (const lx of [sa - s * 1.2, sb + s * 1.2]) for (let z = L.outer.z0 - 6 + r() * 3; z < L.blvd.z0 - 3; z += 5.6 + r() * 4) if (r() > 0.3) car(lx, z, LV.asphalt);
+  for (const lx of [sa - s * 1.2, sb + s * 1.2]) for (let z = L.cross.z1 + 4 + r() * 3; z < L.blvd.z0 - 3; z += 5.6 + r() * 4) if (r() > 0.3) car(lx, z, LV.asphalt);
+  for (const lz of [cz.z1 - 1.2, cz.z0 + 1.2]) for (let x = L.outer.x0 + 3 + r() * 3; x < L.outer.x1 - 3; x += 5.6 + r() * 5) if (r() > 0.4) car(x, lz, LV.asphalt, false);
 
   // Street lamps along the block's sidewalk and both sides of the boulevard: heads that glow, a pool under each.
   const lamp = (x: number, z: number, dx: number, dz: number) => {
@@ -437,12 +503,14 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     pools.push({ x: x + dx * 0.4, y: LV.glow, z: z + dz * 0.4, sx: 5, sy: 1, sz: 5 });
   };
   for (let z = L.outer.z0 + 2; z < L.outer.z1; z += 9) lamp(L.face - s * 0.7, z, -s, 0);
+  for (let x = L.outer.x0 + 4; x < L.outer.x1; x += 10) lamp(x, L.outer.z0 - 0.7, 0, -1);
   for (let x = L.blvd.x0 + 4; x < L.blvd.x1; x += 10) {
     lamp(x, L.blvd.z0 - 0.7, 0, 1);
     lamp(x + 5, L.blvd.z1 + 0.7, 0, -1);
   }
 
-  // Across the street: the parking decks (levels, ramps' stripes, cars on top) and the riverside park and trail.
+  // Across the street: the parking decks (levels, ramps' stripes, cars on top). Past the cross street (#1040): the strip
+  // of grass, the trail, the river and its far bank with a few buildings.
   for (const d of L.decks) {
     const lv = 3, h = H * 0.95;
     solid.push(slab(d, 0, h, 0xc4c3bd));
@@ -454,9 +522,14 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   top(L.farBank, LV.grass, 0x6a8a52);
   top(L.trail, LV.trail, 0xc2b79f);
   solid.push(slab(L.river, LV.base, LV.water - LV.base, 0x3d5a6b));
-  for (let tz = L.park.z0 + 6; tz < L.park.z1; tz += 4 + r() * 5) tree(L.park.x0 + (L.park.x1 - L.park.x0) * (0.2 + r() * 0.6), tz, 1.1 + r() * 0.3);
-  for (let tz = L.bank.z0 + 6; tz < L.bank.z1 - 4; tz += 5 + r() * 6) tree((L.bank.x0 + L.bank.x1) / 2 + (r() - 0.5) * 2, tz, 1.2 + r() * 0.4);
-  for (let tz = L.farBank.z0 + 6; tz < L.farBank.z1 - 4; tz += 6 + r() * 6) tree((L.farBank.x0 + L.farBank.x1) / 2 + (r() - 0.5) * 6, tz, 1.3);
+  for (let tx = L.park.x0 + 4; tx < L.park.x1; tx += 5 + r() * 6) tree(tx, (L.park.z0 + L.park.z1) / 2 + (r() - 0.5) * 2, 1.1 + r() * 0.3);
+  for (let tx = L.bank.x0 + 3; tx < L.bank.x1 - 3; tx += 5 + r() * 6) tree(tx, (L.bank.z0 + L.bank.z1) / 2, 1.2 + r() * 0.4);
+  for (let tx = L.farBank.x0 + 6; tx < L.farBank.x1 - 4; tx += 7 + r() * 6) tree(tx, L.farBank.z1 - 2 - r() * 2, 1.3);
+  for (let i = 0, x = L.farBank.x0 + 20; i < (o.phone ? 3 : 5) && x < L.farBank.x1 - 10; i++) {
+    const len = 10 + r() * 10, dep = 7 + r() * 4, h = H * (0.6 + r() * 0.6);
+    solid.push({ x: x + len / 2, y: h / 2, z: L.farBank.z0 + 2 + dep / 2, sx: len, sy: h, sz: dep, c: ROOF_TONES[Math.floor(r() * ROOF_TONES.length)]! });
+    x += len + 8 + r() * 14;
+  }
 
   // The boulevard along the block's near end: two carriageways, the planted median with its trees, the sidewalks,
   // and a row of low buildings beyond it.
@@ -497,12 +570,34 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
     mesh.renderOrder = 1;
     group.add(mesh);
   }
+  for (const k of Object.keys(fac) as Facade[]) {
+    const geo = vquads(fac[k]);
+    if (!geo) continue;
+    geos.push(geo);
+    const tex = new THREE.CanvasTexture(facadeTexture(k));
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    texs.push(tex);
+    const m = baked();
+    m.map = tex;
+    m.polygonOffset = true;
+    m.polygonOffsetFactor = -1;
+    m.polygonOffsetUnits = -2;
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.frustumCulled = false;
+    group.add(mesh);
+  }
   const crown = shade(new THREE.IcosahedronGeometry(0.5, 0));
   geos.push(crown);
   add(crown, baked(), crowns);
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   mats.push(glowMat);
   add(box, glowMat, glow);
+  // The block's lit windows (#1040): over the faces' own glass, so only at night.
+  const litMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: 0, depthWrite: false });
+  mats.push(litMat);
+  const litMesh = add(box, litMat, lights, 1);
   const poolTex = new THREE.CanvasTexture(disc());
   const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, color: 0xffc98a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   mats.push(poolMat);
@@ -522,11 +617,14 @@ export function makeSurroundings(o: { home: Box2; keep: readonly Box2[]; east?: 
   return {
     group,
     bounds: L.bounds,
+    anchors: Object.fromEntries(Object.entries(L.anchors).map(([k, a]) => [k, { x: a.x, y: LV.glow - lift + 0.2, z: a.z }])) as Record<keyof typeof L.anchors, { x: number; y: number; z: number }>,
     update(day: number) {
       const night = 1 - Math.max(0, Math.min(1, day));
       for (const [m, c] of dims) m.color.copy(c).multiply(tint.copy(DAY).lerp(NIGHT, night));
       poolMat.opacity = 0.35 * night;
       glowMat.color.setScalar(0.3 + 0.7 * night);
+      litMat.opacity = Math.max(0, Math.min(1, (night - 0.25) / 0.5));
+      if (litMesh) litMesh.visible = litMat.opacity > 0.01;
       stringMat.opacity = 0.95 * night;
       bulbs.visible = night > 0.05;
     },
@@ -568,6 +666,113 @@ function disc(): HTMLCanvasElement {
     x.fillRect(0, 0, 64, 64);
   }
   return c;
+}
+
+/** A face of the block's walls (#1040): which texture, from (ax, az) to (bx, bz), y0 to y1, facing (nx, nz). */
+type Facade = "brick" | "panel";
+interface VQuad {
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  y0: number;
+  y1: number;
+  nx: number;
+  nz: number;
+}
+/** One window bay across, in world units: a face's texture repeats every bay along and every storey up. */
+const BAY = 1.3;
+
+/** Upright quads, their UVs a bay along and a storey up, the sun baked into their colours as `shade` does. */
+function vquads(list: readonly VQuad[]): THREE.BufferGeometry | null {
+  if (!list.length) return null;
+  const pos = new Float32Array(list.length * 12), uv = new Float32Array(list.length * 8), col = new Float32Array(list.length * 12);
+  const idx: number[] = [];
+  list.forEach((q, i) => {
+    const len = Math.hypot(q.bx - q.ax, q.bz - q.az);
+    const lit = 0.55 + 0.45 * Math.max(0, q.nx * SUN.x + q.nz * SUN.z);
+    // Along the face from the world's origin, so the windows line up from one face to the next (and with the glow).
+    const ua = q.nz ? q.ax : q.az, ub = ua + (q.nz ? Math.sign(q.bx - q.ax) : Math.sign(q.bz - q.az)) * len;
+    const corners = [[q.ax, q.y0, ua], [q.bx, q.y0, ub], [q.bx, q.y1, ub], [q.ax, q.y1, ua]] as const;
+    corners.forEach(([x, y, u], k) => {
+      pos.set([x, y, k === 0 || k === 3 ? q.az : q.bz], i * 12 + k * 3);
+      uv.set([u / BAY, y / STOREY], i * 8 + k * 2);
+      col.set([lit, lit, lit], i * 12 + k * 3);
+    });
+    const o = i * 4;
+    // Facing out, counter-clockwise seen from outside.
+    const cross = (q.bx - q.ax) * q.nz - (q.bz - q.az) * q.nx;
+    if (cross > 0) idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+    else idx.push(o, o + 2, o + 1, o, o + 3, o + 2);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+
+/**
+ * A bay of the block's face, one storey high, drawn once on a small canvas (#1040, from the street view): the brick
+ * base's courses with a tall dark window under a soldier course, or the dark vertical panels above with a window of
+ * four lights. In colour (the material is white), so the face needs no tint.
+ */
+function facadeTexture(k: Facade): HTMLCanvasElement {
+  const Wd = 128, Ht = 160;
+  const cv = document.createElement("canvas");
+  cv.width = Wd;
+  cv.height = Ht;
+  const x = cv.getContext("2d");
+  if (!x) return cv;
+  const r = rand(k === "brick" ? 41 : 43);
+  // v (up the storey) to canvas y: the canvas's top row is the storey's top.
+  const yAt = (v: number) => Math.round((1 - v) * Ht);
+  const win = (u0: number, u1: number, v0: number, v1: number, cols: number, rows: number, frame: string) => {
+    const [px0, px1, py0, py1] = [Math.round(u0 * Wd), Math.round(u1 * Wd), yAt(v1), yAt(v0)];
+    x.fillStyle = frame;
+    x.fillRect(px0, py0, px1 - px0, py1 - py0);
+    const g = x.createLinearGradient(0, py0, 0, py1);
+    g.addColorStop(0, "#3a4a5e");
+    g.addColorStop(1, "#1b2330");
+    x.fillStyle = g;
+    x.fillRect(px0 + 3, py0 + 3, px1 - px0 - 6, py1 - py0 - 6);
+    x.fillStyle = frame;
+    for (let i = 1; i < cols; i++) x.fillRect(px0 + Math.round(((px1 - px0) * i) / cols) - 1, py0, 3, py1 - py0);
+    for (let j = 1; j < rows; j++) x.fillRect(px0, py0 + Math.round(((py1 - py0) * j) / rows) - 1, px1 - px0, 3);
+  };
+  if (k === "brick") {
+    x.fillStyle = "#b6a68c";
+    x.fillRect(0, 0, Wd, Ht);
+    const ch = 8, bw = 24;
+    for (let row = 0; row * ch < Ht; row++) {
+      const off = row % 2 ? bw / 2 : 0;
+      for (let cx = -off; cx < Wd; cx += bw) {
+        const t = 196 + Math.round(r() * 22);
+        x.fillStyle = `rgb(${t},${t - 14},${t - 34})`;
+        x.fillRect(cx + 1, row * ch + 1, bw - 2, ch - 2);
+      }
+    }
+    // A soldier course over the window, the window tall with six lights.
+    x.fillStyle = "#a8977c";
+    x.fillRect(Math.round(0.16 * Wd), yAt(0.5), Math.round(0.68 * Wd), 6);
+    win(0.2, 0.8, 0.06, 0.47, 3, 2, "#202226");
+  } else {
+    x.fillStyle = "#353e55";
+    x.fillRect(0, 0, Wd, Ht);
+    // Vertical panels, each with a lit edge and a shadowed seam.
+    for (let px = 0; px < Wd; px += 32) {
+      x.fillStyle = "#2a3145";
+      x.fillRect(px, 0, 2, Ht);
+      x.fillStyle = "#424c66";
+      x.fillRect(px + 2, 0, 1, Ht);
+    }
+    // A floor line between storeys.
+    x.fillStyle = "#2b3244";
+    x.fillRect(0, Ht - 3, Wd, 3);
+    win(0.2, 0.8, 0.12, 0.42, 2, 2, "#15171c");
+  }
+  return cv;
 }
 
 /** The textured surfaces (#1022). */

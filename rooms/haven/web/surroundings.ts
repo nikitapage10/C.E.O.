@@ -4,7 +4,7 @@ import * as THREE from "three";
  * What stands round the home (#1007, #1020, #1035, #1040). Nikita, 2026-11-10: the grey all round the apartment was
  * boring; the city round it should look like somewhere. So the home is a unit of a courtyard block, up on an upper
  * floor (the courtyards and the streets well below it, `below`), through the block's long street wing from the street
- * (on its balcony side, #1040) to the courtyard, with a small entrance alcove outside its front door. A neighbouring
+ * to the courtyard (on its balcony side, #1044), with a small entrance alcove outside its front door. A neighbouring
  * unit of the same size stands beside it along the wing, the two together the courtyard's whole length on that side
  * (#1040). The block wraps round, a second, larger courtyard further back with a pool deck; across the long street
  * the parking decks; the cross street along the block's near end, square to the long street, with a strip of grass, a
@@ -18,7 +18,7 @@ import * as THREE from "three";
  *
  * World units (a metre each across, heights squashed like the house's: the walls are 1.4). `home` is the home's box
  * (its rooms), `keep` the boxes nothing may cover (every room, the decks, the walk to a detached block, the entrance
- * alcove), `east` which side the courtyard is on (across the home from its balcony, house.ts courtyardEast).
+ * alcove), `east` which side the courtyard is on (the side its balcony faces, house.ts courtyardEast).
  */
 
 export interface Box2 {
@@ -107,7 +107,7 @@ const ROOF_TONES = [0xc9c8c1, 0xb7b9b6, 0xd8d6cf, 0x8e9194, 0xc2b8a8, 0xe4e3de, 
 
 /**
  * The plan of the surroundings, pure (for the tests), from the home's box (#1007, #1020, #1035, #1040): the home in the
- * block's long street wing, through the wing from the street (on its balcony side) to the courtyard; a neighbouring
+ * block's long street wing, through the wing from the street to the courtyard (on its balcony side, #1044); a neighbouring
  * unit of the same size beside it along the wing, the two together the courtyard's whole length on that side; the
  * block wrapping round it, a second, larger courtyard further back with a pool deck; across the street the parking
  * decks. The cross street runs along the block's near end, square to the long street, with a strip of grass, a trail
@@ -150,7 +150,7 @@ export function layout(home: Box2, keep: readonly Box2[], east = true, H = 1.4) 
   const big = roofs.filter((u) => u.x1 - u.x0 >= 5 && u.z1 - u.z0 >= 5 && !overlaps(u, { x0: cluster.x0 - 6, z0: cluster.z0 - 6, x1: cluster.x1 + 6, z1: cluster.z1 + 6 }));
   const top = big.sort((a, b) => area(b) - area(a))[0];
   if (top) top.use = "pool";
-  // The long street along the block's street face (the home's balcony side): sidewalks, the carriageway, then across
+  // The long street along the block's street face (across the home from its balcony): sidewalks, the carriageway, then across
   // it the parking decks.
   const face = outer.x0;
   const street = { a: face - 1.2, b: face - 10.2 };

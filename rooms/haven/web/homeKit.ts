@@ -15,6 +15,8 @@ export const HOME_MODELS = new Set<Kind>([
   "towelbar", "litterbox", "coatrack", "tunnel", "greenhouse", "bowls", "sideboard", "upper", "dj", "art", "espresso",
   // #1022: no more plain boxes for these.
   "minifridge", "projector", "rail", "coffeebar", "cupshelf", "bin", "accent",
+  // #1044: the Studio's workstation and the small desk beside it.
+  "desk", "monitor", "tower", "speaker", "printer", "potplant",
 ]);
 
 export interface HomeMats {
@@ -24,6 +26,10 @@ export interface HomeMats {
   marble: THREE.MeshStandardMaterial;
   white: THREE.MeshStandardMaterial;
   steel: THREE.MeshStandardMaterial;
+  /** Brushed silver that reads light even with nothing to reflect (#1044: the kitchen bin). */
+  silver: THREE.MeshStandardMaterial;
+  /** Warm brown wood (#1044: the Studio's desks). */
+  wood: THREE.MeshStandardMaterial;
   chrome: THREE.MeshStandardMaterial;
   glass: THREE.MeshStandardMaterial;
   screen: THREE.MeshStandardMaterial;
@@ -118,6 +124,8 @@ export function homeMats(): HomeMats {
     marble: m({ color: 0xe4e3e0, roughness: 0.22, emissive: 0x101012, emissiveIntensity: 0.2 }),
     white: m({ color: 0xf3f3f1, roughness: 0.28 }),
     steel: m({ color: 0xb9bcc0, roughness: 0.28, metalness: 0.85 }),
+    silver: m({ color: 0xd2d5da, roughness: 0.32, metalness: 0.25, emissive: 0x2a2c30, emissiveIntensity: 0.35 }),
+    wood: m({ color: 0x7a5232, roughness: 0.62 }),
     chrome: m({ color: 0xdfe3e8, roughness: 0.12, metalness: 0.95 }),
     glass: m({ color: 0xd8e6f0, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }),
     screen: m({ color: 0x08090c, roughness: 0.2, emissive: 0x0c1a2e, emissiveIntensity: 1 }),
@@ -441,10 +449,56 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "bin": {
-      // A brushed-steel rectangular bin (#1022), its lid and the pedal.
-      b(M.steel, L, H, D, 0, H / 2, 0);
+      // A silver rectangular bin (#1022, #1044), its lid and the pedal.
+      b(M.silver, L, H, D, 0, H / 2, 0);
       b(M.chrome, L + 0.004, 0.02, D + 0.004, 0, H + 0.01, 0);
       b(M.black, L * 0.4, 0.015, 0.03, 0, 0.02, fz - 0.015);
+      return g;
+    }
+    case "desk": {
+      // A wooden desk (#1044): a brown top on two dark side frames.
+      b(M.wood, L, 0.03, D, 0, H - 0.015, 0);
+      for (const sx of [-1, 1]) b(M.black, 0.03, H - 0.03, D - 0.06, sx * (L / 2 - 0.04), (H - 0.03) / 2, 0);
+      b(M.black, L - 0.1, 0.06, 0.02, 0, H - 0.06, D / 2 - 0.04);
+      return g;
+    }
+    case "monitor": {
+      // A widescreen monitor on its stand (#1044), facing the room.
+      const sw = L, sh = Math.min(H, sw * 0.42);
+      b(M.dark, sw, sh, 0.02, 0, lift + 0.06 + sh / 2, 0);
+      b(M.screen, sw - 0.02, sh - 0.02, 0.004, 0, lift + 0.06 + sh / 2, -0.012);
+      b(M.black, 0.03, 0.08, 0.03, 0, lift + 0.04, 0.02);
+      b(M.black, Math.min(0.18, sw * 0.4), 0.01, 0.1, 0, lift + 0.005, 0.01);
+      return g;
+    }
+    case "tower": {
+      // The desktop computer (#1044): a black tower on the desk, a lit strip down its front.
+      b(M.black, L, H, D, 0, lift + H / 2, 0);
+      b(M.green, 0.006, H * 0.8, 0.004, L * 0.3, lift + H / 2, fz - 0.003);
+      return g;
+    }
+    case "speaker": {
+      // A studio monitor speaker built into the wall (#1044): its face flush with the wall, a woofer and a tweeter.
+      b(M.black, L, H, D, 0, lift + H / 2, 0);
+      c(M.white, L * 0.34, 0.006, 0, lift + H * 0.36, fz - 0.003, "z");
+      c(M.dark, L * 0.13, 0.006, 0, lift + H * 0.36, fz - 0.006, "z");
+      c(M.grey, L * 0.12, 0.006, 0, lift + H * 0.78, fz - 0.003, "z");
+      return g;
+    }
+    case "printer": {
+      // A 3D printer (#1044): a dark cube with a glass front, a lit build plate and a spool on top.
+      const s = Math.min(L, D);
+      b(M.black, s, H, s, 0, lift + H / 2, 0);
+      b(M.glass, s * 0.86, H * 0.78, 0.006, 0, lift + H * 0.47, -s / 2 - 0.004);
+      b(M.warm, s * 0.7, 0.01, s * 0.7, 0, lift + H * 0.18, 0);
+      c(M.white, s * 0.22, 0.05, 0, lift + H + 0.03, 0.04, "x");
+      return g;
+    }
+    case "potplant": {
+      // A small potted plant (#1044) standing on a desk.
+      const r = Math.min(L, D) / 2;
+      c(M.white, r * 0.8, H * 0.4, 0, lift + H * 0.2, 0);
+      G.s(g, M.leaf, r * 1.1, 0, lift + H * 0.7, 0);
       return g;
     }
     case "accent": {

@@ -228,11 +228,12 @@ describe("the block round the home (#1007)", () => {
     }
   });
 
-  it("puts the long street on the living room's balcony side, the courtyard across the home from it (#1040)", () => {
+  it("puts the courtyard on the living room's balcony side, the long street across the home from it (#1040, #1044)", () => {
     const plan = readPlan(FAKE_PLAN)!;
     // The made-up living room's balcony door is on its east wall (x 960).
-    expect(courtyardEast(plan, 40, 960)).toBe(false);
-    expect(courtyardEast({ ...plan, balconies: [[40, 200, 40, 280]] }, 40, 960)).toBe(true);
+    expect(courtyardEast(plan, 40, 960)).toBe(true);
+    // On its west wall (x 600), the west half of the home: the courtyard west.
+    expect(courtyardEast({ ...plan, balconies: [[600, 200, 600, 280]] }, 40, 1400)).toBe(false);
     expect(courtyardEast({ ...plan, balconies: [] }, 40, 960)).toBe(true);
   });
 

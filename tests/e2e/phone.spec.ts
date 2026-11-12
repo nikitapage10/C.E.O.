@@ -4,11 +4,13 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
+import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
 
 /**
  * The Desk on a phone (#1045) on the built site: its own frame, not the desktop bar made small. A slim fixed bar at the
  * top with the room's name, the main rooms in a fixed bar at the bottom, every room and the room's tabs in a sheet,
- * and a finger dragged on either bar moves nothing. The desktop bar is never drawn there.
+ * and a finger dragged on either bar moves nothing. The desktop bar is never drawn there. The Haven puts its controls
+ * first with the house behind them, still to the touch, until Explore the house. The plan is the made-up fixture.
  */
 
 const PORT = Number(process.env.E2E_PHONE_PORT ?? 5193);
@@ -79,4 +81,28 @@ test("the phone frame: fixed bars, the Rooms sheet with the room's tabs, and bar
   // Skippy is the middle slot.
   await bar.getByRole("button", { name: "Skippy" }).tap();
   await expect(page.getByRole("dialog", { name: "Skippy, the Magnificent" })).toBeVisible();
+});
+
+test("the Haven on a phone: controls first, the house behind them and still to the touch until Explore the house", async ({ page }) => {
+  const now = Date.now();
+  await page.route("https://api.github.com/**", (r) => r.fulfill({ json: [] }));
+  await page.route(`${BASE}/api/desk-auth`, (r) => r.fulfill({ json: { ready: true, signedIn: true, until: now + 30 * 60_000, hardUntil: now + 8 * 3_600_000, device: "Test device", devices: [] } }));
+  await page.route(/\/api\/haven(\?.*)?$/, (r) => r.fulfill({ json: new URL(r.request().url()).searchParams.get("view") === "status" ? { kitchen: { open: 0, done: 0 }, todos: 0, ready: true } : { items: [] } }));
+  await page.route(/\/api\/haven\/devices(\?.*)?$/, (r) => r.fulfill({ json: { vendors: { roborock: "waiting", petlibro: "waiting", whisker: "waiting" }, devices: [] } }));
+  await page.route(`${BASE}/api/haven-plan`, (r) => r.fulfill({ json: { plan: FAKE_PLAN } }));
+  await page.goto(`${BASE}/haven`);
+  const house = page.locator(".hv-house");
+  await expect(house).not.toHaveAttribute("data-gl", "idle", { timeout: 20_000 });
+  test.skip((await house.getAttribute("data-gl")) !== "on", "no WebGL here");
+  // The gauges in rows, nothing scrolling sideways; the house behind, taking no touch.
+  const strip = page.getByRole("complementary", { name: "House-wide" });
+  await expect(strip).toBeVisible();
+  expect(await strip.locator(".hv-plate").evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await expect(house.locator("canvas.hv-gl")).toHaveCSS("pointer-events", "none");
+  await page.getByRole("button", { name: "Explore the house" }).tap();
+  await expect(house.locator("canvas.hv-gl")).toHaveCSS("pointer-events", "auto");
+  await expect(strip).toBeHidden();
+  await page.getByRole("button", { name: "Back to the controls" }).tap();
+  await expect(strip).toBeVisible();
+  await expect(house.locator("canvas.hv-gl")).toHaveCSS("pointer-events", "none");
 });

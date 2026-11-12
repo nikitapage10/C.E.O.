@@ -135,7 +135,7 @@
   height: var(--ph-bot);
   padding: 0 max(4px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(4px, env(safe-area-inset-left, 0px));
   border-top: 1px solid var(--wv-line);
-  background: linear-gradient(rgba(11, 12, 16, 0.86), rgba(9, 10, 13, 0.97));
+  background: linear-gradient(#0c0d11, #090a0d);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   touch-action: none;
@@ -245,6 +245,11 @@
 /* The dock (the room mic and its line) sits over the bottom bar, whose middle slot is Ask Skippy on a phone. */
 .desk[data-phone] .vdock {
   bottom: calc(var(--ph-bot) + 12px);
+}
+
+/* A room's own sheets and pop-ups (fixed, inside its page) stand over the Desk's foot, not under it. */
+.desk[data-phone] .desk__foot {
+  z-index: 0;
 }
 
 /* ── The Rooms sheet ── */

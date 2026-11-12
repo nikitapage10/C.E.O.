@@ -1,3 +1,4 @@
+import { sceneDpr } from "@ceo/engine/web/phone.ts";
 import {
   ACESFilmicToneMapping,
   AdditiveBlending,
@@ -313,7 +314,8 @@ export class PipeScene {
     canvas.after(this.lbls);
 
     const renderer = (this.renderer = new WebGLRenderer({ canvas, antialias: true }));
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    // Lighter on a phone (#1045): the scenes' 1.25x there, 1.75x elsewhere.
+    renderer.setPixelRatio(sceneDpr());
     renderer.outputColorSpace = SRGBColorSpace;
     renderer.toneMapping = ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;

@@ -3110,3 +3110,161 @@
   r: 16px;
 }
 
+
+/* ── on a phone (#1045): the controls first, the house behind them ──
+   The lights, the tabs and the house-wide gauges stand in one column at the top, in reach without a sideways scroll;
+   the house lies behind them one screen tall, dimmed and fading out, and takes no touch (`ph-scene`, @ceo/engine
+   phone.css), so a finger on it scrolls the page. "Explore the house" brings it forward to turn, zoom and tap
+   ([data-explore]); the controls step aside until "Back to the controls". */
+@media (max-width: 760px) {
+  [data-room="haven"] .hv-stage {
+    height: auto;
+    min-height: calc(100svh - var(--ph-top) - var(--ph-bot));
+    padding-top: 14px;
+    /* Clear of the room mic over the bottom bar. */
+    padding-bottom: 80px;
+  }
+  [data-room="haven"] .hv-houseWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+  }
+  [data-room="haven"] .hv-house,
+  [data-room="haven"] .hv-labs {
+    inset: -14px calc(-1 * var(--fl-pad, 16px)) auto;
+    height: calc(100svh - var(--ph-top) - var(--ph-bot));
+    opacity: 0.62;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
+    transition: opacity 0.35s ease;
+  }
+  [data-room="haven"] .hv-labs {
+    opacity: 0.4;
+  }
+  [data-room="haven"] .hv-head {
+    max-width: none;
+    align-items: stretch;
+    pointer-events: auto;
+  }
+  [data-room="haven"] .hv-head > .fl-eyb,
+  [data-room="haven"] .hv-head > .hv-h1,
+  [data-room="haven"] .hv-head > .hv-sum {
+    align-self: flex-start;
+  }
+  [data-room="haven"] .hv-h1 {
+    font-size: 40px;
+  }
+  [data-room="haven"] .hv-head .hv-tabs {
+    display: flex;
+    align-self: stretch;
+    justify-content: space-between;
+  }
+  [data-room="haven"] .hv-head .hv-tab {
+    min-height: 44px;
+  }
+  [data-room="haven"] .hv-lights {
+    margin: 12px 0 0;
+  }
+  [data-room="haven"] .hv-lt,
+  [data-room="haven"] .hv-lt-scene,
+  [data-room="haven"] .hv-lt-pow {
+    min-height: 44px;
+  }
+  [data-room="haven"] .hv-explore {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    margin-top: 10px;
+    padding: 0 16px;
+    border: 1px solid rgba(var(--hv-gold), 0.4);
+    border-radius: 999px;
+    background: rgba(6, 7, 10, 0.55);
+    color: rgb(var(--hv-gold));
+    font: 500 13px var(--hv-text);
+    letter-spacing: 0.02em;
+  }
+  [data-room="haven"] .hv-explore::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgb(var(--hv-gold));
+    box-shadow: 0 0 10px rgba(var(--hv-gold), 0.8);
+  }
+  /* The gauges in rows, not a strip that scrolls sideways under the dock. */
+  [data-room="haven"] .hv-plinth {
+    position: relative;
+    inset: auto;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+  [data-room="haven"] .hv-plinth .hv-plate {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 10px;
+    overflow: visible;
+  }
+  [data-room="haven"] .hv-plinth .hv-gauge {
+    flex: 1 1 30%;
+    min-width: 96px;
+    min-height: 44px;
+  }
+  /* Climate, the one control here, leads on a row of its own. */
+  [data-room="haven"] .hv-plinth .hv-gauge.is-dial {
+    order: -1;
+    flex-basis: 100%;
+    justify-content: center;
+  }
+  [data-room="haven"] .hv-popAt {
+    bottom: calc(var(--ph-bot) + 12px);
+    max-height: calc(100svh - var(--ph-top) - var(--ph-bot) - 24px);
+    overscroll-behavior: contain;
+  }
+  /* No hint while the house is only the backdrop. */
+  [data-room="haven"].hv:not([data-explore]) .hv-hintRow {
+    display: none;
+  }
+
+  /* Exploring: the house forward, one screen tall; the controls aside. */
+  [data-room="haven"][data-explore] .hv-stage {
+    height: calc(100svh - var(--ph-top) - var(--ph-bot));
+    min-height: 0;
+    padding-bottom: 14px;
+  }
+  [data-room="haven"][data-explore] .hv-houseWrap {
+    position: relative;
+    flex: 1;
+    height: 100%;
+  }
+  [data-room="haven"][data-explore] .hv-house,
+  [data-room="haven"][data-explore] .hv-labs {
+    inset: -14px calc(-1 * var(--fl-pad, 16px)) -14px;
+    height: auto;
+    opacity: 1;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  [data-room="haven"][data-explore] .hv-head {
+    pointer-events: none;
+  }
+  [data-room="haven"][data-explore] .hv-head > :not(.fl-eyb, .hv-h1),
+  [data-room="haven"][data-explore] .hv-plinth {
+    display: none;
+  }
+  [data-room="haven"][data-explore] .hv-hintRow {
+    bottom: 64px;
+  }
+  [data-room="haven"] .hv-back2 {
+    min-height: 40px;
+    padding: 0 16px;
+  }
+
+  /* A room open: its sheet clears the bottom bar. */
+  [data-room="haven"] .hv-sheetIn {
+    padding-bottom: calc(var(--ph-bot) + 80px);
+  }
+}

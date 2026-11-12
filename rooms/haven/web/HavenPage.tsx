@@ -20,6 +20,7 @@ import type { House, ThreadState } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
 import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useIsPhone } from "@ceo/engine/web/phone.ts";
 import { sectionOf } from "@ceo/engine/web/sections.ts";
 import { navigateTo, routeOf, usePathname } from "../../../apps/world/src/route.ts";
 import { SECTIONS } from "../sections.ts";
@@ -116,6 +117,15 @@ export function Haven() {
     if (routeOf(window.location.pathname) === "haven") navigateTo((o && "tab" in o ? `/haven/${o.tab}` : "/haven") + window.location.search);
   }, []);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
+  // On a phone (#1045) the controls come first and the house lies behind them, dimmed and still to the touch; "Explore
+  // the house" brings it forward to turn, zoom and tap, with the controls set aside until "Back to the controls".
+  const phone = useIsPhone();
+  const [explore, setExplore] = useState(false);
+  const behind = useRef(false);
+  behind.current = phone && !explore;
+  useEffect(() => {
+    if (!phone) setExplore(false);
+  }, [phone]);
   // Sent from the Kitchen chip or Controls (?open=kitchen): the Kitchen opens (#664).
   const houseHost = useRef<HTMLDivElement>(null);
   const labelHost = useRef<HTMLDivElement>(null);
@@ -261,17 +271,19 @@ export function Haven() {
       if (!canDraw3D()) return setGl("none");
       try {
         const head = houseHost.current.parentElement?.querySelector(".hv-head");
-        const clearTop = () => (head && houseHost.current ? head.getBoundingClientRect().bottom - houseHost.current.getBoundingClientRect().top : 0);
+        // Behind the controls on a phone the house fits its whole box: nothing to keep clear of.
+        const clearTop = () => (!behind.current && head && houseHost.current ? head.getBoundingClientRect().bottom - houseHost.current.getBoundingClientRect().top : 0);
         const host = houseHost.current;
         // The strip's box and each lamp, in the house's own frame (#680): the fit keeps the rooms clear of the strip,
         // and each thread starts at its lamp (none for a gauge scrolled out of sight on a phone).
         const keepClear = () => {
           const s = strip.current?.getBoundingClientRect(), h = host.getBoundingClientRect();
+          if (behind.current) return null;
           return s && s.width ? { x: s.left - h.left, y: s.top - h.top, w: s.width, h: s.height } : null;
         };
         const lampAt = (id: GaugeId): [number, number] | null => {
           const el = lamps.current[id], s = strip.current?.getBoundingClientRect();
-          if (!el || !s) return null;
+          if (!el || !s || behind.current) return null;
           const b = el.getBoundingClientRect(), h = host.getBoundingClientRect();
           const x = b.left + b.width / 2, y = b.top + b.height / 2;
           // Out of sight when the strip (or the rail, #729) has scrolled it away.
@@ -373,6 +385,17 @@ export function Haven() {
     return () => window.removeEventListener("keydown", key);
   }, [open, setOpen]);
 
+  // On a phone the house fits again when it comes forward or goes back behind the controls; Escape sends it back.
+  useEffect(() => {
+    if (!phone) return;
+    house.current?.refit();
+    house.current?.touch();
+    if (!explore) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setExplore(false);
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [explore, phone, gl]);
+
   /* ── the instrument plinth (#680): the gauges, and their threads into the house ── */
   const gauges = useMemo(
     () => gaugesOf({ signedIn, loading: homeLoad === "idle", vendors, devices: pub?.devices ?? [], climate, kitchenOpen, gym: counts?.gym ?? null, todos: todoCount }),
@@ -431,10 +454,10 @@ export function Haven() {
   const sheetTitle = openTab ? TAB_NAME[openTab] : (openRoom?.name ?? "");
 
   return (
-    <div className="hv fl-page" data-room="haven" data-open={open ? "" : undefined} style={{ ["--fl-accent" as string]: ACCENT, ["--hv-navh" as string]: `${navH}px` }}>
+    <div className="hv fl-page" data-room="haven" data-open={open ? "" : undefined} data-explore={explore || undefined} style={{ ["--fl-accent" as string]: ACCENT, ["--hv-navh" as string]: `${navH}px` }}>
       <section className="hv-stage fl-stage" aria-label="The house">
         <div className="hv-houseWrap">
-          <div className="hv-house" ref={houseHost} data-gl={gl} />
+          <div className="hv-house ph-scene" ref={houseHost} data-gl={gl} data-ph-live={explore || undefined} />
           <div className="hv-labs" ref={labelHost} aria-hidden="true" />
           <header className="hv-head">
             <p className="fl-eyb">
@@ -444,6 +467,11 @@ export function Haven() {
             </p>
             <h1 className="hv-h1">The Haven</h1>
             <p className="hv-sum">{summary}</p>
+            {phone && gl === "on" && !explore && (
+              <button type="button" className="hv-explore" onClick={() => setExplore(true)}>
+                Explore the house
+              </button>
+            )}
             {/* The room tabs and the lists sit in the house's own corner, under its name (Nikita 2026-11-05: one piece
                 with the house, not a bar above it). */}
             {signedIn && (
@@ -487,6 +515,11 @@ export function Haven() {
           {gl === "on" && (
             <div className="hv-hintRow">
               <p className="hv-hint">Drag to turn · pinch or scroll to zoom · tap a room</p>
+              {explore && (
+                <button type="button" className="hv-reset hv-back2" onClick={() => setExplore(false)}>
+                  Back to the controls
+                </button>
+              )}
               {away && (
                 <button type="button" className="hv-reset" onClick={() => house.current?.resetView()}>
                   Reset view

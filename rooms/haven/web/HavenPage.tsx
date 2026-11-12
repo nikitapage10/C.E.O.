@@ -8,7 +8,7 @@ import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
 import { LightsPanel, type Look } from "./LightsPanel.tsx";
-import { afterScene, held as heldLights, HOLD_MS, holdScene, LIGHTS_POLL_MS, loadLights, placeLightAt, placeLights, postLights, shownLights, type Holds, type LightsLoad } from "./lights.ts";
+import { afterScene, held as heldLights, HOLD_MS, holdScene, LIGHTS_IDLE_MS, LIGHTS_LIVE_MS, loadLights, placeLightAt, placeLights, postLights, shownLights, type Holds, type LightsLoad } from "./lights.ts";
 import { lightKey, type PlanLight } from "../../../api/_haven/planShape.ts";
 import { isRun, kindOf } from "./fixtures.ts";
 import { ClimatePop } from "./ClimatePop.tsx";
@@ -164,21 +164,33 @@ export function Haven() {
     return () => window.clearInterval(t);
   }, [auth, signedIn]);
 
-  // The lights (#931): SwitchBot and Govee, passkey only, read every 25 s while the Haven is on screen (#1020), and at
-  // once, fresh, when the tab comes back.
+  // The lights (#931): SwitchBot and Govee, passkey only. #1077: read every 20 s while the Lights panel is on screen
+  // (and no sheet covers it), every 2 minutes while the tab is visible otherwise, never while it's hidden, and at once
+  // when the tab comes back. Govee's lamps are read on the server's shared cache at the same pace (route `live`).
   const [lights, setLights] = useState<LightsLoad>({ state: "idle" });
   const [lightBusy, setLightBusy] = useState<string | null>(null);
   const [lightNote, setLightNote] = useState<string | null>(null);
   // What a switch or a scene was set to, held against reads that still say otherwise (#1022, lights.ts held).
   const holds = useRef<Holds>(new Map());
   const shown = useCallback((l: LightsLoad): LightsLoad => (l.state === "ready" ? { state: "ready", view: heldLights(l.view, holds.current, Date.now()) } : l), []);
+  const panelSeen = useRef(false);
+  const sheetOpen = useRef(false);
+  const lastRead = useRef(0);
   useEffect(() => {
     if (!signedIn) return setLights({ state: "idle" });
     let gone = false;
-    const read = (fresh = false) => void loadLights(fetch, fresh).then((l) => !gone && (l.state === "out" ? useDeskAuth.getState().lost() : setLights((cur) => (l.state === "failed" && cur.state === "ready" ? cur : shown(l)))));
+    const looking = () => panelSeen.current && !sheetOpen.current;
+    const read = () => {
+      lastRead.current = Date.now();
+      void loadLights(fetch, false, looking()).then((l) => !gone && (l.state === "out" ? useDeskAuth.getState().lost() : setLights((cur) => (l.state === "failed" && cur.state === "ready" ? cur : shown(l)))));
+    };
     read();
-    const t = window.setInterval(() => document.visibilityState === "visible" && read(), LIGHTS_POLL_MS);
-    const back = () => document.visibilityState === "visible" && read(true);
+    // A short tick decides: a read once 20 s (panel on screen) or 2 minutes (otherwise) have passed, and none hidden.
+    const t = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastRead.current >= (looking() ? LIGHTS_LIVE_MS : LIGHTS_IDLE_MS) - 500) read();
+    }, 5_000);
+    const back = () => document.visibilityState === "visible" && Date.now() - lastRead.current >= LIGHTS_LIVE_MS && read();
     document.addEventListener("visibilitychange", back);
     return () => {
       gone = true;
@@ -196,6 +208,7 @@ export function Haven() {
     // The switch shows at once; it goes back if the vendor refuses.
     const flip = (v: boolean | null) => (l: LightsLoad): LightsLoad => (l.state === "ready" ? { state: "ready", view: { ...l.view, lights: l.view.lights.map((x) => (x.id === id ? { ...x, on: v } : x)) } } : l);
     const was = lights.state === "ready" ? (lights.view.lights.find((x) => x.id === id)?.on ?? null) : null;
+    const govee = lights.state === "ready" && lights.view.lights.find((x) => x.id === id)?.vendor === "govee";
     setLights(flip(on));
     holds.current.set(id, { on, until: Date.now() + HOLD_MS });
     const r = await postLights({ op: "set", id, on });
@@ -204,7 +217,8 @@ export function Haven() {
       holds.current.delete(id);
       setLights(flip(was));
       setLightNote(r.say);
-    } else window.setTimeout(() => void refresh(), 3_000);
+      // A Govee lamp shows what it was set to (#1077): no read straight back, its next read in turn says.
+    } else if (!govee) window.setTimeout(() => void refresh(), 3_000);
   }, [lights, refresh]);
   const runScene = useCallback(async (id: string) => {
     setLightBusy(id);
@@ -229,9 +243,12 @@ export function Haven() {
     setLightNote(null);
     const r = await postLights({ op: "look", id, ...look });
     setLightBusy(null);
-    if (!r.ok) setLightNote(r.say);
-    else window.setTimeout(() => void refresh(), 1_500);
-  }, [refresh]);
+    if (!r.ok) return setLightNote(r.say);
+    // Shown at once (#1077), no read straight back: on, in its new colour or brightness.
+    const rgb = "rgb" in look ? look.rgb : null;
+    const brightness = "brightness" in look ? look.brightness : null;
+    setLights((cur) => (cur.state === "ready" ? { state: "ready", view: { ...cur.view, lights: cur.view.lights.map((x) => (x.id === id ? { ...x, on: true, ...(rgb && { rgb }), ...(brightness !== null && { brightness }) } : x)) } } : cur));
+  }, []);
   // Where the lights stand (#974): the plan's spots, kept here so placing one doesn't rebuild the house.
   const [spots, setSpots] = useState<PlanLight[] | null>(null);
   useEffect(() => setSpots(null), [plan]);
@@ -453,6 +470,8 @@ export function Haven() {
   const summary = thePlan ? summaryOf(lit, thePlan) : signedIn ? "The house, the pets and the kitchen, from what's connected." : "Counts and states only. Sign in to see the house.";
   const openRoom = open && "room" in open ? thePlan?.rooms.find((r) => r.id === open.room) : undefined;
   const openTab: Tab | null = open && "tab" in open ? open.tab : openRoom && thePlan ? tabOf(thePlan, openRoom) : null;
+  // A sheet over the house covers the Lights panel (#1077): the lamps go back to the 2-minute pace.
+  sheetOpen.current = Boolean(open && signedIn);
   const sheetTitle = openTab ? TAB_NAME[openTab] : (openRoom?.name ?? "");
 
   return (
@@ -487,7 +506,7 @@ export function Haven() {
             )}
             <HavenLists />
             {signedIn && lightView && (
-              <LightsPanel view={lightView} placed={placedIds} placing={placing} placingStep={placingRun ? (runStart ? "end" : "start") : null} canPlace={gl === "on"} busy={lightBusy} note={lightNote} onSet={(id, on) => void setLight(id, on)} onScene={(id) => void runScene(id)} onLook={(id, look) => void setLook(id, look)} onPlace={setPlacing} />
+              <LightsPanel view={lightView} placed={placedIds} placing={placing} placingStep={placingRun ? (runStart ? "end" : "start") : null} canPlace={gl === "on"} busy={lightBusy} note={lightNote} onSet={(id, on) => void setLight(id, on)} onScene={(id) => void runScene(id)} onLook={(id, look) => void setLook(id, look)} onPlace={setPlacing} onSeen={(v) => void (panelSeen.current = v)} />
             )}
           </header>
           {!signedIn && (

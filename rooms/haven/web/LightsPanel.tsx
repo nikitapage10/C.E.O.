@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { Light, LightsView } from "./lights.ts";
+import { useEffect, useRef, useState } from "react";
+import { downNote, type Light, type LightsView } from "./lights.ts";
 
 /**
  * The Lights panel (#931, #974, #1002), under the Haven's lists. Plain by default (#1002, Nikita: "overly
@@ -40,15 +40,31 @@ export interface LightsPanelProps {
   onScene: (id: string) => void;
   onLook: (id: string, look: Look) => void;
   onPlace: (id: string | null) => void;
+  /** Whether the panel is on screen (#1077): the Haven reads Govee's lamps faster only then. */
+  onSeen?: (seen: boolean) => void;
 }
 
-export function LightsPanel({ view, placed, placing, placingStep = null, canPlace, busy, note, onSet, onScene, onLook, onPlace }: LightsPanelProps) {
+export function LightsPanel({ view, placed, placing, placingStep = null, canPlace, busy, note, onSet, onScene, onLook, onPlace, onSeen }: LightsPanelProps) {
   const [open, setOpen] = useState<string | null>(null);
   const [edit, setEdit] = useState(false);
+  const box = useRef<HTMLElement | null>(null);
+  const seen = useRef(onSeen);
+  seen.current = onSeen;
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => seen.current?.(es.some((e) => e.isIntersecting)));
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      seen.current?.(false);
+    };
+  }, []);
   const groups = view.groups ?? [];
-  const down = (["switchbot", "govee"] as const).filter((v) => view.vendors[v] === "down").map((v) => (v === "govee" ? "Govee" : "SwitchBot"));
-  if (!view.lights.length && !view.scenes.length && !groups.length && !view.remotes.length && !down.length) return null;
-  const word = (l: Light) => (!l.online ? "offline" : l.on === null ? "state unknown" : l.on ? "on" : "off");
+  const down = downNote(view);
+  if (!view.lights.length && !view.scenes.length && !groups.length && !view.remotes.length && !down) return null;
+  // #1077: a lamp whose vendor isn't answering stays listed, unreachable.
+  const word = (l: Light) => (l.stale ? "unreachable" : !l.online ? "offline" : l.on === null ? "state unknown" : l.on ? "on" : "off");
   const lamps = view.lights.filter((l) => l.vendor === "govee");
   const rooms = view.lights.filter((l) => l.vendor === "switchbot");
   // Placing goes on while the panel is closed only by the house; keep its row's Cancel in reach.
@@ -117,7 +133,7 @@ export function LightsPanel({ view, placed, placing, placingStep = null, canPlac
   };
 
   return (
-    <section className="hv-lights" aria-label="Lights" data-edit={editing ? "" : undefined}>
+    <section ref={box} className="hv-lights" aria-label="Lights" data-edit={editing ? "" : undefined}>
       <div className="hv-lt-top">
         <h3 className="hv-lt-h">Lights</h3>
         <button type="button" className="hv-lt-mini" aria-pressed={edit} aria-label={edit ? "Done editing the lights" : "Edit the lights: colour, place, groups"} onClick={() => {
@@ -172,7 +188,7 @@ export function LightsPanel({ view, placed, placing, placingStep = null, canPlac
             ))}
         </div>
       )}
-      {down.length > 0 && <p className="hv-lt-note">{down.join(" and ")} didn't answer just now.</p>}
+      {down && <p className="hv-lt-note">{down}</p>}
       {note && (
         <p className="hv-lt-note" role="status">
           {note}

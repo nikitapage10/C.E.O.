@@ -4,6 +4,7 @@ import { roomAt, type HavenPlan, type PlanRoom } from "./data.ts";
 import { kindOf } from "./fixtures.ts";
 
 export type { Group, Light, LightLook, LightsView, Remote, Scene } from "../../../api/_haven/lights/lights.ts";
+export { HIDDEN_LIGHTS, shownLights } from "../../../api/_haven/lights/hidden.ts";
 
 /**
  * The Haven's lights, browser side (#931): the list from /api/haven/lights (a passkey session only), a switch or a
@@ -25,10 +26,12 @@ const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includ
 
 export type LightsLoad = { state: "idle" } | { state: "ready"; view: LightsView } | { state: "off" } | { state: "out" } | { state: "failed" };
 
-export async function loadLights(f: typeof fetch = fetch, fresh = false): Promise<LightsLoad> {
+export async function loadLights(f: typeof fetch = fetch, fresh = false, live = false): Promise<LightsLoad> {
   try {
-    // Fresh (#1020): after a tap or a scene, the vendors' states as they are now, not as kept a moment ago.
-    const res = await f(fresh ? `${PATH}?fresh=1` : PATH, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } });
+    // Fresh (#1020): after a tap or a scene, SwitchBot's states as they are now, not as kept a moment ago. Live
+    // (#1077): the Lights panel is on screen, so the server reads Govee's lamps every 20 s instead of every 2 minutes.
+    const q = [fresh && "fresh=1", live && "live=1"].filter(Boolean).join("&");
+    const res = await f(q ? `${PATH}?${q}` : PATH, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } });
     if (res.status === 401) return { state: "out" };
     if (res.status === 404 || res.status === 405 || res.status === 503 || !isJson(res)) return { state: "off" };
     if (!res.ok) return { state: "failed" };
@@ -39,8 +42,25 @@ export async function loadLights(f: typeof fetch = fetch, fresh = false): Promis
   }
 }
 
-/** How often the Haven reads the lights while it's on screen (#1020): a switch flipped anywhere shows within this. */
-export const LIGHTS_POLL_MS = 25_000;
+/**
+ * How often the Haven reads the lights (#1020, #1077): every 20 s while the Lights panel is on screen in a visible tab,
+ * every 2 minutes while the tab is visible otherwise, and never while it's hidden. Govee allows 10,000 calls a day.
+ */
+export const LIGHTS_LIVE_MS = 20_000;
+export const LIGHTS_IDLE_MS = 120_000;
+
+/** What the panel says when Govee isn't answering (#1077): its lamps stay listed, unreachable, until it's back. */
+export function downNote(view: Pick<LightsView, "vendors" | "until">, at = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })): string | null {
+  const down = (["switchbot", "govee"] as const).filter((v) => view.vendors[v] === "down");
+  if (!down.length) return null;
+  const until = view.until?.govee;
+  if (down.includes("govee") && until) {
+    const rest = down.length > 1 ? " SwitchBot didn't answer just now." : "";
+    return `Govee's daily limit is used up: its lamps show as unreachable until ${at(until)}, then come back by themselves.${rest}`;
+  }
+  const names = down.map((v) => (v === "govee" ? "Govee" : "SwitchBot"));
+  return `${names.join(" and ")} didn't answer just now${down.includes("govee") ? ": its lamps show as unreachable until it does" : ""}.`;
+}
 
 /** A scene that turns the lights off, by its name ("Turn off lights", "All off", "Lights off"). */
 export const isOffScene = (name: string) => / off /.test(words(name)) && !/ on /.test(words(name));
@@ -130,19 +150,6 @@ export function fixtureOf(name: string): Fixture {
 
 /** The room the Desk's own light is assumed on in (#974: the Studio, while Nikita is on the Desk from a desktop). */
 export const deskRoom = (plan: HavenPlan) => plan.rooms.find((r) => !r.detached && / studio /.test(words(r.name))) ?? null;
-
-/**
- * The lights the Haven leaves out (#1002, Nikita: "I don't even use" them): whole names as the apps name them, any
- * case. They still work (Skippy can switch them); the Lights panel and the house just don't show them. "Island
- * Lights" is that light alone: "Island Underlights" stays.
- */
-export const HIDDEN_LIGHTS: readonly string[] = ["Bar Lights", "Christmas Tree", "Island Lights"];
-
-/** The lights the Haven shows: all but `HIDDEN_LIGHTS`. */
-export function shownLights<L extends Pick<Light, "name">>(lights: readonly L[], hidden: readonly string[] = HIDDEN_LIGHTS): L[] {
-  const out = new Set(hidden.map(words));
-  return lights.filter((l) => !out.has(words(l.name)));
-}
 
 /** A word in a light's name that means another room (#1002: the laundry is the hall, for all intents and purposes). */
 const ROOM_ALIASES: Record<string, readonly string[]> = { laundry: ["hall", "hallway", "corridor"] };

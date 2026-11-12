@@ -8,6 +8,8 @@ import { startWorldClock } from "../../world/src/worldClock.ts";
 import { useAwaySince } from "./awaySince.ts";
 import { useHide } from "@ceo/engine/web/hide.ts";
 import { DeskNav, KEY_ORDER } from "./DeskNav.tsx";
+import { PhoneNav } from "./PhoneNav.tsx";
+import { useIsPhone } from "@ceo/engine/web/phone.ts";
 import { DeskSky } from "./DeskSky.tsx";
 import { startDeskTiming } from "./deskBeacon.ts";
 import { useDeskData } from "./deskData.ts";
@@ -221,6 +223,7 @@ export function Desk({ route }: { route: DeskPage }) {
     };
   }, [todayKept]);
 
+  const phone = useIsPhone();
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
   const connected = hub !== "off";
 
@@ -230,9 +233,10 @@ export function Desk({ route }: { route: DeskPage }) {
   };
 
   return (
-    <div className="desk" data-route={route} data-hide={hide || undefined}>
+    <div className="desk" data-route={route} data-hide={hide || undefined} data-phone={phone || undefined}>
       <DeskSky />
-      <DeskNav route={route} owed={owed} now={now} />
+      {/* On a phone the Desk wears its own frame (#1045, PhoneNav.tsx): a slim bar at the top, the main rooms at the bottom. */}
+      {phone ? <PhoneNav route={route} owed={owed} /> : <DeskNav route={route} owed={owed} now={now} />}
 
       {/* The room loader (#752, @ceo/engine): covers the page while its code, scene and first data come in, then fades.
           Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. A kept room (#759) stays

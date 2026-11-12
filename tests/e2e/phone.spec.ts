@@ -1,0 +1,82 @@
+import { expect, test } from "@playwright/test";
+import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import type { Server } from "node:http";
+import { startDistServer } from "./dist-server.ts";
+
+/**
+ * The Desk on a phone (#1045) on the built site: its own frame, not the desktop bar made small. A slim fixed bar at the
+ * top with the room's name, the main rooms in a fixed bar at the bottom, every room and the room's tabs in a sheet,
+ * and a finger dragged on either bar moves nothing. The desktop bar is never drawn there.
+ */
+
+const PORT = Number(process.env.E2E_PHONE_PORT ?? 5193);
+const BASE = `http://localhost:${PORT}`;
+let server: Server;
+
+test.beforeAll(async () => {
+  const dist = fileURLToPath(new URL("../../apps/world/dist/index.html", import.meta.url));
+  if (!existsSync(dist)) execSync("npm run build", { cwd: fileURLToPath(new URL("../..", import.meta.url)), stdio: "ignore" });
+  server = await startDistServer(PORT);
+});
+test.afterAll(() => new Promise<void>((done) => server.close(() => done())));
+
+test.use({ viewport: { width: 393, height: 659 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+
+test("the phone frame: fixed bars, the Rooms sheet with the room's tabs, and bars that never move under a finger", async ({ page }) => {
+  await page.route("https://api.github.com/**", (r) => r.fulfill({ json: [] }));
+  await page.goto(`${BASE}/boiler/controls`);
+  const bar = page.getByRole("navigation", { name: "Desk" });
+  await expect(bar).toBeVisible();
+  // No desktop bar, no sideways row of words.
+  await expect(page.locator(".wv-tabs")).toHaveCount(0);
+  await expect(bar.getByRole("link")).toHaveText(["Senate", "Haven", "Relay"]);
+  // The room on screen takes the last slot; the top bar names it and its tab.
+  await expect(bar.getByRole("button", { name: "Boiler Room" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".ph-title")).toContainText("Boiler Room");
+  await expect(page.locator(".ph-title")).toContainText("Controls");
+  const box = await bar.boundingBox();
+  expect(box!.y + box!.height).toBeCloseTo(659, 0);
+  for (const el of await page.locator(".ph-bar .ph-slot, .ph-top a, .ph-top button").all()) {
+    const b = await el.boundingBox();
+    if (b) expect(Math.min(b.width, b.height)).toBeGreaterThanOrEqual(44);
+  }
+
+  // A drag on the bottom bar or the top bar scrolls nothing; one on the page does.
+  const scroll = () => page.evaluate(() => document.querySelector(".desk")!.scrollTop);
+  const cdp = await page.context().newCDPSession(page);
+  const drag = async (x: number, y0: number, y1: number) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: y0 }] });
+    for (let i = 1; i <= 8; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y0 + ((y1 - y0) * i) / 8 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(500);
+  };
+  await drag(200, 630, 250);
+  await drag(200, 26, 420);
+  expect(await scroll()).toBe(0);
+  await drag(200, 520, 150);
+  expect(await scroll()).toBeGreaterThan(0);
+  expect((await bar.boundingBox())!.y).toBe(box!.y);
+
+  // The sheet: the room's tabs first, then every room; a tap goes there and shuts it, at the new page's top.
+  await page.locator(".ph-title").tap();
+  const sheet = page.getByRole("dialog", { name: "Rooms" });
+  await expect(sheet.getByRole("navigation", { name: "Boiler Room tabs" }).getByRole("link", { name: /^Controls/ })).toHaveAttribute("aria-current", "page");
+  await expect(sheet.getByRole("navigation", { name: "Every room" }).getByRole("link")).toHaveCount(12);
+  await sheet.getByRole("navigation", { name: "Every room" }).getByRole("link", { name: /^Studio/ }).tap();
+  await expect(page).toHaveURL(`${BASE}/studio`);
+  await expect(sheet).toHaveCount(0);
+  expect(await scroll()).toBe(0);
+  await expect(bar.getByRole("button", { name: "Studio" })).toHaveAttribute("aria-current", "page");
+
+  // Escape and the scrim shut it too.
+  await bar.getByRole("button", { name: "Studio" }).tap();
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+
+  // Skippy is the middle slot.
+  await bar.getByRole("button", { name: "Skippy" }).tap();
+  await expect(page.getByRole("dialog", { name: "Skippy, the Magnificent" })).toBeVisible();
+});

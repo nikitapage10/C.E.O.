@@ -13,7 +13,7 @@ import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
 /**
  * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the Lattice C and the wordmark (#640), then every page as a plain word
  * with a thread under the one you're on: the Senate (once Today, #775), the Foundry, Relay and each room, all in the bar, no menu (Nikita,
- * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Hands-free (#638), the way into
+ * 05:15Z). On a phone the Desk wears its own frame instead (#1045, PhoneNav.tsx). On the right, Ilyr's hour on a small ring, Hands-free (#638), the way into
  * the Lattice, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
  * Keys 1 to 9 open them in order, 0 the tenth. The order is route.ts NAV_ORDER: the Senate, the Haven and Relay first
  * (Nikita, 2026-11-06, #934), the Foundry beside the Boiler Room, last, far right. Ask Skippy moved to the bottom right of every page (#638,
@@ -112,7 +112,7 @@ export function IlyrClock({ now }: { now: number }) {
 }
 
 /** Sign-in, sign-out and the Site lock behind one button at the top right (Nikita, 2026-10-22 05:30Z). */
-function AccountMenu() {
+export function AccountMenu() {
   const auth = useDeskAuth((s) => s.auth);
   const hidden = useHide((s) => s.on);
   const [open, setOpen] = useState(false);

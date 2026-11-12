@@ -50,8 +50,8 @@ describe("the Desk's sign-in step (#132)", () => {
     const html = render({
       status: "in",
       device: "iPhone",
-      until: NOW + 30 * 60_000,
-      hardUntil: NOW + 12 * 3_600_000,
+      until: NOW + 14 * 86_400_000,
+      hardUntil: NOW + 30 * 86_400_000,
       devices: [
         { id: "a", label: "iPhone", added: "2026-10-14T08:00:00Z", used: null, current: true },
         { id: "b", label: "Windows PC", added: "2026-10-13T08:00:00Z", used: null, current: false },

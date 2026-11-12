@@ -9,7 +9,8 @@ const answer = (status: number, gate?: string) => new Response("{}", { status, h
 describe("the site gate in the browser (#236)", () => {
   it("knows a locked answer from any other 401", () => {
     expect(isLocked(answer(401, "locked"))).toBe(true);
-    expect(isLocked(answer(503, "locked"))).toBe(true);
+    // The gate's 503 is the server unable to check (a deploy's fresh instance, #1078): no trip to the login page.
+    expect(isLocked(answer(503, "locked"))).toBe(false);
     expect(isLocked(answer(401))).toBe(false);
     expect(isLocked(answer(200, "locked"))).toBe(false);
   });

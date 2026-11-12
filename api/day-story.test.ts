@@ -52,7 +52,7 @@ describe("the backfill (POST /api/day-story) needs the Desk's sign-in (#132)", (
   it("refuses an expired session, and one for a removed device", async () => {
     const s = setup();
     const cookie = await signedIn(s);
-    expect((await handlePost(post({}, cookie), { ...s.deps, now: NOW + 31 * 60_000 })).status).toBe(401);
+    expect((await handlePost(post({}, cookie), { ...s.deps, now: NOW + 14 * 86_400_000 + 60_000 })).status).toBe(401);
     await s.auth.savePasskeys([]);
     expect((await handlePost(post({}, cookie), s.deps)).status).toBe(401);
     expect(s.fetcher).not.toHaveBeenCalled();

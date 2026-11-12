@@ -275,6 +275,11 @@ describe("the gate (#236)", () => {
     const noKeys = await ctx({ keys: null });
     const page = decide(req("/"), noKeys);
     expect(!page.allow && (await page.response.text())).toContain("isn’t set up");
+    // An API call to an instance without keys (a deploy's fresh instance before the vault resolves, #1078) is the
+    // server's trouble: 503, which the browser leaves alone, not the 401 that sends it to the login page.
+    const api = decide(req("/api/world"), noKeys);
+    expect(!api.allow && api.response.status).toBe(503);
+    expect(!api.allow && (await api.response.json())).toEqual({ error: "site-unavailable" });
   });
 
   it("re-reads the record when a signed cookie is newer than the instance's copy (right after a change)", async () => {

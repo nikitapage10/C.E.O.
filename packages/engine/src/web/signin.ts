@@ -122,6 +122,29 @@ const post = (body: unknown) => fetch("/api/desk-auth", { method: "POST", header
 /** A quiet renewal at most this often while Nikita is using the Desk. */
 export const RENEW_MS = 5 * 60_000;
 
+/**
+ * A check that got no answer (the functions restarting during a deploy, #1078, or a dropped connection) is tried again
+ * after this long, then twice as long each time, up to RETRY_MAX_MS. It never counts as signed out: the cookie decides.
+ */
+export const RETRY_MS = 15_000;
+export const RETRY_MAX_MS = 5 * 60_000;
+let retry: { timer: ReturnType<typeof setTimeout> | null; wait: number } = { timer: null, wait: RETRY_MS };
+
+function retryLater(check: () => Promise<void>): void {
+  if (retry.timer) return;
+  const wait = retry.wait;
+  retry.wait = Math.min(wait * 2, RETRY_MAX_MS);
+  retry.timer = setTimeout(() => {
+    retry.timer = null;
+    void check();
+  }, wait);
+}
+
+function answered(): void {
+  if (retry.timer) clearTimeout(retry.timer);
+  retry = { timer: null, wait: RETRY_MS };
+}
+
 interface AuthStore {
   auth: AuthView;
   checked: number;
@@ -173,11 +196,18 @@ export const useDeskAuth = create<AuthStore>((set, get) => ({
       const res = await fetch("/api/desk-auth", { credentials: "same-origin" });
       if (!res.ok) throw new Error(String(res.status));
       const auth = viewOf((await res.json()) as Status, Date.now());
+      // { ready: false } from a function that just started without its Desk key yet (a deploy re-reads the vault,
+      // #1078) says nothing about this browser's session: a signed-in Desk stays signed in and looks again later.
+      if (auth.status === "off" && get().auth.status === "in") throw new Error("not ready");
       set({ auth });
+      if (auth.status === "off") retryLater(get().check);
+      else answered();
       if (auth.status === "out" && canPasskey()) prepareSignIn();
     } catch {
-      // No function here (a local dev server, or offline): the Desk reads as usual and its buttons stay off.
+      // No answer (a deploy restarting the functions, a local dev server, or offline): never "signed out". The Desk
+      // reads as usual with its buttons off and asks again shortly; a signed-in Desk stays signed in.
       if (get().auth.status === "checking") set({ auth: { status: "off" } });
+      retryLater(get().check);
     }
   },
   signIn: async () => {
@@ -266,10 +296,20 @@ export const useDeskAuth = create<AuthStore>((set, get) => ({
   },
 }));
 
-/** Signed in already, or signs in now with a passkey (one tap on an enrolled device). */
+/**
+ * Signed in already, or signs in now with a passkey (one tap on an enrolled device). When the page doesn't know yet
+ * (still checking, or its last check got no answer, as during a deploy, #1078), it asks the server first: the cookie
+ * may well be good, and the passkey is only for a browser the server says is signed out.
+ */
 export async function ensureSignedIn(): Promise<AuthResult> {
-  const { auth, signIn } = useDeskAuth.getState();
+  const { auth, signIn, check } = useDeskAuth.getState();
   if (auth.status === "in" && (auth.until ?? 0) > Date.now()) return "ok";
+  if (auth.status === "checking" || auth.status === "off") {
+    await check();
+    const now = useDeskAuth.getState().auth;
+    if (now.status === "in") return "ok";
+    if (now.status !== "out") return "off";
+  }
   return signIn();
 }
 
@@ -277,7 +317,8 @@ let started = false;
 
 /**
  * Checks the session when the Desk opens, and renews it quietly while Nikita is using it: on a click or a key, at most
- * every five minutes. A Desk left alone lets its session run out after 30 minutes, as it should.
+ * every five minutes. A Desk left alone lets its session run out after 14 days, and any session ends 30 days after its
+ * passkey sign-in (api/_desk/session.ts, #1078). A check that got no answer is tried again, on a timer and on a touch.
  */
 export function startDeskAuth(): void {
   if (started || typeof window === "undefined") return;
@@ -292,6 +333,7 @@ export function startDeskAuth(): void {
   const touch = () => {
     const { auth, checked, check } = useDeskAuth.getState();
     if (auth.status === "in" && Date.now() - checked > RENEW_MS) void check();
+    else if (auth.status === "off" && Date.now() - checked > RETRY_MS) void check();
     else if (auth.status === "in" && (auth.until ?? 0) <= Date.now()) useDeskAuth.setState({ auth: { status: "out" } });
   };
   window.addEventListener("pointerdown", touch, { passive: true });

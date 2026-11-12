@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { logoOf, appliedBefore, appliedOf, tidy, yearsAskedIn, changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, searchUrl, type JobsDeps } from "./jobs.ts";
+import { logoOf, appliedBefore, appliedOf, tidy, yearsAskedIn, changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, isEngineeringRole, searchUrl, type JobsDeps } from "./jobs.ts";
 
 const NOW = Date.parse("2026-11-10T22:00:00Z");
 
@@ -211,5 +211,22 @@ describe("the Job search (#1000)", () => {
     const s = { ...new MemoryJobsStore().state, profile: cleanProfile({ searches: [{ q: "a" }] }) };
     expect(nextRunAt(s, NOW)).toBe("2026-11-11T13:00:00.000Z");
     expect(nextRunAt({ ...s, profile: { ...s.profile, daily: false } }, NOW)).toBeNull();
+  });
+});
+
+describe("isEngineeringRole", () => {
+  it("hides engineering roles but keeps security engineering and program roles that name engineering", () => {
+    expect(isEngineeringRole("Engineering Manager, Payments")).toBe(true);
+    expect(isEngineeringRole("Senior Software Engineer")).toBe(true);
+    expect(isEngineeringRole("Site Reliability Engineer (SRE)")).toBe(true);
+    expect(isEngineeringRole("Security Engineering Manager")).toBe(false);
+    expect(isEngineeringRole("GRC Engineer")).toBe(false);
+    expect(isEngineeringRole("Engineering Program Manager")).toBe(false);
+    expect(isEngineeringRole("Technical Program Manager, Infrastructure Engineering")).toBe(false);
+    expect(isEngineeringRole("Product Manager, Trust & Safety")).toBe(false);
+  });
+  it("hides an engineering manager posting when scored", () => {
+    const job = normaliseJob({ title: "Engineering Manager", company_name: "Acme", location: "Denver, CO", description: "" }, "q", "2026-11-12T00:00:00.000Z");
+    expect(job && scoreJob(job, cleanProfile({})).hidden).toBe("engineering role");
   });
 });

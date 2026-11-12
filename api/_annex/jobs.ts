@@ -458,6 +458,19 @@ export function workOf(job: Pick<Job, "title" | "location" | "snippet" | "remote
  * applied jobs always stay visible. The provisional score weighs the years asked, the company lists, the lift words,
  * the place and the pay; it never reads the resume (that is the AI's job, fit.ts).
  */
+const ENGINEERING_TITLE = /\b(engineer|engineers|engineering|developer|software|sre|devops|programmer)\b/i;
+const SECURITY_WORDS = /\b(security|cybersecurity|appsec|infosec|trust|safety|privacy|compliance|grc|risk|governance|identity)\b/i;
+const PM_TITLE = /\b(program|product|project|portfolio)\s+(manager|management|lead|director|owner)\b|\btpm\b/i;
+
+/**
+ * An engineering role (Nikita, 2026-11-12): engineering managers, software engineers and the like are hidden, since the
+ * search is for program, product, risk and governance work. Security engineering stays in, and so does a program or
+ * product role that only names engineering ("Engineering Program Manager").
+ */
+export function isEngineeringRole(title: string): boolean {
+  return ENGINEERING_TITLE.test(title) && !SECURITY_WORDS.test(title) && !PM_TITLE.test(title);
+}
+
 export function scoreJob(job: Job, profile: JobsProfile): Job {
   const why: string[] = [];
   let score = 40;
@@ -488,7 +501,7 @@ export function scoreJob(job: Job, profile: JobsProfile): Job {
   else if (work === "hybrid") lift(profile.near.length ? 22 : 3, profile.near.length ? "near you, hybrid" : "hybrid");
   else if (work === "remote") lift(profile.near.length ? 1 : 6, "remote");
   // Nikita isn't moving (2026-11-11): a job elsewhere that isn't fully remote is never a result.
-  let hidden: string | null = avoid ? `has "${avoid}"` : profile.near.length && work === "elsewhere" ? "not near you or remote" : null;
+  let hidden: string | null = avoid ? `has "${avoid}"` : isEngineeringRole(job.title) ? "engineering role" : profile.near.length && work === "elsewhere" ? "not near you or remote" : null;
   if (profile.minSalary && job.payMax !== null) {
     if (job.payMax < profile.minSalary) hidden ??= "pay under your floor";
     else lift(10, "pay clears your floor");

@@ -29,7 +29,7 @@ import {
   type AgentRequest,
   type AgentRun,
 } from "./kernelagent.ts";
-import { AGENT_ROUTE, BRIEF_ROUTE, loadBrief, putBrief, runAgent, startFor } from "./kernelroute.ts";
+import { AGENT_ROUTE, BRIEF_ROUTE, START_WAIT_MS, loadBrief, putBrief, runAgent, startFor } from "./kernelroute.ts";
 import { BlobRoomLog, MemoryRoomLog, onHandoff, type LoggedTurn } from "./log.ts";
 
 vi.mock("@vercel/blob", async () => (await import("../_desk/fakeBlob.ts")).fakeBlob);
@@ -431,26 +431,37 @@ describe("the brief (PUT /api/kernel-brief)", () => {
 });
 
 describe("the trigger and the run route", () => {
-  it("starts the responder with a request to the app's own address, not in-process", async () => {
+  it("starts the responder with a request to the site's address first, not the app's own (#1054), not in-process", async () => {
     const send = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response("{}"));
     const run = vi.fn(async () => undefined);
-    startFor("0123456789abcdef", { ...ENV, WEBSITE_HOSTNAME: "ceo-fn.azurewebsites.test" }, send as unknown as typeof fetch, run);
+    startFor("0123456789abcdef", { ...ENV, CEO_SITE_URL: "https://ceo.example.test", WEBSITE_HOSTNAME: "ceo-fn.azurewebsites.test" }, send as unknown as typeof fetch, run);
     await new Promise((r) => setTimeout(r, 5));
     expect(send).toHaveBeenCalledTimes(1);
     const [url, init] = send.mock.calls[0]!;
-    expect(url).toBe(`https://ceo-fn.azurewebsites.test${AGENT_ROUTE}`);
+    // The app's own address answers only the Static Web App that links it (a 401 for everyone else).
+    expect(url).toBe(`https://ceo.example.test${AGENT_ROUTE}`);
     expect((init!.headers as Record<string, string>).Authorization).toBe(`Bearer ${FEED}`);
     expect(JSON.parse(init!.body as string)).toEqual({ id: "0123456789abcdef" });
     expect(run).not.toHaveBeenCalled();
   });
 
-  it("falls back to the site's own address before ever running in-process (#507)", async () => {
+  it("falls back to the app's own address before ever running in-process (#507)", async () => {
     const send = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response("{}"));
     const run = vi.fn(async () => undefined);
-    startFor("0123456789abcdef", { ...ENV, CEO_SITE_URL: "https://ceo.example.test" }, send as unknown as typeof fetch, run);
+    startFor("0123456789abcdef", { ...ENV, WEBSITE_HOSTNAME: "ceo-fn.azurewebsites.test" }, send as unknown as typeof fetch, run);
     await new Promise((r) => setTimeout(r, 5));
-    expect(send.mock.calls[0]![0]).toBe(`https://ceo.example.test${AGENT_ROUTE}`);
+    expect(send.mock.calls[0]![0]).toBe(`https://ceo-fn.azurewebsites.test${AGENT_ROUTE}`);
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it("holds the route that handed it off only until the request is on its way, not for the run (#1054)", async () => {
+    const { collectWaitUntil } = await import("../_waitUntil.ts");
+    const send = vi.fn(() => new Promise<Response>(() => undefined)); // the run never answers in this test
+    const { pending } = await collectWaitUntil(async () => startFor("0123456789abcdef", { ...ENV, CEO_SITE_URL: "https://ceo.example.test" }, send as unknown as typeof fetch));
+    expect(pending).toHaveLength(1);
+    const t0 = Date.now();
+    await pending[0];
+    expect(Date.now() - t0).toBeLessThan(START_WAIT_MS + 500);
   });
 
   it("runs in-process without an address, and not at all when off or without a key", async () => {

@@ -377,8 +377,9 @@ Skippy, who works out from the context whether the ask is about this page, anoth
 - **On a Talk call.** The call's tool token is bound to the passkey that started it (kept server-side with the token's
   hash, never in a URL), so `hand_to_kernel` runs as that passkey's own turn: rules and the fast pass inside the tool's
   five seconds (3.8 s budget), answered straight into the call. When it hands up, the ask is filed (`model: "voice"`
-  or `"voice-hard"`) and the Kernel's trigger runs `deepAnswer` at once; the answer is kept final and pushed into the
-  call the moment it lands. One waiting line per question, never "thread", "crew" or "Kernel". `read_haven` reads the
+  or `"voice-hard"`) and the call's own route answers it at once, on its instance (`api/_skippy/calldeliver.ts`,
+  #1054); the answer is kept final and pushed into the call the moment it lands. One waiting line per question, never
+  "thread", "crew" or "Kernel". `read_haven` reads the
   home on the call: the live view inside 1.5 s, else the last good lines kept server-side
   (`haven/devices/home-lines.json`, with their age past two minutes; `api/_haven/devices/homeread.ts`).
 - **Schedules, on every surface (#952).** "When is the next wet food cycle?", "when does the dry feeder feed next?",
@@ -396,6 +397,18 @@ Skippy, who works out from the context whether the ask is about this page, anoth
   whole answer stays in the chat. The call's captions scroll with the speech (`apps/desk/src/hologram/captions.ts`),
   and the rest of the site (the Senate, the rooms' voices, the Lattice's sounds and music) is muted for the call and
   brought back after (`@ceo/engine/web/siteSound.ts`).
+- **A call's slow question always lands (#1054).** Nikita, 2026-11-12: a plain web question sat two minutes on filler
+  and never got its answer. The call's search was dropped once it ran past the tool's budget, and the deeper run was
+  started by a self-call to the Function App's own address, which the Static Web App's linked backend refuses (401).
+  Now a question passed on from the call is answered on the instance that took it (`deliverCallAnswer`,
+  `api/_skippy/calldeliver.ts`): the search the call already started answers it the moment it is in (usually 8 to
+  15 s after the question; Sonnet 5.5 with thinking off between searches, low effort, a paused search resumed);
+  only when there is no search, or it found nothing, does the deeper run take the time left; and by 45 s at the
+  latest an honest final line goes in ("I couldn't get that answer in time"). Exactly one final answer per question,
+  kept as the always-on part of Skippy. On a live call the chat looks every 2 s, so the answer is said within about
+  2 s of landing; and if even the honest line never lands (the instance went away), the call itself says plainly
+  after 70 s that it couldn't get it (`CALL_GIVE_UP_MS`, `landing.ts`). The Kernel's trigger no longer starts call
+  asks, and posts the rest to the site's address (`CEO_SITE_URL`) first ([AZURE.md](AZURE.md)).
 - **The Senate's floor (#952).** A question about the debate ("what are you guys talking about?") goes to the members
   like a remark; a deeper answer that fails or comes back empty on the floor goes to them too. A room or floor turn
   whose model failed is asked once more before "my magnificent mind hiccupped" (`onceMore`, `roomroute.ts`).

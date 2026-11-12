@@ -195,6 +195,15 @@ const searches = new Map<string, Search>();
 
 export const forgetSearches = () => searches.clear();
 
+/**
+ * The search this call is running (or ran) for `query`, so a question passed on past the tool's budget is answered by
+ * it the moment it is in (#1054, calldeliver.ts) instead of being dropped; null when there is none.
+ */
+export function runningSearch(call: string, rawQuery: unknown): Promise<string> | null {
+  const s = searches.get(`${call}|${cleanQuery(rawQuery).toLowerCase()}`);
+  return s ? (s.done !== null ? Promise.resolve(s.done) : s.run) : null;
+}
+
 /** The query as a search takes it: one plain line, capped; "" when empty. */
 export const cleanQuery = (raw: unknown) =>
   typeof raw === "string"
@@ -253,21 +262,50 @@ export const VOICE_LOOKUP_TOKENS = 1_200;
 /** The most searches one lookup may run (fewer than the typed chat's three, for speed). */
 export const VOICE_SEARCH_MAX = 2;
 
-/** The search on Claude: the typed chat's lookup model and web search, short. */
-export function claudeSearch(key: string): (query: string) => Promise<{ text: string; usage: Usage; usd: number }> {
-  const client = new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 0 });
+/** A long search may pause mid-turn (pause_turn); it is resumed at most this many times before its answer is read. */
+export const VOICE_SEARCH_RESUMES = 2;
+
+/** One Messages API call for the search: the live client, or a scripted one in tests. */
+export type SearchCall = (params: Anthropic.MessageCreateParamsNonStreaming) => Promise<Anthropic.Message>;
+
+/** The search's request: the typed chat's lookup model and web search, short, speed first on a live call. */
+export function searchParams(query: string, messages: Anthropic.MessageParam[] = [{ role: "user", content: lookupInput(query) }]): Anthropic.MessageCreateParamsNonStreaming {
+  return {
+    model: LOOKUP_MODEL,
+    max_tokens: VOICE_LOOKUP_TOKENS,
+    // Speed first on a live call (#1054): thinking off between the searches (Sonnet 5.5 refuses "disabled") at low effort.
+    thinking: { type: "between_tools" },
+    output_config: { effort: "low" },
+    system: VOICE_LOOKUP_PROMPT,
+    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: VOICE_SEARCH_MAX }],
+    messages,
+  };
+}
+
+/** The search on Claude (#491), resumed when it pauses (#1054: a paused search used to read as "found nothing"). */
+export function claudeSearch(key: string, call?: SearchCall): (query: string) => Promise<{ text: string; usage: Usage; usd: number }> {
+  const create: SearchCall = call ?? ((params) => new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 0 }).messages.create(params));
   return async (query) => {
-    const res = await client.messages.create({
-      model: LOOKUP_MODEL,
-      max_tokens: VOICE_LOOKUP_TOKENS,
-      output_config: { effort: "low" },
-      system: VOICE_LOOKUP_PROMPT,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: VOICE_SEARCH_MAX }],
-      messages: [{ role: "user", content: lookupInput(query) }],
-    });
-    const text = res.stop_reason === "end_turn" ? res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ") : "";
-    const usage = res.usage as Usage;
-    const n = Math.min(VOICE_SEARCH_MAX, (res.usage as { server_tool_use?: { web_search_requests?: number } | null }).server_tool_use?.web_search_requests ?? 0);
+    const messages: Anthropic.MessageParam[] = [{ role: "user", content: lookupInput(query) }];
+    const usage: Usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+    let searches = 0;
+    let text = "";
+    for (let round = 0; round <= VOICE_SEARCH_RESUMES; round++) {
+      const res = await create(searchParams(query, messages));
+      const u = res.usage as Usage & { server_tool_use?: { web_search_requests?: number } | null };
+      usage.input_tokens += u.input_tokens;
+      usage.output_tokens += u.output_tokens;
+      usage.cache_creation_input_tokens = (usage.cache_creation_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+      usage.cache_read_input_tokens = (usage.cache_read_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+      searches += u.server_tool_use?.web_search_requests ?? 0;
+      if (res.stop_reason === "pause_turn") {
+        messages.push({ role: "assistant", content: res.content as Anthropic.ContentBlockParam[] });
+        continue;
+      }
+      text = res.stop_reason === "end_turn" ? res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ") : "";
+      break;
+    }
+    const n = Math.min(VOICE_SEARCH_MAX * (VOICE_SEARCH_RESUMES + 1), searches);
     return { text, usage, usd: costOf(usage, SONNET_PRICE) + n * SEARCH_USD };
   };
 }

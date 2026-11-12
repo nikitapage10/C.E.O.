@@ -8,7 +8,7 @@ import { sendTalkTiming } from "./talkBeacon.ts";
 import { SILENCE_CHECK_MS, silenceGuard, type SilenceGuard } from "./silence.ts";
 import { holdBegin, holdCheck, holdEnd, holdHeard } from "./hold.ts";
 import { duckSite } from "@ceo/engine/web/siteSound.ts";
-import { createLanding, shortSpoken } from "./landing.ts";
+import { CALL_GIVE_UP_MS, GIVE_UP_NOTE, createLanding, shortSpoken } from "./landing.ts";
 import { screenJSON } from "@ceo/engine/web/screenFacts.ts";
 
 /** What Nikita is looking at as the call starts (#1027): its metadata goes with the call's asks; never a picture. */
@@ -253,6 +253,21 @@ let mine = new Set<number>();
 /** The call's lookups in flight (#546). */
 let inFlight = 0;
 
+/** The seatbelt (#1054): an answer still out after CALL_GIVE_UP_MS is given up on the call, said plainly once. */
+function giveUpLater(bubble: number): void {
+  setTimeout(() => {
+    if (!session || !mine.has(bubble) || !heard.has(bubble)) return;
+    heard.delete(bubble);
+    mine.delete(bubble);
+    holdHeard();
+    try {
+      session.speakNow(GIVE_UP_NOTE);
+    } catch {
+      /* the call is going */
+    }
+  }, CALL_GIVE_UP_MS);
+}
+
 /** Whether the call is waiting on an answer right now: a lookup out, or one of its hand-offs not back (#546). */
 const waiting = (): boolean => inFlight > 0 || [...mine].some((b) => heard.has(b));
 
@@ -268,6 +283,7 @@ async function followHandoffs(id: string): Promise<void> {
     const bubble = await chat.wait(turn, "kernel", "skippy");
     if (bubble !== null && session) {
       heard.set(bubble, useSkippy.getState().turns.find((t) => t.id === bubble)?.text ?? "");
+      if (!mine.has(bubble)) giveUpLater(bubble);
       mine.add(bubble);
     }
   }

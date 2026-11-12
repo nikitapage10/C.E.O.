@@ -39,7 +39,7 @@ import type { JobRun, OpenPull } from "../foundry-feed.js";
 import { elevenFromEnv } from "../_world/story.js";
 import { pickStore } from "../_world/store.js";
 import type { WorldState } from "../_world/types.js";
-import { callAnswer, foundryIssues, type CallTurn } from "../skippy.js";
+import { answerDeps, callAnswer, deepAnswer, foundryIssues, keepAnswer, type CallTurn } from "../skippy.js";
 import { contextLines, deskContext } from "./context.js";
 import { liveRoomReads } from "./roomReads.js";
 import { takeLine } from "./rooms.js";
@@ -54,7 +54,8 @@ import { fpKey, readFpPlayerNews } from "../_green/fantasypros.js";
 import { readPlayers } from "../_green/sleeper.js";
 import { BlobChatLedger, KERNEL_LEDGER_PATH, canChat, skippyBudget, skippySpent } from "./budget.js";
 import { claudeKey } from "../_world/claude.js";
-import { NEWS_PENDING, NO_MORE_LINES, SAY_WAITING_LINE, STILL_SEARCHING, claudeSearch, cleanPlayer, isEmptyLookup, mergeStatusNews, playerNews, waitingLine, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.js";
+import { NEWS_PENDING, NO_MORE_LINES, SAY_WAITING_LINE, STILL_SEARCHING, claudeSearch, cleanPlayer, isEmptyLookup, mergeStatusNews, playerNews, runningSearch, waitingLine, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.js";
+import { deliverCallAnswer, type CallJob } from "./calldeliver.js";
 import { liveScores } from "./sports.js";
 
 export const PATH = "/api/skippy-tools";
@@ -102,6 +103,11 @@ export interface ToolDeps {
   now: number;
   /** For tests: the read budget (ms). */
   budgetMs?: number;
+  /**
+   * Answers a question passed on past the tool's budget (#1054, calldeliver.ts): started and not awaited, so the tool
+   * answers at once and the answer is kept on the turn the moment it is in. Left out, the hand-off's trigger takes it.
+   */
+  deliver?: ((job: CallJob) => void) | null;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -166,11 +172,12 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
       // One path per question (#952): once a slow search is passed on, asking it again is answered with silence, so
       // the search's late result is never said as a second answer.
       if (query && passedOn.has(key)) return json({ read: "web", text: PASSED_ON });
-      const text = await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - 300);
-      // Slow: no polling. The question goes to the deeper mind once, with its one waiting line, and its answer is put
-      // into the call the moment it lands (#952: polling kept a tool out while the answer landed, so it went unsaid).
+      const text = await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - WEB_FILE_MS);
+      // Slow: no polling. The question is passed on once, with its one waiting line, and the search that is still
+      // running answers it the moment it is in (#1054; before, its late answer was dropped); its answer is put into the
+      // call as it lands (#952: polling kept a tool out while the answer landed, so it went unsaid).
       if (text === STILL_SEARCHING && query) {
-        const filed = await fileHandoff(query, deps, check);
+        const filed = await fileHandoff(query, deps, check, "talk", runningSearch(check.hash, body?.query));
         if (filed.ok) {
           if (passedOn.size > 500) passedOn.clear();
           passedOn.add(key);
@@ -261,6 +268,9 @@ const passedOn = new Set<string>();
 /** What a repeat of a passed-on search hears: nothing to say, the answer is coming. */
 export const PASSED_ON = "Your deeper mind already has this question, and its answer is put into the call the moment it lands. Say nothing now, don't search again, and stop.";
 
+/** What the web tool keeps of its budget for passing a slow search on (two blob writes), inside the five seconds. */
+export const WEB_FILE_MS = 900;
+
 /** How long the brain's quick pass may take inside the tool's five seconds. */
 export const QUICK_BUDGET_MS = 3_800;
 
@@ -293,7 +303,7 @@ function withTime<T>(work: Promise<T>, ms: number): Promise<T | null> {
  * Files an ask with the deeper mind for the call. The result's text tells the agent what to do next: one waiting line
  * (only the first time a question needs one, #537), then silence until the answer lands in the call.
  */
-async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>, depth: "talk" | "hard" = "talk"): Promise<{ ok: boolean; text: string; turn?: string }> {
+async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>, depth: "talk" | "hard" = "talk", search?: Promise<string> | null): Promise<{ ok: boolean; text: string; turn?: string }> {
   // The same check as the typed chat: a private-looking ask is never kept or handed on.
   if (privateParts(ask).length) return { ok: false, text: "That ask has something private in it, so it wasn't handed over. Ask Nikita to say it without the private part, or to type it in the chat." };
   if (!deps.log || !deps.crew) return { ok: false, text: UNREACHABLE };
@@ -307,6 +317,8 @@ async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenChec
   } catch {
     return { ok: false, text: UNREACHABLE };
   }
+  // Answered here, not awaited (#1054): the search when there is one, else the deeper run, else an honest line.
+  deps.deliver?.({ id, ask, depth, ...(search && { search }) });
   const line = waitingLine(check.hash, deps.now)
     ? `Say one short in-character line, like "${ponderLine(id).replace(/…$/, "")}" (never "thread", "hand-off", "Kernel" or "crew"), then stop.`
     : "You already said this question's waiting line: say nothing now, and stop.";
@@ -465,10 +477,26 @@ export function webDeps(env: Record<string, string | undefined>): WebDeps {
   };
 }
 
+/**
+ * The live answerer for a call's passed-on question (#1054): runs on this instance, not awaited by the response (so
+ * it is not held to the route's settle time either), and keeps its one final answer as the always-on part of Skippy.
+ */
+export function liveDeliver(log: RoomLog): (job: CallJob) => void {
+  return (job) => {
+    void deliverCallAnswer(job, {
+      keep: async (id, text) => (await keepAnswer({ ...answerDeps(), log }, { id, from: "kernel-agent", text, final: true, ping: true })).ok,
+      deep: (ask, depth) => deepAnswer(ask, depth),
+      now: Date.now,
+      log: (line) => console.log(line),
+    }).catch(() => undefined);
+  };
+}
+
 export function GET(request: Request): Promise<Response> {
   const env = process.env;
   const blob = pickBlob(env);
-  return handle(request, { deskKey: env.FOUNDRY_DESK_KEY ?? "", crew: blob ? new BlobCrewStore(blob) : null, sources: liveSources(env), brain: (ask, passkey, screen) => callAnswer(ask, passkey, undefined, screen), log: blob ? new BlobRoomLog(blob) : null, now: Date.now() });
+  const log = blob ? new BlobRoomLog(blob) : null;
+  return handle(request, { deskKey: env.FOUNDRY_DESK_KEY ?? "", crew: blob ? new BlobCrewStore(blob) : null, sources: liveSources(env), brain: (ask, passkey, screen) => callAnswer(ask, passkey, undefined, screen), log, now: Date.now(), deliver: log ? liveDeliver(log) : null });
 }
 
 export const POST = GET;

@@ -324,7 +324,7 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "Separate identities make the agents' actions auditable and let the repo's rules treat them differently, and a token that leaks is useless within the hour.",
   },
   R3: {
-    what: "A real sign-in for the Desk: a passkey on Nikita's PC or phone, a session that lasts 30 minutes from its last use and 12 hours at most, and wrong tries slowed down, then locked out.",
+    what: "A real sign-in for the Desk: a passkey on Nikita's PC or phone, a session that lasts 14 days from its last use and 30 days at most, and wrong tries slowed down, then locked out.",
     connects: "The Desk's buttons, picture uploads and the day's story, which used to take one typed key and now need a passkey session.",
     why: "The Desk is the approval gate for every build; the old key is now only for enrolling a new device, and never stays in the browser.",
   },

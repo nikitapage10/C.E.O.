@@ -14,9 +14,13 @@ export function loginUrl(loc: Pick<Location, "pathname" | "search">): string {
   return `/api/site-login?next=${encodeURIComponent(loc.pathname + loc.search)}`;
 }
 
-/** Whether an answer says the site is locked for this browser. */
+/**
+ * Whether an answer says the site is locked for this browser: a 401 from the gate. Its 503 (site-unavailable: the
+ * server couldn't read its own lock or keys, as a fresh instance can during a deploy, #1078) says nothing about this
+ * browser's session, so the page stays put and the call is tried again later, with no trip to the login page.
+ */
 export function isLocked(res: Pick<Response, "status" | "headers">): boolean {
-  return (res.status === 401 || res.status === 503) && res.headers.get(GATE_HEADER) === "locked";
+  return res.status === 401 && res.headers.get(GATE_HEADER) === "locked";
 }
 
 /** Wraps the page's fetch once: a locked answer sends the page to the login page (once). */

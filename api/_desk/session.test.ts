@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { deskKeyFor, keyMatches, pictureSecret } from "./keys.ts";
 import { CHALLENGE_S, IDLE_S, MAX_S, SESSION_COOKIE, challengeOf, cookie, newSession, readCookie, readToken, renewed, requireSession, sameOrigin, sessionCookie, sessionOf, signToken } from "./session.ts";
 import { MemoryAuthStore } from "./store.ts";
@@ -6,6 +6,8 @@ import { MemoryAuthStore } from "./store.ts";
 const DESK = "a test desk key, not a real one";
 const NOW = Date.parse("2026-10-14T09:00:00Z");
 const MIN = 60_000;
+const HOUR = 60 * MIN;
+const DAY = 24 * HOUR;
 
 describe("the Desk's keys (#132)", () => {
   it("derives a different key for each use, none of them the Desk key, the same every time", async () => {
@@ -41,20 +43,23 @@ describe("session tokens (#132)", () => {
     expect(sessionOf(await deskKeyFor(DESK, "challenge"), token, NOW)).toBeNull();
   });
 
-  it("lasts 30 minutes after its last use", async () => {
+  it("lasts 14 days after its last use (#1078)", async () => {
+    expect(IDLE_S).toBe(14 * DAY / 1000);
     const key = await deskKeyFor(DESK, "session");
     const token = signToken(key, newSession("cred-1", NOW));
-    expect(sessionOf(key, token, NOW + 29 * MIN)).not.toBeNull();
-    expect(sessionOf(key, token, NOW + 30 * MIN)).toBeNull();
+    expect(sessionOf(key, token, NOW + 13 * DAY)).not.toBeNull();
+    expect(sessionOf(key, token, NOW + 14 * DAY - MIN)).not.toBeNull();
+    expect(sessionOf(key, token, NOW + 14 * DAY)).toBeNull();
   });
 
-  it("renews quietly on use, but never past 12 hours from the sign-in", async () => {
+  it("renews quietly on use, but never past 30 days from the passkey sign-in (#1078)", async () => {
+    expect(MAX_S).toBe(30 * DAY / 1000);
     const key = await deskKeyFor(DESK, "session");
     let session = newSession("cred-1", NOW);
     let at = NOW;
-    // Used every 20 minutes all day: still signed in at 11 hours 40, out at 12.
-    while (at < NOW + 12 * 60 * MIN - 20 * MIN) {
-      at += 20 * MIN;
+    // Used every few days: still signed in on day 27, then out at day 30 however recently it was used.
+    while (at < NOW + 30 * DAY - 3 * DAY) {
+      at += 3 * DAY;
       const read = sessionOf(key, signToken(key, session), at);
       expect(read, new Date(at).toISOString()).not.toBeNull();
       session = renewed(read!, at);
@@ -65,6 +70,20 @@ describe("session tokens (#132)", () => {
     expect(sessionOf(key, signToken(key, { t: "session", c: "x", s: NOW / 1000, e: NOW / 1000 + MAX_S + 60 }), NOW)).toBeNull();
     // So is one from the future.
     expect(sessionOf(key, signToken(key, { t: "session", c: "x", s: NOW / 1000 + 3600, e: NOW / 1000 + 3600 + IDLE_S }), NOW)).toBeNull();
+  });
+
+  it("survives a deploy: a fresh instance of a new build reads a session the old one signed (#1078)", async () => {
+    const token = await sessionCookie(DESK, newSession("cred-1", NOW), NOW);
+    const value = token.split(";")[0]!.slice(SESSION_COOKIE.length + 1);
+    // A new build on a cold instance: every module loaded again, nothing kept in memory (no scrypt cache, no store).
+    vi.resetModules();
+    const fresh = { keys: await import("./keys.ts"), session: await import("./session.ts") };
+    const read = fresh.session.sessionOf(await fresh.keys.deskKeyFor(DESK, "session"), value, NOW + 2 * HOUR);
+    expect(read).toEqual({ t: "session", c: "cred-1", s: NOW / 1000, e: NOW / 1000 + IDLE_S });
+    const store = new MemoryAuthStore();
+    await store.savePasskeys([{ id: "cred-1", publicKey: "AQID", counter: 0, label: "PC", added: "2026-10-14T00:00:00Z" }]);
+    const req = new Request("https://ceo.test/api/foundry", { method: "POST", headers: { cookie: `${SESSION_COOKIE}=${value}` } });
+    expect((await fresh.session.requireSession(req, { deskKey: DESK, store, now: NOW + 2 * HOUR })).ok).toBe(true);
   });
 
   it("carries a challenge for one step only, for five minutes", async () => {

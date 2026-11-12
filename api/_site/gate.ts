@@ -59,7 +59,9 @@
  *                                             it against the stored hashes and paces it with the captures
  *        GET /api/hey-skippy, /hey-skippy/hello.mp3   the shortcut's greeting clips (#627): a few spoken words, public
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
- *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401.
+ *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401. When the
+ *      instance can't check (the record unreadable, or no keys yet, as a fresh instance during a deploy, #1078), an
+ *      API route gets 503 { error: "site-unavailable" } instead, which the browser leaves alone.
  *
  * Every refusal carries `x-ceo-site-gate: locked`, which the Desk and the Lattice look for (apps/world/src/siteGate.ts)
  * to send the browser to the login page when only the API is gated (Azure).
@@ -212,8 +214,12 @@ export function locked(request: Request, message?: "unknown" | "off", passkey = 
   const url = new URL(request.url);
   const page = (request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/");
   if (!page) {
-    const status = message === "unknown" ? 503 : 401;
-    return new Response(JSON.stringify({ error: message === "unknown" ? "site-unavailable" : "site-locked" }), {
+    // "unknown" (the record can't be read) and "off" (this instance has no keys, as a fresh one can for a moment
+    // while a deploy re-reads the vault, #1078) are the server's trouble, not this browser's: a 503 the page leaves
+    // alone (apps/world/src/siteGate.ts), never the 401 that sends it to the login page.
+    const unavailable = message === "unknown" || message === "off";
+    const status = unavailable ? 503 : 401;
+    return new Response(JSON.stringify({ error: unavailable ? "site-unavailable" : "site-locked" }), {
       status,
       headers: { ...SECURITY_HEADERS, "Content-Type": "application/json" },
     });

@@ -18,6 +18,7 @@ const DESK = "a test desk key, not a real one";
 const ORIGIN = "https://ceo.test";
 const NOW = Date.parse("2026-10-14T09:00:00Z");
 const MIN = 60_000;
+const DAY = 24 * 60 * MIN;
 
 /** A browser: keeps the Desk's cookies between calls, as one would. */
 class Browser {
@@ -95,7 +96,7 @@ describe("enrolling a device (#132)", () => {
     expect(JSON.stringify(store.keys)).not.toContain(DESK);
     expect(browser.jar.has(SESSION_COOKIE)).toBe(true);
     expect(browser.jar.has(CHALLENGE_COOKIE.enrol)).toBe(false);
-    expect(await browser.status()).toMatchObject({ ready: true, signedIn: true, device: "Windows PC", until: NOW + 30 * MIN, hardUntil: NOW + 12 * 60 * MIN });
+    expect(await browser.status()).toMatchObject({ ready: true, signedIn: true, device: "Windows PC", until: NOW + 14 * DAY, hardUntil: NOW + 30 * DAY });
   });
 
   it("refuses a passkey made for another site", async () => {
@@ -129,10 +130,11 @@ describe("signing in with a passkey (#132)", () => {
     const res = await phone.signIn(passkey);
     expect(res.status).toBe(200);
     const set = res.headers.getSetCookie().find((c) => c.startsWith(`${SESSION_COOKIE}=`) && !c.includes("Max-Age=0"))!;
-    expect(set).toMatch(/; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=1800$/);
-    const later = new Browser({ ...deps, now: NOW + 25 * MIN });
+    // 14 days (#1078), and still HttpOnly, Secure and SameSite=Strict.
+    expect(set).toMatch(/; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=1209600$/);
+    const later = new Browser({ ...deps, now: NOW + 2 * DAY });
     later.jar = phone.jar;
-    expect(await later.status()).toMatchObject({ signedIn: true, until: NOW + 55 * MIN });
+    expect(await later.status()).toMatchObject({ signedIn: true, until: NOW + 16 * DAY, hardUntil: NOW + 5 * MIN + 30 * DAY });
   });
 
   it("refuses a passkey that isn't enrolled, an answer without the device's own unlock, and a replayed answer", async () => {
@@ -218,18 +220,22 @@ describe("sessions, devices and sign-out (#132)", () => {
     expect(await browser.status()).toMatchObject({ signedIn: false });
   });
 
-  it("is idle-timed out after 30 minutes and hard-timed out after 12 hours", async () => {
+  it("stays signed in on a trusted device: idle-timed out after 14 days, hard-timed out 30 days after the passkey (#1078)", async () => {
     const { deps, browser } = setup();
     await browser.enrol(new SoftPasskey());
-    const idle = new Browser({ ...deps, now: NOW + 31 * MIN });
+    // A weekend away, or a few builds shipped in between: still signed in, no passkey.
+    const back = new Browser({ ...deps, now: NOW + 3 * DAY });
+    back.jar = new Map(browser.jar);
+    expect(await back.status()).toMatchObject({ signedIn: true });
+    const idle = new Browser({ ...deps, now: NOW + 14 * DAY + MIN });
     idle.jar = new Map(browser.jar);
     expect(await idle.status()).toMatchObject({ signedIn: false });
-    // Used every 25 minutes, it lasts all day, and no further.
+    // Used every few days, it lasts a month from the passkey sign-in, and no further.
     let jar = new Map(browser.jar);
     let at = NOW;
     let last: Record<string, unknown> = {};
-    while (at < NOW + 12 * 60 * MIN) {
-      at += 25 * MIN;
+    while (at < NOW + 30 * DAY) {
+      at += 4 * DAY;
       const b = new Browser({ ...deps, now: at });
       b.jar = jar;
       last = await b.status();
@@ -237,7 +243,7 @@ describe("sessions, devices and sign-out (#132)", () => {
       if (!last.signedIn) break;
     }
     expect(last.signedIn).toBe(false);
-    expect(at).toBeGreaterThanOrEqual(NOW + 12 * 60 * MIN);
+    expect(at).toBeGreaterThanOrEqual(NOW + 30 * DAY);
   });
 
   it("refuses requests from another site, and anything but JSON", async () => {

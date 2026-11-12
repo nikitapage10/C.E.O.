@@ -66,8 +66,10 @@ needs a passkey.
   (`@simplewebauthn/server`), a widely used, maintained WebAuthn library: the site, the origin, a one-time
   challenge, the signature, the user check and the counter.
 - **Sessions.** A sign-in sets one cookie, HttpOnly, Secure and SameSite=Strict, holding a signed token that names
-  the passkey. It lasts 30 minutes from its last use, renews quietly while the Desk is in use, and ends 12 hours after
-  the sign-in whatever happens, when a passkey is needed again. Every Desk write checks it
+  the passkey. On a trusted (enrolled) device it lasts 14 days from its last use, renews quietly on each use, and ends
+  30 days after the passkey sign-in whatever happens, when a passkey is needed again (#1078; it was 30 minutes and 12
+  hours). The steps that already asked for a fresh passkey answer still do: the Keys form (one answer per key it sets)
+  and Relay's sends. Signing out, removing the device and a new Desk key end it at once. Every Desk write checks it
   (`requireSession` in `api/_desk/session.ts`): the idea buttons (`api/foundry.ts`), picture uploads and the Desk's
   own picture links (`api/foundry-image.ts`) and the day's story backfill (`api/day-story.ts`). Requests from another
   site are refused. No caller outside the browser uses these, so nothing accepts the Desk key in their place.
@@ -75,6 +77,15 @@ needs a passkey.
   stretched with scrypt and split by purpose (`api/_desk/keys.ts`), so no new variable is needed and the Desk key
   itself never signs anything. Make it long and random, like any password manager's suggestion: it is also what an
   offline guess against a captured cookie would have to find.
+- **Deploys don't sign anyone out** (#1078). Nothing about a session belongs to a build or an instance: the keys come
+  from the Desk key alone (a fixed salt and purpose label), the cookie holds the whole session, and no session is kept
+  in memory, so a new build on a cold instance reads the same cookie the same way. What used to ask for the passkey
+  after a build was the page, not the cookie: a deploy restarts the Function App minutes after the new site goes up,
+  and a Desk that loaded in that window got no answer from `/api/desk-auth`, took that as "signed out" and went to the
+  passkey at the next action, and a 503 from the site gate (an instance that couldn't read its lock or keys yet) sent
+  the page to the login page. Now a check without an answer is tried again (15 s, doubling up to 5 min, and on the next
+  tap) and never counts as signed out; an action asks the server before it asks for the passkey; and only the gate's
+  401 sends a page to the login page (an instance without its keys answers 503 now).
 - **Wrong tries.** Failed sign-ins and enrolments are counted in the Blob store (`api/_desk/limits.ts`), per
   address (as a keyed hash, never the address) and across all addresses. From one address: two free, then a 30 second
   wait, then 2 minutes, then locked for 15 minutes. Across all addresses, enrolment locks for an hour after 8
@@ -131,7 +142,8 @@ With nothing stored, the default lock uses a fixed session version until the fir
 - **The sign-in** is the Desk's own (`api/desk-auth.ts`, "Signing in to the Desk" above): the same challenge, the
   same checks (origin, site, signature, the device's own unlock, the counter) and the same slow-downs and lockouts.
   While the site is locked, a successful `signin` or `enrol` also sets the site cookie (`passkeySiteCookie` in
-  `api/_site/login.ts`), so one tap opens both the site (180 days) and the Desk (30 minutes, as before).
+  `api/_site/login.ts`), so one tap opens both the site (180 days, sliding) and the Desk (14 days from the last use,
+  30 at most, #1078). The site cookie was already longer than the Desk's session, so it is left as it is.
 - **The session.** One cookie, `__Host-ceo-site`: HttpOnly, Secure, SameSite=Lax, a token signed with HMAC-SHA256
   (`api/_site/session.ts`) that lasts 180 days and slides: used a day or more after its last renewal, it is renewed
   for another 180 days, so a device in use is never asked again. It carries the session version and how it signed in
@@ -143,7 +155,9 @@ With nothing stored, the default lock uses a fixed session version until the fir
   otherwise derived from the Desk key (`FOUNDRY_DESK_KEY`, stretched with scrypt, purpose `site`, `api/_site/state.ts`),
   so no new variable is needed. Changing either signs every device out of the site.
 - **If the store can't be read**, an instance uses the last record it read; with none at all, it fails closed (the
-  login page says to try again in a minute), except for the machine callers below.
+  login page says to try again in a minute), except for the machine callers below. An API call it can't check (the
+  record unreadable, or no keys yet) gets a 503 `site-unavailable`, which an open page leaves alone instead of going
+  to the login page (#1078): only the gate's 401 means this browser has no site session.
 
 **Getting in on a new device, and never being locked out.** Locking needs a Desk passkey session, so at least one
 device already has a passkey. From then on:

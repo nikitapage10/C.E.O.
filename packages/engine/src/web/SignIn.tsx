@@ -18,10 +18,11 @@ export const RESULT_LINE: Record<Exclude<AuthResult, "ok">, string> = {
   "wrong-key": "That Desk key didn't match.",
   "too-many": "Ten devices are enrolled already. Remove one first.",
   unsupported: "This browser can't use passkeys. Try the Desk on a newer browser or your phone.",
-  off: "Sign-in isn't set up on the server yet.",
+  off: "Sign-in can't be reached right now (a new build may be starting). Try again shortly.",
 };
 
-const clock = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+/** When the session ends at the latest: a day and a time, since it is up to 30 days away (#1078). */
+const clock = (ms: number) => new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 export interface SignInProps {
   auth: AuthView;

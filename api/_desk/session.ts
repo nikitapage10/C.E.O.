@@ -1,9 +1,13 @@
 /**
  * The Desk's sessions (#132, docs/THREAT-MODEL.md, R3). After a passkey sign-in the browser holds one cookie: an
  * HttpOnly, Secure, SameSite=Strict token, signed with a key derived from the Desk key (api/_desk/keys.ts) and good
- * for 30 minutes from the last use. Every signed-in request renews it quietly, up to 12 hours after the sign-in,
- * when a passkey is needed again. Scripts on the page can't read it, other sites can't send it, and it names the
- * passkey it came from, so removing a device ends its sessions at once.
+ * for 14 days from the last use. Every signed-in request renews it quietly, up to 30 days after the sign-in, when a
+ * passkey is needed again (#1078: a trusted device stays signed in; it was 30 minutes and 12 hours). Scripts on the
+ * page can't read it, other sites can't send it, and it names the passkey it came from, so removing a device ends its
+ * sessions at once. The Keys form and Relay's sends still ask for a fresh passkey answer of their own.
+ *
+ * Nothing in it changes with a deploy: the signing key comes from the Desk key alone (a fixed salt and label, no
+ * per-build or per-instance secret) and nothing is kept in memory, so any instance of any build reads it the same.
  *
  * The same signing carries a sign-in's or an enrolment's one-time challenge between its two steps, in a second short
  * cookie that lasts five minutes.
@@ -16,9 +20,9 @@ import { deskKeyFor } from "./keys.js";
 import type { AuthStore, Passkey } from "./store.js";
 
 /** A session lasts this long after its last use (seconds)… */
-export const IDLE_S = 30 * 60;
+export const IDLE_S = 14 * 24 * 60 * 60;
 /** …and never longer than this after the passkey sign-in (seconds). */
-export const MAX_S = 12 * 60 * 60;
+export const MAX_S = 30 * 24 * 60 * 60;
 /** A sign-in or enrolment challenge lasts this long (seconds). */
 export const CHALLENGE_S = 5 * 60;
 
@@ -82,7 +86,7 @@ export function newSession(credential: string, now: number): Session {
   return { t: "session", c: credential, s, e: Math.min(s + IDLE_S, s + MAX_S) };
 }
 
-/** The session renewed by a use at `now` (ms): 30 more minutes, never past 12 hours from the sign-in. */
+/** The session renewed by a use at `now` (ms): 14 more days, never past 30 days from the sign-in. */
 export function renewed(session: Session, now: number): Session {
   return { ...session, e: Math.min(Math.floor(now / 1000) + IDLE_S, session.s + MAX_S) };
 }

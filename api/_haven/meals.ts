@@ -38,6 +38,14 @@
  *                                                       that's there (`addLunches`: new quick lunches, the lunch days,
  *                                                       a lunch plan for a week that has none), never a replace. Undo
  *                                                       puts it back. Counts back.
+ *   PUT  /api/haven-meals { merge: "steps", steps: { [mealId]: string[] } }   the feed key (#1041): only the named
+ *                                                       catalog recipes' written steps replaced (`readStepRewrite`:
+ *                                                       1–16 plain steps of at most 240 characters each, or nothing),
+ *                                                       never the weeks, finalized state, the nights' own edits,
+ *                                                       likes or photos, and never the Kitchen list or the cart. A
+ *                                                       finalized week's new steps get their pictures from the hourly
+ *                                                       backfill, under its cap. Counts back: updated, unchanged,
+ *                                                       missing.
  *
  * Every body is untrusted data: closed sets, clamped numbers, plain capped strings.
  *
@@ -53,7 +61,7 @@ import { readJson, updateJson } from "./json.js";
 import { KitchenList, sameKey } from "./list.js";
 import { drainPhotos, livePhotoDeps, queueStepPhotos, type PhotoDeps } from "./photos.js";
 import { weekStepShots } from "./stepShots.js";
-import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, recipesCompleted, shopLine, shoppingList, weekStage, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
+import { addLunches, allComponents, allWeeks, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, readStepRewrite, recipesCompleted, shopLine, shoppingList, weekStage, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
 
@@ -92,6 +100,35 @@ export class MealsStore {
       if (!file) return { next: null, result: null };
       const got = addLunches(file, seed, now);
       return { next: got.added || got.days ? got.file : null, result: { added: got.added, days: got.days } };
+    });
+  }
+
+  /**
+   * New written steps for catalog recipes (#1041): each named recipe's `steps` replaced in the file as stored, and
+   * nothing else touched (the weeks, finalized or not, the nights' own edits, likes, photos; the Kitchen list and the
+   * cart live elsewhere and are never read). A recipe it doesn't have is counted, not added. Null when nothing is loaded.
+   */
+  async rewriteSteps(steps: Map<string, string[]>): Promise<{ updated: number; unchanged: number; missing: number } | null> {
+    return updateJson<unknown, { updated: number; unchanged: number; missing: number } | null>(this.blob, MEALS_PATH, null, (raw) => {
+      if (!readMeals(raw)) return { next: null, result: null };
+      const file = raw as Record<string, unknown> & { catalog: unknown[] };
+      const found = new Set<string>();
+      let updated = 0;
+      let unchanged = 0;
+      const catalog = file.catalog.map((m) => {
+        const meal = m as Record<string, unknown> | null;
+        const want = meal && typeof meal.id === "string" ? steps.get(meal.id) : undefined;
+        if (!meal || !want) return m;
+        found.add(meal.id as string);
+        if (JSON.stringify(meal.steps) === JSON.stringify(want)) {
+          unchanged++;
+          return m;
+        }
+        updated++;
+        return { ...meal, steps: want };
+      });
+      const result = { updated, unchanged, missing: [...steps.keys()].filter((id) => !found.has(id)).length };
+      return { next: updated ? { ...file, catalog } : null, result };
     });
   }
 
@@ -326,6 +363,16 @@ export async function mealsPut(request: Request, deps: MealsDeps): Promise<Respo
   if (body === "too-big") return json({ error: "too-big" }, 413);
   if (!body) return json({ error: "bad-request" }, 400);
   try {
+    // The step upgrade (#1041): only the catalog recipes' written steps, nothing else in the planner.
+    if (body.merge === "steps") {
+      if (Object.keys(body).some((k) => k !== "merge" && k !== "steps")) return json({ error: "bad-request" }, 400);
+      const steps = readStepRewrite(body.steps);
+      if (!steps) return json({ error: "bad-steps" }, 400);
+      const got = await new MealsStore(deps.blob).rewriteSteps(steps);
+      if (!got) return json({ error: "not-seeded" }, 404);
+      deps.log(`haven: recipe steps were rewritten with the feed key (${got.updated} updated, ${got.unchanged} unchanged, ${got.missing} not found)`);
+      return json({ ok: true, ...got });
+    }
     const meals = readMeals(body.meals);
     if (!meals) return json({ error: "bad-meals" }, 400);
     if (body.merge !== undefined) {

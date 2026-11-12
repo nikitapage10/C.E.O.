@@ -411,6 +411,15 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   `PUT /api/haven-meals { meals, merge: "lunches" }` (feed key) adds only the file's lunches to the planner that's
   there (`addLunches`: new quick lunches, the lunch days, and a lunch plan when the week has none), leaving the
   dinners and every edit alone, with Undo; a second run changes nothing. Counts back.
+- **Upgrading the written steps (#1041).** `PUT /api/haven-meals { merge: "steps", steps: { [mealId]: [step, …] } }`
+  with the feed key replaces only the named catalog recipes' `steps`, in the file as stored, and nothing else: the
+  weeks and their finalized state, the nights' own recipe edits, likes, photos, and never the Kitchen list or the cart
+  (they aren't read). Each recipe's steps are checked like a recipe edit's (`readStepRewrite`: 1 to 16 plain steps of
+  at most 240 characters; one bad step refuses the whole body), and no other field may come with it (`meals` or
+  `replace` is a 400). A recipe it doesn't have is counted, not added. It answers and logs counts only (`updated`,
+  `unchanged`, `missing`); running it again changes nothing. A finalized week's new steps get their pictures from the
+  hourly backfill (#1026), under the steps' own cap. It is how the Builder rewrites saved recipes to the bar without
+  `replace` on the whole planner.
 - **Writing a recipe (#1036).** The recipes are written by whoever writes the planner file (the Builder's seed; no
   model in the planner writes one) and by Skippy's `meals_recipe` for a night. The bar (`RECIPE_RULES` in
   [`api/_haven/cookSteps.ts`](../api/_haven/cookSteps.ts), also in `meals_recipe`'s step description): a dinner in
@@ -420,7 +429,10 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   roasted, the tortillas warmed, the protein seared or browned; a raw side served); each cooking step gives the heat,
   the time and a doneness cue ("over medium-high heat until browned, 6–8 min"); and each part goes by its name in the
   recipe ("the rigatoni", "the chicken thighs"), so a swap renames it, a part left out skips its step and `usesOf`
-  finds the amounts. The made-up fixture's recipes ([`meals.fixture.ts`](../api/_haven/meals.fixture.ts)) are written
+  finds the amounts. The steps run in cooking order (#1041), so the parts finish together and the cook never waits:
+  what takes longest starts first, as its own first step (the pasta water put on to boil, the oven heated, the rice
+  or the potatoes started, the protein marinated), and each part is cooked when it should be ("Drop the rigatoni into
+  the boiling water and cook …" while the sauce simmers). The made-up fixture's recipes ([`meals.fixture.ts`](../api/_haven/meals.fixture.ts)) are written
   to it, and a test holds them there.
 - **Recipes that skip a part (#1036).** `uncooked` finds a part no step cooks: one step has to name it (cook mode's own
   matcher) and say how it's cooked for what it is (`kindOf`: pasta, rice, potatoes, flatbread, meat and fish, beans, a
@@ -433,8 +445,17 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   cooking week's Kitchen list, cart and Finalize stay exactly as they were. A step it adds is a new step picture,
   queued for a finalized week by the hourly backfill (#1026) under the steps' own monthly cap; the steps that were
   there keep their pictures (a step's key is its words). A night's own edited steps are completed the same way,
-  except for a part the night's edits took out whole. The seed's answer counts the recipes it had to complete
-  (`completed`), so the writer knows to write those out in full.
+  except for a part the night's edits took out whole. The seed's answer counts the recipes it had to complete or
+  reorder (`completed`), so the writer knows to write those out in full.
+- **Cooking order (#1041).** A pasta part `completeSteps` adds comes as two steps: the pot of water put on as the first
+  step ("Fill a large pot with water, salt it well and set it over high heat to come to a boil."), and "Drop the
+  rigatoni into the boiling water and cook …" just before the step that tosses it (a pork tenderloin likewise gets
+  "Heat the oven to 425°F." first); with room for only one more step it stays one. Then `orderSteps` runs on every
+  dish: a "bring the water to a boil" or "heat the oven" that opens a sentence in a later step becomes its own first
+  step (a second one of the same is dropped), and the rest of that step stays where it was; a later step that is a
+  long-lead start on its own (it only cooks the rice, quinoa or potatoes and says 15 min or more, or it marinates)
+  moves up whole. Nothing else moves, it never goes past 16 steps, and a recipe already in order comes back as it was,
+  so running it twice changes nothing. With tonight's pasta left out, cook mode skips the water step with the pasta's.
 - **Cook mode (#705; phone-first since #1010).** "Cook mode" in a night's drawer or on the Cook step's recipes (not on
   a HelloFresh night) opens the dinner full screen ([`CookMode.tsx`](../rooms/haven/web/CookMode.tsx), built by
   `cookOf` in [`cook.ts`](../rooms/haven/web/cook.ts) from `slotDish`, so it is the night as customized). Every step

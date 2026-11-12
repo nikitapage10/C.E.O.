@@ -826,6 +826,25 @@ const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
 /** A skip's reason, null to take the skip back off, else undefined (not a skip edit). */
 const skipWhy = (v: unknown): SkipReason | null | undefined => (v === null ? null : (SKIP_REASONS as readonly unknown[]).includes(v) ? (v as SkipReason) : undefined);
 
+/**
+ * New written steps for catalog recipes (#1041), by meal id: the feed key's step upgrade. Checked like a recipe edit's
+ * step (plain text, at most STEP_MAX each), 1 to RECIPE_STEPS_MAX steps a recipe, at most CATALOG_MAX recipes. A step
+ * that's too long or empty, or anything else in the body, makes the whole of it null: nothing half applied.
+ */
+export function readStepRewrite(v: unknown): Map<string, string[]> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const entries = Object.entries(v as Record<string, unknown>);
+  if (!entries.length || entries.length > CATALOG_MAX) return null;
+  const out = new Map<string, string[]>();
+  for (const [id, steps] of entries) {
+    if (!isId(id) || !Array.isArray(steps) || !steps.length || steps.length > RECIPE_STEPS_MAX) return null;
+    const clean = steps.map((s) => plain(s, STEP_MAX + 1));
+    if (clean.some((s) => !s || s.length > STEP_MAX)) return null;
+    out.set(id, clean);
+  }
+  return out;
+}
+
 /** An edit from a request or a tool call, checked; null when it isn't one. */
 export function readEdit(v: unknown): MealEdit | null {
   const x = o(v);

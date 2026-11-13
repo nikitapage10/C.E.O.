@@ -37,10 +37,12 @@ export interface HomeMats {
   screen: THREE.MeshStandardMaterial;
   green: THREE.MeshBasicMaterial;
   /**
-   * The kitchen island's under-light (#1085): the green strip under its kick and the glow it throws on the floor round
-   * the island. The house turns it on and off with the real light (house.ts `setLights`); lit until the lights are read.
+   * The kitchen island's under-light (#1085, #1122): the green strip tucked under the countertop's lip, the light it
+   * washes down the island's sides, and the soft spill on the floor round it. The house turns it on and off with the
+   * real light and colours it the Studio lamps' green (house.ts `setLights`); lit until the lights are read.
    */
   underglow: THREE.MeshBasicMaterial;
+  underwash: THREE.MeshBasicMaterial;
   underhalo: THREE.MeshBasicMaterial;
   warm: THREE.MeshStandardMaterial;
   dark: THREE.MeshStandardMaterial;
@@ -157,6 +159,29 @@ export function islandGlow(L: number, D: number, pad: number, px = 128): HTMLCan
   return c;
 }
 
+/**
+ * The Studio's floor lamps' green (#1122), the island's under-light's colour until the lamps say their own: Nikita,
+ * 2026-11-13, the island read paler than the Studio's green; it should be the same saturated green.
+ */
+export const STUDIO_GREEN = 0x00ff3c;
+
+/** A side's wash (#1122): bright at the top, under the lip, fading to nothing towards the floor. */
+export function islandWash(px = 64): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = 4;
+  c.height = px;
+  const x = c.getContext("2d");
+  if (!x) return c;
+  const g = x.createLinearGradient(0, 0, 0, px);
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.18, "rgba(255,255,255,0.55)");
+  g.addColorStop(0.55, "rgba(255,255,255,0.14)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g;
+  x.fillRect(0, 0, 4, px);
+  return c;
+}
+
 export function homeMats(): HomeMats {
   const m = (o: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial(o);
   return {
@@ -172,8 +197,9 @@ export function homeMats(): HomeMats {
     glass: m({ color: 0xd8e6f0, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }),
     screen: m({ color: 0x08090c, roughness: 0.2, emissive: 0x0c1a2e, emissiveIntensity: 1 }),
     green: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.85 }),
-    underglow: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.6 }),
-    underhalo: new THREE.MeshBasicMaterial({ color: 0x39ff7a, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }),
+    underglow: new THREE.MeshBasicMaterial({ color: STUDIO_GREEN, toneMapped: false }),
+    underwash: new THREE.MeshBasicMaterial({ color: STUDIO_GREEN, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
+    underhalo: new THREE.MeshBasicMaterial({ color: STUDIO_GREEN, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
     warm: m({ color: 0xfff1d6, roughness: 0.4, emissive: 0xffd29a, emissiveIntensity: 1.2 }),
     dark: m({ color: 0x050506, roughness: 0.6 }),
     grey: m({ color: 0x8a8d92, roughness: 0.6 }),
@@ -201,6 +227,7 @@ function artMat(): THREE.MeshStandardMaterial {
 export function disposeHomeMats(m: HomeMats) {
   m.art.map?.dispose();
   m.underhalo.map?.dispose();
+  m.underwash.map?.dispose();
   for (const v of Object.values(m)) v.dispose();
 }
 
@@ -247,20 +274,37 @@ export function homeModel(G: GymGeo, M: HomeMats, k: Kind, L: number, D: number,
       return g;
     }
     case "island": {
-      // A white island on a recessed kick, its green under-light all the way round (#1085): a bright strip at the
-      // kick's foot on every side and a soft glow spilling out onto the floor, on and off with the real light.
-      const kick = 0.06;
-      b(M.white, L, H - kick, D, 0, kick + (H - kick) / 2, 0);
-      b(M.stone, L + 0.03, 0.03, D + 0.03, 0, H - 0.015, 0);
+      // A white island under a stone top with a real lip (#1122): the green under-light is tucked under the lip's
+      // overhang on every side, so you see the glow, not the strip, washing down the island's sides from the top and
+      // spilling a little onto the floor round its foot. On and off with the real light.
+      const kick = 0.06, lip = 0.035, top = 0.035;
+      b(M.white, L, H - kick - top, D, 0, kick + (H - kick - top) / 2, 0);
+      b(M.stone, L + lip * 2, top, D + lip * 2, 0, H - top / 2, 0);
       b(M.dark, L - 0.06, kick, D - 0.06, 0, kick / 2, 0);
-      const t = 0.012, inL = L - 0.06, inD = D - 0.06;
+      // The strip itself, just under the lip, just off the island's face.
+      const t = 0.01, y = H - top - t / 2 - 0.002, off = 0.012;
       for (const s of [-1, 1]) {
-        b(M.underglow, inL + t, 0.008, t, 0, 0.006, s * (inD / 2 + t / 2));
-        b(M.underglow, t, 0.008, inD + t, s * (inL / 2 + t / 2), 0.006, 0);
+        b(M.underglow, L + off * 2, t, t, 0, y, s * (D / 2 + off));
+        b(M.underglow, t, t, D + off * 2, s * (L / 2 + off), y, 0);
       }
-      // The glow on the floor (#1085, Nikita: diffused like the Studio's lamps, not a green rectangle): a soft wash that
-      // is brightest at the island's foot and fades to nothing half a metre out, drawn from a canvas falloff.
-      const pad = 0.5;
+      if (typeof document !== "undefined") {
+        M.underwash.map?.dispose();
+        M.underwash.map = new THREE.CanvasTexture(islandWash());
+        M.underwash.needsUpdate = true;
+      }
+      // The wash down each side, from under the lip to the kick.
+      const wh = H - top - kick;
+      for (const s of [-1, 1]) {
+        const front = new THREE.Mesh(new THREE.PlaneGeometry(L, wh), M.underwash);
+        front.position.set(0, kick + wh / 2, s * (D / 2 + 0.003));
+        g.add(front);
+        const side = new THREE.Mesh(new THREE.PlaneGeometry(D, wh), M.underwash);
+        side.rotation.y = Math.PI / 2;
+        side.position.set(s * (L / 2 + 0.003), kick + wh / 2, 0);
+        g.add(side);
+      }
+      // What reaches the floor (#1085: diffused, not a green rectangle): fainter now the light is up under the lip.
+      const pad = 0.4;
       if (typeof document !== "undefined") {
         M.underhalo.map?.dispose();
         M.underhalo.map = new THREE.CanvasTexture(islandGlow(L, D, pad));

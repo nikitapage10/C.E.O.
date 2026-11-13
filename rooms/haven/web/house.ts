@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { SIGILS } from "@ceo/engine/sigils/sigils.ts";
-import { islandGlowOn } from "./fixtures.ts";
+import { islandGlowOn, studioGreenOf } from "./fixtures.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
 import { makeSurroundings, nearFor, STOREY, type Box2 } from "./surroundings.ts";
@@ -16,7 +16,7 @@ import type { Light } from "./lights.ts";
 import { drawList, RealLights } from "./realLights.ts";
 import { dayLevel, sunAt } from "./daylight.ts";
 import { SURROUND_LABELS, type PlanLight } from "../../../api/_haven/planShape.ts";
-import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, type HomeMats } from "./homeKit.ts";
+import { deviceModel, disposeHomeMats, HOME_MODELS, homeMats, homeModel, STUDIO_GREEN, type HomeMats } from "./homeKit.ts";
 import type { HouseCat } from "./myshkaHouse.ts";
 import { registerShotRender } from "@ceo/engine/web/screenshot.ts";
 import { wasdPan, type WasdPan } from "@ceo/engine/web/wasdPan.ts";
@@ -1686,7 +1686,11 @@ export class House {
     if (this.mats) {
       const on = islandGlowOn(lights);
       this.mats.underglow.visible = on;
+      this.mats.underwash.visible = on;
       this.mats.underhalo.visible = on;
+      // In the Studio lamps' green (#1122): theirs while one is on in green, else the house's Studio green.
+      const green = studioGreenOf(lights) ?? STUDIO_GREEN;
+      for (const m of [this.mats.underglow, this.mats.underwash, this.mats.underhalo]) m.color.setHex(green);
       this.host.dataset.islandGlow = on ? "on" : "off";
     }
     const placed = list.filter((d) => !d.virtual);

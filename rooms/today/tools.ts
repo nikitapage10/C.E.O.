@@ -41,6 +41,24 @@ export const TOOLS: readonly RoomTool[] = [
     input: { type: "object", properties: { id: { type: "string", maxLength: 24 } }, required: ["id"], additionalProperties: false },
     effect: "read",
   },
+  // The Desk's own library (#1141): the repo's public docs, lore, room manifests and dossiers, and the Foundry's open issues.
+  {
+    name: "desk_lookup",
+    room: "today",
+    title: "Looked in the Desk's library",
+    description:
+      "Search the Desk's own library when Nikita asks about C.E.O. itself: its lore (the Syntherion, the Lattice, Ilyr, the Houses, the cast and their dossiers, the subminds, pets, costumes), the rooms and what each does, how it is designed and built (the Azure setup, security, the Foundry's workflow, Skippy's own wiring, schemas and endpoints), and what is planned (the Foundry's open issues). Returns the top sections' titles, ids and short excerpts; call desk_read with an id for the whole section. Not for live numbers (a room's read) or Nikita himself (memory_lookup).",
+    input: { type: "object", properties: { query: { type: "string", maxLength: 160, description: "A few keywords: the thing to find (\"Rocky Foundry\", \"Kernel subminds\", \"Azure deploy\")." } }, required: ["query"], additionalProperties: false },
+    effect: "read",
+  },
+  {
+    name: "desk_read",
+    room: "today",
+    title: "Read the Desk's library",
+    description: "Read one section of the Desk's library in full (capped), by the id desk_lookup gave. A long section says the next part's id.",
+    input: { type: "object", properties: { id: { type: "string", maxLength: 64 } }, required: ["id"], additionalProperties: false },
+    effect: "read",
+  },
   {
     name: "remember",
     room: "today",

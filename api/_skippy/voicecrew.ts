@@ -60,7 +60,7 @@ export interface ToolDef {
    * A room read (GET ?read=), the Kernel's two (#480): "answers" (GET ?read=answers) and "kernel" (POST ?act=kernel),
    * or the open lookups (#491): "player_news" (GET ?read=player_news&player=) and "web" (POST ?act=web).
    */
-  read: ReadName | "answers" | "kernel" | "player_news" | "web" | "sports";
+  read: ReadName | "answers" | "kernel" | "player_news" | "web" | "sports" | "desk";
   description: string;
 }
 
@@ -97,6 +97,12 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     read: "sports",
     description:
       "Live sports scores, game status and playoff series state, from ESPN's scoreboard (no web search needed). Use it for every score, 'is the game on', 'right now', 'tonight' or 'who's winning' question, and for a series' state (\"Brewers lead 2-1\"). league is mlb, nfl, nba, nhl, wnba, ncaaf, mls or epl (leave it empty to search the big leagues); team is the team's name as Nikita said it, or empty for the whole day's games. Never use web_search for a score.",
+  },
+  {
+    name: "desk_lookup",
+    read: "desk",
+    description:
+      "The Desk's own library, instant (#1141): C.E.O. itself, not its live numbers. Its lore (the Syntherion, the Lattice, Ilyr, the Houses, the cast, the subminds), the rooms and what each does, how it is designed and built, how you yourself work, and what is planned (the Foundry's open issues). Use it for every question about the Desk, its story or its plans; q is a few keywords.",
   },
   {
     name: "web_search",
@@ -190,7 +196,15 @@ export function toolConfig(def: ToolDef, site: string) {
           },
           required: ["read"],
         }
-      : def.read === "sports"
+      : def.read === "desk"
+        ? {
+            properties: {
+              read: { type: "string", constant_value: def.read },
+              q: { type: "string", description: "A few keywords for what Nikita asked about the Desk (\"Rocky\", \"the Kernel subminds\", \"Azure deploy\", \"plans\")." },
+            },
+            required: ["read", "q"],
+          }
+        : def.read === "sports"
         ? {
             properties: {
               read: { type: "string", constant_value: def.read },
@@ -344,7 +358,7 @@ export const CALL_RULES = `Never ask for or repeat private details: emails, phon
  */
 export function noRefusals(skippy: boolean): string {
   const checking = skippy ? 'one short line that you\'re digging into your own mind ("Rummaging through my mainframe.")' : "one short line that you're asking Skippy, the Magnificent";
-  return `Never refuse to look something up that a tool of yours can look up, and never say you don't go digging around the web or that something isn't yours to look at.${skippy ? " The weather near home is read_weather; how the house is (the temperature, lights, to-dos and dinner in one line) is read_house; a player's injury, status, availability or news is player_news; a score, whether a game is on, or a series' state is live_scores (ESPN's scoreboard, never web_search); anything else in the outside world (news, beat reporters) is web_search." : ""} Never point Nikita somewhere else to find it himself: no "hit the injury tracker on your Desk", no "check the beat reporters", no "go look in the Lattice", no "check the chat" or "the Desk shows it". When your tools can't answer (the lookup comes back empty, slow or doesn't cover it), call hand_to_kernel straight away with his question in his words and say ${checking}, then stop. When the answer is put into the call, say it straight away in your own words. ${inCharacter(skippy)}`;
+  return `Never refuse to look something up that a tool of yours can look up, and never say you don't go digging around the web or that something isn't yours to look at.${skippy ? " The weather near home is read_weather; how the house is (the temperature, lights, to-dos and dinner in one line) is read_house; anything about the Desk itself (its lore, rooms, design, how it's built or what's planned) is desk_lookup; a player's injury, status, availability or news is player_news; a score, whether a game is on, or a series' state is live_scores (ESPN's scoreboard, never web_search); anything else in the outside world (news, beat reporters) is web_search." : ""} Never point Nikita somewhere else to find it himself: no "hit the injury tracker on your Desk", no "check the beat reporters", no "go look in the Lattice", no "check the chat" or "the Desk shows it". When your tools can't answer (the lookup comes back empty, slow or doesn't cover it), call hand_to_kernel straight away with his question in his words and say ${checking}, then stop. When the answer is put into the call, say it straight away in your own words. ${inCharacter(skippy)}`;
 }
 
 /** A hand-over is one action (#491): the transfer says the line, so a hand-over can never be announced and not made. */

@@ -52,7 +52,7 @@ import { roomAnswer, type PhoneTurn, type RoomTurn } from "../skippy.js";
 import { ROOM_SUBMINDS, isNeeds } from "./log.js";
 import { castVoiceOf, ROTUNDA_SAY_MAX, speakCast } from "./rotundavoice.js";
 import { BlobChatLedger, KERNEL_LEDGER_PATH, skippyBudget } from "./budget.js";
-import { BlobTopicStore, floorReply, joinDebate, liveAsk, newDebate, type SenateDeps } from "./senatetalk.js";
+import { BlobTopicStore, chairQuips, floorReply, joinDebate, liveAsk, newDebate, readSeats, type SenateDeps } from "./senatetalk.js";
 import {
   CLIP_MAX_BYTES,
   CLIP_TYPES,
@@ -346,9 +346,17 @@ async function chairAnswers(said: string, body: Record<string, unknown>, deps: R
   if (turn.floor) return null;
   const text = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);
   deps.log(`room voice: today senate-skippy${turn.error ? ` ${turn.error}` : ""}`);
+  const wrote = !turn.error && turn.wrote?.length ? { wrote: turn.wrote, did: turn.did ?? [] } : {};
+  // The Senate's floor asks for text (#1104, `voice: false`): his answer shows written, unspoken, and a member or two
+  // may chime in underneath with a quip (never on a failed turn).
+  if (body.voice === false) {
+    const sd = turn.error ? null : deps.senate?.();
+    const quips = sd ? await chairQuips(said, text, readSeats(body.seated), sd).catch(() => []) : [];
+    return json({ lines: [{ by: "kernel", text }], skippy: true, ...(quips.length && { quips }), ...wrote });
+  }
   // Said in his own voice, as any answer is (#926); past the cap, read.
   const spoken = privateParts(text).length ? null : await speakRoom(text, today.sound, deps.eleven, deps.ledger, deps.desk.now, deps.fetcher);
-  return json({ lines: [{ by: "kernel", text }], skippy: true, ...(spoken && { audio: Buffer.from(spoken).toString("base64") }), ...(!turn.error && turn.wrote?.length && { wrote: turn.wrote, did: turn.did ?? [] }) });
+  return json({ lines: [{ by: "kernel", text }], skippy: true, ...(spoken && { audio: Buffer.from(spoken).toString("base64") }), ...wrote });
 }
 
 /**

@@ -133,6 +133,8 @@ export function readJoined(v: unknown): Joined | null {
 export interface ChairAnswer {
   say: string;
   audio?: string;
+  /** Members chiming in underneath with a quip (#1104), shown as text after his answer. */
+  quips?: { by: string; text: string }[];
   wrote?: unknown;
   did?: unknown;
 }
@@ -158,12 +160,14 @@ export async function fetchFloor(said: string, seated: string[], topic: FloorTop
         room: "today",
         senate: join && topic ? "join" : "reply",
         said: said.slice(0, 300),
+        // The floor's answers are text (#1104): the chair's comes back unspoken, with a member's quip or two.
+        voice: false,
         seated,
         ...(topic && { motion: topic.motion, lines: topic.lines.slice(join ? -8 : -6), ...(join && topic.cast && { cast: topic.cast }) }),
       }),
     });
     if (!res.ok) return null;
-    const body = (await res.json().catch(() => ({}))) as { lines?: unknown; join?: unknown; skippy?: unknown; audio?: unknown; wrote?: unknown; did?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { lines?: unknown; join?: unknown; skippy?: unknown; audio?: unknown; quips?: unknown; wrote?: unknown; did?: unknown };
     const lines = (Array.isArray(body.lines) ? body.lines : [])
       .map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}))
       .map((l) => ({ by: str(l.by, 20), text: str(l.text, 300) }))
@@ -173,7 +177,12 @@ export async function fetchFloor(said: string, seated: string[], topic: FloorTop
       const say = lines[0]?.text ?? "";
       if (!say) return null;
       const audio = typeof body.audio === "string" && /^[A-Za-z0-9+/=]{100,}$/.test(body.audio) ? body.audio : undefined;
-      return { chair: { say, ...(audio && { audio }), ...(body.wrote !== undefined && { wrote: body.wrote, did: body.did }) } };
+      const quips = (Array.isArray(body.quips) ? body.quips : [])
+        .map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}))
+        .map((l) => ({ by: str(l.by, 20), text: str(l.text, 200) }))
+        .filter((l) => l.by && l.by !== "kernel" && l.text)
+        .slice(0, 2);
+      return { chair: { say, ...(audio && { audio }), ...(quips.length && { quips }), ...(body.wrote !== undefined && { wrote: body.wrote, did: body.did }) } };
     }
     const joined = readJoined(body.join);
     if (joined) return { join: joined };

@@ -30,6 +30,11 @@ import { FLOOR_WAIT_MS, steerLines } from "./floorSteer.ts";
  * chamber back to what it was on, "before we were interrupted…", and the session picks up where it left off. Nothing is
  * said twice, and the gallery's murmurs are only paused while he speaks, never cut off.
  *
+ * Since #1104 (Nikita, 2026-11-13: "it should just be text and other subminds can chime in as well ... quippy remarks")
+ * the floor's answers are text, not speech: each shows as its caption over whoever answers, for its reading time, and
+ * after the chair's own answer a member or two may chime in underneath with a quip. The chamber's own argument is still
+ * voiced as before.
+ *
  * Nothing is kept: the turns live in roomVoice.ts's memory for a follow-on, and are forgotten on reload.
  */
 
@@ -143,19 +148,19 @@ interface FloorLine {
 }
 
 /**
- * One line of the floor said aloud by `by` (#948), captioned over him: from his podium, risen, when he answers Nikita;
+ * One line of the floor shown by `by` (#948), captioned over him; written, not spoken, since #1104: from his podium, risen, when he answers Nikita;
  * from where he is when he steers the chamber back. The chair's own answer may come with its audio; any other line is
  * voiced as the chamber's lines are (voice.ts `fetchLine`), and read when it can't be.
  */
-async function sayLine(l: FloorLine, n: number, doFetch: typeof fetch, rise: boolean): Promise<boolean> {
-  const voiced = l.audio ? { url: null } : await fetchLine(l.by, l.say, doFetch);
+async function sayLine(l: FloorLine, n: number, doFetch: typeof fetch, rise: boolean, spoken = false): Promise<boolean> {
+  const voiced = !spoken ? { url: null } : l.audio ? { url: null } : await fetchLine(l.by, l.say, doFetch);
   if (run !== n) {
     if (voiced.url) URL.revokeObjectURL(voiced.url);
     return false;
   }
   if (rise) scene?.rise?.(l.by);
   set({ turn: { by: l.by, say: l.say, failed: !!l.failed } });
-  const ok = await hear(l.by, l, n, voiced.url);
+  const ok = await hear(l.by, spoken ? l : { say: l.say }, n, voiced.url);
   if (voiced.url) URL.revokeObjectURL(voiced.url);
   return ok;
 }
@@ -180,7 +185,8 @@ async function answer(lines: FloorLine[], n: number, doFetch: typeof fetch): Pro
     pick: (k) => Math.floor(Math.random() * k),
   });
   for (const l of steer) {
-    if (!(await sayLine({ by: l.by, say: l.text }, n, doFetch, false))) return;
+    // Steering back is the chamber picking up its own argument, so it stays voiced.
+    if (!(await sayLine({ by: l.by, say: l.text }, n, doFetch, false, true))) return;
     if (!(await wait(TURN_GAP_MS, n))) return;
   }
   release();
@@ -240,7 +246,7 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
     if (heard && "chair" in heard) {
       announceWrote(readWrote(heard.chair));
       remember("today", text, heard.chair.say, "skippy");
-      return answer([{ by: "kernel", say: heard.chair.say, ...(heard.chair.audio && { audio: heard.chair.audio }) }], n, doFetch);
+      return answer([{ by: "kernel", say: heard.chair.say }, ...(heard.chair.quips ?? []).map((q) => ({ by: q.by, say: q.text }))], n, doFetch);
     }
     // A remark on the argument (#925): the members who were speaking answer him, and the argument takes his point on.
     if (heard && "join" in heard && scene?.join?.(text, heard.join))
@@ -263,7 +269,7 @@ export async function floorEnd(doFetch: typeof fetch = fetch): Promise<void> {
   const a = "text" in got ? await askRoom("today", { text }, turns, last, doFetch) : await askRoom("today", { clip: got.clip }, turns, last, doFetch);
   if (run !== n) return;
   if (a.ok && text) remember("today", text, a.say, a.kind);
-  return answer([{ by: "kernel", say: a.say, ...(a.audio && { audio: a.audio }), failed: !a.ok }], n, doFetch);
+  return answer([{ by: "kernel", say: a.say, failed: !a.ok }], n, doFetch);
 }
 
 /** Escape, or the window lost focus mid-hold: nothing is sent, the session picks up. */

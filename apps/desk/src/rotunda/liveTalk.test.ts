@@ -120,7 +120,7 @@ describe("joining the argument on the floor (#925)", () => {
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return Response.json({ join: { answers: [{ by: "archive", text: "Footnote twelve: eagles." }], rest: [{ by: "studio", stance: "nay", text: "Cut." }], close: "Carried." } });
     }) as typeof fetch);
-    expect(sent).toEqual({ room: "today", senate: "join", said: "And the eagles?", seated: ["archive", "studio", "boiler"], motion: TOPIC.motion, lines: TOPIC.lines, cast: TOPIC.cast });
+    expect(sent).toEqual({ room: "today", senate: "join", said: "And the eagles?", seated: ["archive", "studio", "boiler"], motion: TOPIC.motion, lines: TOPIC.lines, cast: TOPIC.cast, voice: false });
     expect(got).toEqual({ join: { answers: [{ by: "archive", text: "Footnote twelve: eagles." }], rest: [{ by: "studio", stance: "nay", text: "Cut." }], close: "Carried." } });
   });
 

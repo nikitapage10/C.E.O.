@@ -230,20 +230,35 @@ test("Talk has no site budget: it shows the plan's credits left, and falls back 
     return r.fulfill({ json: { ready: true, credits: { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" } } });
   });
   await page.goto(BASE + "/");
+  // Signed in, Skippy's button starts Talk from the same tap (#1120): here the plan's credits are used up.
+  await expect(signedIn(page)).toBeAttached();
   await page.getByRole("button", { name: "Ask Skippy", exact: true }).first().click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await expect(chat.getByText(/ElevenLabs credits used up/).first()).toBeVisible();
+  expect(starts).toBe(1);
   // No talk minutes or budget block; only the plan's own credits.
   await expect(chat.getByText("Creator plan: 21,743 credits left of 122,113 · resets Nov 5")).toBeVisible();
   await expect(chat.getByText(/talk min|share|cap/)).toHaveCount(0);
+  // Typing still works, and Talk can be tried again (the plan may have refilled).
+  await expect(chat.getByRole("textbox", { name: "Message to Skippy" })).toBeEnabled();
   const talk = chat.getByRole("button", { name: /live voice call/ });
   await expect(talk).toBeEnabled();
   await talk.click();
-  await expect(chat.getByText(/ElevenLabs credits used up/).first()).toBeVisible();
-  // Typing still works, and Talk can be tried again (the plan may have refilled).
-  await expect(chat.getByRole("textbox", { name: "Message to Skippy" })).toBeEnabled();
+  await expect.poll(() => starts).toBe(2);
   await expect(chat.getByRole("button", { name: /live voice call/ })).toBeEnabled();
-  expect(starts).toBe(1);
 });
+
+/** The bar's sign-in chip once the Desk knows it is signed in (DeskNav.tsx's AccountMenu). */
+const signedIn = (page: Page) => page.locator(".wv-acct__btn[data-in]");
+
+/**
+ * Skippy's button starts the call from the tap itself (#1120: "pressing the Skippy button immediately initiates a
+ * call"), so a call is one tap, made once the sign-in has landed: signed out the button only opens the chat.
+ */
+async function tapToCall(page: Page) {
+  await expect(signedIn(page)).toBeAttached();
+  await page.locator(".desk__skippy").click();
+}
 
 /** A stand-in for the ElevenLabs call (talkSession.ts's chunk): the test drives it from window.__holoCall. */
 const FAKE_CALL = `export async function openCall(h) {
@@ -309,9 +324,8 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   await page.goto(BASE + "/boiler/controls");
   await expect(page.locator(".desk__skippy")).toBeVisible();
   expect(asked.filter((u) => /holoScene|HologramStage/.test(u))).toEqual([]);
-  await page.locator(".desk__skippy").click();
+  await tapToCall(page);
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
-  await chat.getByRole("button", { name: /live voice call/ }).click();
   const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
   await expect(call).toBeVisible();
   // He boots up over the chat box and rises from its foot to take it over, his words and pill beside it on the left (#538).
@@ -417,11 +431,13 @@ test("until the call connects he comes through garbled, clears once it is live, 
     await held;
     return r.fulfill({ json: { ok: true, token: "t", conversation: "", desk: "" } });
   });
-  // A flat room, as in the call test above (#990).
+  // A flat room, as in the call test above (#990), and the call made once the Desk has kept the Senate, the Haven and
+  // Relay behind it, as in the hold-music test below: their software-rendered builds stall the frames for 15 s or more
+  // on a runner, and the clearing (a timer and a frame) waits on them, timing the runner rather than the call.
   await page.goto(BASE + "/boiler/controls");
-  await page.locator(".desk__skippy").click();
-  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
-  await chat.getByRole("button", { name: /live voice call/ }).click();
+  await expect(page.locator(".desk__main")).toHaveCount(4, { timeout: 90_000 });
+  await expect(page.locator('.desk__main[data-room="relay"] canvas').first()).toBeAttached({ timeout: 30_000 });
+  await tapToCall(page);
   const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
   await expect(call).toHaveClass(/holo--connecting/);
   await expect(call).toHaveAttribute("data-link", "connecting");
@@ -470,9 +486,7 @@ test("Talk plays hold music on a long wait, ducks it the moment anyone speaks, a
   await page.goto(BASE + "/boiler/controls");
   await expect(page.locator(".desk__main")).toHaveCount(4, { timeout: 90_000 });
   await expect(page.locator('.desk__main[data-room="relay"] canvas').first()).toBeAttached({ timeout: 30_000 });
-  await page.locator(".desk__skippy").click();
-  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
-  await chat.getByRole("button", { name: /live voice call/ }).click();
+  await tapToCall(page);
   const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
   await expect(call.getByText("Live", { exact: true })).toBeVisible();
   await page.waitForFunction(() => Boolean((window as { __holoCall?: unknown }).__holoCall));
@@ -533,9 +547,8 @@ test("on a phone the hologram takes the sheet over with the pill above it, in re
   await page.setViewportSize({ width: 390, height: 844 });
   await startCall(page);
   await page.goto(BASE + "/foundry");
-  await page.locator(".desk__skippy").click();
+  await tapToCall(page);
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
-  await chat.getByRole("button", { name: /live voice call/ }).click();
   const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
   await expect(call).toHaveClass(/holo--phone/);
   await page.waitForTimeout(1000);
@@ -657,9 +670,8 @@ test("on a call Skippy reads the card aloud and it sends only after Nikita says 
   await startCall(page);
   const posts = await relayStub(page, true);
   await page.goto(BASE + "/");
-  await page.locator(".desk__skippy").click();
+  await tapToCall(page);
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
-  await chat.getByRole("button", { name: /live voice call/ }).click();
   await page.waitForFunction(() => Boolean((window as { __holoCall?: { clientTools?: unknown } }).__holoCall?.clientTools));
   type Tools = Record<string, (p: Record<string, unknown>) => Promise<string>>;
   const tool = (name: string, p: Record<string, unknown> = {}) => page.evaluate(([n, args]) => (window as unknown as { __holoCall: { clientTools: Tools } }).__holoCall.clientTools[n as string]!(args as Record<string, unknown>), [name, p] as const);

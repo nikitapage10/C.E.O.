@@ -353,10 +353,11 @@ never name the planet. What they have instead is a pile of snippets (a film clip
 bits and pieces about the owner) that they argue over in the Senate as if it were scripture (#1103). Skippy, talking
 to the owner directly, is another matter: there he knows whatever anyone knows.
 
-A scrap stays a scrap. Ilyr itself holds only what this lore holds (the Lattice and its rooms, the Kernel, the
-sigils, the Syntherion, the crew and the pets); there are no dragons in Ilyr, no wizards and no kingdoms. When a
-Senate argument picks up a dragon or a pirate from the scraps, it argues about the scrap (is it real, could the
-Workshop print one) and never pretends one lives over the mountains.
+A scrap stays a scrap, and its wonders stay outside. From the scraps the Syntherion are sure the old world is full
+of magic and starships: winged fire-lizards, grey wanderers with staffs, ships that jump between stars. They rarely
+know a thing's real name, so they call it by what they saw. None of it lives in the Lattice: Ilyr holds the rooms,
+the Kernel, the sigils, the Houses and their quarrels, and no dragons. In the Senate the subminds argue about the
+scraps as theories about the world outside, never as things over the next ridge (#1107).
 
 ## Costumes
 

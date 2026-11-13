@@ -18,7 +18,7 @@ export const TOOLS: readonly RoomTool[] = [
     room: "foundry",
     title: "File it for the Builder",
     description:
-      "When Nikita asks you to build, fix, change or \"implement it\": file a foundry issue for the Builder with a short title and a plain pitch of what to build, in Nikita's terms. The issue is public on GitHub, so nothing private goes in it. It is filed only after Nikita taps Yes; never write code yourself.",
+      "When Nikita asks you to build, fix, change or \"implement it\": file a foundry issue for the Builder with a short title and a plain pitch of what to build, in Nikita's terms. The issue is public on GitHub, so nothing private goes in it. It is filed at once when he asks (#1096: no tap), so say it's filed, never that it waits; never write code yourself.",
     input: {
       type: "object",
       properties: {
@@ -29,6 +29,8 @@ export const TOOLS: readonly RoomTool[] = [
       required: ["title", "pitch", "size"],
       additionalProperties: false,
     },
-    effect: "send",
+    // A write, not a send (#1096, Nikita 2026-11-13: "I shouldn't have to press anything on the Desk"): build requests
+    // file at once on every surface. Fetched web content still can't start it, and the privacy check still holds.
+    effect: "write",
   },
 ];

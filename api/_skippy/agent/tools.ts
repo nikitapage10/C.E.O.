@@ -734,7 +734,7 @@ function apiProp(p: RoomTool["input"]["properties"][string]): Record<string, unk
  */
 /**
  * The device tools that run at once on Nikita's own words for them, typed or said (#632, #1011, #1015): the home devices
- * and the lights. Every other tapped tool (remember, implement_it, the King Soopers cart) waits for the Yes.
+ * and the lights. Every other tapped tool (remember, the King Soopers cart) waits for the Yes; implement_it files at once (#1096).
  */
 export const WORDS_RUN: ReadonlySet<string> = new Set(["home_device", "lights_set", "lights_scene"]);
 

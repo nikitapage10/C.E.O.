@@ -9,7 +9,7 @@ import { SKIPPY_PROMPT, chatInput, publicScreen, readChat, readScreen } from "..
 import { FAST_MODEL, TALK_MODEL, runAgent, type CallModel } from "./loop.ts";
 import { MemoryMemory } from "./memory.ts";
 import { MemoryPending } from "./pending.ts";
-import { callTool, confirmTool, implementIssue, shotLines, type ToolHost } from "./tools.ts";
+import { callTool, implementIssue, shotLines, type ToolHost } from "./tools.ts";
 
 const NOW = Date.parse("2026-11-10T18:00:00Z");
 const SHOT = "shot-0123456789abcdef0123";
@@ -96,17 +96,12 @@ describe("screen context (#1027)", () => {
     expect(TALK_MODEL).not.toBe(FAST_MODEL);
   });
 
-  it("files the issue with only the screenshot's id and the scrubbed metadata, even after the Yes tap", async () => {
+  it("files the issue at once with only the screenshot's id and the scrubbed metadata (#1096: no tap)", async () => {
     const attach = { shot: SHOT, screen: '{"room":"haven","tab":"Kitchen","stage":"cooking"}' };
     const h = host({ attach });
     const pending = new MemoryPending();
-    const got = await callTool("implement_it", { title: "Fix the overlapping box", pitch: "A box overlaps the Kitchen header in cook mode.", size: "small" }, h, { pending, surface: "desk" });
-    expect(got.ok && "confirm" in got && got.confirm.summary).toContain("screenshot (kept private)");
-    const id = got.ok && "confirm" in got ? got.confirm.id : "";
-    // The tap comes later, from a fresh host: the shot waited with the call.
-    const later = host();
-    expect(await confirmTool(id, true, later, pending)).toMatchObject({ ok: true });
-    const body = later.bodies[0]!;
+    expect(await callTool("implement_it", { title: "Fix the overlapping box", pitch: "A box overlaps the Kitchen header in cook mode.", size: "small" }, h, { pending, surface: "desk" })).toMatchObject({ ok: true });
+    const body = h.bodies[0]!;
     expect(body).toContain(`**Screenshot:** ${SHOT} (private;`);
     expect(body).toContain("/api/foundry-shot?id=");
     expect(body).toContain('"stage":"cooking"');

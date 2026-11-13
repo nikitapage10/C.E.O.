@@ -43,13 +43,13 @@ import type { JobRun, OpenPull } from "../foundry-feed.js";
 import { elevenFromEnv } from "../_world/story.js";
 import { pickStore } from "../_world/store.js";
 import type { WorldState } from "../_world/types.js";
-import { answerDeps, callAnswer, deepAnswer, foundryIssues, keepAnswer, type CallTurn } from "../skippy.js";
+import { answerDeps, callAnswer, deepAnswerBy, foundryIssues, keepAnswer, type CallTurn } from "../skippy.js";
 import { contextLines, deskContext } from "./context.js";
 import { liveRoomReads } from "./roomReads.js";
 import { takeLine } from "./rooms.js";
 import { creditsReader } from "./voice.js";
 import { billText, boilerText, capLines, said, exchangeText, foundryText, greenText, isRead, positionsText, relayText, type BillInput, type ReadName } from "./voicereads.js";
-import { BlobCrewStore, MAX_HANDOFFS, TOOL_HEADER, checkToolToken, noteHandoff, type CrewStore, type TokenCheck } from "./voicetoken.js";
+import { BlobCrewStore, MAX_HANDOFFS, TOOL_HEADER, checkToolToken, noteAsk, noteHandoff, type CrewStore, type TokenCheck } from "./voicetoken.js";
 import { BlobRoomLog, CALL_HARD, CALL_MODEL, isCallAsk, turnId, type LoggedTurn, type RoomLog } from "./log.js";
 import { privateParts } from "../_privacy.js";
 import { PLAYERS_PATH, keptOrRead, pickGreenStore } from "../_green/cache.js";
@@ -200,8 +200,8 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
       // One path per question (#952): once a slow search is passed on, asking it again is answered with silence, so
       // the search's late result is never said as a second answer.
       if (query && passedOn.has(key)) return json({ read: "web", text: PASSED_ON });
-      // The same question already passed on another way (#1116): no second lookup.
-      const again = query ? askedBefore(check.hash, query, deps.now) : null;
+      // The same question already passed on another way (#1116), on any instance (#1140): no second lookup.
+      const again = query ? await askedAnywhere(query, deps, check) : null;
       if (again) return json({ read: "web", text: again });
       const text = await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - WEB_FILE_MS);
       // Slow: no polling. The question is passed on once, with its one waiting line, and the search that is still
@@ -337,18 +337,51 @@ export function sameQuestion(a: string, b: string): boolean {
   return hit >= 2 && hit / small.size >= 0.6;
 }
 
-/** What a repeat of a recent question on this call hears (silence, or finish it), or null for a new question. */
-export function askedBefore(call: string, ask: string, now: number): string | null {
-  const recent = (asked.get(call) ?? []).filter((r) => now - r.at < ASKED_MS);
+/** What a repeat of one of these recent questions hears (silence, or finish it), or null for a new question. */
+function repeatOf(earlier: readonly { ask: string; at: number }[], ask: string, now: number): string | null {
+  const recent = earlier.filter((r) => now - r.at < ASKED_MS);
   if (!recent.length) return null;
   if (CONTINUE.test(ask.trim())) return GO_ON;
   return recent.some((r) => sameQuestion(r.ask, ask)) ? PASSED_ON : null;
+}
+
+/** What a repeat of a recent question on this call hears (silence, or finish it), or null for a new question. */
+export function askedBefore(call: string, ask: string, now: number): string | null {
+  return repeatOf(asked.get(call) ?? [], ask, now);
+}
+
+/**
+ * The same, across instances (#1140). Nikita, 2026-11-13: one question went to the deeper mind twice, seven seconds
+ * apart, and came back as two answers: Azure served the two asks on different instances, and this instance's notes
+ * (`asked`) can't see another's. So besides them, what the call itself keeps: the questions noted on its token (noted
+ * before the quick pass, `noteAsk`) and its hand-offs' turns in the `kernel` log.
+ */
+export async function askedAnywhere(ask: string, deps: Pick<ToolDeps, "log" | "now">, check: Pick<Extract<TokenCheck, { ok: true }>, "hash" | "handoffs" | "asks">): Promise<string | null> {
+  const here = askedBefore(check.hash, ask, deps.now);
+  if (here) return here;
+  const kept: { ask: string; at: number }[] = [...(check.asks ?? [])];
+  if (check.handoffs.length && deps.log) {
+    const ids = new Set(check.handoffs);
+    const turns = await deps.log.list("kernel", deps.now).catch((): LoggedTurn[] => []);
+    for (const t of turns) {
+      const at = Date.parse(t.at);
+      if (ids.has(t.id) && Number.isFinite(at)) kept.push({ ask: t.question, at });
+    }
+  }
+  return repeatOf(kept, ask, deps.now);
 }
 
 /** Notes a question passed on from this call. */
 export function noteAsked(call: string, ask: string, now: number): void {
   if (asked.size > 200) asked.clear();
   asked.set(call, [...(asked.get(call) ?? []).filter((r) => now - r.at < ASKED_MS), { ask, at: now }]);
+}
+
+/** Takes a noted question off again (its quick pass answered it, or nothing could take it): asking again is new. */
+export function forgetAsked(call: string, ask: string, at: number): void {
+  const left = (asked.get(call) ?? []).filter((r) => !(r.ask === ask && r.at === at));
+  if (left.length) asked.set(call, left);
+  else asked.delete(call);
 }
 
 /** What the web tool keeps of its budget for passing a slow search on (two blob writes), inside the five seconds. */
@@ -362,21 +395,41 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   const ask = typeof body?.ask === "string" ? body.ask.replace(/\s+/g, " ").trim().slice(0, ASK_MAX) : "";
   if (!ask) return json({ error: "bad-request" }, 400);
   if (privateParts(ask).length) return json({ ok: false, text: CALL_FAILED.private });
-  // A question already on its way, or "keep going" after one (#1116): no second lookup.
-  const again = askedBefore(check.hash, ask, deps.now);
+  // A question already on its way, or "keep going" after one (#1116), on this instance or another (#1140): no second
+  // lookup.
+  const again = await askedAnywhere(ask, deps, check);
   if (again) return json({ ok: true, answered: true, text: again });
+  // Noted before the quick pass (#1140), here and with the call's token, so a repeat while it runs (up to four
+  // seconds), on any instance, is the same question and not a second run.
+  noteAsked(check.hash, ask, deps.now);
+  const noted = deps.crew ? noteAsk(deps.crew, check.hash, ask, deps.now, deps.now).then(() => true, () => false) : Promise.resolve(false);
+  /** Nothing is on its way after all: a repeat is a new ask. */
+  const unnote = async () => {
+    forgetAsked(check.hash, ask, deps.now);
+    if (deps.crew && (await noted)) await noteAsk(deps.crew, check.hash, ask, deps.now, deps.now, true).catch(() => undefined);
+  };
+  const filed = async (depth?: Depth): Promise<Response> => {
+    await noted;
+    const got = await fileHandoff(ask, deps, check, depth);
+    if (!got.ok) await unnote();
+    return json(got);
+  };
   // The one brain (#926): quick first, on the call itself, as the passkey that started it.
   if (deps.brain && check.passkey) {
     const quick = await withTime(deps.brain(ask, check.passkey, check.screen).catch((): CallTurn => ({ error: "model" })), Math.min(QUICK_BUDGET_MS, (deps.budgetMs ?? READ_BUDGET_MS) - 300));
     if (quick && "reply" in quick && quick.reply) {
       deps.timed?.("quick", deps.now);
+      await unnote();
       return json({ ok: true, answered: true, text: `Say this to Nikita now, in your own voice, in one or two short sentences, with no waiting line first: ${said(quick.reply, 600)}` });
     }
-    if (quick && "error" in quick && quick.error !== "model") return json({ ok: false, text: CALL_FAILED[quick.error] ?? CALL_FAILED["not-set-up"] });
+    if (quick && "error" in quick && quick.error !== "model") {
+      await unnote();
+      return json({ ok: false, text: CALL_FAILED[quick.error] ?? CALL_FAILED["not-set-up"] });
+    }
     // Deeper (or the quick pass ran late, or its model failed): the deeper run takes it, and the answer comes in.
-    return json(await fileHandoff(ask, deps, check, quick && "deeper" in quick ? quick.deeper : "talk"));
+    return filed(quick && "deeper" in quick ? quick.deeper : "talk");
   }
-  return json(await fileHandoff(ask, deps, check));
+  return filed();
 }
 
 /** A promise's value, or null once `ms` has passed. */
@@ -410,7 +463,8 @@ async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenChec
   // Answered here, not awaited (#1054): the search when there is one, else the deeper run, else an honest line.
   deps.deliver?.({ id, ask, depth, asked: deps.now, ...(search && { search }) });
   const line = waitingLine(check.hash, deps.now) ? WAIT_QUIP : "You already said this question's waiting line: say nothing now, and stop.";
-  return { ok: true, turn: id, text: `Still looking. ${line} The answer is put into the call the moment it lands; say it then, and don't call check_answers for it.` };
+  // No "Still looking." of its own to echo (#1140): the voice says the one line and then nothing until the answer.
+  return { ok: true, turn: id, text: `${line} Then stay silent: no check-ins, no "still with me?", no "still searching", nothing when Nikita is quiet. The answer is put into the call the moment it lands; say it then, and don't call check_answers for it.` };
 }
 
 /**
@@ -614,8 +668,8 @@ export function webDeps(env: Record<string, string | undefined>): WebDeps {
 export function liveDeliver(log: RoomLog, timed: ReturnType<typeof timeAnswer> = timeAnswer(null)): (job: CallJob) => void {
   return (job) => {
     void deliverCallAnswer(job, {
-      keep: async (id, text) => (await keepAnswer({ ...answerDeps(), log }, { id, from: "kernel-agent", text, final: true, ping: true })).ok,
-      deep: (ask, depth) => deepAnswer(ask, depth),
+      keep: async (id, text, by) => (await keepAnswer({ ...answerDeps(), log }, { id, from: "kernel-agent", text, final: true, ping: true, ...(by && { by }) })).ok,
+      deep: (ask, depth) => deepAnswerBy(ask, depth),
       now: Date.now,
       log: (line) => console.log(line),
       timed: (kind, ms) => timed(kind, ms, Date.now()),

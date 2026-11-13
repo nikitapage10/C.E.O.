@@ -49,10 +49,10 @@ export interface CallJob {
 }
 
 export interface DeliverDeps {
-  /** Keeps the final answer on the turn; whether it was kept. */
-  keep(id: string, text: string): Promise<boolean>;
-  /** Skippy's one brain, deeper; left out, only the search can answer. */
-  deep?: ((ask: string, depth: Depth) => Promise<string>) | null;
+  /** Keeps the final answer on the turn, with which brain answered it (#1140) when one did; whether it was kept. */
+  keep(id: string, text: string, by?: string): Promise<boolean>;
+  /** Skippy's one brain, deeper, with the model that answered when it says; left out, only the search can answer. */
+  deep?: ((ask: string, depth: Depth) => Promise<string | DeepAnswer>) | null;
   now(): number;
   /** One line of state for the Function's log: never the question or the answer. */
   log?: (line: string) => void;
@@ -61,6 +61,18 @@ export interface DeliverDeps {
 }
 
 export type Delivered = "search" | "deep" | "unfit" | "timeout";
+
+/** The deeper run's answer and the model that gave it (api/skippy.ts deepAnswerBy). */
+export interface DeepAnswer {
+  text: string;
+  by?: string;
+}
+
+/** What `FollowUp.by` says for an answer the call's own web search gave (#1140). */
+export const BY_SEARCH = "search";
+
+/** A model id fit for the Function's log line: plain characters only, never anything else. */
+const byWord = (by: string | undefined) => (by && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(by) ? by : "");
 
 /** A promise's value, or null once `ms` has passed or when it fails. */
 export function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
@@ -87,10 +99,11 @@ export async function deliverCallAnswer(job: CallJob, d: DeliverDeps, limits: { 
   const start = d.now();
   const total = limits.totalMs ?? CALL_ANSWER_MS;
   const left = () => total - (d.now() - start);
-  const done = async (how: Delivered, text: string): Promise<Delivered> => {
-    const kept = await d.keep(job.id, text).catch(() => false);
+  const done = async (how: Delivered, text: string, by?: string): Promise<Delivered> => {
+    const who = byWord(by);
+    const kept = await (who ? d.keep(job.id, text, who) : d.keep(job.id, text)).catch(() => false);
     const end = d.now();
-    d.log?.(`skippy-call answer ${how} ms=${end - start}${kept ? "" : " unkept"}`);
+    d.log?.(`skippy-call answer ${how}${who ? ` by=${who}` : ""} ms=${end - start}${kept ? "" : " unkept"}`);
     // Timed after the answer is kept, so noting it never holds the answer up.
     await Promise.resolve()
       .then(() => d.timed?.(how === "search" || how === "timeout" ? how : "deeper", Math.max(0, end - (job.asked ?? start))))
@@ -100,14 +113,15 @@ export async function deliverCallAnswer(job: CallJob, d: DeliverDeps, limits: { 
   try {
     if (job.search) {
       const got = searchAnswer(await within(job.search, Math.min(limits.searchMs ?? SEARCH_WAIT_MS, left())));
-      if (got) return await done("search", got);
+      if (got) return await done("search", got, BY_SEARCH);
     }
     if (d.deep && left() >= DEEP_MIN_MS) {
-      const said = await within(d.deep(job.ask, job.depth), left());
+      const got = await within(d.deep(job.ask, job.depth), left());
+      const said = typeof got === "string" ? got : got?.text;
       if (typeof said === "string" && said.trim()) {
         // Without its narration ("so I'll search", "this looks surprising, so I'll verify it", #1116): only the answer.
         const text = fitAnswer(withoutMeta(said));
-        return await done(text ? "deep" : "unfit", text || UNFIT);
+        return await done(text ? "deep" : "unfit", text || UNFIT, got && typeof got === "object" ? got.by : undefined);
       }
     }
   } catch {

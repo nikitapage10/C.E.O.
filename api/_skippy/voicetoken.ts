@@ -28,6 +28,10 @@ export const TOOL_SLACK_MS = 2 * 60_000;
 const KEEP = 20;
 /** The most hand-offs to the Kernel one call may make. */
 export const MAX_HANDOFFS = 5;
+/** The questions a call keeps noted as on their way (#1140), newest last. */
+export const MAX_ASKS = 8;
+/** The longest a noted question is kept (characters). */
+const ASK_KEEP = 300;
 
 const B64 = /^[A-Za-z0-9_-]+$/;
 
@@ -90,7 +94,26 @@ export interface KeptToken {
   passkey?: string;
   /** What Nikita was looking at when the call started (#1027): the screen's metadata as compact JSON, never a picture. */
   screen?: string;
+  /**
+   * The questions this call has passed on and when (#1140), noted the moment one reaches the call's brain, before its
+   * quick pass, so a repeat served by another instance seconds later is still seen as the same question. Already
+   * through the privacy check; kept with the token, so it goes when the call's token does.
+   */
+  asks?: KeptAsk[];
 }
+
+/** One question a call passed on, and when (ms). */
+export interface KeptAsk {
+  ask: string;
+  at: number;
+}
+
+const keptAsks = (v: unknown): KeptAsk[] =>
+  (Array.isArray(v) ? v : [])
+    .map((a) => (a && typeof a === "object" ? (a as Record<string, unknown>) : {}))
+    .filter((a) => typeof a.ask === "string" && a.ask.trim() && typeof a.at === "number" && Number.isFinite(a.at))
+    .map((a) => ({ ask: (a.ask as string).slice(0, ASK_KEEP), at: a.at as number }))
+    .slice(-MAX_ASKS);
 
 /** The longest screen metadata kept with a call (the Desk's own cap, @ceo/engine/web/screen.ts). */
 const SCREEN_KEEP = 2_048;
@@ -136,7 +159,8 @@ export function cleanCrew(raw: unknown, now: number): CrewState {
       const handoffs = (Array.isArray(t.handoffs) ? t.handoffs : []).filter((h): h is string => typeof h === "string" && /^[0-9a-f]{16}$/.test(h)).slice(0, MAX_HANDOFFS);
       const passkey = typeof t.passkey === "string" && PASSKEY.test(t.passkey) ? t.passkey : "";
       const screen = keptScreen(t.screen);
-      return { hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }), ...(handoffs.length && { handoffs }), ...(passkey && { passkey }), ...(screen && { screen }) };
+      const asks = keptAsks(t.asks);
+      return { hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }), ...(handoffs.length && { handoffs }), ...(passkey && { passkey }), ...(screen && { screen }), ...(asks.length && { asks }) };
     })
     .slice(-KEEP);
   return { tokens, tools: things(r.tools), agents: things(r.agents) };
@@ -200,7 +224,7 @@ export async function endToolToken(store: CrewStore, conversation: string, now: 
   await store.update(now, (s) => ({ ...s, tokens: s.tokens.map((t) => (t.conversation === conversation ? { ...t, ended: true } : t)) })).catch(() => undefined);
 }
 
-export type TokenCheck = { ok: true; conversation: string; hash: string; handoffs: string[]; passkey?: string; screen?: string } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
+export type TokenCheck = { ok: true; conversation: string; hash: string; handoffs: string[]; passkey?: string; screen?: string; asks?: KeptAsk[] } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
 
 /** The full check the lookups run: signed, unexpired, kept and not ended. */
 export async function checkToolToken(token: string | null | undefined, deskKey: string, store: CrewStore | null, now: number): Promise<TokenCheck> {
@@ -220,7 +244,25 @@ export async function checkToolToken(token: string | null | undefined, deskKey: 
   if (!kept) return { ok: false, why: "unknown" };
   if (kept.ended) return { ok: false, why: "ended" };
   if (kept.until <= now) return { ok: false, why: "expired" };
-  return { ok: true, conversation: kept.conversation, hash: h, handoffs: kept.handoffs ?? [], ...(kept.passkey && { passkey: kept.passkey }), ...(kept.screen && { screen: kept.screen }) };
+  return { ok: true, conversation: kept.conversation, hash: h, handoffs: kept.handoffs ?? [], ...(kept.passkey && { passkey: kept.passkey }), ...(kept.screen && { screen: kept.screen }), ...(kept.asks?.length && { asks: kept.asks }) };
+}
+
+/**
+ * Notes a question this call is passing on (#1140), or with `drop` takes it off again (its quick pass answered it, so
+ * asking again is a new ask). Kept with the call's token, so every instance serving the call sees it.
+ */
+export async function noteAsk(store: CrewStore, hash: string, ask: string, at: number, now: number, drop = false): Promise<void> {
+  const one = ask.slice(0, ASK_KEEP);
+  await store.update(now, (s) => ({
+    ...s,
+    tokens: s.tokens.map((t) => {
+      if (t.hash !== hash) return t;
+      const rest = (t.asks ?? []).filter((a) => !(a.ask === one && a.at === at));
+      const asks = drop ? rest : [...rest, { ask: one, at }].slice(-MAX_ASKS);
+      const { asks: _old, ...base } = t;
+      return asks.length ? { ...base, asks } : base;
+    }),
+  }));
 }
 
 /** Notes a hand-off this call made, for check_answers and the Desk's chat; false once the call has made its share. */

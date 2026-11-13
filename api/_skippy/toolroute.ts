@@ -22,6 +22,8 @@
  * GET ?read=player_news[&player=<name>] → the player_news tool (#491): Sleeper's injury status and FantasyPros' injury
  *   report and news on one player, or the C.E.O.'s roster (api/_skippy/voicelookups.ts).
  * POST ?act=web { query } → the web_search tool (#491): the typed chat's web lookup, kept per call while it runs.
+ * GET ?read=desk&q=<words> → the desk_lookup tool (#1141): the Desk's own library (its docs, lore, rooms and plans,
+ *   api/_skippy/desk.ts), the top sections as a few short lines.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -65,6 +67,7 @@ import { readKroger } from "../_haven/kroger/store.js";
 import { NO_HOUSE } from "../_haven/house.js";
 import type { Depth } from "./agent/loop.js";
 import { geminiKey, geminiSearch } from "./gemini.js";
+import { deskCallText, livePlans, type DeskSection } from "./desk.js";
 
 export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
@@ -99,6 +102,8 @@ export interface RoomSources {
   house?(): Promise<string>;
   /** The live scoreboard (#537); ESPN's by default. */
   scores?: (league: string | null, team: string | null, now: number) => Promise<string>;
+  /** The Desk library's live plans (#1141, desk.ts livePlans); left out, the library alone. */
+  plans?(): Promise<DeskSection[]>;
 }
 
 /** Skippy's one brain for a call's ask (#926, api/skippy.ts callAnswer): the answer, how deep to go, or what failed. */
@@ -238,6 +243,12 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
     const text = await withBudget((deps.sources.scores ?? liveScores)(league, team, deps.now), budget);
     return json(await settle(read, text, `What is the live score or game status for ${team || "today's games"}${league ? ` in ${league}` : ""} right now? Use the live scoreboard, not last night's final.`, deps, check));
   }
+  if (read === DESK_READ) {
+    const extra = keys.filter((k) => k !== "read");
+    if (extra.some((k) => k !== "q") || url.searchParams.getAll("q").length > 1) return json({ error: "bad-request" }, 400);
+    const plans = deps.sources.plans ? ((await withTime(deps.sources.plans().catch((): DeskSection[] => []), Math.min(2_000, budget))) ?? []) : [];
+    return json({ read, text: deskCallText(cleanQueryText(url.searchParams.get("q")), plans) });
+  }
   if (keys.length !== 1) return json({ error: "bad-request" }, 400);
   if (read === ANSWERS_READ) return json({ read, text: await answersText(deps, check.handoffs) });
   if (!isRead(read)) return json({ error: "bad-request" }, 400);
@@ -266,6 +277,8 @@ export const WEB_ACT = "web";
 export const PLAYER_READ = "player_news";
 /** GET ?read=sports[&league=&team=]: the live_scores tool (#537), ESPN's scoreboard. */
 export const SPORTS_READ = "sports";
+/** GET ?read=desk&q=: the desk_lookup tool (#1141), the Desk's own library. */
+export const DESK_READ = "desk";
 /** GET ?read=answers: the check_answers tool. */
 export const ANSWERS_READ = "answers";
 /** The longest ask handed over (the typed chat's message cap). */
@@ -567,6 +580,7 @@ export function liveSources(env: Record<string, string | undefined> = process.en
     },
     // The house in one line (#1067): the reads the Haven already makes, nothing new asked of a device.
     house: () => houseNow(env),
+    plans: () => livePlans(),
     bill: async () => {
       const eleven = elevenFromEnv(env);
       return eleven ? { credits: await creditsReader(eleven.key)() } : null;

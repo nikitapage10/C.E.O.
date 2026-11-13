@@ -37,6 +37,7 @@ import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemorySto
 import type { PendingStore } from "./pending.js";
 import { allLightsName, spokenAsked, spokenLights } from "./words.js";
 import { SHOT_ID } from "../shots.js";
+import { deskLookupText, deskReadText, type DeskSection } from "../desk.js";
 import { liveScores } from "../sports.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, ingredientLine, mealNamed, readEdit, recipeWords, ROLES, weekStage, weekWords, type Day, type EditResult, type Ingredient, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
@@ -92,6 +93,8 @@ export interface ToolHost {
    * screen's metadata with its private fields scrubbed. Set by the turn (and kept with a waiting tap), never by the model.
    */
   attach?: ShotAttach;
+  /** The Desk library's live plans (#1141, ../desk.ts livePlans): the Foundry's open issues; absent, the library alone. */
+  plans?: (() => Promise<DeskSection[]>) | null;
   /** The skip list's terms (EMAIL_SKIP_TERMS), which never go in memory. */
   skipTerms: readonly string[];
   now: number;
@@ -299,6 +302,15 @@ const mealEdit = async (host: ToolHost, ...edits: Array<MealEdit | string>): Pro
   if (!said.length) return { ok: true, text: "Nothing changed: the plan already has that. Read the week to check which night is which.", did: "Checked the meal plan" };
   return { ok: true, text: `${said.join(" ")} The Kitchen page shows it; Undo is there too.`, did: last };
 };
+/** The live plans for the Desk's library, or none when GitHub is slow or down (the library still answers). */
+const plansOf = async (host: ToolHost): Promise<DeskSection[]> => {
+  if (!host.plans) return [];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<DeskSection[]>((resolve) => {
+    timer = setTimeout(() => resolve([]), 2_500);
+  });
+  return Promise.race([host.plans().catch(() => []), late]).finally(() => clearTimeout(timer));
+};
 const dayOf = (v: unknown): Day => (DAYS as readonly unknown[]).includes(v) ? (v as Day) : "mon";
 const ROLE_WORD: Record<Role, string> = { protein: "protein", carb: "carb", side: "side" };
 
@@ -316,6 +328,9 @@ const EXECUTORS: Record<string, Executor> = {
       return { ok: true, text: (isMemoryId(i.id) && readOne(await host.memory.load(), i.id)) || "No memory with that id." };
     },
   },
+  // The Desk's library (#1141): the repo's docs and lore, built in at build time, and the Foundry's open issues live.
+  desk_lookup: { run: async (i, host) => ({ ok: true, text: deskLookupText(str(i.query), await plansOf(host)) }) },
+  desk_read: { run: async (i, host) => ({ ok: true, text: deskReadText(str(i.id), str(i.id).startsWith("plan") ? await plansOf(host) : []) }) },
   remember: {
     prepare: async (i, host) => {
       const fact = plainLine(str(i.fact), 300);

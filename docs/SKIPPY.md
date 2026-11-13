@@ -221,6 +221,32 @@ advisories it names, counts by severity and the critical or high ones by id. It 
 and twelve in the private store (`desk/skippy/advisories.json`, for the same lockfile), and a failed lookup waits ten
 minutes. Any other ask gets one line ("TypeScript and JavaScript on Node.js 22, hosted on Azure; no PHP, Python, Java"). So "are we exposed to X" gets a yes or no from facts.
 
+## What Skippy knows about the Desk itself (#1141)
+
+Nikita, on a call (2026-11-13): Skippy should have "a repository and wealth of information" about the Desk the way he
+has one about Nikita, "not just about the lore. Anything related to the Desk, including lore, building design,
+schemas, and future plans." So he has the Desk's library:
+
+- **What's in it.** The repo's public docs and lore, split by heading into sections with an id and a title:
+  `docs/*.md`, `lore/*.md`, `README.md`, `CLAUDE.md`, each room's manifest (`rooms/<id>/room.ts`: its name, purpose,
+  agents, measure, tabs and Skippy's tools there) and one dossier per agent from the simulator (`lore.ts`, `cast.ts`:
+  bio, catchphrase, history and relationships). `scripts/desk-library.mjs` writes it into `api/_skippy/deskIndex.ts` at
+  every install (postinstall) and build (`npm run build`, `npm run build:azure`), not committed, like `stackDeps.ts`, so
+  the Function App's bundle carries it (about 550 sections, about 800 KB of text; long sections are cut into parts of at
+  most 2,400 characters). Repo content only: never `kb/`, never `/mnt`, nothing private.
+- **The plans.** The Foundry's open issues (title, pitch, size and state; not shipped, passed or undone ones, and never
+  one that looks private), read live with the read token (`api/_github.ts`) and kept ten minutes per warm function
+  (`livePlans`, `api/_skippy/desk.ts`), plus one "Future plans" section listing them all.
+- **The tools.** `desk_lookup { query }` ranks the sections locally (BM25-like word weights, titles count extra, a "who
+  is" ask leans to the dossiers), so a lookup costs nothing, and gives the top five titles with their ids and a short
+  excerpt; `desk_read { id }` gives one section, capped at 2,600 characters, with the next part's id. Both are reads on
+  Today (`rooms/today/tools.ts`), so every surface has them: the typed chat, the phone and the room mics. The fast pass
+  (`FAST_RULES`) treats the Desk itself as its own place: lore, rooms, design, how it's built and what's planned go to
+  `desk_lookup` (then `desk_read`) and are answered with `"deeper": "no"` when a section answers.
+- **On a call.** Skippy's voice agent carries a `desk_lookup` webhook tool (`TOOL_DEFS`, `api/_skippy/voicecrew.ts`):
+  `GET /api/skippy-tools?read=desk&q=<words>` answers the top three sections as short excerpts (at most 1,400
+  characters) for him to say in his own words (`deskCallText`).
+
 ## What Skippy knows about the live rooms and the bill
 
 Typed Desk Skippy (`<desk>`) and voice Skippy (the `desk` variable at call start) get the same short lines, read
@@ -256,7 +282,7 @@ Kernel (#501), signed-in only:
 - **Tools: one registry.** Each room declares its tools as data in `rooms/<id>/tools.ts` (`@ceo/engine/tools`, the
   manifest's `tools`), and the server runs them (`api/_skippy/agent/tools.ts`). The same registry and checks serve the
   room voice hook (`RoomUtterance.tool`, through `POST /api/skippy-act`). Today has the memory (`memory_lookup`,
-  `memory_read`, `remember`, `forget`); the Foundry has `foundry_board` and `implement_it`; Relay has its counts and
+  `memory_read`, `remember`, `forget`) and the Desk's library (`desk_lookup`, `desk_read`, #1141, above); the Foundry has `foundry_board` and `implement_it`; Relay has its counts and
   `draft_text` (the existing Send/Edit/Cancel card); the Green, the Exchange and the Boiler Room have their reads; the
   Haven has `kitchen_add`, `home_device` and the meal planner's tools (`meals_*`, docs/HOME-DEVICES.md, "The meal
   planner"), `meals_recipe` among them; Today has `look_at_screen` (both #1027, "Skippy sees the screen" below).

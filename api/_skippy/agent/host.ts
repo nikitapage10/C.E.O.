@@ -116,6 +116,8 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
       });
       return res.ok ? ((await res.json()) as { number: number }).number : null;
     },
+    // The Desk library's plans (#1141): the Foundry's open issues, read with the read token and kept ten minutes.
+    plans: async () => (await import("../desk.js")).livePlans(),
     skipTerms,
     now,
   };

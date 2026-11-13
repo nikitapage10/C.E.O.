@@ -255,7 +255,7 @@ describe("what each lookup says", () => {
 
 describe("the crew on ElevenLabs", () => {
   it("each room tool is a GET to the site with a constant read and the token from the secret variable", () => {
-    for (const def of TOOL_DEFS.filter((d) => d.read !== "kernel" && d.read !== "web" && d.read !== "player_news" && d.read !== "sports")) {
+    for (const def of TOOL_DEFS.filter((d) => d.read !== "kernel" && d.read !== "web" && d.read !== "player_news" && d.read !== "sports" && d.read !== "desk")) {
       const c = toolConfig(def, SITE);
       expect(c.type).toBe("webhook");
       expect(c.pre_tool_speech).toBe("off");

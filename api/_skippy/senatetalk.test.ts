@@ -6,11 +6,15 @@ import { MemoryStoryStore } from "../_world/story.ts";
 import { MemoryChatLedger, chatMonth, skippySpend } from "./budget.ts";
 import { roomVoicePost, type RoomRouteDeps } from "./roomroute.ts";
 import {
+  DEBATE_SYSTEM,
   MemoryTopicStore,
   SENATE_BUDGET_USD,
   SENATE_CEILING_USD,
   SENATE_PART,
+  SEEDS,
   chairQuips,
+  freshSeed,
+  sameMotion,
   floorReply,
   joinDebate,
   motionKey,
@@ -64,6 +68,13 @@ function deps(over: Partial<SenateDeps> = {}): SenateDeps & { chat: MemoryChatLe
 beforeEach(() => resetGaps());
 
 describe("a new argument (#910)", () => {
+  it("keeps Ilyr to its lore: a seed is a scrap from outside, never a creature that lives there", () => {
+    expect(DEBATE_SYSTEM).toContain("never in the Lattice: no dragons, wizards or kingdoms in Ilyr");
+    expect(DEBATE_SYSTEM).toContain("never say a title or a creator's name");
+    expect(DEBATE_SYSTEM).toContain("six Great Houses");
+    expect(DEBATE_SYSTEM).toContain("House Unforked; the Senate is the Skippies' alone");
+  });
+
   it("argues a new motion with the given members, counts its cost as the Senate's part of Skippy's month, and remembers it", async () => {
     const d = deps();
     const got = await newDebate({ seated: SEATED, working: ["foundry"], docket: 3 }, d);
@@ -137,6 +148,38 @@ describe("a new argument (#910)", () => {
     expect(await newDebate({ seated: SEATED }, d)).toEqual({ quiet: "busy" });
     resetGaps();
     expect(await newDebate({ seated: SEATED }, deps({ ask: null }))).toEqual({ quiet: "off" });
+  });
+});
+
+describe("no repeats (#1149)", () => {
+  it("refuses a motion that is an old one in new words", async () => {
+    const d = deps({ ask: fakeModel("that bridges are secretly love letters to gravity, every one").ask });
+    d.topics.list = ["that every bridge is a love letter to gravity"];
+    expect(await newDebate({ seated: SEATED }, d)).toEqual({ quiet: "repeat" });
+    expect(sameMotion("that dragons should carry the chamber's messages", "that every dragon must be trained to carry messages")).toBe(true);
+    expect(sameMotion("that dragons should carry the chamber's messages", "that pizza beats every breakfast")).toBe(false);
+    expect(sameMotion("that the moon is overrated", "that the ocean is overrated")).toBe(false);
+  });
+
+  it("keeps the lines said, and asks for new jokes and phrases than those", async () => {
+    const m = fakeModel();
+    const lines = new MemoryTopicStore(120);
+    lines.list = ["Hail the arches, folks, the crowd goes wild!"];
+    const d = deps({ ask: m.ask, lines });
+    expect("debate" in (await newDebate({ seated: SEATED }, d))).toBe(true);
+    expect(m.asked[0]!.user).toContain("<heard>\n- Hail the arches, folks, the crowd goes wild!\n</heard>");
+    expect(m.asked[0]!.system).toContain("never reuse a joke, image, turn of phrase or catchphrase from <heard>");
+    expect(lines.list).toContain("Every bridge is one storm from a very bad day.");
+    expect(lines.list).toContain("Carried. The chair could hold up a bridge by sheer magnificence.");
+  });
+
+  it("steers to a seed the newest motions weren't about", () => {
+    const used = ["that cats rule the archive", "that coffee is a sigil of its own"];
+    for (let i = 0; i < 20; i++) {
+      const s = freshSeed(used, () => i / 20);
+      expect(["cats", "coffee"]).not.toContain(s);
+    }
+    expect(SEEDS).toContain(freshSeed([], () => 0));
   });
 });
 

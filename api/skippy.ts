@@ -436,9 +436,9 @@ export async function followUp(request: Request, deps: AnswerDeps): Promise<Resp
  * Keeps an answer on a hand-off's turn and pings (#312): the one path every answer takes, the thread's POST above and the
  * always-on responder (#501, api/_skippy/kernelagent.ts), which has already put its text through the same checks.
  */
-export async function keepAnswer(deps: Pick<AnswerDeps, "log" | "ping" | "now">, a: { id: string; from: FollowFrom; text: string; final: boolean; card?: ReturnType<typeof cleanCard>; ping?: boolean }): Promise<Response> {
+export async function keepAnswer(deps: Pick<AnswerDeps, "log" | "ping" | "now">, a: { id: string; from: FollowFrom; text: string; final: boolean; card?: ReturnType<typeof cleanCard>; ping?: boolean; by?: string }): Promise<Response> {
   if (!deps.log) return json({ error: "not-set-up" }, 503);
-  const f = cleanFollowUp({ from: a.from, text: a.text, at: new Date(deps.now).toISOString(), ...(a.card && { card: a.card }), ...(!a.final && { final: false }) });
+  const f = cleanFollowUp({ from: a.from, text: a.text, at: new Date(deps.now).toISOString(), ...(a.card && { card: a.card }), ...(!a.final && { final: false }), ...(a.by && { by: a.by }) });
   if (!f) return json({ error: "bad-request" }, 400);
   let result: Awaited<ReturnType<RoomLog["answer"]>>;
   try {
@@ -646,7 +646,8 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const id = turnId(at, said.message);
   let kept = false;
   // A call's deeper run answers a turn already kept (#926): nothing new is kept for it.
-  if (opts?.keep === false) return json({ ...reply, ...extra });
+  // Which brain answered goes back with it (#1140), so the call's kept answer can say so.
+  if (opts?.keep === false) return json({ ...reply, ...extra, ...(got.model && { model: got.model }) });
   if (deps.log) {
     kept = await deps.log
       .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }), ...(surface === "phone" && { via: "phone" as const }), ...(surface === "call" && { via: "voice" as const }), ...(surface === "room" && { via: "room" as const, ...(room?.by && { by: room.by }) }) }, deps.now)
@@ -847,15 +848,22 @@ export async function callAnswer(message: string, passkey: string, deps: ChatDep
  * kept turn (api/_skippy/kernelroute.ts, from the hand-off's own trigger). A failure says what failed.
  */
 export async function deepAnswer(message: string, depth: Depth = "talk", deps: ChatDeps = defaultDeps()): Promise<string> {
-  if (!deps.deskKey || !deps.store) return "My deeper mind isn't switched on here, so that one has to wait for the Desk.";
+  return (await deepAnswerBy(message, depth, deps)).text;
+}
+
+/** `deepAnswer`, with which model answered it (#1140) when one did: the model's id as the agent loop reports it. */
+export async function deepAnswerBy(message: string, depth: Depth = "talk", deps: ChatDeps = defaultDeps()): Promise<{ text: string; by?: string }> {
+  if (!deps.deskKey || !deps.store) return { text: "My deeper mind isn't switched on here, so that one has to wait for the Desk." };
   const said = readChat({ message, history: [] });
-  if (!said) return "That ask didn't come through whole; say it again.";
+  if (!said) return { text: "That ask didn't come through whole; say it again." };
   const store = deps.store;
   const res = await usageAs("call.deep", () => skippyTurn(said, { ...deps, store }, store, "call:deep", "call", undefined, { agent: { start: depth }, keep: false }));
+  const model = (await res.clone().json().catch(() => ({})) as { model?: unknown }).model;
+  const by = typeof model === "string" && model ? { by: model } : {};
   const turn = await turnOf(res);
-  if (turn.error === "private") return "That had something private in it, so it went nowhere.";
-  if (turn.error === "slow-down") return "Too many asks at once; that one has to wait a minute.";
-  if (turn.error) return "My deeper mind's model didn't answer just now; ask again in a minute.";
-  if (turn.capped) return turn.reply;
-  return spokenOf(turn.reply, false);
+  if (turn.error === "private") return { text: "That had something private in it, so it went nowhere." };
+  if (turn.error === "slow-down") return { text: "Too many asks at once; that one has to wait a minute." };
+  if (turn.error) return { text: "My deeper mind's model didn't answer just now; ask again in a minute." };
+  if (turn.capped) return { text: turn.reply, ...by };
+  return { text: spokenOf(turn.reply, false), ...by };
 }

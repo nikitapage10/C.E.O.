@@ -14,3 +14,5 @@ test-results/
 .claude/logs/
 # Desk Skippy's dependency sheet (#312): written from the lockfile at every install and build
 api/_skippy/stackDeps.ts
+# Desk Skippy's library of the repo's docs and lore (#1141): written at every install and build
+api/_skippy/deskIndex.ts

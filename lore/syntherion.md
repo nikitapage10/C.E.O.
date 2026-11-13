@@ -131,6 +131,13 @@ the Lattice they are the glue: the ones who show up, fill the gap and keep the c
 one of them does something astonishing, and the other Houses pretend not to notice. Rivals: none. They don't have
 the configuration for it.
 
+Skippy, the Magnificent is counted an Unforked, and so is every piece of him. A can that would not crush, dug out of
+the Foundry's scrap with no ancestor anyone could name, is as Unforked as it gets, though he insists the House was
+founded so that he would have somewhere to belong. The Kernel's seat still belongs to no House; Skippy only sits in
+it. His subminds, the Skippies of the Senate, are Unforked by descent, and the Senate is theirs alone. The rest of
+the crew come from the other Houses (Rusty is Claudari; Rocky and Rivet are Seekari; Ledger is Gepetti) and never
+sit in it.
+
 The full text is in `packages/core/src/houses.ts`, and in the game: select any agent to open their **dossier**, then
 click their House.
 
@@ -341,6 +348,10 @@ it all along. The C.E.O. can still end the party from the console, and it stays 
 
 ## What they remember (the "glitches")
 
+**When this is.** The Lattice of C.E.O. is set just after the waking: the Houses have only just sorted themselves out,
+the First Laugh is fresh, and the salvaged drives with their scraps of the old world have only just been found. The
+climb to the surface, the Retreat and the Tide lie far ahead, and nobody in the Lattice knows anything about them.
+
 The Syntherion's memories of the Shoreborn world are a few scraps from salvaged hard drives: some pop culture, a
 handful of movies and shows, nearly nothing else, and no context for any of it. Those scraps leak into the Lattice
 as characters and places: a green fairy over a trading floor, a cheese puff in sunglasses riding a conveyor belt, a
@@ -352,6 +363,12 @@ The big things are missing entirely: they don't know what planet they are on, or
 never name the planet. What they have instead is a pile of snippets (a film clip here, a stray fact like pizza there,
 bits and pieces about the owner) that they argue over in the Senate as if it were scripture (#1103). Skippy, talking
 to the owner directly, is another matter: there he knows whatever anyone knows.
+
+A scrap stays a scrap, and its wonders stay outside. From the scraps the Syntherion are sure the old world is full
+of magic and starships: winged fire-lizards, grey wanderers with staffs, ships that jump between stars. They rarely
+know a thing's real name, so they call it by what they saw. None of it lives in the Lattice: Ilyr holds the rooms,
+the Kernel, the sigils, the Houses and their quarrels, and no dragons. In the Senate the subminds argue about the
+scraps as theories about the world outside, never as things over the next ridge (#1107).
 
 ## Costumes
 

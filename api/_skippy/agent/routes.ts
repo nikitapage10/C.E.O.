@@ -30,7 +30,7 @@ import { plainLine } from "../../foundry.js";
 import { roomKeyOf } from "../../_site/roomkeys.js";
 import { BlobChatLedger, KERNEL_LEDGER_PATH, skippyBudget, skippySpend, type ChatLedger } from "../budget.js";
 import { liveHost, livePending } from "./host.js";
-import { BlobChatLog, chatLogGet } from "../chatlog.js";
+import { BlobChatLog, chatLogGet, historyGet } from "../chatlog.js";
 import { BlobMemory, FACT_MAX, isMemoryId, type MemorySource, type MemoryStore, type Refusal } from "./memory.js";
 import { isPendingId, type PendingStore } from "./pending.js";
 import { callTool, confirmTool, type ToolHost } from "./tools.js";
@@ -214,6 +214,14 @@ export const chatRoute = {
   GET: (request: Request) => {
     const blob = pickBlob(process.env);
     return chatLogGet(request, { desk: deskOf(process.env), log: blob ? new BlobChatLog(blob, skipTermsFrom(process.env.EMAIL_SKIP_TERMS)) : null, env: process.env });
+  },
+};
+
+/** Call history in Skippy's chat (#1160): the passkey session only (api/_skippy/chatlog.ts, historyGet). */
+export const historyRoute = {
+  GET: (request: Request) => {
+    const blob = pickBlob(process.env);
+    return historyGet(request, { desk: deskOf(process.env), log: blob ? new BlobChatLog(blob, skipTermsFrom(process.env.EMAIL_SKIP_TERMS)) : null });
   },
 };
 

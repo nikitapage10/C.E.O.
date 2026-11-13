@@ -5,7 +5,8 @@
 .skp-avatar,
 .skp-chat,
 .skp-ask,
-.skp-mem {
+.skp-mem,
+.skp-hist {
   --skp-ice: var(--ice, #8fe8ff);
   --skp-gold: #e8b84a;
   --skp-navy: #0a2e62;
@@ -926,4 +927,196 @@
   font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: 11px;
   color: var(--muted, #aab5c9);
+}
+
+/* ── Call history (#1160): past calls and chats, in the dialogue's place, and one read back ── */
+.skp-hist {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+.skp-hist__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 8px 12px 8px 14px;
+  border-bottom: 1px solid var(--hair, rgba(255, 255, 255, 0.13));
+}
+.skp-hist__head h3 {
+  margin: 0;
+  font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 17px;
+  font-weight: 500;
+}
+.skp-hist__meta {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted, #aab5c9);
+}
+.skp-hist__back {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--hair-strong, rgba(255, 255, 255, 0.3));
+  border-radius: 999px;
+  background: none;
+  color: var(--text, #e8f1ff);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.skp-hist__back span {
+  margin-right: 2px;
+  font-size: 15px;
+}
+.skp-hist__body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 12px 14px;
+}
+.skp-hist__day h4 {
+  margin: 12px 2px 4px;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--skp-ice);
+}
+.skp-hist__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.skp-hist__item {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid var(--hair, rgba(255, 255, 255, 0.13));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.skp-hist__item:hover {
+  border-color: rgba(127, 216, 255, 0.45);
+  background: rgba(10, 46, 98, 0.35);
+}
+.skp-hist__kind {
+  grid-row: span 2;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted, #aab5c9);
+}
+.skp-hist__kind--talk {
+  color: var(--skp-gold);
+}
+.skp-hist__first {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.skp-hist__first em {
+  color: var(--muted, #aab5c9);
+}
+.skp-hist__when,
+.skp-hist__time {
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 10px;
+  color: var(--muted, #aab5c9);
+}
+.skp-hist__read {
+  display: grid;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.skp-hist__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skp-hist__pair .skp-turn p {
+  white-space: pre-wrap;
+}
+.skp-hist__time {
+  align-self: center;
+}
+.skp-hist__muted {
+  margin: 12px 2px;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--muted, #aab5c9);
+}
+.skp-hist--loading {
+  flex: 1;
+  padding: 0 14px;
+}
+.skp-hist__back:focus-visible,
+.skp-hist__item:focus-visible {
+  outline: 2px solid var(--skp-ice);
+  outline-offset: 1px;
+}
+
+/* On a phone every tap target in the dialogue's header and the history is at least 44px (docs/ROOMS.md, #1049); the
+   portrait steps aside on the narrowest screens so the buttons keep their room. */
+@media (max-width: 760px) {
+  .skp-chat__head {
+    gap: 2px;
+  }
+  .skp-chat__who {
+    margin-left: 8px;
+  }
+  .skp-chat__icon,
+  .skp-hist__back {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .skp-chat__icon {
+    width: 44px;
+    height: 44px;
+  }
+  .skp-hist__item {
+    min-height: 56px;
+  }
+}
+@media (max-width: 420px) {
+  .skp-chat__face {
+    display: none;
+  }
+  .skp-chat__who {
+    margin-left: 0;
+  }
+  .skp-chat__who h2 {
+    font-size: 17px;
+  }
 }

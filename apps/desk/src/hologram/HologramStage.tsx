@@ -105,12 +105,22 @@ export default function HologramStage({ route, leaving = false }: { route: strin
     again();
     window.addEventListener("resize", again);
     const dock = document.getElementById("skippy-chat");
-    const watch = typeof ResizeObserver === "function" && dock ? new ResizeObserver(again) : null;
+    const watch = typeof ResizeObserver === "function" ? new ResizeObserver(again) : null;
     if (dock) watch?.observe(dock);
+    // Skippy's button opens the dock and starts the call in one tap (#1120), so he can measure it mid-rise (skippy.css
+    // skp-rise, a move no ResizeObserver sees) and stand 12 px low: once its rise ends, again. On a busy page the rise
+    // can finish well after the timers below, and the dock may not be in the page yet, so it is heard on the document.
+    const risen = (e: AnimationEvent) => {
+      if (!(e.target instanceof Element) || e.target.id !== "skippy-chat") return;
+      watch?.observe(e.target);
+      again();
+    };
+    document.addEventListener("animationend", risen);
     // The dock opens a moment after Talk on Today's Ask line, and eases to its call height.
     const late = [120, 400, 900].map((ms) => window.setTimeout(again, ms));
     return () => {
       window.removeEventListener("resize", again);
+      document.removeEventListener("animationend", risen);
       watch?.disconnect();
       late.forEach((t) => window.clearTimeout(t));
     };

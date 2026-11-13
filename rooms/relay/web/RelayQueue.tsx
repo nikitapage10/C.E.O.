@@ -155,19 +155,7 @@ export function RelayQueue({ queue, cur, now, hidden, goTo, navRef, pagesRef, na
     return () => ro.disconnect();
   }, [navRef, draw]);
 
-  // The wheel over the line scrolls the codex beside it.
-  useEffect(() => {
-    const nav = navRef.current;
-    if (!nav || narrow) return;
-    const wheel = (e: WheelEvent) => {
-      const pages = pagesRef.current;
-      if (!pages) return;
-      e.preventDefault();
-      pages.scrollBy({ top: e.deltaY });
-    };
-    nav.addEventListener("wheel", wheel, { passive: false });
-    return () => nav.removeEventListener("wheel", wheel);
-  }, [navRef, pagesRef, narrow]);
+  // The wheel over the line scrolls the codex beside it, one entry a gesture (useSnapScroll, #1161).
 
   /** Where the pointer is along the line, from its centre. */
   const along = (e: { clientX: number; clientY: number }) => {

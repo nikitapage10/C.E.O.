@@ -634,7 +634,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
   if (body) {
     try {
       const g = keep(new SphereGeometry(HEAD.r, 32, 16, Math.PI / 2 - PHI / 2, PHI, TH0, TH1 - TH0));
-      fitCap(g, body, 32, 16);
+      fitCap(g, body, 32, 16, `rotunda:${modelUrl(SKIPPY_MODEL)}`);
       capGeo = g;
     } catch {
       /* no face to move: the painted one stays */

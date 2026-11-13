@@ -298,3 +298,43 @@ test("Settings in the Boiler Room has Hide, Ilyr's clock and Coming up", async (
     await settings.screenshot({ path: `${SHOTS}/boiler-settings.png` });
   }
 });
+
+test("a kept room behind the Senate builds without drawing out of sight (#1173)", async ({ page }) => {
+  // The Haven is kept mounted behind the Senate (keptRooms.ts) and, with a plan, builds its house there, hidden. A
+  // frame drawn out of sight linked every one of its programs at once on the main thread: seconds of frozen Senate on
+  // a desktop GPU (#1173). Every WebGL draw is counted by whether its canvas is on screen; the hidden house draws none,
+  // and still draws as soon as the Haven is opened.
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    const w = window as unknown as { __hiddenDraws: string[]; __houseDraws: number };
+    w.__hiddenDraws = [];
+    w.__houseDraws = 0;
+    for (const C of [WebGLRenderingContext, WebGL2RenderingContext])
+      for (const m of ["drawArrays", "drawElements", "drawArraysInstanced", "drawElementsInstanced"] as const) {
+        const proto = C.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+        const own = proto[m];
+        if (!own) continue;
+        proto[m] = function (this: WebGLRenderingContext, ...a: unknown[]) {
+          const cv = this.canvas as HTMLCanvasElement;
+          if (cv.isConnected && !cv.checkVisibility()) w.__hiddenDraws.push(cv.className || cv.parentElement?.className || "?");
+          else if (cv.classList.contains("hv-gl")) w.__houseDraws++;
+          return own.apply(this, a);
+        };
+      }
+  });
+  await stub(page, true);
+  const { FAKE_PLAN } = await import("../../api/_haven/plan.fixture.ts");
+  await page.route(`${BASE}/api/haven-plan`, (r) => r.fulfill({ json: { plan: FAKE_PLAN } }));
+  await page.goto(BASE + "/");
+  await expect(page.locator(".rt-stage")).toHaveAttribute("data-gl", "on", { timeout: 90_000 });
+  // The kept Haven mounts in idle time once the chamber is built, and builds its house out of sight.
+  await expect(page.locator(".hv-house canvas.hv-gl")).toHaveCount(1, { timeout: 180_000 });
+  await page.waitForTimeout(3_000);
+  expect(await page.evaluate(() => (window as unknown as { __hiddenDraws: string[] }).__hiddenDraws)).toEqual([]);
+  // Opened, the house draws at once.
+  await page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "Haven" }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __houseDraws: number }).__houseDraws), { timeout: 60_000 }).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});

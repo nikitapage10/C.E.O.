@@ -18,6 +18,16 @@ export const TOOLS: readonly RoomTool[] = [
     input: { type: "object", properties: { items: { type: "array", items: { type: "string", maxLength: 60 }, maxItems: 12 } }, required: ["items"], additionalProperties: false },
     effect: "write",
   },
+  // "What's on my shopping list?" (#1131): the lists read back, never added to.
+  {
+    name: "lists_read",
+    room: "haven",
+    title: "Read the lists",
+    description:
+      "What's on Nikita's lists right now, the open items only: the Kitchen list (groceries, \"shopping list\"), Things to buy (Amazon) and any list he made. Any \"what's on my list\", \"is milk on the list\", \"what do I need from the store\": call this. list names one (\"kitchen\", \"things to buy\", or his own list's name); leave it out for all of them.",
+    input: { type: "object", properties: { list: { type: "string" } }, required: [], additionalProperties: false },
+    effect: "read",
+  },
   {
     name: "meals_week",
     room: "haven",

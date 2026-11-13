@@ -33,6 +33,12 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
           return new KitchenList(blob).add(items, Date.now());
         }
       : null,
+    lists: blob
+      ? async () => {
+          const { allLists } = await import("../../_haven/list.js");
+          return (await allLists(blob, Date.now())).map((l) => ({ name: l.name, items: l.items.filter((i) => !i.done).map((i) => i.name) }));
+        }
+      : null,
     buyAdd: blob
       ? async (items) => {
           const { listOf } = await import("../../_haven/list.js");

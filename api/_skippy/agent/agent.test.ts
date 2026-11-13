@@ -408,6 +408,14 @@ async function signed() {
 const req = (path: string, cookie: string, body?: unknown) =>
   new Request(`${ORIGIN}${path}`, { method: body === undefined ? "GET" : "POST", headers: { Cookie: cookie, ...(body !== undefined && { "Content-Type": "application/json" }) }, ...(body !== undefined && { body: JSON.stringify(body) }) });
 
+describe("reading the lists (#1131)", () => {
+  it("reads the open items of the list asked for, or every list", async () => {
+    const h = { ...host(), lists: async () => [{ name: "Kitchen", items: ["garlic", "oat milk"] }, { name: "Things to buy", items: [] }] };
+    expect(await callTool("lists_read", { list: "shopping" }, h, { pending: new MemoryPending(), surface: "spoken" })).toMatchObject({ ok: true, text: "Kitchen (2): garlic, oat milk" });
+    expect(await callTool("lists_read", {}, h, { pending: new MemoryPending(), surface: "desk" })).toMatchObject({ ok: true, text: "Kitchen (2): garlic, oat milk\nThings to buy: empty" });
+  });
+});
+
 describe("the agent's endpoints (#646)", () => {
   it("POST /api/skippy-act runs a tap only in a passkey session, once", async () => {
     const { desk, cookie } = await signed();

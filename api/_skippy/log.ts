@@ -152,7 +152,15 @@ export interface FollowUp {
    * a later one. Left out (the default) on a final answer, which closes the hand-off.
    */
   final?: false;
+  /**
+   * Which brain answered (#1140): the model's id, or "search" when a call's own web search did. Only on a call's
+   * deeper answer; the turn's own `model` stays "voice" for the call that asked.
+   */
+  by?: string;
 }
+
+/** What `FollowUp.by` may hold: a model id or "search", plain. */
+const BY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/;
 
 /** Whether a turn's hand-off is still waiting on an answer: none yet, or only an interim one. */
 export const isOpen = (t: Pick<LoggedTurn, "needs" | "followUp">): boolean => !!t.needs && (!t.followUp || t.followUp.final === false);
@@ -205,7 +213,8 @@ export function cleanFollowUp(v: unknown): FollowUp | null {
   const at = isoOf(f.at);
   const text = line(f.text, ANSWER_MAX);
   const card = f.card === undefined ? null : cleanCard(f.card);
-  return at && text && isFollowFrom(f.from) ? { from: f.from, text, at, ...(card && { card }), ...(f.final === false && { final: false as const }) } : null;
+  const by = typeof f.by === "string" && BY.test(f.by) ? f.by : "";
+  return at && text && isFollowFrom(f.from) ? { from: f.from, text, at, ...(card && { card }), ...(f.final === false && { final: false as const }), ...(by && { by }) } : null;
 }
 
 export function cleanTurn(v: unknown): LoggedTurn | null {

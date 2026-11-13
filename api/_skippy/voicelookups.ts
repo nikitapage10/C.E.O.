@@ -179,7 +179,7 @@ export const SEARCHES_PER_CALL = 6;
 const KEEP_MS = 15 * 60_000;
 
 export const STILL_SEARCHING =
-  "Still searching the web for that. Call web_search again with the same query in a few seconds, without filling the wait with talk, and never say you couldn't find it while this runs. If it's still not back then, hand the question to hand_to_kernel.";
+  "The web search hasn't come back yet. Call web_search again with the same query in a few seconds, saying nothing about it meanwhile (no \"still searching\", no check-in), and never say you couldn't find it while this runs. If it's still not back then, hand the question to hand_to_kernel.";
 
 /** Added to a wait's result the first time a question needs a waiting line (waitingLine), so there is one and no more. */
 export const SAY_WAITING_LINE = " Unless you already said one, say one quick, funny, in-character line on what he asked now (this question's only waiting line, never a stock \"consulting the deeper me\"), then silence until the answer.";

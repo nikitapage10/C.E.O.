@@ -112,7 +112,7 @@ describe("which room key a request carries", () => {
       expect(decide(both(path, "GET"), c), path).toEqual({ allow: true, why: "room-log" });
       expect(readsWithLogKey(both(path, "GET"), ENV), path).toBe(true);
     }
-    for (const path of [ROOM_FEED_PATH, "/api/setup-asks"]) {
+    for (const path of [ROOM_FEED_PATH, "/api/setup-asks", "/api/skippy-memory"]) {
       expect(roomKeyOf(both(path, "POST"), ENV), path).toBe("feed");
       expect(decide(both(path, "POST"), c), path).toEqual({ allow: true, why: "room-feed" });
     }
@@ -225,6 +225,11 @@ describe("the feed key (SUBMIND_FEED_TOKEN)", () => {
     expect(decide(req(ROOM_FEED_PATH, "POST", undefined, { [ROOM_KEY_HEADER]: FEED }), c)).toEqual({ allow: true, why: "room-feed" });
     // A setup ask (#324): posting one or closing it is the same one write.
     expect(decide(req("/api/setup-asks", "POST", FEED), c)).toEqual({ allow: true, why: "room-feed" });
+    // Skippy's memory (#1124): the feed key adds to it; reading it, a query or the read key stay shut.
+    expect(decide(req("/api/skippy-memory", "POST", FEED), c)).toEqual({ allow: true, why: "room-feed" });
+    expect(decide(req("/api/skippy-memory", "GET", FEED), c).allow).toBe(false);
+    expect(decide(req("/api/skippy-memory?x=1", "POST", FEED), c).allow).toBe(false);
+    expect(decide(req("/api/skippy-memory", "POST", LOG), c).allow).toBe(false);
     for (const [path, method] of [
       [`${ROOM_FEED_PATH}?view=public`, "POST"],
       [ROOM_FEED_PATH, "GET"],

@@ -16,7 +16,9 @@
  *                        saved so the Builder can load it with no tap; GET of it stays passkey-only, neither key
  *                        reads it), PUT /api/haven-photos, one meal photo into the Kitchen's library (#687, the
  *                        same way: an id and a byte count back, passkey-only reads), and PUT /api/haven-meals, the
- *                        meal planner's seed (#678: counts back, passkey-only reads). It reads nothing: each answer
+ *                        meal planner's seed (#678: counts back, passkey-only reads), and POST /api/skippy-memory,
+ *                        a core card, fact or page into Skippy's memory (#1124: the handler refuses forget, GET stays
+ *                        passkey-only). It reads nothing: each answer
  *                        says only that the write was kept (the plan's, counts).
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
@@ -64,8 +66,11 @@ export const ROOM_FEED_PATH = "/api/room-feed";
 /** The setup asks' address (#324, api/_room/setup.ts): the read key reads them, the feed key posts and closes them. */
 export const SETUP_ASKS_PATH = "/api/setup-asks";
 
+/** Skippy's private memory (#1124, api/_skippy/agent/routes.ts): the feed key may add to it, never read or forget. */
+export const SKIPPY_MEMORY_PATH = "/api/skippy-memory";
+
 /** The paths the feed key may POST to, with no query. */
-export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH];
+export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH];
 
 /** A query rule: which keys a read may carry, and what each must look like. Absent keys are fine unless required. */
 type QueryRule = { [key: string]: { required?: boolean; ok: (v: string) => boolean } };
@@ -198,7 +203,7 @@ export const HAVEN_MEALS_PATH = "/api/haven-meals";
 const FEED_PUTS: readonly string[] = [KERNEL_BRIEF_PATH, HAVEN_PLAN_PATH, HAVEN_PHOTOS_PATH, HAVEN_MEALS_PATH];
 
 /**
- * Whether a request is one of the writes the feed key opens: POST /api/room-feed or /api/setup-asks, PUT
+ * Whether a request is one of the writes the feed key opens: POST /api/room-feed, /api/setup-asks or /api/skippy-memory, PUT
  * /api/kernel-brief, /api/haven-plan, /api/haven-photos (#687) or /api/haven-meals (#678), or POST /api/kernel-agent (#501), with no query.
  */
 export function isFeedWrite(request: Request): boolean {

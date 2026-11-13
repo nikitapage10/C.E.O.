@@ -37,6 +37,7 @@ import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemorySto
 import type { PendingStore } from "./pending.js";
 import { allLightsName, spokenAsked, spokenLights } from "./words.js";
 import { SHOT_ID } from "../shots.js";
+import { liveScores } from "../sports.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, ingredientLine, mealNamed, readEdit, recipeWords, ROLES, weekStage, weekWords, type Day, type EditResult, type Ingredient, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
@@ -48,6 +49,8 @@ export const toolNamed = (name: string): RoomTool | undefined => BY_NAME.get(nam
 export interface ToolHost {
   /** A room's live lines (api/_skippy/toolroute.ts readText: the same reads the Desk's room pages and Talk use). */
   read: (name: ReadName) => Promise<string>;
+  /** The scoreboard (#1130); ESPN's own when left out (tests pass a stand-in). */
+  scores?: (league: unknown, team: unknown, now: number) => Promise<string>;
   memory: MemoryStore | null;
   kitchenAdd: ((items: string[]) => Promise<{ added: string[]; already: string[] }>) | null;
   /** Every list's open items (#1131, api/_haven/list.ts allLists); absent or null where there's no private store. */
@@ -557,6 +560,7 @@ const EXECUTORS: Record<string, Executor> = {
       return { ok: true, text: lines.join("\n") || "There are no lists yet." };
     },
   },
+  live_scores: { run: async (i, host) => ({ ok: true, text: await (host.scores ?? liveScores)(i.league, i.team, Date.now()).catch(() => "The scoreboard didn't answer just now.") }) },
   house_check: reader("house"),
   home_device: {
     prepare: async (i) => ({ ok: true, label: "Do it", summary: `${homeLine(i)} (the Haven's rails still apply)` }),

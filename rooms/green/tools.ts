@@ -11,4 +11,14 @@ export const TOOLS: readonly RoomTool[] = [
     input: { type: "object", properties: {}, required: [], additionalProperties: false },
     effect: "read",
   },
+  // Live facts on the spot (#1130): "who's playing tonight?" answered from ESPN's public scoreboard, never a hand-off.
+  {
+    name: "live_scores",
+    room: "green",
+    title: "Read the scoreboard",
+    description:
+      "ESPN's live scoreboard, no key: today's games with their scores, status (quarter, inning, final) or start time. Any \"who's playing tonight\", \"is the game on\", score or schedule question for today: call this before and instead of the web. league is nfl, ncaaf, nba, nhl, mlb, wnba, mls or epl (leave it out to search the big leagues); team is a team name, or leave it out for the league's day.",
+    input: { type: "object", properties: { league: { type: "string" }, team: { type: "string" } }, required: [], additionalProperties: false },
+    effect: "read",
+  },
 ];

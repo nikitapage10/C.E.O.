@@ -353,6 +353,11 @@ never name the planet. What they have instead is a pile of snippets (a film clip
 bits and pieces about the owner) that they argue over in the Senate as if it were scripture (#1103). Skippy, talking
 to the owner directly, is another matter: there he knows whatever anyone knows.
 
+A scrap stays a scrap. Ilyr itself holds only what this lore holds (the Lattice and its rooms, the Kernel, the
+sigils, the Syntherion, the crew and the pets); there are no dragons in Ilyr, no wizards and no kingdoms. When a
+Senate argument picks up a dragon or a pirate from the scraps, it argues about the scrap (is it real, could the
+Workshop print one) and never pretends one lives over the mountains.
+
 ## Costumes
 
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets

@@ -221,9 +221,15 @@ export const motionKey = (m: string): string =>
 
 const cleanList = (got: unknown): string[] => (Array.isArray(got) ? got.filter((x): x is string => typeof x === "string").slice(-TOPICS_KEEP) : []);
 
-/** Words that say nothing about a subject. */
+/**
+ * Words that say nothing about a subject: grammar, and the chamber's own world words, which nearly every motion uses
+ * since #1146 (the old world, scraps, the Lattice), so two motions sharing them aren't the same subject (#1163).
+ */
 const FILLER = new Set(
-  "that the a an of to and or for in on at by with from is are be should every each any all its it this than then more most best better worst into over our their they them which what who whom".split(" "),
+  ("that the a an of to and or for in on at by with from is are be should must would could can will not every each any all its it this " +
+    "than then more most best better worst into over our their they them which what who whom has have was were one ones " +
+    "old world worlds scrap scraps lattice ilyr chamber senate skippy skippies member members house houses sigil sigils waking " +
+    "great thing things make made way").split(" "),
 );
 /** A motion's subject words: lower case, three letters or more, filler dropped, a plural's s trimmed. */
 export const subjectWords = (m: string): Set<string> =>
@@ -234,16 +240,19 @@ export const subjectWords = (m: string): Set<string> =>
       .map((w) => (w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w)),
   );
 
-/** A motion that is another one again (#1149): the same words, or most of the shorter one's subject words. */
+/**
+ * A motion that is another one again (#1149): the same words, or the same subject in new words: at least three subject
+ * words shared, making up most of both motions together (#1163: sharing two of a short motion's words held back
+ * nearly every new argument, and the chamber went quiet).
+ */
 export function sameMotion(a: string, b: string): boolean {
   if (motionKey(a) === motionKey(b)) return true;
   const x = subjectWords(a);
   const y = subjectWords(b);
-  const small = Math.min(x.size, y.size);
-  if (small < 2) return false;
   let shared = 0;
   for (const w of x) if (y.has(w)) shared++;
-  return shared / small >= 0.6;
+  if (shared < 3) return false;
+  return shared / (x.size + y.size - shared) >= 0.6;
 }
 
 /** A seed none of the newest motions was about, at random; any seed when all were used (#1149). */
@@ -587,6 +596,14 @@ async function call(kind: keyof typeof GAP_MS, deps: SenateDeps, system: string,
 
 /** A new recess argument, never one argued before. */
 export async function newDebate(body: Record<string, unknown>, deps: SenateDeps): Promise<SenateAnswer> {
+  const first = await debateOnce(body, deps, []);
+  if (!("quiet" in first) || first.quiet !== "repeat") return first;
+  // A repeat gets one more try at once, told the motion it came back with (#1163), so the chamber doesn't wait.
+  const again = await debateOnce(body, { ...deps, now: deps.now + GAP_MS.debate }, [first.motion ?? ""]);
+  return "quiet" in again ? { quiet: again.quiet } : again;
+}
+
+async function debateOnce(body: Record<string, unknown>, deps: SenateDeps, avoid: readonly string[]): Promise<SenateAnswer & { motion?: string }> {
   const rnd = deps.rnd ?? Math.random;
   const seated = readSeats(body.seated);
   if (seated.length < 3) return { quiet: "off" };
@@ -599,8 +616,7 @@ export async function newDebate(body: Record<string, unknown>, deps: SenateDeps)
   const members = pickSome(seated, 4 + Math.floor(rnd() * 2), rnd);
   const seed = freshSeed(used, rnd);
   const said = heard.slice(-LINES_IN_PROMPT).map((l) => `- ${tidy(l, LINE_MAX)}`);
-  const user = `${factsOf(members, working, docket)}\n<used>\n${used
-    .slice(-TOPICS_IN_PROMPT)
+  const user = `${factsOf(members, working, docket)}\n<used>\n${[...used.slice(-TOPICS_IN_PROMPT), ...avoid.filter(Boolean)]
     .map((m) => `- ${tidy(m, 200)}`)
     .join("\n")}\n</used>\n${said.length ? `<heard>\n${said.join("\n")}\n</heard>\n` : ""}seed: ${seed}\nUse these members, by id: ${members.join(", ")}.`;
   const got = await call("debate", deps, DEBATE_SYSTEM, user, DEBATE_MAX_TOKENS, DEBATE_SCHEMA as unknown as Record<string, unknown>);
@@ -612,7 +628,7 @@ export async function newDebate(body: Record<string, unknown>, deps: SenateDeps)
   }
   if (used.some((m) => sameMotion(m, d.motion))) {
     deps.log?.("senate: a repeat held back");
-    return { quiet: "repeat" };
+    return { quiet: "repeat", motion: d.motion };
   }
   await deps.topics.add(d.motion).catch(() => undefined);
   await deps.lines?.add(...d.lines.map((l) => l.text), d.close).catch(() => undefined);

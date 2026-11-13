@@ -34,6 +34,16 @@ describe("the step the Kitchen opens on (#1055)", () => {
     expect(openingStep(final, { items: [item("meals", false)], cartSentAt: "2026-02-24T09:00:00.000Z" })).toBe("shop");
   });
 
+  it("is Cook once the week has begun, even with items still open; Shop only before it starts (#1108)", () => {
+    const week = { ...final, start: "2026-03-02" };
+    const open = { items: [item("meals", false)] };
+    expect(openingStep(week, open, new Date(2026, 2, 1, 18))).toBe("shop");
+    expect(openingStep(week, open, new Date(2026, 2, 2, 8))).toBe("cook");
+    expect(openingStep(week, open, new Date(2026, 2, 5, 19))).toBe("cook");
+    expect(openingStep(week, { items: null }, new Date(2026, 2, 12))).toBe("cook");
+    expect(openingStep({ ...draft, start: "2026-03-02" }, open, new Date(2026, 2, 5))).toBe("plan");
+  });
+
   it("is Shop while the list is still being read, and Cook when the week sent nothing to the list", () => {
     expect(openingStep(final, { items: null })).toBe("shop");
     expect(openingStep({ ...final, sentAt: null }, { items: [item("meals", false)] })).toBe("cook");

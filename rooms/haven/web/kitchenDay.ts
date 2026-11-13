@@ -19,10 +19,13 @@ export interface ShopState {
  * The step to open on. A draft opens on Plan. A finalized week opens on Cook once its shopping is done: nothing it
  * put on the Kitchen list is still open (ticked off or taken off), it put nothing there at all, or the cart was sent
  * after it was finalized; otherwise on Shop. Items Nikita added himself ("oat milk") don't hold the week at Shop.
- * While the list is still being read it's Shop, unless the cart already says otherwise.
+ * While the list is still being read it's Shop, unless the cart already says otherwise. Once the week has begun (its
+ * Monday is today or past, by `today`'s local date) it opens on Cook whatever the list says: Shop is the opener only
+ * before the week starts (#1108, a Thursday that still opened on Shop over a few unticked items).
  */
-export function openingStep(w: { confirmedAt: string | null; sentAt: string | null }, shop: ShopState): Phase {
+export function openingStep(w: { confirmedAt: string | null; sentAt: string | null; start?: string }, shop: ShopState, today: Date = new Date()): Phase {
   if (!w.confirmedAt) return "plan";
+  if (w.start && ymd(today) >= w.start) return "cook";
   const sent = shop.cartSentAt ? Date.parse(shop.cartSentAt) : NaN;
   if (Number.isFinite(sent) && sent >= Date.parse(w.confirmedAt)) return "cook";
   if (!w.sentAt) return "cook";

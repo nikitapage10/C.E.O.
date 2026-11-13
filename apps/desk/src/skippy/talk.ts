@@ -193,6 +193,12 @@ let loading: Promise<SessionModule> | null = null;
 const loadSession = () => (loading ??= import("./talkSession.ts"));
 
 let session: Session | null = null;
+/** The tap's microphone (#1127), held until the call opens its own, so iOS asks once. */
+let heldMic: MediaStream | null = null;
+function releaseMic(): void {
+  heldMic?.getTracks().forEach((t) => t.stop());
+  heldMic = null;
+}
 let conversation = "";
 let timer: ReturnType<typeof setInterval> | null = null;
 let quiet: SilenceGuard | null = null;
@@ -358,6 +364,7 @@ export const useTalk = create<TalkStore>((set, get) => {
 
   /** Clean up after a call, however it ended, and settle it. */
   const finish = async (reason: TalkReason | null) => {
+    releaseMic();
     if (timer) clearInterval(timer);
     timer = null;
     quiet = null;
@@ -437,8 +444,10 @@ export const useTalk = create<TalkStore>((set, get) => {
       const texting = (roomTexting()?.talkTools() ?? Promise.resolve(null)).catch(() => null);
       // The microphone prompt comes only now, straight after the tap, and before anything is spent.
       try {
-        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mic.getTracks().forEach((t) => t.stop());
+        // Kept open until the call has its own (#1127): stopping it at once and opening it again made a Home Screen app
+        // on iOS, which forgets the permission between openings, ask a second time.
+        releaseMic();
+        heldMic = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch {
         set({ phase: "idle", reason: "mic" });
         return note("mic");
@@ -448,6 +457,7 @@ export const useTalk = create<TalkStore>((set, get) => {
       mark("token");
       if (got.ok && got.serverTiming) set((st) => ({ timings: { ...st.timings, server: got.serverTiming } }));
       if (!got.ok) {
+        releaseMic();
         set({ phase: "idle", reason: got.reason });
         return note(got.reason);
       }
@@ -510,6 +520,8 @@ export const useTalk = create<TalkStore>((set, get) => {
         await finish("eleven");
         return;
       }
+      // The call holds the microphone now; the tap's own stream can go.
+      releaseMic();
       if (get().phase !== "starting") {
         // Ended (or the page left) while it was connecting.
         await finish(null);

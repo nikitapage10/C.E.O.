@@ -36,6 +36,7 @@ import type { WorldAsk } from "../gemini.js";
 import { withoutMeta } from "../voicelookups.js";
 import type { PendingStore } from "./pending.js";
 import { meteredFetch, skippyTier } from "../../_usage/meter.js";
+import type { DeskSource } from "../desk.js";
 
 export const TRIAGE_MODEL = "claude-haiku-5-5";
 export const TALK_MODEL = "claude-sonnet-5-5";
@@ -158,6 +159,8 @@ export interface AgentResult {
   wrote: string[];
   /** Yes buttons waiting for Nikita's tap. */
   confirm: PendingConfirm[];
+  /** The Desk library pages the answer used (#1153), for the chat's "from:" line: what desk_read opened, else the top lookup. */
+  sources?: DeskSource[];
   /** A text for Relay's card (draft_text). */
   textAction?: TextAction;
   /** Which tier answered. */
@@ -227,6 +230,11 @@ export async function runAgent(call: CallModel, system: string, input: string, c
   const did: string[] = [];
   const wrote: string[] = [];
   const confirm: PendingConfirm[] = [];
+  const reads: DeskSource[] = [];
+  const lookups: DeskSource[] = [];
+  const cite = (list: DeskSource[], s: DeskSource) => {
+    if (!list.some((x) => x.path === s.path && x.title === s.title)) list.push(s);
+  };
   let textAction: TextAction | undefined;
   let tainted = false;
   const note = (list: string[], words: string) => {
@@ -272,6 +280,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
       if (got.action) textAction = got.action;
       if (got.tool?.effect === "read") note(looked, got.tool.title);
       if (got.did) note(did, got.did);
+      if ("from" in got && got.from) cite(got.from.tool === "desk_read" ? reads : lookups, got.from.source);
       if (got.tool && got.tool.effect !== "read" && !wrote.includes(got.tool.name)) wrote.push(got.tool.name);
       results.push({ type: "tool_result", tool_use_id: b.id, content: got.text });
     }
@@ -287,6 +296,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
     did,
     wrote,
     confirm: confirm.slice(0, 3),
+    ...((reads.length || lookups.length) && { sources: (reads.length ? reads : lookups.slice(0, 1)).slice(0, 2) }),
     ...(textAction && { textAction }),
     tier,
     ...(deeper && { deeper }),

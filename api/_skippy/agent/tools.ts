@@ -37,7 +37,7 @@ import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemorySto
 import type { PendingStore } from "./pending.js";
 import { allLightsName, spokenAsked, spokenLights } from "./words.js";
 import { SHOT_ID } from "../shots.js";
-import { deskLookupText, deskReadText, type DeskSection } from "../desk.js";
+import { deskLookupText, deskReadText, deskSection, lookupSource, sourceOf, type DeskSection, type DeskSource } from "../desk.js";
 import { liveScores } from "../sports.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, ingredientLine, mealNamed, readEdit, recipeWords, ROLES, weekStage, weekWords, type Day, type EditResult, type Ingredient, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
@@ -131,7 +131,7 @@ export interface TextAction {
   text: string;
 }
 
-type Ran = { ok: boolean; text: string; did?: string; action?: TextAction; warned?: boolean };
+type Ran = { ok: boolean; text: string; did?: string; from?: { tool: "desk_lookup" | "desk_read"; source: DeskSource } | null; action?: TextAction; warned?: boolean };
 type Prepared = { ok: true; label: string; summary: string } | { ok: false; text: string };
 
 interface Executor {
@@ -329,8 +329,19 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   // The Desk's library (#1141): the repo's docs and lore, built in at build time, and the Foundry's open issues live.
-  desk_lookup: { run: async (i, host) => ({ ok: true, text: deskLookupText(str(i.query), await plansOf(host)) }) },
-  desk_read: { run: async (i, host) => ({ ok: true, text: deskReadText(str(i.id), str(i.id).startsWith("plan") ? await plansOf(host) : []) }) },
+  // The page each came from rides along (#1153), for the chat's "from:" line; display only.
+  desk_lookup: {
+    run: async (i, host) => {
+      const plans = await plansOf(host);
+      return { ok: true, text: deskLookupText(str(i.query), plans), from: { tool: "desk_lookup", source: lookupSource(str(i.query), plans) as DeskSource } };
+    },
+  },
+  desk_read: {
+    run: async (i, host) => {
+      const plans = str(i.id).startsWith("plan") ? await plansOf(host) : [];
+      return { ok: true, text: deskReadText(str(i.id), plans), from: { tool: "desk_read", source: sourceOf(deskSection(str(i.id).trim(), plans)) as DeskSource } };
+    },
+  },
   remember: {
     prepare: async (i, host) => {
       const fact = plainLine(str(i.fact), 300);
@@ -671,7 +682,7 @@ export interface CallOpts {
   via?: "desk" | "phone";
 }
 
-export type CallResult = ToolOutcome & { action?: TextAction; tool?: RoomTool; warned?: boolean };
+export type CallResult = ToolOutcome & { from?: { tool: "desk_lookup" | "desk_read"; source: DeskSource }; action?: TextAction; tool?: RoomTool; warned?: boolean };
 
 /** One tool call, from the agent or a room's voice hook, through every check. Never throws. */
 export async function callTool(name: string, rawInput: unknown, host: ToolHost, opts: CallOpts): Promise<CallResult> {
@@ -713,7 +724,7 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
       return { ok: true, confirm, tool };
     }
     const ran = await ex.run(checked.value, host);
-    return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), tool } : { ok: false, text: ran.text, tool };
+    return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), ...(ran.from?.source && { from: ran.from }), tool } : { ok: false, text: ran.text, tool };
   } catch {
     return { ok: false, text: `${tool.title} failed just now: its service didn't answer.`, tool };
   }

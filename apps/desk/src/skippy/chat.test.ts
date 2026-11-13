@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { runAction, type ActionDeps } from "./actions.ts";
-import { ASK_ERROR, HISTORY_TURNS, MESSAGE_MAX, actionPath, askSkippy, historyFor, readActions, speakable, tapConfirm, useSkippy, type Turn } from "./chat.ts";
+import { ASK_ERROR, HISTORY_TURNS, MESSAGE_MAX, actionPath, askSkippy, historyFor, readActions, readSources, docUrl, speakable, tapConfirm, useSkippy, type Turn } from "./chat.ts";
 
 const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
 
@@ -48,7 +48,7 @@ describe("the conversation", () => {
 describe("askSkippy", () => {
   it("returns the reply and the checked buttons", async () => {
     const got = await askSkippy("hi", [], reply(200, { reply: "Bask.", actions: [{ kind: "open", label: "Open", page: "foundry" }, { kind: "merge", label: "x" }] }));
-    expect(got).toEqual({ ok: true, reply: "Bask.", actions: [{ kind: "open", label: "Open", page: "foundry" }], capped: false, looked: [], did: [], confirm: [] });
+    expect(got).toEqual({ ok: true, reply: "Bask.", actions: [{ kind: "open", label: "Open", page: "foundry" }], capped: false, looked: [], sources: [], did: [], confirm: [] });
   });
   it("reads the agent's chips, the calls waiting for a tap and the month (#646), and drops anything malformed", async () => {
     const got = await askSkippy(
@@ -159,5 +159,21 @@ describe("a tap on a button", () => {
   it("sends nothing when signing in doesn't happen", async () => {
     expect(await runAction({ kind: "idea", label: "File", text: "x" }, undefined, deps("cancelled"))).toBe("signed-out");
     expect(calls).toEqual([]);
+  });
+});
+
+describe("the sources line under an answer (#1153)", () => {
+  it("keeps public doc paths only, at most two, and links them on GitHub's main branch", () => {
+    const got = readSources([
+      { title: "Foundry › Lane 2", path: "docs/FOUNDRY.md" },
+      { title: "A private note", path: "kb/me.md" },
+      { title: "Escape", path: "../x.md" },
+      { title: "Remote", path: "https://evil.test/a.md" },
+      { title: "Room: Green", path: "rooms/green/room.ts" },
+      { title: "Third", path: "docs/ROOMS.md" },
+    ]);
+    expect(got.map((s) => s.path)).toEqual(["docs/FOUNDRY.md", "rooms/green/room.ts"]);
+    expect(docUrl(got[0]!.path)).toBe("https://github.com/nikitapage10/C.E.O./blob/main/docs/FOUNDRY.md");
+    expect(readSources(undefined)).toEqual([]);
   });
 });

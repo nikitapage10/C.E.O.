@@ -114,8 +114,14 @@ test("the Haven on a phone: controls first, the house behind them and still to t
   await expect(house.locator("canvas.hv-gl")).toHaveCSS("pointer-events", "auto");
   await expect(strip).toBeHidden();
   // A finger on the house lands on the house itself, not on an overlay drawn over it (#1051).
-  const box = (await house.locator("canvas.hv-gl").boundingBox())!;
-  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x ?? 0, y ?? 0)?.classList.contains("hv-gl") ?? false, [box.x + box.width / 2, box.y + box.height / 2])).toBe(true);
+  // Once the house has settled into its new frame: the camera moves for a moment after Explore, and the tappable
+  // thermostat marker (#671) passes over the middle on its way.
+  await expect
+    .poll(async () => {
+      const box = (await house.locator("canvas.hv-gl").boundingBox())!;
+      return page.evaluate(([x, y]) => document.elementFromPoint(x ?? 0, y ?? 0)?.classList.contains("hv-gl") ?? false, [box.x + box.width / 2, box.y + box.height / 2]);
+    }, { timeout: 10_000 })
+    .toBe(true);
   await page.getByRole("button", { name: "Back to the controls" }).tap();
   await expect(strip).toBeVisible();
   await expect(house.locator("canvas.hv-gl")).toHaveCSS("pointer-events", "none");

@@ -149,8 +149,8 @@ test("the faults are in the pipes: a leak, a shut valve and a late clock, worst 
   }
   await expect(card.locator("h3")).toHaveText("Petlibro");
   await page.mouse.move(5, 5);
-  // The tabs carry the other three pages.
-  await expect(board.locator(".bp-tabs a")).toHaveText([/^Map/, /^Controls/, /^Security/, /^Compliance/]);
+  // The tabs carry the other four pages.
+  await expect(board.locator(".bp-tabs a")).toHaveText([/^Map/, /^Controls/, /^Security/, /^Compliance/, /^Tokenomics/]);
   // Signed out, nothing private: no money, no addresses.
   await expect(board).not.toContainText("$");
   await expect(board).not.toContainText("@");

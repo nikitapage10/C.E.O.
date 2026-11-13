@@ -54,6 +54,31 @@ export interface Turn {
   did?: string[];
   /** Calls waiting for Nikita's Yes tap (#646), each with how the tap went. */
   confirm?: Confirm[];
+  /** The Desk library pages the answer came from (#1153): "from: <title>", linked to the doc on GitHub. */
+  sources?: DocSource[];
+}
+
+/** A page of the Desk's library an answer used (#1153): its section title and the doc's path in the repo. */
+export interface DocSource {
+  title: string;
+  path: string;
+}
+
+/** Only the repo's public docs get a link (the same rule as api/_skippy/desk.ts, checked again here). */
+const DOC_PATH = /^(?:(?:docs|lore)\/[A-Za-z0-9._-]+\.md|README\.md|CLAUDE\.md|rooms\/[a-z0-9-]+\/room\.ts|packages\/simulator\/src\/[A-Za-z0-9._-]+\.ts)$/;
+
+/** The doc on GitHub, main branch. */
+export const docUrl = (path: string) => `https://github.com/nikitapage10/C.E.O./blob/main/${path}`;
+
+/** The sources the server named, checked again: a title and a public doc path, at most two. */
+export function readSources(raw: unknown): DocSource[] {
+  const out: DocSource[] = [];
+  for (const s of Array.isArray(raw) ? raw : []) {
+    const o = s as { title?: unknown; path?: unknown } | null;
+    const title = clip(o?.title, 100);
+    if (title && typeof o?.path === "string" && DOC_PATH.test(o.path) && !out.some((x) => x.path === o.path && x.title === title)) out.push({ title, path: o.path });
+  }
+  return out.slice(0, 2);
 }
 
 /** A tool call waiting for the tap (#646, POST /api/skippy-act): its id, the Yes button's words and exactly what happens. */
@@ -185,7 +210,7 @@ export function speakable(text: string): string {
 }
 
 export type Asked =
-  | { ok: true; reply: string; actions: SkippyAction[]; capped: boolean; room?: string; needs?: string; turn?: string; looked: string[]; did: string[]; confirm: Confirm[]; spend?: Spend }
+  | { ok: true; reply: string; actions: SkippyAction[]; capped: boolean; room?: string; needs?: string; turn?: string; looked: string[]; did: string[]; sources: DocSource[]; confirm: Confirm[]; spend?: Spend }
   | { ok: false; error: "signed-out" | "held" | "slow" | "off" | "failed"; message: string };
 
 /** What the Desk says for each way a message can fail. */
@@ -212,7 +237,7 @@ export async function askSkippy(message: string, history: { who: Turn["who"]; te
       body: JSON.stringify({ message: message.slice(0, MESSAGE_MAX), history, ...(page && { page }), ...(screen && { screen }), ...(look.shot && { shot: look.shot }), ...(look.none && { look: false }) }),
       credentials: "same-origin",
     });
-    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown; looked?: unknown; did?: unknown; wrote?: unknown; confirm?: unknown; spend?: unknown; needScreen?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown; looked?: unknown; did?: unknown; sources?: unknown; wrote?: unknown; confirm?: unknown; spend?: unknown; needScreen?: unknown };
     if (res.ok && body.needScreen === true && !look.shot && !look.none) {
       const shot = await import("@ceo/engine/web/screenshot.ts").then((m) => m.lookAtScreen(doFetch)).catch(() => null);
       return askSkippy(message, history, doFetch, page, shot ? { shot } : { none: true });
@@ -240,6 +265,7 @@ export async function askSkippy(message: string, history: { who: Turn["who"]; te
       capped: body.capped === true,
       looked: readChips(body.looked, 6),
       did: readChips(body.did, 4),
+      sources: readSources(body.sources),
       confirm: readConfirms(body.confirm),
       ...(spend && { spend }),
       ...(handed && { room: body.room as string, needs: body.needs as string, turn: body.turn as string }),
@@ -333,6 +359,7 @@ export const useSkippy = create<SkippyStore>((set, get) => {
           ...(compose && { compose }),
           ...(got.looked.length && { looked: got.looked }),
           ...(got.did.length && { did: got.did }),
+          ...(got.sources.length && { sources: got.sources }),
           ...(got.confirm.length && { confirm: got.confirm }),
         }
       : { id: nextId++, who: "skippy", text: got.message, note: true };

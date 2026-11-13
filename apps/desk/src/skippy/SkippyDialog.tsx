@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { runAction } from "./actions.ts";
 import { AnswerCard } from "./AnswerCard.tsx";
 import { handedName } from "./asked.ts";
-import { canSpeak, stopSpeaking, useSkippy, type ActionState, type Confirm, type SkippyAction, type Turn } from "./chat.ts";
+import { canSpeak, docUrl, stopSpeaking, useSkippy, type ActionState, type Confirm, type SkippyAction, type Turn } from "./chat.ts";
 import { useHide } from "@ceo/engine/web/hide.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { SkippyComposer } from "./SkippyChat.tsx";
@@ -90,6 +90,24 @@ function TraceChips({ turn }: { turn: Turn }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Which library page an answer came from (#1153): "from: <section title>", linked to the doc on GitHub. Display only. */
+function Sources({ turn }: { turn: Turn }) {
+  if (!turn.sources?.length) return null;
+  return (
+    <p className="skp-from">
+      <span className="skp-from__k">from:</span>{" "}
+      {turn.sources.map((s, i) => (
+        <span key={s.path + s.title}>
+          {i > 0 && ", "}
+          <a href={docUrl(s.path)} target="_blank" rel="noopener noreferrer">
+            {s.title}
+          </a>
+        </span>
+      ))}
+    </p>
   );
 }
 
@@ -272,6 +290,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
             )}
             {t.who === "skippy" && !t.pending && <ConfirmCards turn={t} />}
             {t.who === "skippy" && !t.pending && <ActionChips turn={t} />}
+            {t.who === "skippy" && !t.pending && <Sources turn={t} />}
             {t.who === "skippy" && !t.pending && <TraceChips turn={t} />}
           </li>
         ))}

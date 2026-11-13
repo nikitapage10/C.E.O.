@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { callTool, toolNamed, type ToolHost } from "./agent/tools.ts";
 import { MemoryPending } from "./agent/pending.ts";
-import { DESK_LIBRARY, READ_MAX, deskCallText, deskLookup, deskLookupText, deskReadText, excerpt, planSections, stem, terms, type PlanIssue } from "./desk.ts";
+import { DESK_LIBRARY, DOC_PATH, READ_MAX, deskCallText, deskLookup, deskLookupText, deskReadText, excerpt, planSections, sourceOf, stem, terms, type PlanIssue } from "./desk.ts";
 import { DESK_READ, handle, type RoomSources } from "./toolroute.ts";
 import { TOOL_DEFS, toolConfig } from "./voicecrew.ts";
 import { MemoryCrewStore, TOOL_HEADER, issueToolToken } from "./voicetoken.ts";
@@ -112,5 +112,27 @@ describe("the call's desk read (#1141)", () => {
     const def = TOOL_DEFS.find((t) => t.name === "desk_lookup")!;
     expect(def.read).toBe("desk");
     expect(toolConfig(def, SITE).api_schema).toMatchObject({ method: "GET", query_params_schema: { properties: { read: { constant_value: "desk" }, q: { type: "string" } }, required: ["read", "q"] } });
+  });
+});
+
+describe("the page an answer came from (#1153)", () => {
+  const host = (over: Partial<ToolHost> = {}): ToolHost => ({ read: async () => "", memory: null, kitchenAdd: null, homeAct: null, fileIssue: null, skipTerms: [], now: NOW, ...over });
+  const opts = { pending: new MemoryPending(), surface: "desk" as const };
+
+  it("names the doc a desk_read opened, without a part suffix", async () => {
+    const got = await callTool("desk_read", { id: "room-green" }, host(), opts);
+    expect(got).toMatchObject({ ok: true, from: { tool: "desk_read", source: { path: "rooms/green/room.ts" } } });
+  });
+  it("names the top hit of a desk_lookup", async () => {
+    const got = await callTool("desk_lookup", { query: "Rocky the Eridian" }, host(), opts);
+    expect("from" in got && got.from?.tool).toBe("desk_lookup");
+    expect("from" in got && got.from?.source.path).toMatch(DOC_PATH);
+  });
+  it("cites no plan (a GitHub issue) and nothing outside the public docs", async () => {
+    const plan = await callTool("desk_read", { id: "plan-1200" }, host({ plans: async () => planSections(ISSUES) }), opts);
+    expect("from" in plan && plan.from).toBeFalsy();
+    expect(sourceOf({ title: "x", source: "kb/notes.md" })).toBeNull();
+    expect(sourceOf({ title: "x", source: "../secrets.md" })).toBeNull();
+    expect(sourceOf({ title: "FOUNDRY (part 2 of 3)", source: "docs/FOUNDRY.md" })).toEqual({ title: "FOUNDRY", path: "docs/FOUNDRY.md" });
   });
 });

@@ -89,6 +89,7 @@ import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
 import type { PendingConfirm } from "@ceo/engine/tools";
 import { claudeModel, isDepth, runAgent, type AgentCtx, type Depth } from "./_skippy/agent/loop.js";
+import { DOC_PATH } from "./_skippy/desk.js";
 import { geminiKey, geminiWorld, type WorldAsk } from "./_skippy/gemini.js";
 import { liveHost, livePending } from "./_skippy/agent/host.js";
 import { BlobMemory, coreBlock, type MemoryStore } from "./_skippy/agent/memory.js";
@@ -120,7 +121,7 @@ export type Ask = (
   system: string,
   input: string,
   ctx?: AgentCtx,
-) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction; tier?: string; deeper?: Depth | "floor"; needScreen?: boolean }>;
+) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; sources?: { title: string; path: string }[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction; tier?: string; deeper?: Depth | "floor"; needScreen?: boolean }>;
 
 /** The live answer (#646): the agent loop when the turn brings its tools, else the one-shot chat. */
 export function agentChat(key: string): Ask {
@@ -619,6 +620,8 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const extra = {
     ...(got.looked?.length && { looked: got.looked.slice(0, 6) }),
     ...(got.did?.length && { did: got.did.slice(0, 4) }),
+    // The Desk library pages the answer came from (#1153): title and doc path, shown as "from:" under the reply.
+    ...(got.sources?.length && { sources: got.sources.filter((s) => DOC_PATH.test(s.path)).slice(0, 2) }),
     // Which tools changed something (#698): the Kitchen's planner reads itself again when a meal tool did.
     ...(got.wrote?.length && { wrote: got.wrote.slice(0, 8) }),
     ...(got.confirm?.length && { confirm: got.confirm.slice(0, 3) }),

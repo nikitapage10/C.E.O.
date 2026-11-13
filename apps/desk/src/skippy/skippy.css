@@ -681,6 +681,22 @@
   }
 }
 
+/* The library page an answer came from (#1153): one quiet line under the reply. */
+.skp-from {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--ink-3, rgba(255, 255, 255, 0.55));
+}
+.skp-from a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.skp-from a:hover {
+  color: var(--ink-2, rgba(255, 255, 255, 0.85));
+}
+
 /* ── The agent (#646): what he looked at and did, the calls waiting for a tap, his month, and his memory ── */
 .skp-trace {
   display: flex;

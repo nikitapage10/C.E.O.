@@ -149,6 +149,30 @@ export function deskLookup(query: string, extra: readonly DeskSection[] = [], to
   return hits.slice(0, top).map((h) => ({ ...h, excerpt: excerpt(byId.get(h.id)!.text, q) }));
 }
 
+/**
+ * Where a section can be cited from (#1153): only the repo's public docs, as the library reads them (docs, lore, the
+ * README and CLAUDE.md, the room manifests, the simulator's dossiers). A plan (a GitHub issue) or anything else has no page.
+ */
+export const DOC_PATH = /^(?:(?:docs|lore)\/[A-Za-z0-9._-]+\.md|README\.md|CLAUDE\.md|rooms\/[a-z0-9-]+\/room\.ts|packages\/simulator\/src\/[A-Za-z0-9._-]+\.ts)$/;
+
+/** A page an answer came from: the section's title and its doc file in the repo. */
+export interface DeskSource {
+  title: string;
+  path: string;
+}
+
+/** The page a section came from, or null when it has none to show. */
+export function sourceOf(s: Pick<DeskSection, "title" | "source"> | null | undefined): DeskSource | null {
+  if (!s || !DOC_PATH.test(s.source)) return null;
+  return { title: s.title.replace(/ \(part \d+ of \d+\)$/, "").slice(0, 120), path: s.source };
+}
+
+/** What desk_lookup's top hit cites (the best match, the one an answer most likely used). */
+export function lookupSource(query: string, plans: readonly DeskSection[] = []): DeskSource | null {
+  const top = deskLookup(query, plans)[0];
+  return top ? sourceOf(top) : null;
+}
+
 /** One section by id, from the library or the live plans. */
 export function deskSection(id: string, extra: readonly DeskSection[] = []): DeskSection | null {
   return DESK_LIBRARY.find((s) => s.id === id) ?? extra.find((s) => s.id === id) ?? null;

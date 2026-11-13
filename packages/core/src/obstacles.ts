@@ -217,3 +217,38 @@ export function talkingShift(
   const step = Math.min((min - d) / 2, MAX_TALK_SHIFT);
   return [[-ux * step, -uz * step], [ux * step, uz * step]];
 }
+
+/** How close two bodies (agents and pets) may stand, centre to centre, before they ease apart. */
+export const PERSONAL_SPACE = 0.85;
+/** Nobody is eased further than this from where they'd otherwise stand or walk. */
+export const MAX_SPACE_SHIFT = 0.7;
+
+/** A body on the floor, by id (the id only breaks ties when two stand on the very same spot). World x, z. */
+export interface FloorBody {
+  id: string;
+  x: number;
+  z: number;
+}
+
+/**
+ * Where a body should ease to so it doesn't stand in, or walk through, anyone else (#1136): a floor-plane [dx, dz]
+ * shift away from every other body closer than `space`, by the whole overlap, so two who both ease settle `space`
+ * apart. Two on the very same spot go opposite ways (by id). Capped at MAX_SPACE_SHIFT.
+ */
+export function personalSpace(self: FloorBody, others: Iterable<FloorBody>, space = PERSONAL_SPACE): [number, number] {
+  let sx = 0;
+  let sz = 0;
+  for (const o of others) {
+    if (o.id === self.id) continue;
+    const dx = self.x - o.x;
+    const dz = self.z - o.z;
+    const d = Math.hypot(dx, dz);
+    if (d >= space) continue;
+    const [ux, uz] = d < 1e-3 ? [self.id < o.id ? -1 : 1, 0] : [dx / d, dz / d];
+    sx += ux * (space - d);
+    sz += uz * (space - d);
+  }
+  const len = Math.hypot(sx, sz);
+  if (len > MAX_SPACE_SHIFT) return [(sx / len) * MAX_SPACE_SHIFT, (sz / len) * MAX_SPACE_SHIFT];
+  return [sx, sz];
+}

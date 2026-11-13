@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FOUNDRY_FLOOR, OBSTACLES, ROOMS, benchDesks, ROOM_IDS, TALK_DISTANCE, blockedAt, detour, placeToWorld, routeBetween, talkingShift, worldToRoom, roomToWorld, type RoomId } from "./index.ts";
+import { FOUNDRY_FLOOR, OBSTACLES, ROOMS, benchDesks, ROOM_IDS, TALK_DISTANCE, PERSONAL_SPACE, MAX_SPACE_SHIFT, agentJitter, blockedAt, personalSpace, detour, placeToWorld, routeBetween, talkingShift, worldToRoom, roomToWorld, type RoomId } from "./index.ts";
 
 describe("walking around furniture", () => {
   it("goes straight when nothing is in the way", () => {
@@ -147,5 +147,42 @@ describe("Rusty's dock crew", () => {
       for (const s of line) expect(Math.hypot(s.x - x, s.z - z)).toBeGreaterThan(1);
       expect(x < lo || x > hi).toBe(true);
     });
+  });
+});
+
+describe("personal space (#1136)", () => {
+  it("leaves a body alone when nobody is close", () => {
+    expect(personalSpace({ id: "punt", x: 0, z: 0 }, [{ id: "gridiron", x: PERSONAL_SPACE + 0.1, z: 0 }])).toEqual([0, 0]);
+    expect(personalSpace({ id: "punt", x: 0, z: 0 }, [{ id: "punt", x: 0, z: 0 }])).toEqual([0, 0]);
+  });
+
+  it("eases two overlapping bodies apart until they stand a personal space apart", () => {
+    // Gridiron and Punt both stop at the Green's huddle, and their station shuffles land them about 0.2 apart.
+    const [gx, gz] = agentJitter("gridiron", "huddle");
+    const [px, pz] = agentJitter("punt", "huddle");
+    expect(Math.hypot(gx - px, gz - pz)).toBeLessThan(PERSONAL_SPACE);
+    // Each frame both ease toward their shift, as the Lattice does, and they settle apart.
+    let a: [number, number] = [0, 0];
+    let b: [number, number] = [0, 0];
+    for (let i = 0; i < 400; i++) {
+      const ta = personalSpace({ id: "gridiron", x: gx, z: gz }, [{ id: "punt", x: px + b[0], z: pz + b[1] }]);
+      const tb = personalSpace({ id: "punt", x: px, z: pz }, [{ id: "gridiron", x: gx + a[0], z: gz + a[1] }]);
+      a = [a[0] + (ta[0] - a[0]) * 0.05, a[1] + (ta[1] - a[1]) * 0.05];
+      b = [b[0] + (tb[0] - b[0]) * 0.05, b[1] + (tb[1] - b[1]) * 0.05];
+    }
+    expect(Math.hypot(gx + a[0] - (px + b[0]), gz + a[1] - (pz + b[1]))).toBeGreaterThan(PERSONAL_SPACE - 0.05);
+  });
+
+  it("splits two bodies on the very same spot in opposite directions", () => {
+    const a = personalSpace({ id: "biscuit", x: 1, z: 1 }, [{ id: "pudding", x: 1, z: 1 }]);
+    const b = personalSpace({ id: "pudding", x: 1, z: 1 }, [{ id: "biscuit", x: 1, z: 1 }]);
+    expect(a[0]).not.toBe(0);
+    expect(Math.sign(a[0])).toBe(-Math.sign(b[0]));
+  });
+
+  it("never shoves anyone further than the cap, however crowded", () => {
+    const crowd = [0, 1, 2, 3].map((i) => ({ id: `p${i}`, x: 0.1, z: 0.01 * i }));
+    const [x, z] = personalSpace({ id: "self", x: 0, z: 0 }, crowd);
+    expect(Math.hypot(x, z)).toBeLessThanOrEqual(MAX_SPACE_SHIFT + 1e-9);
   });
 });

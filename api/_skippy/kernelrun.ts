@@ -13,6 +13,7 @@ import { SORT_MODEL, type Usage } from "../_email/budget.js";
 import { RUN_LIMITS, type AgentRequest, type AgentRun } from "./kernelagent.js";
 import { liveScores } from "./sports.js";
 import { NO_WEATHER } from "./weather.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 const TOOLS = [
   { type: "web_search_20260209", name: "web_search", max_uses: RUN_LIMITS.searches },
@@ -52,7 +53,7 @@ const add = (a: Usage, b: Usage): Usage => ({
 
 /** The loop on the live API, with the Azure copy's CLAUDE_API_KEY. */
 export function claudeAgent(key: string): (req: AgentRequest) => Promise<AgentRun> {
-  const client = new Anthropic({ apiKey: key, timeout: 45_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 45_000, maxRetries: 1, fetch: meteredFetch("kernel.agent") });
   return async (req) => {
     const messages: Anthropic.MessageParam[] = [{ role: "user", content: req.user }];
     let usage: Usage = { input_tokens: 0, output_tokens: 0 };

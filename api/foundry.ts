@@ -53,6 +53,7 @@ import { memo } from "./_feedcache.js";
 import { canWriteGithub, githubToken } from "./_github.js";
 import { PICTURE_ROUTE, pictureLink, picturesLine, signPicture } from "./_pictures.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
+import { meteredFetch } from "./_usage/meter.js";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -336,7 +337,7 @@ export interface Shaping {
 export async function shapeIdea(words: string, current?: string, images: string[] = [], how: AskHow = {}): Promise<Shaping> {
   if (!canShape()) return { shape: null, usage: null };
   const input = shapeInput(words, current, how);
-  const client = new Anthropic({ apiKey: claudeKey(), timeout: 12_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: claudeKey(), timeout: 12_000, maxRetries: 1, fetch: meteredFetch("foundry.shape") });
   let usage: Usage | null = null;
   try {
     const res = await client.messages.create({

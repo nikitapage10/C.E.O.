@@ -30,6 +30,7 @@ import { createHash } from "node:crypto";
 import { costOf, type Usage } from "../foundry.js";
 import { SONNET_PRICE } from "../_skippy/budget.js";
 import { claudeKey } from "../_world/claude.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 export const FIT_MODEL = "claude-sonnet-5-5";
 /** Nikita's cap for the fit check (2026-11-11): $15 a month, a hard stop. */
@@ -235,7 +236,7 @@ export function fitParams(resume: string, posting: string, ttl: "5m" | "1h" = "5
 /** The live model, or null without a key (the check is then paused). */
 export function liveFitAI(key = claudeKey()): FitAI | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 60_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 60_000, maxRetries: 1, fetch: meteredFetch("annex.fit") });
   return {
     async check(resume, posting) {
       const res = await client.messages.create(fitParams(resume, posting));

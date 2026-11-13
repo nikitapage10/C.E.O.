@@ -20,6 +20,7 @@ describe("the Desk's pages from the manifests", () => {
       ["Controls", "/boiler/controls"],
       ["Security", "/boiler/security"],
       ["Compliance", "/boiler/compliance"],
+      ["Tokenomics", "/boiler/tokenomics"],
     ]);
     expect(pageSections("haven").map((s) => [s.label, s.path])).toEqual([
       ["House", "/haven"],
@@ -29,6 +30,6 @@ describe("the Desk's pages from the manifests", () => {
       ["Gym", "/haven/gym"],
     ]);
     expect(NAV_ORDER.filter((id) => pageSections(id).length)).toEqual(["haven", "boiler"]);
-    expect(["/boiler", "/boiler/", "/boiler/controls", "/systems/security", "/boiler/compliance/", "/boiler/nope"].map(systemsPageOf)).toEqual(["systems", "systems", "controls", "security", "compliance", "systems"]);
+    expect(["/boiler", "/boiler/", "/boiler/controls", "/systems/security", "/boiler/compliance/", "/boiler/tokenomics", "/boiler/nope"].map(systemsPageOf)).toEqual(["systems", "systems", "controls", "security", "compliance", "tokenomics", "systems"]);
   });
 });

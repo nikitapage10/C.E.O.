@@ -43,6 +43,7 @@ import { claudeKey } from "../_world/claude.js";
 import { costOf, type Usage } from "../foundry.js";
 import { HAIKU_PRICE, canChat, chatMonth, type ChatLedger } from "./budget.js";
 import { castVoiceOf } from "./rotundavoice.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 export const SENATE_MODEL = "claude-haiku-5-5";
 /** The Senate's hard month for its live lines, in dollars, inside Skippy's month (Nikita, 2026-11-05). */
@@ -301,7 +302,7 @@ export type SenateAsk = (system: string, user: string, maxTokens: number, schema
 
 export function liveAsk(key = claudeKey()): SenateAsk | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 20_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 20_000, maxRetries: 1, fetch: meteredFetch("senate.talk") });
   return async (system, user, maxTokens, schema) => {
     const res = await client.messages.create({
       model: SENATE_MODEL,

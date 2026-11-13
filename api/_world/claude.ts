@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { costOf } from "../foundry.js";
 import type { Ask } from "./step.js";
 import type { ScriptWriter } from "./story.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 export const WORLD_MODEL = "claude-haiku-5-5";
 
@@ -17,7 +18,7 @@ export const claudeKey = (env: Record<string, string | undefined> = process.env)
 /** The step's call, or null when no key is set (every hour is then scripted). */
 export function claudeAsk(key = claudeKey()): Ask | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 45_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 45_000, maxRetries: 1, fetch: meteredFetch("world.step") });
   return async (prompt, schema) => {
     const res = await client.messages.create({
       model: WORLD_MODEL,
@@ -47,7 +48,7 @@ export function claudeAsk(key = claudeKey()): Ask | null {
  */
 export function claudeStoryWriter(key = claudeKey()): ScriptWriter | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1, fetch: meteredFetch("world.story") });
   return async (prompt) => {
     const res = await client.messages.create({
       model: WORLD_MODEL,

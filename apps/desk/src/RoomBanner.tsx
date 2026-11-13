@@ -10,7 +10,7 @@ import { PORTRAITS } from "./portraits.ts";
  */
 
 /** The Desk's pages past Today, and the Systems hub's subpages (all four in the Boiler Room). */
-export type BannerPage = "relay" | "foundry" | "boiler" | "controls" | "security" | "compliance" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio";
+export type BannerPage = "relay" | "foundry" | "boiler" | "controls" | "security" | "compliance" | "tokenomics" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio";
 
 export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; title: string; voice: { id: string; line: string } }> = {
   relay: { room: "relay", eyebrow: "The switchboard", title: "Relay", voice: { id: "dialtone", line: "Please hold. Not you, darling." } },
@@ -22,6 +22,8 @@ export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; titl
   // The Pessimist reads the gauges like omens, and is delighted to be wrong: the scans, said its way.
   security: { room: "boiler", eyebrow: "The Boiler Room", title: "Security", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
   compliance: { room: "boiler", eyebrow: "The Boiler Room", title: "Compliance", voice: { id: "clause", line: "Oh my. That is not compliant." } },
+  // Drop reads the meters (#1142): what the AI calls cost.
+  tokenomics: { room: "boiler", eyebrow: "The Boiler Room", title: "Tokenomics", voice: { id: "drop", line: "Bweep. (Already fixed it.)" } },
   // The Archive, where the Historian writes the day up.
   archive: { room: "archive", eyebrow: "Ilyr, hour by hour", title: "Archive", voice: { id: "vellum", line: "Citation needed. I'll wait." } },
   spire: { room: "spire", eyebrow: "The gilded ledger", title: "Spire", voice: { id: "ledger", line: "Per my last ledger entry…" } },

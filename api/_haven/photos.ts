@@ -54,7 +54,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { waitUntil } from "../_waitUntil.js";
 import { readJson, updateJson } from "./json.js";
-import { generateImage, ImageLedger, PHOTO_PLAN, STEP_PLAN, WORKOUT_PLAN, type GenDeps, type GenPlan } from "./photoGen.js";
+import { generateImage, ImageLedger, PHOTO_PLAN, STEP_MODEL, STEP_PLAN, WORKOUT_PLAN, type GenDeps, type GenPlan } from "./photoGen.js";
 import { kindOf, smallJpeg } from "./photoImage.js";
 import {
   CATALOG_MAX,
@@ -75,6 +75,7 @@ import {
   type PhotoStyle,
   type PhotoTicket,
 } from "./photoShape.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 export * from "./photoShape.js";
 
@@ -385,7 +386,7 @@ export function livePhotoDeps(env: Env = process.env): PhotoDeps {
     library: lib ? new PhotoLibrary(lib) : null,
     ledger: base ? new ImageLedger(base) : null,
     openaiKey: env.OPENAI_STUDIO_KEY?.trim() ?? "",
-    fetch: (url, init) => fetch(url, init),
+    fetch: meteredFetch(({ model }) => (model === STEP_MODEL ? "haven.steps" : "haven.photos")),
     env,
     log: (line) => console.log(line),
     kick: (run) => waitUntil(run()),

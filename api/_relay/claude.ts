@@ -7,11 +7,12 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { ClaudeCall } from "./models.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 /** The live call through Anthropic's SDK, with the Function App's CLAUDE_API_KEY; null without a key. */
 export function liveClaude(key: string): ClaudeCall | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1, fetch: meteredFetch("relay.hub") });
   return async (body) => {
     const res = await client.messages.create(body);
     const text = res.content.find((b) => b.type === "text");

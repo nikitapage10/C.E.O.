@@ -20,6 +20,7 @@
 
 import type { Usage } from "../foundry.js";
 import { lookupPrompt } from "./prompt.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 export const GEMINI_API = "https://generativelanguage.googleapis.com";
 export const GEMINI_QUICK = "gemini-3.8-flash";
@@ -76,15 +77,16 @@ export function worldCost(model: typeof GEMINI_QUICK | typeof GEMINI_DEEP, token
 }
 
 /** The live asker, or a scripted fetch in tests. Null answers mean "go on to Claude". */
-export function geminiWorld(key: string, fetchFn: typeof fetch = fetch): WorldAsk | null {
+export function geminiWorld(key: string, fetchFn: typeof fetch = fetch, feature = "skippy.world"): WorldAsk | null {
   if (!key) return null;
+  const call = meteredFetch(feature, fetchFn);
   return async (question, depth, now, about) => {
     const model = depth === "deep" ? GEMINI_DEEP : GEMINI_QUICK;
     const q = question.replace(/\s+/g, " ").trim().slice(0, 1_000);
     if (!q) return null;
     let res: Response;
     try {
-      res = await fetchFn(`${GEMINI_API}/v1beta/models/${model}:generateContent`, {
+      res = await call(`${GEMINI_API}/v1beta/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
@@ -127,7 +129,7 @@ export function geminiWorld(key: string, fetchFn: typeof fetch = fetch): WorldAs
  * length; null without a key. A Gemini failure throws, so the call's search says it failed and hands the question on.
  */
 export function geminiSearch(key: string, fetchFn: typeof fetch = fetch): ((query: string) => Promise<{ text: string; usage: Usage; usd: number }>) | null {
-  const ask = geminiWorld(key, fetchFn);
+  const ask = geminiWorld(key, fetchFn, "call.search");
   if (!ask) return null;
   return async (query) => {
     const got = await ask(`${query}\n(Read aloud on a live call: at most 70 words, the answer itself first.)`, "quick", Date.now());

@@ -98,6 +98,7 @@ import { callTool, type CallResult, type TextAction, type ToolHost } from "./_sk
 import { directAsk } from "./_skippy/agent/words.js";
 import { spokenOf } from "./_haven/classify.js";
 import { dryHost, dryMemory, dryPending, gradeAnswer, isProbe, probeToken, readProbe, type DryRecord, type ProbeTurn } from "./_skippy/probe.js";
+import { meteredFetch, skippyTier, usageAs } from "./_usage/meter.js";
 
 /** Sonnet answers; Opus takes the questions Sonnet marks "deeper"; Sonnet with web search runs a lookup. */
 export const SKIPPY_MODEL = "claude-sonnet-5-5";
@@ -147,7 +148,7 @@ const sumUsage = (a: Usage, b: Usage): Usage => ({
  * Thinking can't be turned off on Sonnet 5.5 or Opus 5.5: effort "low" keeps it short, and max_tokens leaves room.
  */
 export function claudeChat(key: string): Ask {
-  const client = new Anthropic({ apiKey: key, timeout: 20_000, maxRetries: 0 });
+  const client = new Anthropic({ apiKey: key, timeout: 20_000, maxRetries: 0, fetch: meteredFetch(skippyTier()) });
   const answer = async (model: string, system: string, input: string) => {
     const res = await client.messages.create({
       model,
@@ -367,7 +368,7 @@ export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" |
 
 export async function POST(request: Request): Promise<Response> {
   if (isAnswer(request)) return followUp(request, answerDeps());
-  if (isProbe(request)) return probe(request, defaultDeps());
+  if (isProbe(request)) return usageAs("skippy.probe", () => probe(request, defaultDeps()));
   return chat(request, defaultDeps());
 }
 
@@ -832,7 +833,8 @@ export async function callAnswer(message: string, passkey: string, deps: ChatDep
   // What was on screen when the call started (#1027), kept with the call's token; never a screenshot on a call.
   const said = readChat({ message, history: [], ...(screen && { screen }) });
   if (!said) return { error: "model" };
-  const res = await skippyTurn(said, deps, deps.store, passkey, "call", undefined, { agent: { fastOnly: true } });
+  const store = deps.store;
+  const res = await usageAs("call.fast", () => skippyTurn(said, deps, store, passkey, "call", undefined, { agent: { fastOnly: true } }));
   const body = (await res.clone().json().catch(() => ({}))) as { deeper?: unknown };
   if (res.ok && isDepth(body.deeper)) return { deeper: body.deeper };
   const turn = await turnOf(res);
@@ -854,7 +856,8 @@ export async function deepAnswerBy(message: string, depth: Depth = "talk", deps:
   if (!deps.deskKey || !deps.store) return { text: "My deeper mind isn't switched on here, so that one has to wait for the Desk." };
   const said = readChat({ message, history: [] });
   if (!said) return { text: "That ask didn't come through whole; say it again." };
-  const res = await skippyTurn(said, { ...deps, store: deps.store }, deps.store, "call:deep", "call", undefined, { agent: { start: depth }, keep: false });
+  const store = deps.store;
+  const res = await usageAs("call.deep", () => skippyTurn(said, { ...deps, store }, store, "call:deep", "call", undefined, { agent: { start: depth }, keep: false }));
   const model = (await res.clone().json().catch(() => ({})) as { model?: unknown }).model;
   const by = typeof model === "string" && model ? { by: model } : {};
   const turn = await turnOf(res);

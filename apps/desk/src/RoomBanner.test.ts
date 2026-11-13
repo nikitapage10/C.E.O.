@@ -15,7 +15,7 @@ describe("room banners", () => {
     // The Desk-only pages (the Annex, #618) have no Lattice room to take a still from, and lay themselves out without one.
     const pages: string[] = (Object.keys(PATHS) as (keyof typeof PATHS)[]).filter((r) => r !== "today" && r !== "lattice" && !(DESK_ONLY_ROUTES as readonly string[]).includes(r));
     // The Boiler Room's subpages each carry the banner too.
-    for (const sub of ["/boiler/controls", "/boiler/security", "/boiler/compliance"]) pages.push(systemsPageOf(sub));
+    for (const sub of ["/boiler/controls", "/boiler/security", "/boiler/compliance", "/boiler/tokenomics"]) pages.push(systemsPageOf(sub));
     expect(Object.keys(BANNERS).sort()).toEqual(pages.sort());
     for (const { room } of Object.values(BANNERS)) expect(DESK_ROOMS[room]).toBeDefined();
   });

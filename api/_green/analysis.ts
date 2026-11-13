@@ -48,6 +48,7 @@ import { canGreen, greenBudget, GREEN_MAX_INPUT_TOKENS, GREEN_MAX_TOKENS, GREEN_
 import { callConfidence } from "./confidence.js";
 import { cleanText } from "./sleeper.js";
 import type { AnalysisFacts, AnalysisKey, GreenAnalysis, GreenBoard, GreenFeed } from "./types.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 export const ANALYSIS_PATH = "/api/green-analysis";
 export const ANALYSIS_BLOB = "desk/green/analysis.json";
@@ -286,7 +287,7 @@ export function factsInput(facts: AnalysisFacts): string {
 
 /** Claude Haiku as the writer, with the server's one key (`claudeKey`); `fetcher` only for tests. */
 export function claudeWriter(key: string, fetcher?: typeof fetch): Writer {
-  const client = new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 1, ...(fetcher && { fetch: fetcher }) });
+  const client = new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 1, fetch: meteredFetch("green.analysis", fetcher) });
   return async (facts) => {
     const input = factsInput(facts);
     const res = await client.messages.create({
@@ -315,7 +316,7 @@ export type Second = (split: AnalysisFacts["splits"][number], facts: AnalysisFac
 
 export function openAiSecond(key: string, model: string, fetcher: typeof fetch = fetch): Second {
   return async (split, facts) => {
-    const res = await fetcher("https://api.openai.com/v1/chat/completions", {
+    const res = await meteredFetch("green.second", fetcher)("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(12_000),

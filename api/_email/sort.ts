@@ -24,6 +24,7 @@ import { plainMail, type MailForSort } from "./gmail.js";
 import { automatedMail, type HeadsUpReason } from "./filter.js";
 import { styleNotes } from "./reply.js";
 import type { StyleProfile } from "./types.js";
+import { meteredFetch, type FeatureOf } from "../_usage/meter.js";
 
 /** "fyi" is the Can wait tier on the Desk; "applied" is a plain job-application confirmation (counted, never an item). */
 export type SortKind = "needs-you" | "fyi" | "noise" | "skip" | "applied";
@@ -198,9 +199,9 @@ export async function adviseMail(call: ClaudeCall, mail: MailForSort, style: Sty
 }
 
 /** The live call through Anthropic's SDK, with the Azure copy's CLAUDE_API_KEY; null without a key. */
-export function claudeCall(key: string): ClaudeCall | null {
+export function claudeCall(key: string, feature: FeatureOf = ({ model }) => (model === SORT_MODEL ? "email.sort" : "email.advise")): ClaudeCall | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1, fetch: meteredFetch(feature) });
   return async (req) => {
     const res = await client.messages.create({
       model: req.model,

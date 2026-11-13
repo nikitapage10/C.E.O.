@@ -535,6 +535,23 @@ Desk Skippy can use the rooms' tools and keep a private memory (docs/SKIPPY.md, 
   counted by reason and never echoed or logged. Nikita can see and forget every fact from the Memory panel.
 - **Spoken surfaces** (a call, a room mic) get only the tools that need no tap.
 
+## The usage ledger (#1142)
+
+The Boiler Room's Tokenomics tab (`/boiler/tokenomics`) reads the AI usage ledger: every Claude, Gemini and OpenAI call
+the Function App makes writes one line to the private store (`desk/usage/YYYY-MM-DD.jsonl`, `api/_usage/meter.ts`) with
+the provider, model, a fixed feature id (`skippy.talk`, `email.sort`, `haven.photos`…), token counts (in, out, cache
+written, cache read), web searches, list-price dollars, milliseconds and whether it worked. The callers' clients get a
+fetch that answers exactly as fetch does and reads a copy of the answer's usage numbers on the side, so prompts,
+answers, headers and keys are never read into the ledger, and a failed write only logs a count. The callers' own caps
+and month ledgers are unchanged.
+
+Its report (`GET /api/boiler-usage?days=30`, `api/_usage/route.ts`) answers a passkey session only (401 signed out, 403
+cross-site), `private, no-store`, and shows nothing signed out. A nightly timer (`usage_pull`, 06:30 UTC) pulls each
+provider's own daily cost and tokens by model when `ANTHROPIC_ADMIN_KEY` or `OPENAI_ADMIN_KEY` is set (below), kept in
+`desk/usage/providers.json`, so the tab can show the gap: spend the ledger doesn't see (Claude Code, CI, Visual QA, the
+Mac). Gemini has no simple usage API, so its side is the ledger alone; Visual QA's Gemini runs in GitHub Actions,
+outside it.
+
 ## Keys and settings in the Key Vault
 
 Every secret lives only in the Azure Key Vault (#313), as a Key Vault reference in the Function App's settings, read
@@ -571,6 +588,8 @@ writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environme
 | `GMAIL_TOKEN_KEY` | 32 random bytes that seal the Gmail refresh token and the private mail list at rest (`api/_email/seal.ts`). **Azure only** (`gmail-token-key`). Replacing it locks the stored token away: Connect Gmail again | The email agent waits |
 | `EMAIL_BUDGET_USD` | The email agent's own monthly Claude cap (#263), separate from the others; at the cap it only counts new mail. **Azure only** | $10 |
 | `RELAY_BUDGET_USD` | Relay's texts line's own monthly Claude cap (#535, `api/_relay/budget.ts`), on its own ledger apart from email's; at the cap the model calls stop and the hub reports models down. Never more than 10. **Azure only** | $10 |
+| `ANTHROPIC_ADMIN_KEY` | Optional (#1142): an Anthropic Admin API key (`sk-ant-admin01-…`), vault `anthropic-admin-key`, read only by the nightly usage pull for the Usage and Cost reports (`GET /v1/organizations/cost_report` and `/usage_report/messages`, `api/_usage/admin.ts`). Admin keys have no scopes and could manage the organization, so it is set in Cloud Shell only, never settable from the Desk (`NEVER_SETTABLE`), sent only in a header to api.anthropic.com, never logged or returned. Revoke it at platform.claude.com/settings/admin-keys if in doubt | The Tokenomics tab shows Claude's bill as waiting; the ledger still counts |
+| `OPENAI_ADMIN_KEY` | Optional (#1142): an OpenAI admin key, vault `openai-admin-key`, read only by the nightly usage pull (`GET /v1/organization/costs` and `/usage/completions`). Admin keys have no read-only scope, so the same rules as Anthropic's: Cloud Shell only, header only, to api.openai.com only. Revoke it at platform.openai.com/settings/organization/admin-keys | The Tokenomics tab shows OpenAI's bill as waiting |
 | `SITE_GATE` | Break glass: `off` turns the site lock off whatever is stored (#236, #238) | The gate follows the stored lock |
 
 ## What scans the code, and when

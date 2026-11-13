@@ -30,6 +30,7 @@ import { SEARCH_USD, SONNET_PRICE } from "./budget.js";
 import { lookupInput, lookupPrompt } from "./prompt.js";
 import { NO_GAME } from "./sports.js";
 import { capLines, said } from "./voicereads.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 /* ── player_news ── */
 
@@ -299,7 +300,7 @@ export function searchParams(query: string, messages: Anthropic.MessageParam[] =
 
 /** The search on Claude (#491), resumed when it pauses (#1054: a paused search used to read as "found nothing"). */
 export function claudeSearch(key: string, call?: SearchCall): (query: string) => Promise<{ text: string; usage: Usage; usd: number }> {
-  const create: SearchCall = call ?? ((params) => new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 0 }).messages.create(params));
+  const create: SearchCall = call ?? ((params) => new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 0, fetch: meteredFetch("call.search") }).messages.create(params));
   return async (query) => {
     const messages: Anthropic.MessageParam[] = [{ role: "user", content: lookupInput(query) }];
     const usage: Usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };

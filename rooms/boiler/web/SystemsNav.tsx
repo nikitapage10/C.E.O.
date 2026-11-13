@@ -5,12 +5,12 @@ import { SECTIONS } from "../sections.ts";
 
 /**
  * The Boiler Room's sub-navigation (#82; the Systems hub until #225) and its addresses: /boiler, /boiler/controls (#647),
- * /boiler/security, /boiler/compliance (the old /systems ones still work). Each subpage has its own address, so it can be linked to and
+ * /boiler/security, /boiler/compliance, /boiler/tokenomics (#1142; the old /systems ones still work). Each subpage has its own address, so it can be linked to and
  * reloaded. The sections come from the room (rooms/boiler/sections.ts, its manifest's `sections`, #617), the engine draws the sub-menu
  * (`@ceo/engine/web/RoomSections.tsx`) and the Desk names the tab from them. SystemsHub.tsx picks the page.
  */
 
-export type SystemsPage = "systems" | "controls" | "security" | "compliance";
+export type SystemsPage = "systems" | "controls" | "security" | "compliance" | "tokenomics";
 
 export function systemsPageOf(pathname: string): SystemsPage {
   return sectionOf(SECTIONS, pathname).id as SystemsPage;

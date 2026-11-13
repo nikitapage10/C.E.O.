@@ -83,6 +83,10 @@ export const SECRET_SETTINGS = [
   "SERPAPI_KEY",
   // Skippy's world questions (#1124): Gemini with Google Search.
   "GEMINI_API_KEY",
+  // The Tokenomics tab's providers' own numbers (#1142, api/_usage/admin.ts): Anthropic's and OpenAI's admin keys, read
+  // only by the nightly usage pull. Typed into the vault in Cloud Shell; never settable from the Desk. Optional.
+  "ANTHROPIC_ADMIN_KEY",
+  "OPENAI_ADMIN_KEY",
   // MealMe's key (#664): set before King Soopers replaced MealMe, kept so a deploy doesn't drop it. Nothing reads it.
   "MEALME_API_KEY",
 ] as const;

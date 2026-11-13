@@ -21,6 +21,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { privateParts } from "../../_privacy.js";
 import { costOf as usdOf, type Usage } from "../../foundry.js";
 import { line, type Product } from "./api.js";
+import { meteredFetch } from "../../_usage/meter.js";
 
 export const REVIEW_MODEL = "claude-haiku-5-5";
 /** Haiku 5.5's list price, dollars per million tokens (the one table, api/foundry.ts SHAPE_PRICE). */
@@ -394,7 +395,7 @@ export async function reviewPicks(inputs: ReviewInput[], deps: { ask: ReviewAsk 
 /** The live call: Haiku, structured JSON, no thinking, a short timeout. Null without a key. */
 export function liveReviewAsk(key: string): ReviewAsk | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1, fetch: meteredFetch("kitchen.kroger") });
   return async (system, user) => {
     const res = await client.messages.create({
       model: REVIEW_MODEL,

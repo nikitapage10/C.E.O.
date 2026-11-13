@@ -58,6 +58,8 @@ const DEBATE_MAX_TOKENS = 1_400;
 const REPLY_MAX_TOKENS = 400;
 /** Nikita joining the argument (#925): the answers to him and the rest of the argument, so a little more than a reply. */
 const JOIN_MAX_TOKENS = 900;
+/** A quip or two under the chair's answer (#1104). */
+const QUIP_MAX_TOKENS = 200;
 /** The longest a prompt can be, in tokens, at most (system, the used motions, the facts). */
 const PROMPT_MAX_TOKENS = 6_000;
 /** One call at its most. */
@@ -286,6 +288,9 @@ Use only the members you are given, each at most twice. The motion is a new subj
 
 export const REPLY_SYSTEM = `${RULES}
 The owner, Nikita, has just spoken from the floor in <said>. Write the members' answers to him, in kind: as playful, curious or serious as he was, in their own voices, one or two sentences each, under 200 characters. If he asked something, answer it in character; if a chamber argument is on, stay in it. Use only the members you are given.`;
+
+export const QUIP_SYSTEM = `${RULES}
+The owner, Nikita, asked the chair something from the floor (<said>) and Skippy the Magnificent, the chair, has answered (<answer>). Write one or two members chiming in underneath with a quippy remark on that exchange: a joke, a jab at the chair, a wry aside, in their own voices, one short sentence each, under 120 characters. Never repeat a detail from the answer, never contradict it, never answer for the chair. Use only the members you are given, never the chair.`;
 
 export const JOIN_SYSTEM = `${RULES}
 A recess argument is on the floor (the motion and the lines said so far are below). The owner, Nikita, has just stepped in from the floor with the words in <said>; lines marked "Nikita (from the floor)" are his earlier words in this argument. He joins this argument: it is not a new conversation.
@@ -575,6 +580,29 @@ export async function floorReply(body: Record<string, unknown>, deps: SenateDeps
   if ("quiet" in got) return got;
   const lines = readReply(got.answer, members);
   return lines ? { lines } : { quiet: "held" };
+}
+
+/**
+ * The members chime in under the chair's answer (#1104). Nikita, 2026-11-13: on the Senate, the reply to hold Space is
+ * text, and "other subminds can chime in as well ... quippy remarks". One small call under the Senate's cap and the
+ * reply's gap; his words and the chair's answer go only when both pass the privacy check (a private answer gets no
+ * quips), and every quip comes back checked. Never the chair, at most two; [] when there is nothing to add.
+ */
+export async function chairQuips(said: string, answer: string, seated: readonly string[], deps: SenateDeps): Promise<{ by: string; text: string }[]> {
+  const words = tidy(said, 400);
+  const told = tidy(answer, 400);
+  const safe = (t: string) => !!t && !privateParts(t).length && !MONEY.test(t);
+  if (!safe(words) || !safe(told)) return [];
+  const members = pickSome(
+    seated.filter((id) => id !== "kernel"),
+    3,
+    deps.rnd,
+  );
+  if (!members.length) return [];
+  const user = `${factsOf(members, [], 0)}\n<said>${words}</said>\n<answer>${told}</answer>\nChime in with one or two of these members, by id: ${members.join(", ")}.`;
+  const got = await call("reply", deps, QUIP_SYSTEM, user, QUIP_MAX_TOKENS, REPLY_SCHEMA as unknown as Record<string, unknown>);
+  if ("quiet" in got) return [];
+  return readReply(got.answer, members) ?? [];
 }
 
 /** The lines said so far, as the function takes them: the members' (with a voice) and Nikita's own from the floor. */

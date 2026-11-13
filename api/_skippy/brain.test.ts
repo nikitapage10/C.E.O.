@@ -243,6 +243,14 @@ describe("Nikita's asks, on every surface, through the one brain (#926)", () => 
     expect(got.wrote).toEqual(["home_device"]);
   });
 
+  it("the Senate, hold Space, as text (#1104): the chair's answer comes back unspoken", async () => {
+    const w = await world();
+    const got = await holdSpace(w, { room: "today", senate: "reply", said: "can you dispense one portion of dry food?", seated: ["foundry", "relay"], voice: false });
+    expect(got.skippy).toBe(true);
+    expect(got.lines).toEqual([{ by: "kernel", text: expect.stringMatching(/lid is open|feeder/i) }]);
+    expect((got as { audio?: string }).audio).toBeUndefined();
+  });
+
   it("the Senate: a remark on the debate is judged by the fast pass, with the page as context, and goes to the members", async () => {
     const w = await world({ steps: [said({ reply: "", deeper: "floor" })] });
     const got = await holdSpace(w, { room: "today", senate: "reply", said: "honestly the bridges side is winning this", seated: ["foundry", "relay"], motion: "that bridges are art", lines: [{ by: "relay", text: "Bridges are overrated." }] });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The floor's flow since #948: on the release the box goes, the one who answers rises and says it aloud, waits for a
+ * The floor's flow since #948: on the release the box goes, the one who answers rises and answers (as text since #1104), waits for a
  * reply, steps back down, and the chamber is steered back to what it was on before it picks up. Made-up words only.
  */
 
@@ -107,6 +107,33 @@ describe("a tool answer on the floor (#948)", () => {
     expect(useFloor.getState().phase).toBe("listening");
     expect(calls).not.toContain("rise:null");
     expect(calls).not.toContain("hold:false");
+  });
+});
+
+describe("the chair's answer as text (#1104)", () => {
+  it("shows unspoken, then each member's quip in turn, each risen on his podium", async () => {
+    const { scene, calls } = makeScene(false);
+    setFloorScene(scene);
+    const played: string[] = [];
+    vi.stubGlobal(
+      "Audio",
+      class extends FakeAudio {
+        override play() {
+          if (this.src) played.push(this.src);
+          return Promise.resolve();
+        }
+      },
+    );
+    heard.next = { chair: { say: "The oven is off.", audio: "A".repeat(200), quips: [{ by: "boiler", text: "Finally, a safe kitchen." }] } };
+    floorStart();
+    void floorEnd();
+    await settle();
+    expect(useFloor.getState().turn).toMatchObject({ by: "kernel", say: "The oven is off." });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(useFloor.getState().turn).toMatchObject({ by: "boiler", say: "Finally, a safe kitchen." });
+    expect(calls).toContain("rise:boiler");
+    // Nothing was played but the press's silent unlock.
+    expect(played.filter((p) => p.includes("audio/mpeg"))).toEqual([]);
   });
 });
 

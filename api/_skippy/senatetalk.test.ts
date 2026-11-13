@@ -10,6 +10,7 @@ import {
   SENATE_BUDGET_USD,
   SENATE_CEILING_USD,
   SENATE_PART,
+  chairQuips,
   floorReply,
   joinDebate,
   motionKey,
@@ -151,6 +152,27 @@ describe("answering Nikita on the floor (#910)", () => {
   it("never sends words that look private", async () => {
     const m = fakeModel();
     expect(await floorReply({ said: "text Sam at 555 867 5309", seated: SEATED }, deps({ ask: m.ask }))).toEqual({ quiet: "held" });
+    expect(m.asked).toHaveLength(0);
+  });
+});
+
+describe("members chiming in under the chair's answer (#1104)", () => {
+  it("a member or two quip on the exchange, never the chair, under the Senate's cap", async () => {
+    const m = fakeModel();
+    const d = deps({ ask: m.ask });
+    const got = await chairQuips("is the oven on", "It is off, as is your cooking career.", ["kernel", ...SEATED], d);
+    expect(got).toHaveLength(1);
+    expect(got[0]!.by).not.toBe("kernel");
+    expect(m.asked[0]!.user).toContain("<answer>It is off, as is your cooking career.</answer>");
+    expect(m.asked[0]!.user).not.toMatch(/by id: .*kernel/);
+    expect(chatMonth(await d.chat.load(), NOW).parts?.[SENATE_PART]).toBeGreaterThan(0);
+  });
+
+  it("adds nothing when his words or the answer look private, or nobody else is seated", async () => {
+    const m = fakeModel();
+    expect(await chairQuips("text Sam at 555 867 5309", "Done.", SEATED, deps({ ask: m.ask }))).toEqual([]);
+    expect(await chairQuips("what's left", "You have $40 left.", SEATED, deps({ ask: m.ask }))).toEqual([]);
+    expect(await chairQuips("hello", "Hello.", ["kernel"], deps({ ask: m.ask }))).toEqual([]);
     expect(m.asked).toHaveLength(0);
   });
 });

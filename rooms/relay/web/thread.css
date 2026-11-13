@@ -117,7 +117,7 @@
 }
 
 
-/* the pages: each exchange a full-height entry, soft-snapped */
+/* the pages: each exchange a full-height entry, sprung into place */
 .cx-pages {
   position: relative;
   z-index: 25;
@@ -125,7 +125,9 @@
   mask-image: linear-gradient(transparent, #000 5%, #000 95%, transparent);
   overflow-y: auto;
   overflow-x: hidden;
-  scroll-snap-type: y proximity;
+  /* #1161: no browser snapping or drifting; useSnapScroll springs one entry a gesture. */
+  overscroll-behavior-y: auto;
+  touch-action: pan-y pinch-zoom;
   /* #950: the code steers this scroll itself; the browser keeping an entry in place as a later line loads above it
      moved the focus to that entry (the mail, when the texts came a moment later). */
   overflow-anchor: none;

@@ -13,6 +13,7 @@ import { setRelayHandler } from "../data/bridge.ts";
 import { GroupFlipper } from "./GroupFlipper.tsx";
 import { groupsOf } from "../data/groups.ts";
 import { RelayQueue, useMedia } from "./RelayQueue.tsx";
+import { useSnapScroll } from "./useSnapScroll.ts";
 import { isTyping } from "@ceo/engine/web/wasdPan.ts";
 import { Said } from "./Said.tsx";
 import { EmojiPicker, Tapbacks } from "./Tapbacks.tsx";
@@ -1065,6 +1066,9 @@ export function RelayThread({ now }: { now: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keys, steerTo]);
 
+  // One gesture, one entry, sprung into place (#1161); the line's wheel goes to the same gate.
+  const snapTo = useSnapScroll(pagesRef, waveRef, (t.queue?.length ?? 0) > 1);
+
   /** Puts an exchange in focus and scrolls the codex to it. */
   const goTo = useCallback(
     (key: string) => {
@@ -1074,9 +1078,9 @@ export function RelayThread({ now }: { now: number }) {
       if (Math.abs(top) > 4) stageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       const el = entryOf(key);
       const root = pagesRef.current;
-      if (el && root) root.scrollTo({ top: el.offsetTop, behavior: "smooth" });
+      if (el && root) snapTo(el.offsetTop);
     },
-    [pick, steerTo],
+    [pick, steerTo, snapTo],
   );
   /** A tap on the line (#869): puts it in focus and, for a text, opens straight on the composer. */
   const goWrite = useCallback(

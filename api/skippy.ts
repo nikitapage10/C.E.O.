@@ -88,7 +88,8 @@ import { skipTermsFrom } from "./_email/filter.js";
 import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
 import type { PendingConfirm } from "@ceo/engine/tools";
-import { claudeModel, runAgent, type AgentCtx } from "./_skippy/agent/loop.js";
+import { claudeModel, isDepth, runAgent, type AgentCtx, type Depth } from "./_skippy/agent/loop.js";
+import { geminiKey, geminiWorld, type WorldAsk } from "./_skippy/gemini.js";
 import { liveHost, livePending } from "./_skippy/agent/host.js";
 import { BlobMemory, coreBlock, type MemoryStore } from "./_skippy/agent/memory.js";
 import { BlobChatLog, type ChatLog } from "./_skippy/chatlog.js";
@@ -118,7 +119,7 @@ export type Ask = (
   system: string,
   input: string,
   ctx?: AgentCtx,
-) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction; tier?: string; deeper?: "talk" | "hard" | "floor"; needScreen?: boolean }>;
+) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction; tier?: string; deeper?: Depth | "floor"; needScreen?: boolean }>;
 
 /** The live answer (#646): the agent loop when the turn brings its tools, else the one-shot chat. */
 export function agentChat(key: string): Ask {
@@ -237,6 +238,8 @@ export interface ChatDeps {
   ask: Ask | null;
   /** Skippy's private memory of Nikita (#646): its core card rides in every turn; the journal keeps the turns. */
   memory?: MemoryStore | null;
+  /** The world's lane (#1124): Gemini with Google Search, when the Function App has its key. */
+  worldAsk?: WorldAsk | null;
   /** Desk chats kept whole (#1097, api/_skippy/chatlog.ts): every typed, phone and room turn. A call's come from its transcript. */
   chats?: ChatLog | null;
   /** The rooms' tools' reach (#646); left out, the turn runs without tools (the one-shot chat). */
@@ -279,6 +282,7 @@ function defaultDeps(): ChatDeps {
     log: blob ? new BlobRoomLog(blob) : null,
     ask: key ? agentChat(key) : null,
     memory: blob ? new BlobMemory(blob, skipTermsFrom(env.EMAIL_SKIP_TERMS)) : null,
+    worldAsk: geminiWorld(geminiKey(env)),
     chats: blob ? new BlobChatLog(blob, skipTermsFrom(env.EMAIL_SKIP_TERMS)) : null,
     host: () => liveHost(env),
     pending: livePending(env),
@@ -589,7 +593,7 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const attach = shot || scrubbed ? { ...(shot && { shot: said.shot }), ...(scrubbed && { screen: scrubbed }) } : undefined;
   const look = shot ? { image: { data: Buffer.from(shot.bytes).toString("base64"), type: shot.type } } : { canLook: said.look && (surface === "desk" || surface === "room") };
   const ctx: AgentCtx | undefined = deps.host
-    ? { surface, message: said.message, core, host: attach ? { ...deps.host(), attach } : deps.host(), pending: deps.pending ?? null, ...look, ...(surface === "phone" && { via: "phone" as const }), ...opts?.agent }
+    ? { surface, message: said.message, core, host: attach ? { ...deps.host(), attach } : deps.host(), pending: deps.pending ?? null, ...look, ...(deps.worldAsk && { world: deps.worldAsk, now: deps.now }), ...(surface === "phone" && { via: "phone" as const }), ...opts?.agent }
     : undefined;
   let got: Awaited<ReturnType<Ask>>;
   try {
@@ -815,7 +819,7 @@ async function turnOf(res: Response): Promise<PhoneTurn> {
 /* ── A Talk call's asks (#926): the same brain, quick on the call, deeper on its own ── */
 
 /** What a call's ask comes back as: the answer, or how deep the rest must go (the deeper run answers into the call). */
-export type CallTurn = { reply: string; tier?: string } | { deeper: "talk" | "hard" } | { error: NonNullable<PhoneTurn["error"]> };
+export type CallTurn = { reply: string; tier?: string } | { deeper: Depth } | { error: NonNullable<PhoneTurn["error"]> };
 
 /**
  * A Talk call's ask (api/_skippy/toolroute.ts, `hand_to_kernel`): the call's tool token is bound to the passkey that
@@ -829,7 +833,7 @@ export async function callAnswer(message: string, passkey: string, deps: ChatDep
   if (!said) return { error: "model" };
   const res = await skippyTurn(said, deps, deps.store, passkey, "call", undefined, { agent: { fastOnly: true } });
   const body = (await res.clone().json().catch(() => ({}))) as { deeper?: unknown };
-  if (res.ok && (body.deeper === "talk" || body.deeper === "hard")) return { deeper: body.deeper };
+  if (res.ok && isDepth(body.deeper)) return { deeper: body.deeper };
   const turn = await turnOf(res);
   if (turn.error) return { error: turn.error };
   return { reply: spokenOf(turn.reply, false), ...(turn.tier && { tier: turn.tier }) };
@@ -840,7 +844,7 @@ export async function callAnswer(message: string, passkey: string, deps: ChatDep
  * memory's pages on demand, under Skippy's month; no Desk lines up front and no days of turns. It answers the call's
  * kept turn (api/_skippy/kernelroute.ts, from the hand-off's own trigger). A failure says what failed.
  */
-export async function deepAnswer(message: string, depth: "talk" | "hard" = "talk", deps: ChatDeps = defaultDeps()): Promise<string> {
+export async function deepAnswer(message: string, depth: Depth = "talk", deps: ChatDeps = defaultDeps()): Promise<string> {
   if (!deps.deskKey || !deps.store) return "My deeper mind isn't switched on here, so that one has to wait for the Desk.";
   const said = readChat({ message, history: [] });
   if (!said) return "That ask didn't come through whole; say it again.";

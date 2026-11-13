@@ -50,7 +50,7 @@ describe("each system's How it works", () => {
     expect(connectionsAt("foundry", "builder").map((c) => c.id)).toEqual(["claude-code"]);
     expect(connectionsAt("foundry", "queue").map((c) => c.id)).toEqual(["doorbell"]);
     expect(connectionsAt("foundry", "checks").map((c) => c.id)).toEqual(["gemini-visual-qa"]);
-    expect(connectionsAt("world").map((c) => c.id)).toEqual(["claude-api", "elevenlabs-speech", "elevenlabs-agents", "world-trigger", "blob"]);
+    expect(connectionsAt("world").map((c) => c.id)).toEqual(["claude-api", "elevenlabs-speech", "elevenlabs-agents", "world-trigger", "blob", "gemini-skippy-world"]);
     expect(connectionsAt("foundry", "main")).toEqual([]);
     expect(connectionsAt("exchange").map((c) => c.id)).toEqual(["polymarket", "polymarket-us"]);
     expect(connectionsAt("green").map((c) => c.id)).toEqual(["sleeper", "fantasypros"]);

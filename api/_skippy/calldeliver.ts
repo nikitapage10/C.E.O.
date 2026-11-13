@@ -23,6 +23,7 @@
 import type { AnswerKind } from "./answertimes.js";
 import { fitAnswer, withoutMoney } from "./kernelagent.js";
 import { STILL_SEARCHING, isEmptyLookup, withoutMeta } from "./voicelookups.js";
+import type { Depth } from "./agent/loop.js";
 
 /** The longest a call's question waits for its answer before Skippy says plainly he couldn't get it. */
 export const CALL_ANSWER_MS = 45_000;
@@ -40,7 +41,7 @@ export const UNFIT = "That answer had a money figure or something private in it,
 export interface CallJob {
   id: string;
   ask: string;
-  depth: "talk" | "hard";
+  depth: Depth;
   /** The search the call started for this question (voicelookups.ts webSearch), still running. */
   search?: Promise<string> | null;
   /** When the question reached the call's tools (ms); left out, timed from the start here. */
@@ -51,7 +52,7 @@ export interface DeliverDeps {
   /** Keeps the final answer on the turn; whether it was kept. */
   keep(id: string, text: string): Promise<boolean>;
   /** Skippy's one brain, deeper; left out, only the search can answer. */
-  deep?: ((ask: string, depth: "talk" | "hard") => Promise<string>) | null;
+  deep?: ((ask: string, depth: Depth) => Promise<string>) | null;
   now(): number;
   /** One line of state for the Function's log: never the question or the answer. */
   log?: (line: string) => void;

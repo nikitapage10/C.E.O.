@@ -81,6 +81,8 @@ export const SECRET_SETTINGS = [
   "GOVEE_API_KEY",
   // The Annex's Job search (#1000): SerpApi's private key, typed into the vault in Cloud Shell. Never settable from the Desk.
   "SERPAPI_KEY",
+  // Skippy's world questions (#1124): Gemini with Google Search.
+  "GEMINI_API_KEY",
   // MealMe's key (#664): set before King Soopers replaced MealMe, kept so a deploy doesn't drop it. Nothing reads it.
   "MEALME_API_KEY",
 ] as const;

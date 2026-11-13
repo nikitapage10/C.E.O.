@@ -37,7 +37,8 @@ describe("the template on every deploy (#330)", () => {
     expect(droppedSettings([...names, "GEMINI_API_KEY", "GEMINI_BUDGET_USD"], names)).toEqual([]);
     // Send to Instacart's key and environment, retired by #664, likewise.
     expect(droppedSettings([...names, "INSTACART_API_KEY", "INSTACART_ENV"], names)).toEqual([]);
-    expect(names).not.toContain("GEMINI_API_KEY");
+    // GEMINI_API_KEY came back for Skippy's world questions (#1124); its old budget stays retired.
+    expect(names).toContain("GEMINI_API_KEY");
     expect(names).not.toContain("GEMINI_BUDGET_USD");
     expect(droppedSettings([...names, "OPENAI_API_KEY", "GREEN_BUDGET_USD"], names)).toEqual(["GREEN_BUDGET_USD", "OPENAI_API_KEY"]);
   });

@@ -34,6 +34,7 @@ import { plainLine } from "../foundry.js";
 import { KERNEL_LEDGER_PATH as LEDGER_PATH, SEARCH_USD, SKIPPY_BUDGET_USD, chatMonth, skippyBudget, type ChatLedger } from "./budget.js";
 import { CALL_HARD, LOG_ROOMS, isCallAsk, type LoggedTurn, type RoomLog } from "./log.js";
 import { homeAsk } from "./agent/words.js";
+import type { Depth } from "./agent/loop.js";
 
 /* ── Switches and budget ── */
 
@@ -276,7 +277,7 @@ export interface AgentDeps {
    * Skippy's one brain, deeper (#926, api/skippy.ts deepAnswer): a Talk call's ask is answered by it, with every room's
    * tools and a small context, instead of by this responder. Left out, calls' asks run here as before.
    */
-  deep?: (question: string, depth: "talk" | "hard") => Promise<string>;
+  deep?: (question: string, depth: Depth) => Promise<string>;
 }
 
 export type Outcome =

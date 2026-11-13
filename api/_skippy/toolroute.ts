@@ -63,6 +63,8 @@ import { liveScores } from "./sports.js";
 import { NO_WEATHER, homeWeather, isHomeWeather, weatherText } from "./weather.js";
 import { readKroger } from "../_haven/kroger/store.js";
 import { NO_HOUSE } from "../_haven/house.js";
+import type { Depth } from "./agent/loop.js";
+import { geminiKey, geminiSearch } from "./gemini.js";
 
 export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
@@ -377,7 +379,7 @@ function withTime<T>(work: Promise<T>, ms: number): Promise<T | null> {
  * Files an ask with the deeper mind for the call. The result's text tells the agent what to do next: one waiting line
  * (only the first time a question needs one, #537), then silence until the answer lands in the call.
  */
-async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>, depth: "talk" | "hard" = "talk", search?: Promise<string> | null): Promise<{ ok: boolean; text: string; turn?: string }> {
+async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>, depth: Depth = "talk", search?: Promise<string> | null): Promise<{ ok: boolean; text: string; turn?: string }> {
   // The same check as the typed chat: a private-looking ask is never kept or handed on.
   if (privateParts(ask).length) return { ok: false, text: "That ask has something private in it, so it wasn't handed over. Ask Nikita to say it without the private part, or to type it in the chat." };
   if (!deps.log || !deps.crew) return { ok: false, text: UNREACHABLE };
@@ -386,7 +388,7 @@ async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenChec
   const id = turnId(at, ask);
   try {
     // "voice" (or "voice-hard" for judgment) marks a call's ask: its deeper run is Skippy's one brain (kernelroute.ts).
-    await deps.log.add({ id, at, question: ask, answer: CALL_REPLY, room: "kernel", model: depth === "hard" ? CALL_HARD : CALL_MODEL, needs: "skippy" }, deps.now);
+    await deps.log.add({ id, at, question: ask, answer: CALL_REPLY, room: "kernel", model: depth === "hard" || depth === "world_deep" ? CALL_HARD : CALL_MODEL, needs: "skippy" }, deps.now);
     await noteHandoff(deps.crew, check.hash, id, deps.now);
   } catch {
     return { ok: false, text: UNREACHABLE };
@@ -576,7 +578,9 @@ export function webDeps(env: Record<string, string | undefined>): WebDeps {
   const blob = pickBlob(env);
   const ledger = blob ? new BlobChatLedger(blob) : null;
   return {
-    search: key && ledger ? claudeSearch(key) : null,
+    // World facts go to Gemini Flash with Google Search (#1124), the same lane the typed chat's world questions take;
+    // Claude's own search when there is no Gemini key.
+    search: ledger ? (geminiSearch(geminiKey(env)) ?? (key ? claudeSearch(key) : null)) : null,
     canSpend: async () => {
       if (!ledger) return false;
       const now = Date.now();

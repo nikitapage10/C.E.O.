@@ -74,6 +74,8 @@ export const NEVER_SETTABLE: readonly (string | RegExp)[] = [
   "builder-read-key",
   // The Annex's Job search (#1000): set in Cloud Shell; the Function's identity has no write role on it.
   "serpapi-key",
+  // Skippy's world questions (#1124): set in Cloud Shell, like SerpApi's; the Function's identity has no write role on it.
+  "gemini-api-key",
 ];
 
 const blocked = (name: string) => NEVER_SETTABLE.some((n) => (typeof n === "string" ? n === name : n.test(name)));

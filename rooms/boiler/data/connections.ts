@@ -224,6 +224,18 @@ export const CONNECTIONS: Connection[] = [
     when: "Once per push to main, at most eight a day, capped at $0.50 a run; a run is usually a few cents.",
   },
   {
+    id: "gemini-skippy-world",
+    name: "Gemini API, Skippy's world questions",
+    room: "boiler",
+    serves: "Skippy's answers about the world",
+    kinds: ["REST API"],
+    status: "live",
+    at: [{ system: "world" }],
+    how: "When Skippy's quick pass (Haiku) decides an ask is about the world (news, scores, elections, facts) rather than the Desk or Nikita, an Azure function sends just the question to Gemini with Google Search over HTTPS: gemini-3.8-flash for a quick fact, gemini-4-argon when it needs depth. A call's web_search takes Flash too. Without the key, or when Gemini fails, Claude's own web search answers as before.",
+    auth: "A key in Azure Key Vault (gemini-api-key), read by the Function App as GEMINI_API_KEY and sent only in a header to Google's API host.",
+    when: "Each world question asked on the Desk, the phone or a call; counted under Skippy's monthly cap.",
+  },
+  {
     id: "polymarket",
     name: "Polymarket",
     room: "exchange",

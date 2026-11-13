@@ -5,8 +5,9 @@
  *
  *   SUBMIND_LOG_TOKEN    read-only. GET only, and only the room data below (LOG_READS): the Asked Skippy logs of the
  *                        four active rooms, the Green's league board, the Exchange's board and Nikita's positions, the
- *                        world feed (and one day of it), the Foundry feed, the room feed itself, and the setup asks
- *                        (#324, whether Nikita approved one).
+ *                        world feed (and one day of it), the Foundry feed, the room feed itself, the setup asks
+ *                        (#324, whether Nikita approved one), and the Desk chats kept whole (#1097, GET
+ *                        /api/skippy-journal?since=, for Skippy, the Magnificent's thread).
  *   SUBMIND_FEED_TOKEN   write-only. PUT /api/kernel-brief, the always-on responder's private brief (#501), POST
  *                        /api/room-feed, a short room event (api/_room/feed.ts), POST /api/setup-asks,
  *                        a setup ask or its Trail line (#324, api/_room/setup.ts), and POST
@@ -81,6 +82,8 @@ export const LOG_READS: Readonly<Record<string, QueryRule>> = {
   "/api/world": { day: { ok: (v) => DAY.test(v) } },
   "/api/foundry-feed": {},
   [ROOM_FEED_PATH]: {},
+  // Desk chats kept whole (#1097, api/_skippy/chatlog.ts), for Skippy, the Magnificent's thread: since a time.
+  "/api/skippy-journal": { since: { ok: (v) => v.length <= 40 && !Number.isNaN(Date.parse(v)) } },
   // The setup asks (#324): whether Nikita approved one, so the thread knows when to go on.
   [SETUP_ASKS_PATH]: { room: { ok: (v) => (KEY_LOG_ROOMS as readonly string[]).includes(v) } },
 };

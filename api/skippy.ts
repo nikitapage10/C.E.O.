@@ -91,6 +91,7 @@ import type { PendingConfirm } from "@ceo/engine/tools";
 import { claudeModel, runAgent, type AgentCtx } from "./_skippy/agent/loop.js";
 import { liveHost, livePending } from "./_skippy/agent/host.js";
 import { BlobMemory, coreBlock, type MemoryStore } from "./_skippy/agent/memory.js";
+import { BlobChatLog, type ChatLog } from "./_skippy/chatlog.js";
 import type { PendingStore } from "./_skippy/agent/pending.js";
 import { callTool, type CallResult, type TextAction, type ToolHost } from "./_skippy/agent/tools.js";
 import { directAsk } from "./_skippy/agent/words.js";
@@ -236,6 +237,8 @@ export interface ChatDeps {
   ask: Ask | null;
   /** Skippy's private memory of Nikita (#646): its core card rides in every turn; the journal keeps the turns. */
   memory?: MemoryStore | null;
+  /** Desk chats kept whole (#1097, api/_skippy/chatlog.ts): every typed, phone and room turn. A call's come from its transcript. */
+  chats?: ChatLog | null;
   /** The rooms' tools' reach (#646); left out, the turn runs without tools (the one-shot chat). */
   host?: () => ToolHost;
   /** Where calls that wait for Nikita's tap are kept (#646). */
@@ -276,6 +279,7 @@ function defaultDeps(): ChatDeps {
     log: blob ? new BlobRoomLog(blob) : null,
     ask: key ? agentChat(key) : null,
     memory: blob ? new BlobMemory(blob, skipTermsFrom(env.EMAIL_SKIP_TERMS)) : null,
+    chats: blob ? new BlobChatLog(blob, skipTermsFrom(env.EMAIL_SKIP_TERMS)) : null,
     host: () => liveHost(env),
     pending: livePending(env),
     shots: blob ? new BlobShots(blob) : null,
@@ -646,6 +650,8 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   }
   // The journal of Skippy's memory (#646): the turn, trimmed; one that trips the memory's rules is left out whole.
   if (deps.memory) await deps.memory.journal({ at, via: surface === "call" ? "talk" : surface, q: said.message, a: reply.reply }, deps.now).catch(() => false);
+  // The whole turn, for the Magnificent's thread (#1097); a Talk call's turns come from its finished transcript instead.
+  if (deps.chats && surface !== "call") await deps.chats.add([{ at, via: surface, q: said.message, a: reply.reply, ...(surface === "room" && reply.room && { room: reply.room }) }], deps.now).catch(() => 0);
   // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
   return json({ ...(reply.needs && kept ? { ...reply, turn: id } : reply), ...extra });
 }
@@ -677,7 +683,7 @@ export async function probe(request: Request, deps: ChatDeps): Promise<Response>
       turns.push({ status: 200, skipped: "budget", ms: 0, chars: 0, flags: [], looked: [], wrote: [], wouldRun: [], taps: 0 });
       break;
     }
-    const dry: ChatDeps = { ...deps, now, host: () => dryHost(live(), rec), pending: dryPending(rec), log: null, memory: deps.memory ? dryMemory(deps.memory, () => undefined) : null };
+    const dry: ChatDeps = { ...deps, now, host: () => dryHost(live(), rec), pending: dryPending(rec), log: null, chats: null, memory: deps.memory ? dryMemory(deps.memory, () => undefined) : null };
     const said = { message: message.slice(0, 600), history: history.slice(-8), page: "", screen: null, shot: "", look: false };
     const started = performance.now();
     let res: Response;

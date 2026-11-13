@@ -24,7 +24,7 @@ async function ctx(env: Record<string, string> = ENV): Promise<GateContext> {
 }
 
 /** Every read the read key opens, as a submind thread sends it. */
-const READS = ["/api/skippy-log?room=green", "/api/skippy-log?room=exchange", "/api/skippy-log?room=boiler", "/api/skippy-log?room=foundry", "/api/skippy-log?room=green&needs=turf", "/api/skippy-log?room=foundry&needs=any", "/api/skippy-log?room=kernel&needs=skippy", "/api/green-league", "/api/exchange-markets", "/api/exchange-positions", "/api/world", "/api/world?day=2026-10-22", "/api/foundry-feed", "/api/room-feed", "/api/setup-asks", "/api/setup-asks?room=green"];
+const READS = ["/api/skippy-log?room=green", "/api/skippy-log?room=exchange", "/api/skippy-log?room=boiler", "/api/skippy-log?room=foundry", "/api/skippy-log?room=green&needs=turf", "/api/skippy-log?room=foundry&needs=any", "/api/skippy-log?room=kernel&needs=skippy", "/api/green-league", "/api/exchange-markets", "/api/exchange-positions", "/api/world", "/api/world?day=2026-10-22", "/api/foundry-feed", "/api/room-feed", "/api/setup-asks", "/api/setup-asks?room=green", "/api/skippy-journal", "/api/skippy-journal?since=2026-11-12T00:00:00Z"];
 
 /** Requests the read key must never open: other rooms, other routes, other queries, encoded paths and every write. */
 const NOT_READS: Array<[string, string]> = [
@@ -142,7 +142,7 @@ describe("which room key a request carries", () => {
 
 describe("the read key (SUBMIND_LOG_TOKEN)", () => {
   it("lists exactly the room data Nikita approved", () => {
-    expect(Object.keys(LOG_READS).sort()).toEqual(["/api/exchange-markets", "/api/exchange-positions", "/api/foundry-feed", "/api/green-league", "/api/room-feed", "/api/setup-asks", "/api/skippy-log", "/api/world"]);
+    expect(Object.keys(LOG_READS).sort()).toEqual(["/api/exchange-markets", "/api/exchange-positions", "/api/foundry-feed", "/api/green-league", "/api/room-feed", "/api/setup-asks", "/api/skippy-journal", "/api/skippy-log", "/api/world"]);
     expect([...KEY_LOG_ROOMS]).toEqual(["green", "exchange", "boiler", "foundry"]);
   });
 

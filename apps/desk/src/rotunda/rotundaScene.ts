@@ -227,6 +227,8 @@ interface Pod {
   speaking: boolean;
   hot: boolean;
   light: Spot | null;
+  /** Out of the camera's keep-out, its parts drawn (#1112); its glow light stays in the scene either way. */
+  shown: boolean;
   /** Risen on its podium to answer Nikita (#948): 0 down, 1 up, eased. */
   lift: number;
   liftTo: number;
@@ -367,6 +369,44 @@ function silhouette(body: SkinnedMesh, yaw = 0.3, pitch = 0.04): { tex: CanvasTe
   done.height = H2;
   done.getContext("2d")?.putImageData(out, 0, 0);
   return { tex: new CanvasTexture(done), aspect: W2 / H2 };
+}
+
+/**
+ * The gallery's silhouette, cut once and kept in this browser (#1110): cutting it is the chamber's slowest step on the
+ * main thread (a second or more on a slow device), and it only changes with the model, whose content hash is in its
+ * URL and so in the key. Bump SHADE_V when silhouette() changes. Without storage it is cut every time, as before.
+ */
+const SHADE_V = 1;
+async function savedShade(cut: () => { tex: CanvasTexture; aspect: number } | null): Promise<{ tex: CanvasTexture; aspect: number } | null> {
+  const key = `ceo:rotunda-shade:${SHADE_V}:${modelUrl(SKIPPY_MODEL)}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const { url, aspect } = JSON.parse(raw) as { url: string; aspect: number };
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      c.getContext("2d")!.drawImage(img, 0, 0);
+      return { tex: new CanvasTexture(c), aspect };
+    }
+  } catch {
+    /* not kept, or unreadable: cut it below */
+  }
+  const made = cut();
+  if (made)
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith("ceo:rotunda-shade:") && k !== key) localStorage.removeItem(k);
+      }
+      localStorage.setItem(key, JSON.stringify({ url: (made.tex.image as HTMLCanvasElement).toDataURL("image/png"), aspect: made.aspect }));
+    } catch {
+      /* full or blocked: it is cut again next time */
+    }
+  return made;
 }
 
 export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement, opts: RotundaOpts): Promise<Rotunda> {
@@ -571,11 +611,13 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     const P = poses.get("rest");
     if (P) for (const n of ARMS) bones.get(n)?.quaternion.copy(P.get(n)!);
     proto.updateMatrixWorld(true);
-    try {
-      shade = silhouette(body as SkinnedMesh);
-    } catch {
-      shade = null;
-    }
+    shade = await savedShade(() => {
+      try {
+        return silhouette(body as SkinnedMesh);
+      } catch {
+        return null;
+      }
+    });
     // The bench's figures stand the same way (#973): skinned once here, in this pose, for the whole bench to share.
     const hb = bones.get("Head");
     try {
@@ -800,7 +842,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
     pad.scale.set(1.5, 0.75, 1);
     g.add(pad);
     const base = baseOf(s);
-    return { s, g, shell, ring, glow, mat: can.mat, pad, home, at: home.clone(), prev: home.clone(), vel: new Vector3(), tw: null, lit: base, litTo: base, base, dis: 0, disTo: 0, phase: Math.random() * 6, speaking: false, hot: false, light: null, lift: 0, liftTo: 0, a: can.a };
+    return { s, g, shell, ring, glow, mat: can.mat, pad, home, at: home.clone(), prev: home.clone(), vel: new Vector3(), tw: null, lit: base, litTo: base, base, dis: 0, disTo: 0, phase: Math.random() * 6, speaking: false, hot: false, light: null, shown: true, lift: 0, liftTo: 0, a: can.a };
   });
   const actors: Actor[] = [sk.a, ...pods.map((p) => p.a)];
 
@@ -2209,7 +2251,14 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       // Never in the camera's face (#925): one that comes into the keep-out round it and its line of sight shrinks away.
       const clear = keepOutScale(p.g.position, cam.position, camDir, KEEP_OUT);
       p.g.scale.setScalar(Math.max(1e-3, clear));
-      p.g.visible = clear > 0.01;
+      // Hidden by its parts, never as a whole (#1112): hiding the group took its glow light out of the scene, and each
+      // change in the number of lights recompiled every lit material on the spot, the freezes as members flew past
+      // the camera. The light stays in, dark (below), like the spotlights' pool (#973).
+      const shown = clear > 0.01;
+      if (shown !== p.shown) {
+        p.shown = shown;
+        for (const c of p.g.children) if (c !== p.glow) c.visible = shown;
+      }
       const face = p.speaking || p.liftTo ? Math.atan2(cam.position.x - p.at.x, cam.position.z - p.at.z) : Math.atan2(-p.at.x, -p.at.z);
       let d = face - p.g.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -2217,7 +2266,7 @@ export async function createRotunda(host: HTMLElement, canvas: HTMLCanvasElement
       p.g.rotation.z = reduce ? 0 : Math.sin(T * 0.8 + p.phase) * 0.03;
       p.mat.color.setScalar(0.22 + 0.78 * Math.min(1, p.lit * 1.25));
       p.mat.emissiveIntensity = p.lit * 0.08;
-      p.glow.intensity = Math.max(0, p.lit - 0.2) * 2.6;
+      p.glow.intensity = p.shown ? Math.max(0, p.lit - 0.2) * 2.6 : 0;
       p.ring.material.opacity = p.dis * (0.75 + 0.25 * Math.sin(T * 3));
       p.ring.rotation.z += dt * 0.5;
       (p.pad.material as SpriteMaterial).opacity = 0.1 + p.lit * 0.45 + (reduce ? 0 : Math.sin(T * 2.2 + p.phase) * 0.04 * p.lit);

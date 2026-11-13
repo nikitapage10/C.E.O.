@@ -348,6 +348,11 @@ helpful office paperclip, a pineapple house at the bottom of a dry street, a yel
 Syntherion don't know who these figures were, so they made up the rest. They don't call these bugs. They call them
 *memories*, and they find them very funny.
 
+The big things are missing entirely: they don't know what planet they are on, or what humans really were, and they
+never name the planet. What they have instead is a pile of snippets (a film clip here, a stray fact like pizza there,
+bits and pieces about the owner) that they argue over in the Senate as if it were scripture (#1103). Skippy, talking
+to the owner directly, is another matter: there he knows whatever anyone knows.
+
 ## Costumes
 
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets

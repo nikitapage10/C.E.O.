@@ -13,7 +13,9 @@
  *                             journal's words). POST { action, … }: "core" { text }, "facts" { facts: string[], topic?,
  *                             source? } (the project's memory mirrored, or Nikita's own list; each checked on its own),
  *                             "page" { title, topic, summary, body, source? }, "forget" { id }. Everything through the
- *                             memory's rules (./memory.ts); a refused one is counted by reason, never echoed.
+ *                             memory's rules (./memory.ts); a refused one is counted by reason, never echoed. POST
+ *                             also takes the subminds' write key (#1124) for "core", "facts" and "page" only: it adds,
+ *                             never reads or forgets.
  *   GET  /api/skippy-spend    Skippy's month (api/_skippy/budget.ts skippySpend): the cap, the warning, what is spent by
  *                             part, and the state. The Boiler Room's Controls (#647) read the same shape.
  *
@@ -25,6 +27,7 @@ import { skipTermsFrom } from "../../_email/filter.js";
 import { requireSession, withCookie, type DeskDeps } from "../../_desk/session.js";
 import { pickAuthStore } from "../../_desk/store.js";
 import { plainLine } from "../../foundry.js";
+import { roomKeyOf } from "../../_site/roomkeys.js";
 import { BlobChatLedger, KERNEL_LEDGER_PATH, skippyBudget, skippySpend, type ChatLedger } from "../budget.js";
 import { liveHost, livePending } from "./host.js";
 import { BlobChatLog, chatLogGet } from "../chatlog.js";
@@ -92,6 +95,8 @@ const wroteOf = (got: Awaited<ReturnType<typeof callTool>>, ran: boolean) => (ra
 export interface MemoryDeps {
   desk: DeskDeps;
   memory: MemoryStore | null;
+  /** For the write key (POST only); without it, the passkey session alone. */
+  env?: Env;
 }
 
 const SOURCES: readonly MemorySource[] = ["project", "import", "desk"];
@@ -115,9 +120,16 @@ export async function memoryGet(request: Request, deps: MemoryDeps): Promise<Res
 }
 
 export async function memoryPost(request: Request, deps: MemoryDeps): Promise<Response> {
-  const signed = await requireSession(request, deps.desk);
-  if (!signed.ok) return signed.response;
-  const send = (body: unknown, status = 200) => withCookie(json(body, status), signed);
+  // The subminds' write key (#1124) may add to the memory, never read or forget: Skippy, the Magnificent loads the
+  // project's knowledge base of Nikita this way, with every line through the same rules.
+  const feed = deps.env ? roomKeyOf(request, deps.env) === "feed" : false;
+  let send: (body: unknown, status?: number) => Response;
+  if (feed) send = (body, status = 200) => json(body, status);
+  else {
+    const signed = await requireSession(request, deps.desk);
+    if (!signed.ok) return signed.response;
+    send = (body, status = 200) => withCookie(json(body, status), signed);
+  }
   if (!deps.memory) return send({ error: "not-set-up" }, 503);
   const body = await bodyOf(request);
   if (body === "too-big") return send({ error: "too-big" }, 413);
@@ -151,6 +163,7 @@ export async function memoryPost(request: Request, deps: MemoryDeps): Promise<Re
       return saved.ok ? send({ ok: true, id: saved.value.id }) : send({ error: "refused", why: saved.why }, 422);
     }
     case "forget": {
+      if (feed) return send({ error: "not-allowed" }, 403);
       if (!isMemoryId(body.id)) return send({ error: "bad-request" }, 400);
       return (await deps.memory.forget(body.id)) ? send({ ok: true }) : send({ error: "missing" }, 404);
     }
@@ -193,7 +206,7 @@ const memoryOf = (env: Env) => {
 };
 export const memoryRoute = {
   GET: (request: Request) => memoryGet(request, { desk: deskOf(process.env), memory: memoryOf(process.env) }),
-  POST: (request: Request) => memoryPost(request, { desk: deskOf(process.env), memory: memoryOf(process.env) }),
+  POST: (request: Request) => memoryPost(request, { desk: deskOf(process.env), memory: memoryOf(process.env), env: process.env }),
 };
 
 /** Desk chats kept whole (#1097): the read key or a passkey session (api/_skippy/chatlog.ts). */

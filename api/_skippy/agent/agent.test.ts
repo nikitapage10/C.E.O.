@@ -238,6 +238,33 @@ describe("the agent loop (#646)", () => {
     expect(load.tools > STRICT_LIMITS.tools || load.optional > STRICT_LIMITS.optional).toBe(true);
   });
 
+  it("sends a world question to Gemini (#1124): Flash for a fact, Argon for depth, Claude when Gemini can't", async () => {
+    const fastSays = (deeper: string) => () => msg([{ type: "text", text: JSON.stringify({ reply: "", actions: [], room: "none", needs: "none", deeper }) }], "end_turn", FAST_MODEL);
+    const asked: { q: string; depth: string; about?: string }[] = [];
+    const world = async (q: string, depth: "quick" | "deep", _now: number, about?: string) => {
+      asked.push({ q, depth, ...(about !== undefined && { about }) });
+      return { text: "Searching now. Hyde-Smith won.", model: depth === "deep" ? "gemini-4-argon" : "gemini-3.8-flash", usage: { input_tokens: 10, output_tokens: 5 }, usd: 0.02, searches: 1 };
+    };
+    const quick = script([fastSays("world")], true);
+    const r = await runAgent(quick.call, SKIPPY_PROMPT, "<message>\nwho won\n</message>", ctx({ message: "who won", world }));
+    expect(r.answer).toMatchObject({ reply: "Hyde-Smith won." });
+    expect(r).toMatchObject({ tier: "world", model: "gemini-3.8-flash" });
+    expect(r.parts.gemini).toBe(0.02);
+    expect(asked[0]).toEqual({ q: "who won", depth: "quick", about: "Nikita likes bold." });
+    expect(quick.calls.map((c) => c.model)).toEqual([FAST_MODEL]);
+
+    const deep = script([fastSays("world_deep")], true);
+    expect((await runAgent(deep.call, SKIPPY_PROMPT, "x", ctx({ world }))).model).toBe("gemini-4-argon");
+
+    const none = script([fastSays("world_deep"), () => answer("From Claude.")], true);
+    const fell = await runAgent(none.call, SKIPPY_PROMPT, "x", ctx({ world: async () => null }));
+    expect(fell.answer).toMatchObject({ reply: "From Claude." });
+    expect(none.calls.map((c) => c.model)).toEqual([FAST_MODEL, HARD_MODEL]);
+
+    const onCall = script([fastSays("world")], true);
+    expect(await runAgent(onCall.call, SKIPPY_PROMPT, "x", ctx({ surface: "call", fastOnly: true, world }))).toMatchObject({ deeper: "world" });
+  });
+
   it("talks on Sonnet with the rooms' tools and web search, the rules and core card cached, the fallback on", async () => {
     const s = script([() => answer("Hello, monkey.")]);
     const r = await runAgent(s.call, SKIPPY_PROMPT, "<message>\nhi\n</message>", ctx());
@@ -418,6 +445,22 @@ describe("the agent's endpoints (#646)", () => {
     expect(await res.json()).toEqual({ ok: true, kept: 1, refused: { private: 1, money: 1 } });
     const listed = (await (await memoryGet(req("/api/skippy-memory", cookie), deps)).json()) as { facts: { text: string; source: string }[] };
     expect(listed.facts).toEqual([expect.objectContaining({ text: "Prefers dark themes", source: "project" })]);
+  });
+
+  it("the write key may add to the memory (#1124), never read it or forget", async () => {
+    const { desk } = await signed();
+    const memory = new MemoryMemory();
+    const FEED = "f".repeat(48);
+    const deps = { desk, memory, env: { SUBMIND_FEED_TOKEN: FEED, SUBMIND_LOG_TOKEN: "l".repeat(48) } };
+    const keyed = (body: unknown, key = FEED) => new Request(`${ORIGIN}/api/skippy-memory`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    expect((await memoryPost(keyed({ action: "core", text: "Senior IT audit manager looking toward product roles." }), deps)).status).toBe(200);
+    expect(await (await memoryPost(keyed({ action: "page", topic: "work", title: "Career", summary: "Where he wants to go", body: "Product, TPM or his own business." }), deps)).json()).toMatchObject({ ok: true });
+    expect((await memoryPost(keyed({ action: "forget", id: "f000000000000" }), deps)).status).toBe(403);
+    expect((await memoryPost(keyed({ action: "core", text: "x" }, "l".repeat(48)), deps)).status).toBe(401);
+    expect((await memoryGet(new Request(`${ORIGIN}/api/skippy-memory`, { headers: { Authorization: `Bearer ${FEED}` } }), deps)).status).toBe(401);
+    const m = await memory.load();
+    expect(m.core).toMatch(/product roles/);
+    expect(m.pages[0]).toMatchObject({ title: "Career", source: "import" });
   });
 
   it("GET /api/skippy-spend answers the meter's shape in a session only", async () => {

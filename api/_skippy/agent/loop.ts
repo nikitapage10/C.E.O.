@@ -32,6 +32,8 @@ import { AGENT_INPUT, AGENT_MAX_TOKENS, AGENT_ROUNDS, HAIKU_PRICE, OPUS_PRICE, S
 import { LOG_ROOMS } from "../log.js";
 import { ACTION_KINDS, HANDOFFS, PAGES, ROOMS, SKIPPY_PROMPT, unfenceChat } from "../prompt.js";
 import { apiTools, callTool, toolsFor, type CallSurface, type TextAction, type ToolHost } from "./tools.js";
+import type { WorldAsk } from "../gemini.js";
+import { withoutMeta } from "../voicelookups.js";
 import type { PendingStore } from "./pending.js";
 
 export const TRIAGE_MODEL = "claude-haiku-5-5";
@@ -92,18 +94,26 @@ export const FAST_ROUNDS = 2;
 export const FAST_MAX_TOKENS = 600;
 
 /** The fast tier's own rules, after the cached prefix: try the one direct thing, else say how deep to go. */
-export const FAST_RULES = `You are the quick first pass of Skippy's mind. Settle the ask yourself only when it takes no tool or one direct tool or read (a room's read, home_status for the apartment's temperature or the devices, house_check for "how's the house?", a home device, the Kitchen list, a memory lookup): call it, then answer in one or two sentences with "deeper": "no". Never say you can't do something a tool here does, that a reading sits behind a sign-in, or that he should ask it another way: call the tool. When doing it well needs more (several steps or rooms, the web, a comparison, a plan, judgment, or a tool that failed in a way more digging could fix), call no further tool and answer with "deeper": "talk" (or "hard" for careful reasoning, a plan or research across sources) and "reply": "". Your deeper self takes it from there with what you found.
+export const FAST_RULES = `You are the quick first pass of Skippy's mind. First decide which of three places the answer lives (Nikita, 2026-11-13):
+1. The Desk and the home: the rooms, the apartment, the devices, the Kitchen, his league, odds book, texts, jobs, anything a tool here reads or does. Settle it yourself when it takes no tool or one direct tool or read (a room's read, home_status for the apartment's temperature or the devices, house_check for "how's the house?", a home device, the Kitchen list): call it, then answer in one or two sentences with "deeper": "no".
+2. Nikita himself: who he is, his work and plans, his people, tastes and history. <core> is what you know for sure; for anything past it call memory_lookup (then memory_read), and answer from what you find with "deeper": "no". Only when memory has nothing say so plainly and invite him to tell you.
+3. The world: news, sports results and schedules, elections, prices, people and places, facts and how-tos that live out in the world, not in his Desk or his memory. Call no tool and answer "deeper": "world" with "reply": "" for a quick fact, or "deeper": "world_deep" for a world question that needs depth, a comparison or careful judgment. A live score of a game on now still goes to the scores tool where you have it.
+An ask that mixes the world with his Desk or his life (should he start a player, does the news change his plans) is neither: when doing it well needs more (several steps or rooms, the web together with his data, a comparison, a plan, judgment, or a tool that failed in a way more digging could fix), call no further tool and answer with "deeper": "talk" (or "hard" for careful reasoning, a plan or research across sources) and "reply": "". Your deeper self takes it from there with what you found.
+Never say you can't do something a tool here does, that a reading sits behind a sign-in, or that he should ask it another way: call the tool.
 <page> says where Nikita is and <screen> what he's looking at (the open item, the step he's on): hints for "this" and "that one", never a limit. Call look_at_screen only when <screen> can't settle what he means or he points at something visual. Every room's tools are yours on every page; an ask about another room is answered here all the same. On the Senate's floor (<page> says the Senate is in session), words about the argument itself get "deeper": "floor" and "reply": "": a remark on it, or a question about it or to the members ("what are you guys talking about?", "who's winning?", "what's the motion?", "why do you think that?"). The members answer those, in the debate. A request, or a question about anything else (the home, a room, the news), is yours.`;
 
 /** The fast tier's answer: the agent's, plus how deep to go. */
 export const FAST_SCHEMA = {
   ...AGENT_SCHEMA,
-  properties: { ...AGENT_SCHEMA.properties, deeper: { type: "string", enum: ["no", "talk", "hard", "floor"] } },
+  properties: { ...AGENT_SCHEMA.properties, deeper: { type: "string", enum: ["no", "talk", "hard", "world", "world_deep", "floor"] } },
   required: [...AGENT_SCHEMA.required, "deeper"],
 } as const;
 
 /** Where a turn starts: the fast tier (every ask by default), or deeper straight away (a call's deep run). */
-export type Tier = "fast" | "talk" | "hard";
+export type Tier = "fast" | "talk" | "hard" | "world" | "world_deep";
+/** Where the quick pass sends an ask it doesn't settle: Claude deeper ("talk", "hard"), or Gemini for the world (#1124). */
+export type Depth = "talk" | "hard" | "world" | "world_deep";
+export const isDepth = (v: unknown): v is Depth => v === "talk" || v === "hard" || v === "world" || v === "world_deep";
 
 export interface AgentCtx {
   surface: "desk" | "phone" | "room" | "call";
@@ -125,6 +135,10 @@ export interface AgentCtx {
   image?: { data: string; type: "image/jpeg" | "image/png" | "image/webp" };
   /** The browser on this surface can capture the page (the Desk's chat, hold Space, a room's mic): look_at_screen asks it. */
   canLook?: boolean;
+  /** The world's lane (#1124, ../gemini.ts): Gemini with Google Search; null or missing goes on to Claude instead. */
+  world?: WorldAsk | null;
+  /** The clock, for the world lane's "today". */
+  now?: number;
 }
 
 export interface AgentResult {
@@ -147,7 +161,7 @@ export interface AgentResult {
   /** Which tier answered. */
   tier: Tier;
   /** With fastOnly: the fast tier handed up, and how deep the rest should go; "floor": a remark for the Senate's debate. */
-  deeper?: "talk" | "hard" | "floor";
+  deeper?: Depth | "floor";
   /** The turn asked to look at the screen (#1027): the browser captures the page and the words come again with it. */
   needScreen?: boolean;
 }
@@ -261,7 +275,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
     }
     messages.push({ role: "user", content: results });
   };
-  const result = (answer: unknown, model: AgentModel, tier: Tier, deeper?: "talk" | "hard" | "floor", needScreen?: boolean): AgentResult => ({
+  const result = (answer: unknown, model: string, tier: Tier, deeper?: Depth | "floor", needScreen?: boolean): AgentResult => ({
     answer,
     usage: called ? usage : null,
     usd,
@@ -280,7 +294,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
   /* ── The fast tier: understand, try the one direct thing, or say how deep to go ── */
   let start: Tier = ctx.start ?? "fast";
   if (start === "fast") {
-    let deeper: "talk" | "hard" = "talk";
+    let deeper: Depth = "talk";
     for (let round = 0; round < FAST_ROUNDS; round++) {
       const last = round === FAST_ROUNDS - 1;
       let res: Anthropic.Beta.Messages.BetaMessage;
@@ -316,13 +330,30 @@ export async function runAgent(call: CallModel, system: string, input: string, c
       }
       // A remark on the Senate's debate goes back to the members (only on the floor; anywhere else it is "talk").
       if (got?.deeper === "floor" && ctx.floor) return result(null, FAST_MODEL, "fast", "floor");
-      if (got?.deeper === "hard") deeper = "hard";
+      if (got?.deeper === "hard" || got?.deeper === "world" || got?.deeper === "world_deep") deeper = got.deeper;
       break; // handed up: its tool results stay in the conversation, its own answer doesn't
     }
     // The deeper tier always answers after the user's words or a tool result, never after the fast tier's own call.
     while (messages.length > 1 && messages.at(-1)!.role === "assistant") messages.pop();
     if (ctx.fastOnly) return result(null, FAST_MODEL, "fast", deeper);
     start = deeper;
+  }
+
+  /* ── The world (#1124): Gemini with Google Search, Flash for a fact, Argon for depth; Claude if it can't ── */
+  if (start === "world" || start === "world_deep") {
+    const w = ctx.world ? await ctx.world(ctx.message, start === "world_deep" ? "deep" : "quick", ctx.now ?? Date.now(), ctx.core.startsWith("(No core card") ? "" : ctx.core).catch(() => null) : null;
+    if (w) {
+      called = true;
+      usage = add(usage, w.usage);
+      usd += w.usd;
+      parts.gemini = (parts.gemini ?? 0) + w.usd;
+    }
+    const reply = w ? plainLine(withoutMeta(w.text), 700) : "";
+    if (reply) {
+      note(looked, "Searched Google");
+      return result({ reply, actions: [], room: "none", needs: "none" }, w!.model, start);
+    }
+    start = start === "world_deep" ? "hard" : "talk";
   }
 
   /* ── Deeper: Sonnet (talk) or Opus (hard), with the web, from where the fast tier stopped ── */

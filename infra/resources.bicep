@@ -150,6 +150,10 @@ var secrets = [
   // The Annex's Job search (#1000, api/_annex/jobs.ts): SerpApi's private key for Google Jobs, typed by Nikita into the
   // vault in Cloud Shell. Not on the Desk's Keys form (api/_keys/allowlist.ts) until the role paste covers it.
   { setting: 'SERPAPI_KEY', secret: 'serpapi-key' }
+  // Skippy's world questions (#1124, api/_skippy/gemini.ts): Gemini 3.8 Flash and Gemini 4 Argon with Google Search,
+  // under Skippy's month. Typed by Nikita into the vault in Cloud Shell, like SerpApi's; not on the Keys form until the
+  // role paste covers it. Without it, world questions go to Claude's own web search as before.
+  { setting: 'GEMINI_API_KEY', secret: 'gemini-api-key' }
   // MealMe's key (#664), stored before King Soopers replaced MealMe. Nothing reads it; kept so a deploy doesn't stop
   // on a setting made outside the template. Remove this line and the setting together to retire it.
   { setting: 'MEALME_API_KEY', secret: 'haven-mealme-key' }

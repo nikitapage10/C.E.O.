@@ -168,9 +168,9 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    same Claude account; with Vercel no longer spending (#313) they are the code's own defaults, the ones Vercel ran
    on: `WORLD_BUDGET_USD=6` (agreed 2026-10-22). `SKIPPY_BUDGET_USD=60` is Skippy's one cap since #646 (his chat, the
    Kernel and Opus research together; warns at $50); a Function App that still has the old `2` keeps it until it is
-   changed in the portal, since the deploy keeps live values. `GEMINI_BUDGET_USD` and `GEMINI_API_KEY` were retired with Gemini's speech (#472): the next template run
-   drops them from the Function App (the `gemini-api-key` secret can be deleted from the vault; Visual QA keeps its
-   own key as a GitHub Actions secret). The email agent's own cap, `EMAIL_BUDGET_USD=10` (`emailBudgetUsd`,
+   changed in the portal, since the deploy keeps live values. `GEMINI_BUDGET_USD` was retired with Gemini's speech (#472). `GEMINI_API_KEY` (vault `gemini-api-key`) is back
+   for Skippy's world questions (#1124, `api/_skippy/gemini.ts`), counted under Skippy's month; typed into the vault in
+   Cloud Shell, like SerpApi's. Visual QA keeps its own key as a GitHub Actions secret. The email agent's own cap, `EMAIL_BUDGET_USD=10` (`emailBudgetUsd`,
    #263), is separate from those and exists only here. `PAYPAL_ENV` (`paypalEnv`, #279) starts as `sandbox`. The
    deploy keeps all four as they are live (and the home address and the log cap): change one in the portal
    (**Function App** → **Settings → Environment variables**, **Apply**) or with `-p worldBudgetUsd=3` (or

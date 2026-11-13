@@ -323,7 +323,15 @@ export class House {
   private raf = 0;
   private guard: { frame: (now: number) => void };
   private dirty = true;
-  private visible = true;
+  /**
+   * On screen, as the IntersectionObserver last said. False until its first report (#1173): the Haven is kept mounted
+   * behind the Senate (keptRooms.ts), hidden, and a first frame drawn there before the observer spoke linked every
+   * program at once on the main thread, seconds of frozen Senate on a desktop GPU.
+   */
+  private visible = false;
+  /** The programs are being compiled ahead, out of sight (`warm`). */
+  private warming = false;
+  private atlasPainted = false;
   private backdrop = false;
   private focusId: string | null = null;
   private hover: string | null = null;
@@ -412,7 +420,7 @@ export class House {
     this.renderer.domElement.className = "hv-gl";
     host.appendChild(this.renderer.domElement);
     // A picture of the page for Skippy (#1027, look_at_screen): drawn right before it is read, even when the house is idle.
-    this.disposers.push(registerShotRender(this.renderer.domElement, () => this.renderer.render(this.scene, this.camera)));
+    this.disposers.push(registerShotRender(this.renderer.domElement, () => (this.paintAtlas(), this.renderer.render(this.scene, this.camera))));
     this.thr.className = "hv-thr";
     this.thr.setAttribute("aria-hidden", "true");
     host.appendChild(this.thr);
@@ -423,7 +431,8 @@ export class House {
     }
     this.scene.add(this.world);
     this.atlasCanvas.width = this.atlasCanvas.height = 1024;
-    drawAtlas(this.atlasCanvas);
+    // Painted just before it is first needed (paintAtlas), not here: a 1024px canvas of glyphs is a tenth of a second
+    // of drawing, kept out of the build's own task (#1173).
     this.atlas = new THREE.CanvasTexture(this.atlasCanvas);
     this.atlas.minFilter = THREE.LinearMipmapLinearFilter;
     this.atlas.anisotropy = 4;
@@ -431,6 +440,7 @@ export class House {
     if (document.fonts?.load) {
       void Promise.all(['400 64px "Noto Sans Runic"', '400 64px "Noto Sans Symbols"', '400 64px "Noto Sans Symbols 2"', '600 60px "Geist Mono Variable"'].map((f) => document.fonts.load(f, "ᚠ☿🜁⊕{").catch(() => [])))
         .then(() => {
+          if (!this.atlasPainted || this.gone) return;
           drawAtlas(this.atlasCanvas);
           this.atlas.needsUpdate = true;
           this.dirty = true;
@@ -464,10 +474,42 @@ export class House {
     this.disposers.push(() => ro.disconnect());
     const io = new IntersectionObserver((es) => {
       this.visible = es.some((e) => e.isIntersecting);
+      if (!this.visible) this.warm();
     });
     io.observe(host);
     this.disposers.push(() => io.disconnect());
     this.raf = requestAnimationFrame(this.loop);
+  }
+
+  /**
+   * Built out of sight (kept behind another room, #934): compile the programs ahead in idle time without waiting on
+   * them (#1173). compileAsync only starts the links; where the browser links on its own threads
+   * (KHR_parallel_shader_compile) nothing on the page waits at all, and elsewhere the driver links behind the page
+   * long before the Haven is opened. Either way its first frame on screen finds them ready, and the room on screen
+   * never stalls for a hidden house. Once per house.
+   */
+  private warm() {
+    if (this.warming) return;
+    this.warming = true;
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+    const idle = (fn: () => void) => (w.requestIdleCallback ? w.requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200));
+    // The glyphs, then the programs, each in idle time of its own.
+    idle(() => {
+      if (this.gone || this.visible) return;
+      this.paintAtlas();
+      idle(() => {
+        if (this.gone || this.visible) return;
+        void this.renderer.compileAsync(this.scene, this.camera).catch(() => undefined);
+      });
+    });
+  }
+
+  /** The nanites' glyph atlas, painted once, before the first draw that samples it. */
+  private paintAtlas() {
+    if (this.atlasPainted) return;
+    this.atlasPainted = true;
+    drawAtlas(this.atlasCanvas);
+    this.atlas.needsUpdate = true;
   }
 
   /* ── plan to world ── */
@@ -1760,6 +1802,7 @@ export class House {
       }
       this.night.update(this.renderer.domElement.width, this.renderer.domElement.height, t, this.camera, this.renderer.getPixelRatio(), Math.max(0, this.dayNow));
     }
+    this.paintAtlas();
     this.renderer.render(this.scene, this.camera);
     this.drawThreads(t);
     this.placeLabels();

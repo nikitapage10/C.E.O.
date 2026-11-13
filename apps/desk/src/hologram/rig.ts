@@ -60,8 +60,65 @@ export const POSES: Record<Pose, Aims> = {
   shrug: { LeftArm: [0.75, -0.65, 0.2], LeftForeArm: [0.6, 0.3, 0.75], RightArm: [-0.75, -0.65, 0.2], RightForeArm: [-0.6, 0.3, 0.75] },
 };
 
-/** Fits the face cap onto his head: cast from the head's centre through each vertex, then smooth, never dipping under a hit. */
-export function fitCap(geo: SphereGeometry, mesh: SkinnedMesh, wSeg: number, hSeg: number) {
+/**
+ * The fitted cap, kept (#1173): fitting it skins the whole body and casts a ray per vertex of the cap, a few hundred
+ * milliseconds of main thread in one go (the Senate's build, the call's hologram). The fit changes only with the model,
+ * so it is kept per page and, given a `key` that names the model (its content-hashed URL), in this browser's storage
+ * too. Bump CAP_V when the fit changes.
+ */
+const CAP_V = 1;
+const capMemo = new Map<string, Float32Array>();
+const capKey = (key: string, wSeg: number, hSeg: number) => `ceo:cap:${CAP_V}:${wSeg}x${hSeg}:${key}`;
+
+function readCap(id: string, n: number): Float32Array | null {
+  try {
+    const raw = localStorage.getItem(id);
+    const a = raw ? (JSON.parse(raw) as unknown) : null;
+    return Array.isArray(a) && a.length === n && a.every((x) => typeof x === "number" && Number.isFinite(x)) ? Float32Array.from(a as number[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCap(id: string, d: Float32Array, wSeg: number, hSeg: number): void {
+  try {
+    // One kept fit per cap size: an older model's goes.
+    const size = `:${wSeg}x${hSeg}:`;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("ceo:cap:") && k.includes(size) && k !== id) localStorage.removeItem(k);
+    }
+    localStorage.setItem(id, JSON.stringify(Array.from(d, (x) => Math.round(x * 1e5) / 1e5)));
+  } catch {
+    /* full or blocked: fitted again next time */
+  }
+}
+
+/**
+ * Fits the face cap onto his head: cast from the head's centre through each vertex, then smooth, never dipping under a
+ * hit. With `key` (the model's URL, and who asks), the fit is kept and reused (above).
+ */
+export function fitCap(geo: SphereGeometry, mesh: SkinnedMesh, wSeg: number, hSeg: number, key?: string) {
+  const pos = geo.getAttribute("position");
+  const id = key ? capKey(key, wSeg, hSeg) : null;
+  let cur = id ? (capMemo.get(id) ?? readCap(id, pos.count)) : null;
+  if (!cur) {
+    cur = capDistances(geo, mesh, wSeg, hSeg);
+    if (id) saveCap(id, cur, wSeg, hSeg);
+  }
+  if (id) capMemo.set(id, cur);
+  const d = new Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    const L = cur[i]! + 0.005;
+    d.fromBufferAttribute(pos, i).normalize();
+    pos.setXYZ(i, d.x * L, d.y * L, d.z * L);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
+/** How far out the cap sits along each of its vertices' directions from the head's centre: the casting and smoothing. */
+function capDistances(geo: SphereGeometry, mesh: SkinnedMesh, wSeg: number, hSeg: number): Float32Array {
   const src = mesh.geometry;
   const sp = src.getAttribute("position");
   const idx = src.getIndex();
@@ -102,10 +159,9 @@ export function fitCap(geo: SphereGeometry, mesh: SkinnedMesh, wSeg: number, hSe
   const rc = new Raycaster();
   rc.far = 0.4;
   const hit = new Float32Array(pos.count);
-  const dirs: Vector3[] = [];
+  const d = new Vector3();
   for (let i = 0; i < pos.count; i++) {
-    const d = new Vector3().fromBufferAttribute(pos, i).normalize();
-    dirs.push(d);
+    d.fromBufferAttribute(pos, i).normalize();
     rc.set(HEAD.c, d);
     hit[i] = rc.intersectObject(baked, false)[0]?.distance ?? HEAD.r;
   }
@@ -128,12 +184,7 @@ export function fitCap(geo: SphereGeometry, mesh: SkinnedMesh, wSeg: number, hSe
       }
     cur = next;
   }
-  for (let i = 0; i < pos.count; i++) {
-    const L = cur[i]! + 0.005;
-    const d = dirs[i]!;
-    pos.setXYZ(i, d.x * L, d.y * L, d.z * L);
-  }
-  pos.needsUpdate = true;
-  geo.computeVertexNormals();
   bg.dispose();
+  (baked.material as MeshBasicMaterial).dispose();
+  return cur;
 }

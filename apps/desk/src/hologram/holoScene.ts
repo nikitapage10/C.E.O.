@@ -176,7 +176,7 @@ export async function createHolo(canvas: HTMLCanvasElement): Promise<Holo> {
   const W_SEG = 48;
   const H_SEG = 24;
   const capGeo = new SphereGeometry(HEAD.r, W_SEG, H_SEG, Math.PI / 2 - PHI / 2, PHI, TH0, TH1 - TH0);
-  fitCap(capGeo, body, W_SEG, H_SEG);
+  fitCap(capGeo, body, W_SEG, H_SEG, `holo:${modelUrl(MODEL)}`);
   const faceCanvas = document.createElement("canvas");
   faceCanvas.width = FACE_W;
   faceCanvas.height = FACE_H;

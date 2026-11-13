@@ -96,6 +96,18 @@ function PlanImport({ onSaved }: { onSaved: (p: PlanLoad) => void }) {
   );
 }
 
+type IdleWindow = Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+/** Idle time, or a short timer where the browser has none. */
+const idle = (fn: () => void): number => {
+  const w = window as IdleWindow;
+  return w.requestIdleCallback ? w.requestIdleCallback(fn, { timeout: 2000 }) : window.setTimeout(fn, 100);
+};
+const cancelIdle = (id: number) => {
+  const w = window as IdleWindow;
+  if (w.cancelIdleCallback) w.cancelIdleCallback(id);
+  else window.clearTimeout(id);
+};
+
 export function Haven() {
   const auth = useDeskAuth((s) => s.auth.status);
   const signedIn = auth === "in";
@@ -138,7 +150,10 @@ export function Haven() {
   const flown = useRef(false);
   const onScreen = useRoomShown();
   const wasOnScreen = useRef(onScreen);
+  // A house waiting to be built out of sight (#1173, below): built at once when the Haven comes on screen first.
+  const buildNow = useRef<(() => void) | null>(null);
   useEffect(() => {
+    if (onScreen) buildNow.current?.();
     if (onScreen && !wasOnScreen.current) house.current?.rise();
     wasOnScreen.current = onScreen;
   }, [onScreen]);
@@ -294,9 +309,9 @@ export function Haven() {
   useEffect(() => {
     if (!thePlan || !houseHost.current || !labelHost.current) return;
     let gone = false;
-    void import("./house.ts").then(({ House, canDraw3D }) => {
-      if (gone || !houseHost.current || !labelHost.current) return;
-      if (!canDraw3D()) return setGl("none");
+    let idleId = 0;
+    const build = (House: typeof import("./house.ts").House) => {
+      if (!houseHost.current || !labelHost.current) return;
       try {
         const head = houseHost.current.parentElement?.querySelector(".hv-head");
         // Behind the controls on a phone the house fits its whole box: nothing to keep clear of.
@@ -325,9 +340,27 @@ export function Haven() {
       } catch {
         setGl("none");
       }
+    };
+    void import("./house.ts").then(({ House, canDraw3D }) => {
+      if (gone || !houseHost.current || !labelHost.current) return;
+      if (!canDraw3D()) return setGl("none");
+      const make = () => {
+        buildNow.current = null;
+        if (idleId) cancelIdle(idleId);
+        idleId = 0;
+        if (gone || house.current) return;
+        build(House);
+      };
+      // Kept behind another room (#934), the house is built in idle time of its own (#1173), not in the task that
+      // mounted the page: the two together held the room on screen for half a second.
+      if (wasOnScreen.current) return make();
+      buildNow.current = make;
+      idleId = idle(make);
     });
     return () => {
       gone = true;
+      if (idleId) cancelIdle(idleId);
+      buildNow.current = null;
       house.current?.dispose();
       house.current = null;
       setAway(false);

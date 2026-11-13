@@ -290,6 +290,8 @@ const mealEdit = async (host: ToolHost, ...edits: Array<MealEdit | string>): Pro
     said.push(...got.changes);
     last = plainLine(got.changes[got.changes.length - 1] ?? "Changed the meal plan", 60);
   }
+  // Nothing changed (#1095: the meal was already on that night): said plainly, never as a change made.
+  if (!said.length) return { ok: true, text: "Nothing changed: the plan already has that. Read the week to check which night is which.", did: "Checked the meal plan" };
   return { ok: true, text: `${said.join(" ")} The Kitchen page shows it; Undo is there too.`, did: last };
 };
 const dayOf = (v: unknown): Day => (DAYS as readonly unknown[]).includes(v) ? (v as Day) : "mon";

@@ -104,7 +104,8 @@ export async function deliverCallAnswer(job: CallJob, d: DeliverDeps, limits: { 
     if (d.deep && left() >= DEEP_MIN_MS) {
       const said = await within(d.deep(job.ask, job.depth), left());
       if (typeof said === "string" && said.trim()) {
-        const text = fitAnswer(said);
+        // Without its narration ("so I'll search", "this looks surprising, so I'll verify it", #1116): only the answer.
+        const text = fitAnswer(withoutMeta(said));
         return await done(text ? "deep" : "unfit", text || UNFIT);
       }
     }

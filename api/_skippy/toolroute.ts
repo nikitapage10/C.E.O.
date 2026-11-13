@@ -193,6 +193,9 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
       // One path per question (#952): once a slow search is passed on, asking it again is answered with silence, so
       // the search's late result is never said as a second answer.
       if (query && passedOn.has(key)) return json({ read: "web", text: PASSED_ON });
+      // The same question already passed on another way (#1116): no second lookup.
+      const again = query ? askedBefore(check.hash, query, deps.now) : null;
+      if (again) return json({ read: "web", text: again });
       const text = await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - WEB_FILE_MS);
       // Slow: no polling. The question is passed on once, with its one waiting line, and the search that is still
       // running answers it the moment it is in (#1054; before, its late answer was dropped); its answer is put into the
@@ -291,6 +294,48 @@ const passedOn = new Set<string>();
 /** What a repeat of a passed-on search hears: nothing to say, the answer is coming. */
 export const PASSED_ON = "That question is already being looked up, and its answer is put into the call the moment it lands. Say nothing now, don't search again, and stop.";
 
+/**
+ * One lookup per question on a call (#1116). Nikita, 2026-11-13: asked about an election, the call ran its web search
+ * and its deeper mind on the same question, said two answers, and "keep going" started a third lookup that sat on
+ * "Still pondering…". So a call's passed-on questions are noted (on this instance, like `passedOn`): the same
+ * question again, by the search or the deeper mind, is answered with silence while its answer comes; "keep going"
+ * after one is finished from what has come back, not looked up again.
+ */
+const asked = new Map<string, { ask: string; at: number }[]>();
+/** How long a passed-on question counts as the one being answered: its answer's own deadline, and a little. */
+export const ASKED_MS = 90_000;
+/** "Keep going", "go on", "and?": the rest of the last answer, not a new question. */
+export const CONTINUE = /^(?:ok(?:ay)?[, ]+)?(?:keep going|go on|carry on|continue|and\??|and then\??|then what\??|what else\??|more|tell me more|finish(?: it| that)?|the rest)[.!?]*$/i;
+/** What "keep going" hears: finish the last answer from what came back. */
+export const GO_ON = "Nikita wants the rest of what you were telling him. Finish the last answer your deeper mind gave, from what is already in the call, in a sentence or two, with no waiting line and no new lookup. If its answer hasn't come in yet, say nothing and stop: it is put into the call the moment it lands.";
+const WORD_SKIP = new Set(["what", "when", "where", "which", "about", "there", "their", "with", "that", "this", "from", "have", "were", "will", "would", "could", "recent", "recently", "latest", "skippy", "tell", "know"]);
+const wordsOf = (t: string) => new Set(t.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter((w) => w.length >= 4 && !WORD_SKIP.has(w)));
+
+/** Whether two asks are the same question: most of the shorter one's words are in the other. */
+export function sameQuestion(a: string, b: string): boolean {
+  const x = wordsOf(a);
+  const y = wordsOf(b);
+  const [small, big] = x.size <= y.size ? [x, y] : [y, x];
+  let hit = 0;
+  for (const w of small) if (big.has(w)) hit++;
+  // At least two words in common, so two short asks that share one word ("ask number one", "ask number two") differ.
+  return hit >= 2 && hit / small.size >= 0.6;
+}
+
+/** What a repeat of a recent question on this call hears (silence, or finish it), or null for a new question. */
+export function askedBefore(call: string, ask: string, now: number): string | null {
+  const recent = (asked.get(call) ?? []).filter((r) => now - r.at < ASKED_MS);
+  if (!recent.length) return null;
+  if (CONTINUE.test(ask.trim())) return GO_ON;
+  return recent.some((r) => sameQuestion(r.ask, ask)) ? PASSED_ON : null;
+}
+
+/** Notes a question passed on from this call. */
+export function noteAsked(call: string, ask: string, now: number): void {
+  if (asked.size > 200) asked.clear();
+  asked.set(call, [...(asked.get(call) ?? []).filter((r) => now - r.at < ASKED_MS), { ask, at: now }]);
+}
+
 /** What the web tool keeps of its budget for passing a slow search on (two blob writes), inside the five seconds. */
 export const WEB_FILE_MS = 900;
 
@@ -302,6 +347,9 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   const ask = typeof body?.ask === "string" ? body.ask.replace(/\s+/g, " ").trim().slice(0, ASK_MAX) : "";
   if (!ask) return json({ error: "bad-request" }, 400);
   if (privateParts(ask).length) return json({ ok: false, text: CALL_FAILED.private });
+  // A question already on its way, or "keep going" after one (#1116): no second lookup.
+  const again = askedBefore(check.hash, ask, deps.now);
+  if (again) return json({ ok: true, answered: true, text: again });
   // The one brain (#926): quick first, on the call itself, as the passkey that started it.
   if (deps.brain && check.passkey) {
     const quick = await withTime(deps.brain(ask, check.passkey, check.screen).catch((): CallTurn => ({ error: "model" })), Math.min(QUICK_BUDGET_MS, (deps.budgetMs ?? READ_BUDGET_MS) - 300));
@@ -343,6 +391,7 @@ async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenChec
   } catch {
     return { ok: false, text: UNREACHABLE };
   }
+  noteAsked(check.hash, ask, deps.now);
   // Answered here, not awaited (#1054): the search when there is one, else the deeper run, else an honest line.
   deps.deliver?.({ id, ask, depth, asked: deps.now, ...(search && { search }) });
   const line = waitingLine(check.hash, deps.now) ? WAIT_QUIP : "You already said this question's waiting line: say nothing now, and stop.";

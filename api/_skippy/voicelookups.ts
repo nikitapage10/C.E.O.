@@ -259,7 +259,7 @@ export async function webSearch(rawQuery: unknown, call: string, d: WebDeps, now
 export const voiceLookupPrompt = (now: number) => `${lookupPrompt(now)} The summary is read aloud on a live call: at most 70 words, the answer itself first in one or two sentences.`;
 
 /** A sentence about the looking, not the finding: narration, or a doubt about a page's date (#1069). */
-const META = /^(?:searching|search(?:ing)? now|let me|i'?ll|i will|i'?m (?:going to|searching|checking|looking|flagging)|one moment|checking|looking (?:that|it) up)\b|\b(?:may|might|could) not (?:be|match|reflect) (?:today|the current)|\bpage'?s date\b|\bwhich may not be today\b|\bcheck a live source\b|\bcan'?t (?:verify|confirm) (?:the|today'?s) date\b/i;
+const META = /^(?:searching|search(?:ing)? now|let me|i'?ll|i will|i'?m (?:going to|searching|checking|looking|flagging)|one moment|checking|looking (?:that|it) up)\b|\b(?:may|might|could) not (?:be|match|reflect) (?:today|the current)|\bpage'?s date\b|\bwhich may not be today\b|\bcheck a live source\b|\bcan'?t (?:verify|confirm) (?:the|today'?s) date\b|\b(?:i'?ll|i will|let me|so i'?m going to) (?:search|look (?:it |that )?up|look for|check|verify|confirm|double-check)\b|^(?:tonight|today|it'?s|now)(?: is)? (?:\w+day,? )?\w+ \d{1,2},? \d{4}\b[^.]*\b(?:so|which means)\b/i;
 
 /** A search's summary without its narration or date doubts (#1069): only what it found is said. */
 export function withoutMeta(text: string): string {

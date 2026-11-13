@@ -168,9 +168,17 @@ export const ponderingLine = (id: string): string => PONDERING[parseInt(id.slice
 const PLUMBING = /\b(?:threads?|kernel|hand-?offs?|handed (?:it )?off|hand(?:ing)? (?:it )?off|listener|watcher|needs=skippy)\b/i;
 
 /** An answer's text as it may be kept: one plain line, nothing private, no money, no plumbing; "" when it isn't fit. */
+/** Text held to `max` characters, cut after its last whole sentence that fits (#1116: an answer stopped mid-sentence). */
+export function atSentence(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return end > max / 3 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : max).trimEnd()}…`;
+}
+
 export function fitAnswer(raw: unknown): string {
   if (typeof raw !== "string") return "";
-  const text = plainLine(raw, 700);
+  const text = atSentence(plainLine(raw, 2_000), 700);
   if (!text || privateParts(text).length || HAS_MONEY.test(text) || PLUMBING.test(text)) return "";
   return text;
 }

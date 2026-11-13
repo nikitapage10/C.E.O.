@@ -34,6 +34,15 @@
 [data-room="haven"] .hv-ls-add button:disabled{opacity:.4;cursor:default}
 [data-room="haven"] .hv-ls-add button:not(:disabled):hover,[data-room="haven"] .hv-ls-clear:hover,[data-room="haven"] .hv-ls-foot button:hover{color:var(--hv-ink);border-color:rgba(var(--hv-gold),.5)}
 [data-room="haven"] .hv-ls-clear{margin-top:8px}
+/* #1091: Clear ticked, Clear list and Delete list in one row; the "Are you sure" in the warning colour; New list. */
+[data-room="haven"] .hv-ls-acts{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px}
+[data-room="haven"] .hv-ls-acts:empty{display:none}
+[data-room="haven"] .hv-ls-ask{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--hv-warn,#f2b36b)}
+[data-room="haven"] .hv-ls-ask button{height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--hv-line);background:none;color:var(--hv-soft);font-family:var(--hv-text);font-size:12px;cursor:pointer}
+[data-room="haven"] .hv-ls-ask button.is-yes{border-color:var(--hv-warn,#f2b36b);color:var(--hv-warn,#f2b36b)}
+[data-room="haven"] .hv-ls-newb{display:block;width:100%;min-height:40px;padding:0 14px;border:0;border-top:1px solid var(--hv-line);background:none;color:var(--hv-mute);font-family:var(--hv-text);font-size:13px;text-align:left;cursor:pointer}
+[data-room="haven"] .hv-ls-newb:hover,[data-room="haven"] .hv-ls-newb:focus-visible{color:rgb(var(--hv-gold))}
+[data-room="haven"] .hv-ls-new{margin:6px 14px 10px}
 [data-room="haven"] .hv-ls-foot{display:flex;align-items:center;gap:10px;margin:0;padding:0 14px 10px;font-size:12px;color:var(--hv-mute)}
 [data-room="haven"] .hv-ls-foot:empty{padding:0}
 [data-room="haven"] .hv-ls-counts{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;padding:4px 14px 12px;font-size:13px;color:var(--hv-mute)}

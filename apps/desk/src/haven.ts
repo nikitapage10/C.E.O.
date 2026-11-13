@@ -24,8 +24,8 @@ export interface HavenCounts {
   ready: boolean;
 }
 
-/** The private lists (#735, api/_haven/list.ts `LISTS`): the Kitchen list (groceries) and Things to buy. */
-export type ListId = "kitchen" | "buy";
+/** The private lists (#735, api/_haven/list.ts): the Kitchen list (groceries), Things to buy, and the ones he made (#1091, "l-…"). */
+export type ListId = string;
 export interface ListCount {
   id: ListId;
   name: string;
@@ -35,6 +35,8 @@ export interface ListCount {
 export interface ListView {
   id: ListId;
   name: string;
+  /** A list he made on the Desk (#1091): the only kind that can be deleted. */
+  custom?: true;
   items: KitchenItem[];
 }
 
@@ -91,6 +93,14 @@ export const removeOn = (list: ListId, id: string, f: typeof fetch = fetch) => p
 export const undoRemoveOn = (list: ListId, id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "undo-remove", list, id }, f);
 export const addOn = (list: ListId, text: string, f: typeof fetch = fetch) => post<{ added: string[]; already: string[]; items: KitchenItem[] }>({ action: "list-add", list, text }, f);
 export const clearDoneOn = (list: ListId, f: typeof fetch = fetch) => post<{ cleared: number }>({ action: "clear-done", list }, f);
+/** Clear list (#1091): every item off, `at` for its Undo. */
+export const clearListOn = (list: ListId, f: typeof fetch = fetch) => post<{ cleared: number; at: string }>({ action: "clear-list", list }, f);
+export const undoClearOn = (list: ListId, at: string, f: typeof fetch = fetch) => post<{ back: number }>({ action: "undo-clear", list, at }, f);
+/** New list and Delete list (#1091): only a list he made can be deleted. */
+export const newList = (name: string, f: typeof fetch = fetch) => post<{ list: ListView }>({ action: "list-new", name }, f);
+export const deleteListOn = (list: ListId, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "list-delete", list }, f);
+/** What the Desk says when New list didn't work. */
+export const NEW_LIST_NOTE: Record<string, string> = { taken: "There's already a list with that name.", "too-many": "That's as many lists as it keeps. Delete one first.", "bad-name": "Give the list a name." };
 export const addPhone = (label: string, f: typeof fetch = fetch) => post<{ phone: PhoneRow; key: string }>({ action: "add-phone", label }, f);
 export const revokePhone = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "revoke-phone", id }, f);
 export const makeGreetings = (f: typeof fetch = fetch) => post<{ clips: number }>({ action: "make-greetings" }, f);

@@ -13,8 +13,10 @@
  *
  * Lists (#735): the Kitchen list is one of the private lists (`LISTS`): "Groceries" (the Kitchen list, this file's
  * original) and "Things to buy" (`haven/lists/buy.json`: the Amazon-style list of things that aren't groceries, a phone
- * charger, batteries). Each is its own JSON file with the same rules; a new list is one more entry in `LISTS`. Nothing
- * here buys anything. The Desk shows every list in the Haven (rooms/haven/web/HavenLists.tsx); the Kitchen page keeps its
+ * charger, batteries). Each is its own JSON file with the same rules. Nikita can make more from the Desk (New list): their
+ * names and ids are kept in `haven/lists/index.json` (`CUSTOM_PATH`), each list in its own `haven/lists/<id>.json`, and
+ * only those can be deleted. A custom list's name is his own words, so the public counts never carry it. Nothing here
+ * buys anything; items sent to the King Soopers cart leave the Kitchen list (`removeKeys`). The Desk shows every list in the Haven (rooms/haven/web/HavenLists.tsx); the Kitchen page keeps its
  * own view of the groceries.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -106,13 +108,90 @@ export function addTo(items: ListItem[], names: string[], now: number, id: () =>
   return { items: next.slice(-LIST_MAX), result: { added, already } };
 }
 
-/** The private lists, in the order the Desk shows them. `kitchen` is the Kitchen list (groceries). */
+/** The built-in private lists, in the order the Desk shows them. `kitchen` is the Kitchen list (groceries). */
 export const LISTS = [
   { id: "kitchen", name: "Groceries", path: LIST_PATH },
   { id: "buy", name: "Things to buy", path: "haven/lists/buy.json" },
 ] as const;
-export type ListId = (typeof LISTS)[number]["id"];
-export const isListId = (v: unknown): v is ListId => LISTS.some((l) => l.id === v);
+/** A list's id: a built-in one (`LISTS`) or one Nikita made ("l-" and eight letters or digits). */
+export type ListId = string;
+/** One list: its id, name and file. `custom` when Nikita made it on the Desk (the only kind that can be deleted). */
+export interface ListDef {
+  id: ListId;
+  name: string;
+  path: string;
+  custom?: true;
+}
+
+/** Where the lists Nikita made are named (#1091). */
+export const CUSTOM_PATH = "haven/lists/index.json";
+/** The most lists he can make. */
+export const CUSTOM_MAX = 12;
+export const LIST_NAME_MAX = 40;
+const CUSTOM_ID = /^l-[a-z0-9]{8}$/;
+const isBuiltIn = (v: unknown) => LISTS.some((l) => l.id === v);
+const customPath = (id: string) => `haven/lists/${id}.json`;
+
+/** A list's name as kept: one plain line, capped. "" when nothing is left. */
+export const cleanListName = (v: unknown): string => (typeof v === "string" ? v.replace(/[\p{Cc}<>]/gu, "").replace(/\s+/g, " ").trim().slice(0, LIST_NAME_MAX) : "");
+
+function cleanCustom(raw: unknown): ListDef[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ListDef[] = [];
+  for (const r of raw) {
+    if (!r || typeof r !== "object") continue;
+    const { id, name } = r as Record<string, unknown>;
+    const clean = cleanListName(name);
+    if (typeof id === "string" && CUSTOM_ID.test(id) && clean && !out.some((d) => d.id === id)) out.push({ id, name: clean, path: customPath(id), custom: true });
+  }
+  return out.slice(0, CUSTOM_MAX);
+}
+
+/** Every list: the built-in ones, then the ones he made, oldest first. */
+export async function listDefs(blob: BlobBackend): Promise<ListDef[]> {
+  const custom = await readJson<unknown>(blob, CUSTOM_PATH, []).then(cleanCustom, () => []);
+  return [...LISTS.map((l) => ({ id: l.id, name: l.name, path: l.path })), ...custom];
+}
+
+/** The list a request names, or null when there is no such list. */
+export async function findList(blob: BlobBackend, id: unknown): Promise<ListDef | null> {
+  if (typeof id !== "string") return null;
+  if (!isBuiltIn(id) && !CUSTOM_ID.test(id)) return null;
+  return (await listDefs(blob)).find((d) => d.id === id) ?? null;
+}
+
+export type MadeList = { ok: true; list: ListDef } | { ok: false; error: "bad-name" | "too-many" | "taken" };
+
+/** Makes a new, empty list (the Desk's New list). A name another list already has (ignoring case) is "taken". */
+export async function makeList(blob: BlobBackend, name: unknown): Promise<MadeList> {
+  const clean = cleanListName(name);
+  if (!clean) return { ok: false, error: "bad-name" };
+  const key = clean.toLowerCase();
+  if (LISTS.some((l) => l.name.toLowerCase() === key)) return { ok: false, error: "taken" };
+  return updateJson(blob, CUSTOM_PATH, [] as unknown, (raw) => {
+    const cur = cleanCustom(raw);
+    if (cur.some((d) => d.name.toLowerCase() === key)) return { next: null, result: { ok: false, error: "taken" } as MadeList };
+    if (cur.length >= CUSTOM_MAX) return { next: null, result: { ok: false, error: "too-many" } as MadeList };
+    const id = `l-${randomBytes(6).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "0").slice(0, 8)}`;
+    const list: ListDef = { id, name: clean, path: customPath(id), custom: true };
+    return { next: [...cur, list].map((d) => ({ id: d.id, name: d.name })), result: { ok: true, list } as MadeList };
+  });
+}
+
+/**
+ * Deletes a list he made (the Desk's Delete list, after its "Are you sure"): its name leaves the index and its file
+ * is deleted. The built-in lists can't be deleted. False when there is no such list.
+ */
+export async function deleteList(blob: BlobBackend, id: unknown): Promise<boolean> {
+  if (typeof id !== "string" || !CUSTOM_ID.test(id)) return false;
+  const gone = await updateJson(blob, CUSTOM_PATH, [] as unknown, (raw) => {
+    const cur = cleanCustom(raw);
+    if (!cur.some((d) => d.id === id)) return { next: null, result: false };
+    return { next: cur.filter((d) => d.id !== id).map((d) => ({ id: d.id, name: d.name })), result: true };
+  });
+  if (gone) await blob.del(customPath(id)).catch(() => undefined);
+  return gone;
+}
 
 /** One list in the private store (`LISTS`). */
 export class PrivateList {
@@ -193,6 +272,31 @@ export class PrivateList {
     });
   }
 
+  /** Brings back what one Clear list took (its Undo): every item removed at that moment. How many came back. */
+  async restoreCleared(at: unknown, now: number): Promise<number> {
+    if (typeof at !== "string" || !at) return 0;
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
+      const cur = cleanItems(raw, now);
+      const back = cur.filter((i) => i.removedAt === at).length;
+      return { next: back ? cur.map((i) => (i.removedAt === at ? (({ removedAt: _gone, ...rest }) => rest)(i) : i)) : null, result: back };
+    });
+  }
+
+  /**
+   * Takes the open items with these keys (`sameKey`) off the list (#1091): what was just sent to the King Soopers cart is
+   * bought, so it leaves the list. Hidden like a removal. How many went.
+   */
+  async removeKeys(keys: ReadonlySet<string>, now: number): Promise<number> {
+    if (!keys.size) return 0;
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
+      const cur = cleanItems(raw, now);
+      const at = new Date(now).toISOString();
+      const drop = (i: ListItem) => !i.removedAt && !i.done && keys.has(sameKey(i.name));
+      const gone = cur.filter(drop).length;
+      return { next: gone ? cur.map((i) => (drop(i) ? { ...i, removedAt: at } : i)) : null, result: gone };
+    });
+  }
+
   /**
    * Takes off the open items one source put on the list that it no longer wants (#761: the meal planner's lines after the
    * plan changed and was finalized again), compared by `sameKey`. Ticked items and other sources' stay. How many went.
@@ -224,17 +328,28 @@ export class KitchenList extends PrivateList {
   }
 }
 
-/** A list by its id (`LISTS`). */
-export const listOf = (blob: BlobBackend, id: ListId): PrivateList => (id === "kitchen" ? new KitchenList(blob) : new PrivateList(blob, LISTS.find((l) => l.id === id)!.path));
+/** A built-in list by its id (`LISTS`). */
+export const listOf = (blob: BlobBackend, id: (typeof LISTS)[number]["id"]): PrivateList => (id === "kitchen" ? new KitchenList(blob) : new PrivateList(blob, LISTS.find((l) => l.id === id)!.path));
 
-/** Every list with its items (signed in only). */
-export async function allLists(blob: BlobBackend, now: number): Promise<Array<{ id: ListId; name: string; items: ListItem[] }>> {
-  return Promise.all(LISTS.map(async (l) => ({ id: l.id, name: l.name, items: await listOf(blob, l.id).items(now) })));
+/** Any list by its definition (`listDefs`, `findList`). */
+export const listAt = (blob: BlobBackend, def: ListDef): PrivateList => (def.id === "kitchen" ? new KitchenList(blob) : new PrivateList(blob, def.path));
+
+/** Every list with its items (signed in only). `custom` marks the ones he made. */
+export async function allLists(blob: BlobBackend, now: number): Promise<Array<{ id: ListId; name: string; custom?: true; items: ListItem[] }>> {
+  return Promise.all((await listDefs(blob)).map(async (l) => ({ id: l.id, name: l.name, ...(l.custom && { custom: true as const }), items: await listAt(blob, l).items(now) })));
 }
 
-/** Every list's counts, never a name (the public face). */
+/**
+ * Every list's counts, never an item (the public face). The lists he made are named in his own words, so they are
+ * counted together as "Other lists" and never named.
+ */
 export async function listCounts(blob: BlobBackend, now: number): Promise<Array<{ id: ListId; name: string } & ListCounts>> {
-  return Promise.all(LISTS.map(async (l) => ({ id: l.id, name: l.name, ...(await listOf(blob, l.id).counts(now).catch(() => ({ open: 0, done: 0 }))) })));
+  const defs = await listDefs(blob);
+  const each = await Promise.all(defs.map(async (l) => ({ l, c: await listAt(blob, l).counts(now).catch(() => ({ open: 0, done: 0 })) })));
+  const out: Array<{ id: ListId; name: string } & ListCounts> = each.filter((e) => !e.l.custom).map((e) => ({ id: e.l.id, name: e.l.name, ...e.c }));
+  const mine = each.filter((e) => e.l.custom);
+  if (mine.length) out.push({ id: "other", name: "Other lists", open: mine.reduce((n, e) => n + e.c.open, 0), done: mine.reduce((n, e) => n + e.c.done, 0) });
+  return out;
 }
 
 /** What removing by name came to. `ambiguous` holds, for each name, the item names it could have meant. */

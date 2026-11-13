@@ -4,7 +4,7 @@ import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { callTool, type ToolHost } from "../_skippy/agent/tools.ts";
 import { classify, sayAdded, sayRemoved } from "./classify.ts";
-import { KitchenList, LISTS, listOf } from "./list.ts";
+import { CUSTOM_MAX, KitchenList, LISTS, listOf } from "./list.ts";
 import { PhoneKeys } from "./phones.ts";
 import { PhoneTodos } from "./todos.ts";
 import { capture, havenGet, havenPost, type HavenDeps } from "./route.ts";
@@ -201,5 +201,59 @@ describe("Desk Skippy's buy_add (#735)", () => {
     const out = await callTool("buy_add", { items: ["phone charger"] }, host, { surface: "desk" } as never);
     expect(JSON.stringify(out)).toContain("Things to buy");
     expect((await listOf(blob, "buy").items(NOW)).map((i) => i.name)).toEqual(["phone charger"]);
+  });
+});
+
+describe("Clear list and New list (#1091)", () => {
+  it("clears a whole list with an Undo, makes new lists that keep their names private, and deletes only those", async () => {
+    const blob = memoryBlob();
+    const store = new MemoryAuthStore();
+    const deps = havenDeps(blob, store);
+    const cookie = await signedInCookie(DESK, NOW, store);
+    const send = async (body: unknown) => {
+      const res = await havenPost(new Request(`${ORIGIN}/api/haven`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify(body) }), deps);
+      return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+    };
+    await new KitchenList(blob).add(["oat milk", "lemons"], NOW);
+
+    // Clear list: everything off, then Undo brings back exactly what it took.
+    const cleared = await send({ action: "clear-list" });
+    expect(cleared.body).toMatchObject({ ok: true, cleared: 2 });
+    expect(await new KitchenList(blob).counts(NOW)).toEqual({ open: 0, done: 0 });
+    expect((await send({ action: "undo-clear", at: cleared.body.at })).body).toEqual({ ok: true, back: 2 });
+    expect(await new KitchenList(blob).counts(NOW)).toEqual({ open: 2, done: 0 });
+    expect((await send({ action: "undo-clear", at: "2020-01-01T00:00:00.000Z" })).body).toEqual({ ok: true, back: 0 });
+
+    // New list: an empty list with its name; a taken or empty name is turned down.
+    const made = await send({ action: "list-new", name: "  Test   hardware run " });
+    expect(made.status).toBe(200);
+    const list = made.body.list as { id: string; name: string; custom: boolean; items: unknown[] };
+    expect(list).toMatchObject({ name: "Test hardware run", custom: true, items: [] });
+    expect(list.id).toMatch(/^l-[a-z0-9]{8}$/);
+    expect((await send({ action: "list-new", name: "test HARDWARE run" })).status).toBe(409);
+    expect((await send({ action: "list-new", name: "groceries" })).status).toBe(409);
+    expect((await send({ action: "list-new", name: "  " })).status).toBe(400);
+
+    // It takes items like any list, and the lists view shows it after the built-in ones.
+    expect((await send({ action: "list-add", list: list.id, text: "test hinges" })).status).toBe(200);
+    const lists = ((await (await havenGet(new Request(`${ORIGIN}/api/haven?view=lists`, { headers: { Cookie: cookie } }), deps)).json()) as { lists: { id: string; name: string; custom?: boolean; items: { name: string }[] }[] }).lists;
+    expect(lists.map((l) => l.id)).toEqual(["kitchen", "buy", list.id]);
+    expect(lists[2]).toMatchObject({ name: "Test hardware run", custom: true, items: [{ name: "test hinges" }] });
+
+    // Signed out, a made list is counted under "Other lists", never named.
+    const status = await (await havenGet(new Request(`${ORIGIN}/api/haven?view=status`), deps)).text();
+    expect(JSON.parse(status).lists).toContainEqual({ id: "other", name: "Other lists", open: 1, done: 0 });
+    expect(status).not.toMatch(/hardware|hinges/);
+
+    // Delete list: a made list goes with its file; the built-in ones can't be deleted; an unknown id is a bad request.
+    expect((await send({ action: "list-delete", list: "kitchen" })).status).toBe(404);
+    expect((await send({ action: "list-delete", list: list.id })).body).toEqual({ ok: true });
+    expect(blob.files.has(`haven/lists/${list.id}.json`)).toBe(false);
+    expect((await send({ action: "list-add", list: list.id, text: "x" })).status).toBe(400);
+    expect(await new KitchenList(blob).counts(NOW)).toEqual({ open: 2, done: 0 });
+
+    // At most CUSTOM_MAX made lists.
+    for (let i = 0; i < CUSTOM_MAX; i++) expect((await send({ action: "list-new", name: `Test list ${i}` })).status).toBe(200);
+    expect((await send({ action: "list-new", name: "One too many" })).body.error).toBe("too-many");
   });
 });

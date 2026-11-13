@@ -416,6 +416,17 @@ describe("reading the lists (#1131)", () => {
   });
 });
 
+describe("the scoreboard on every surface (#1130)", () => {
+  it("answers tonight's games from the scoreboard, and says so when it doesn't answer", async () => {
+    const asked: unknown[] = [];
+    const h = { ...host(), scores: async (league: unknown, team: unknown) => (asked.push([league, team]), "NFL tonight: Bills at Broncos, 6:15 pm.") };
+    expect(await callTool("live_scores", { league: "nfl" }, h, { pending: new MemoryPending(), surface: "spoken" })).toMatchObject({ ok: true, text: "NFL tonight: Bills at Broncos, 6:15 pm." });
+    expect(asked).toEqual([["nfl", undefined]]);
+    const down = { ...host(), scores: async () => Promise.reject(new Error("down")) };
+    expect(await callTool("live_scores", {}, down, { pending: new MemoryPending(), surface: "desk" })).toMatchObject({ ok: true, text: "The scoreboard didn't answer just now." });
+  });
+});
+
 describe("the agent's endpoints (#646)", () => {
   it("POST /api/skippy-act runs a tap only in a passkey session, once", async () => {
     const { desk, cookie } = await signed();

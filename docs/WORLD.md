@@ -113,7 +113,7 @@ through the day. `api/_world/story.ts`.
   everything spoken:** `ELEVENLABS_VOICE_ID` (letters and digits only, else the default), read through `elevenVoice`
   in `api/_world/story.ts`, sets the voice of the day's story, the week in Ilyr and Skippy's live voice calls
   (`api/_skippy/voice.ts`) alike. It answers raw 16-bit mono PCM at **24 kHz**, wrapped as WAV (48 KB a second, a
-  45-second story about 2.2 MB). Its **own cap**, `ELEVENLABS_BUDGET_USD` (default **$10**, never above $10, shared
+  45-second story about 2.2 MB). Its **own cap**, `ELEVENLABS_BUDGET_USD` (none by default since 2026-11-13, the plan's credits being the limit; when set, shared
   with the live calls), counted at the API rate of $0.08 per 1,000 characters (a plan's credits come cheaper, so the
   count errs high), kept in `world/stories/spend.json` (`elevenUsd`, `elevenChars`, `elevenCalls`); no reading starts
   once one more at its longest (2,000 characters, 16 cents, room for the week's script) could pass it. A day's story

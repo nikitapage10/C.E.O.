@@ -409,13 +409,14 @@ describe("the ElevenLabs voice (#365)", () => {
   it("reads the settings from the environment only: key, voice (sanitised) and a $10 cap", () => {
     expect(elevenFromEnv({})).toBeNull();
     expect(elevenFromEnv({ ELEVENLABS_API_KEY: "  " })).toBeNull();
-    expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY })).toEqual({ key: ELEVEN_KEY, voice: ELEVEN_VOICE, budget: 10 });
+    expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY })).toEqual({ key: ELEVEN_KEY, voice: ELEVEN_VOICE, budget: Number.POSITIVE_INFINITY });
     expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY, ELEVENLABS_VOICE_ID: "JBFqnCBsd6RMkjVDRZzb", ELEVENLABS_BUDGET_USD: "3" })).toMatchObject({ voice: "JBFqnCBsd6RMkjVDRZzb", budget: 3 });
     expect(elevenVoice("../../v1/user")).toBe(ELEVEN_VOICE);
     // A custom voice id is taken as set: one setting, for the story and the live calls alike.
     expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY, ELEVENLABS_VOICE_ID: "UmB8prvfojxqchgnJYWe" })?.voice).toBe("UmB8prvfojxqchgnJYWe");
-    expect(elevenBudget("50")).toBe(10);
-    expect(elevenBudget(undefined)).toBe(10);
+    expect(elevenBudget("50")).toBe(50);
+    // No dollar cap unless one is set: the plan's credits are the limit (2026-11-13).
+    expect(elevenBudget(undefined)).toBe(Number.POSITIVE_INFINITY);
   });
 
   it("reads PCM at 24 kHz, with the key only in a header, its spend on its own line", async () => {

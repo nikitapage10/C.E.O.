@@ -163,7 +163,8 @@ export interface WorldFeed {
     tokensOut: number;
     scriptUsd: number;
     eleven: boolean;
-    elevenBudget: number;
+    /** Null when there is no dollar cap (the default since 2026-11-13: the plan's credits are the limit). */
+    elevenBudget: number | null;
     elevenUsd?: number;
     elevenChars?: number;
     elevenCalls?: number;

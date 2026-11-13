@@ -10,18 +10,18 @@
  * `{ room: "today", speak, as }` (roomroute.ts). Only the Rotunda's captions are ever sent, and they are public-safe by
  * construction (counts, room names, public titles; rite.ts). The privacy check still runs on every line.
  *
- * Cost (Nikita's Creator plan, a $10 monthly cap): every line is kept in the private blob store under a hash of its words,
+ * Cost (Nikita's Creator plan; its prepaid credits are the limit, no dollar cap since 2026-11-13): every line is kept in the private blob store under a hash of its words,
  * its voice, its settings and the model, so each line is synthesised once ever. The canned lines (the gallery's murmurs,
- * the Pessimist's counterpoints) cost nothing after their first play. A line that has to be made checks ElevenLabs' one
- * monthly cap (the stories' ledger, like every voice) and the Rotunda's own share of it, so the chamber can never eat
- * the day's story. Past either one, or with ElevenLabs down, nothing comes back and the browser reads the caption at
- * reading pace instead.
+ * the Pessimist's counterpoints) cost nothing after their first play. A line that has to be made checks the plan's
+ * characters left and stops while fewer than ROTUNDA_RESERVE_CHARS would remain, so the chamber can never eat the
+ * calls' or the day's story's share; a dollar cap, if ELEVENLABS_BUDGET_USD sets one, still holds. Past either, or with
+ * ElevenLabs down, nothing comes back and the browser reads the caption at reading pace instead.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
 import type { BlobBackend } from "../_blob.js";
-import { canSpeakEleven, elevenCost, storyMonth, type ElevenConfig, type StoryStore } from "../_world/story.js";
+import { canSpeakEleven, elevenCost, type ElevenConfig, type StoryStore } from "../_world/story.js";
 import { ROOM_TTS_FORMAT, ROOM_TTS_MODEL, ROOM_VOICES } from "./roomvoice.js";
 import { SKIPPY_SOUND, type VoiceSound } from "./voicecrew.js";
 import { rateOf } from "@ceo/desk/rotunda/senators.ts";
@@ -79,8 +79,37 @@ export const ROTUNDA_VOICES: Record<string, CastVoice> = {
 
 export const castVoiceOf = (by: unknown): CastVoice | null => (typeof by === "string" && Object.hasOwn(ROTUNDA_VOICES, by) ? ROTUNDA_VOICES[by]! : null);
 
-/** The Rotunda's share of ElevenLabs' monthly cap, in dollars at the ledger's rate: the rest stays for the stories and calls. */
-export const ROTUNDA_SHARE_USD = 3;
+/**
+ * The plan's characters the chamber leaves for Skippy's calls and the stories (Nikita, 2026-11-13: no dollar cap, the
+ * credits are the limit): the Senate stops speaking once fewer than this would be left.
+ */
+export const ROTUNDA_RESERVE_CHARS = 5_000;
+/** How long one read of the plan's credits is trusted. */
+const CREDITS_TTL_MS = 5 * 60_000;
+let credits: { at: number; left: number | null } | null = null;
+/** For tests: forget the last read of the plan's credits. */
+export const forgetCredits = (): void => {
+  credits = null;
+};
+
+/**
+ * The characters left on the ElevenLabs plan this cycle (GET /v1/user/subscription), read at most every five minutes;
+ * null when it can't be read (a key without the user read permission, ElevenLabs down), and then nothing is held back.
+ */
+export async function elevenCharsLeft(eleven: ElevenConfig, fetcher: typeof fetch, now: number): Promise<number | null> {
+  if (credits && now - credits.at >= 0 && now - credits.at < CREDITS_TTL_MS) return credits.left;
+  let left: number | null = null;
+  try {
+    const res = await fetcher("https://api.elevenlabs.io/v1/user/subscription", { headers: { "xi-api-key": eleven.key }, signal: AbortSignal.timeout(4_000) });
+    const b = res.ok ? ((await res.json().catch(() => null)) as { character_count?: unknown; character_limit?: unknown } | null) : null;
+    if (b && typeof b.character_count === "number" && typeof b.character_limit === "number") left = Math.max(0, b.character_limit - b.character_count);
+  } catch {
+    left = null;
+  }
+  credits = { at: now, left };
+  return left;
+}
+
 /** Where the lines are kept, one MP3 each, named by their hash. */
 export const ROTUNDA_CACHE = "rotunda-voice/";
 /** The longest line spoken (a caption is well under it). */
@@ -95,14 +124,18 @@ export async function lineKey(text: string, voice: string, s: VoiceSound): Promi
 
 type Ledger = Pick<StoryStore, "loadSpend" | "addSpend">;
 
-/** Whether one more line fits ElevenLabs' cap and the Rotunda's share of it. Unreadable means no (fail closed). */
-export async function rotundaUnderCap(eleven: ElevenConfig, ledger: Ledger, now: number, chars: number): Promise<boolean> {
+/**
+ * Whether one more line may be spoken: under a dollar cap if one is set (none by default), and leaving the plan at
+ * least ROTUNDA_RESERVE_CHARS for calls and stories. An unreadable ledger means no (fail closed).
+ */
+export async function rotundaUnderCap(eleven: ElevenConfig, ledger: Ledger, now: number, chars: number, fetcher: typeof fetch): Promise<boolean> {
   try {
-    const spend = await ledger.loadSpend();
-    return canSpeakEleven(spend, now, eleven.budget) && storyMonth(spend, now).rotundaUsd + elevenCost(chars) <= Math.min(ROTUNDA_SHARE_USD, eleven.budget);
+    if (!canSpeakEleven(await ledger.loadSpend(), now, eleven.budget)) return false;
   } catch {
     return false;
   }
+  const left = await elevenCharsLeft(eleven, fetcher, now);
+  return left === null || left - chars >= ROTUNDA_RESERVE_CHARS;
 }
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
@@ -119,7 +152,7 @@ export interface CastDeps {
 
 /**
  * One line in Skippy's voice, bent the member's way: from the cache when it has been said before, else made once by ElevenLabs Flash and kept.
- * Null when it can't be (no key, no store, the cap or the share reached, ElevenLabs down or slow).
+ * Null when it can't be (no key, no store, a set cap or the calls' reserve reached, ElevenLabs down or slow).
  */
 export async function speakCast(by: string, say: string, deps: CastDeps): Promise<{ audio: Uint8Array; cached: boolean } | null> {
   const cast = castVoiceOf(by);
@@ -137,7 +170,7 @@ export async function speakCast(by: string, say: string, deps: CastDeps): Promis
   } catch {
     /* an unreadable cache is a miss */
   }
-  if (!(await rotundaUnderCap(deps.eleven, deps.ledger, deps.now, text.length))) return null;
+  if (!(await rotundaUnderCap(deps.eleven, deps.ledger, deps.now, text.length, deps.fetcher))) return null;
   try {
     const res = await deps.fetcher(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=${ROOM_TTS_FORMAT}`, {
       method: "POST",

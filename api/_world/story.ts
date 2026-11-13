@@ -71,11 +71,15 @@ export const ELEVEN_USD_PER_1K_CHARS = 0.08;
  * also what the cap is checked against.
  */
 export const ELEVEN_MAX_CHARS = 2_000;
-/** ElevenLabs' own monthly cap (ELEVENLABS_BUDGET_USD), default $10, never above $10. */
-export const ELEVENLABS_BUDGET_USD = 10;
+/**
+ * ElevenLabs' monthly cap in dollars (ELEVENLABS_BUDGET_USD). None by default (Nikita, 2026-11-13: "there shouldn't be a
+ * cap. 11 Labs should just use credits until it runs out"): the plan's prepaid credits are the limit, and ElevenLabs
+ * refuses once they're gone. A number in the setting still caps it, for a month that needs one.
+ */
+export const ELEVENLABS_BUDGET_USD = Number.POSITIVE_INFINITY;
 export function elevenBudget(env: string | undefined): number {
   const n = Number(env);
-  return Number.isFinite(n) && n >= 0 && env !== undefined && env !== "" ? Math.min(n, 10) : ELEVENLABS_BUDGET_USD;
+  return Number.isFinite(n) && n >= 0 && env !== undefined && env !== "" ? n : ELEVENLABS_BUDGET_USD;
 }
 /** A voice id as ElevenLabs writes them (letters and digits), else the default: nothing else reaches the URL path. */
 export const elevenVoice = (env: string | undefined) => (env && /^[A-Za-z0-9]{8,40}$/.test(env.trim()) ? env.trim() : ELEVEN_VOICE);

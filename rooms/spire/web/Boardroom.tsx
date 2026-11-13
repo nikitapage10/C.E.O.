@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { boardView } from "../data/boardroom.ts";
 import { invoicesLine, startInvoices, useInvoices } from "../data/invoices.ts";
@@ -28,7 +28,7 @@ export function Boardroom({ onInvoices }: { onInvoices: () => void }) {
   const signIn = useDeskAuth((s) => s.signIn);
   const [gl, setGl] = useState<GL>("idle");
   const [hot, setHot] = useState<string | null>(null);
-  useRoomReady(gl === "on" || gl === "off");
+  useSceneReady(gl === "on" || gl === "off");
   useEffect(() => startInvoices(), []);
 
   const view = useMemo(() => boardView(load, status), [load, status]);

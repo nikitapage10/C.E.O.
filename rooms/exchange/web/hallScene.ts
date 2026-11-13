@@ -1,3 +1,4 @@
+import { isShown, showParts } from "@ceo/engine/web/sceneShow.ts";
 import {
   ACESFilmicToneMapping,
   AdditiveBlending,
@@ -1011,7 +1012,7 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
       drawScreen(g, 512, 416, it ? { soon: it } : { empty: "" });
       g.restore();
       u.tex.needsUpdate = true;
-      s.g.visible = !!it;
+      showParts(s.g, !!it);
     });
   const paintBook = () => {
     const g = bookCv.getContext("2d")!;
@@ -1289,7 +1290,7 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
       const q = NB + j;
       const st = streams[j]!;
       const s = soon[st.post]!;
-      if (!s.g.visible) {
+      if (!isShown(s.g)) {
         na[q] = 0;
         continue;
       }
@@ -1334,7 +1335,7 @@ export async function createHall(host: HTMLElement, canvas: HTMLCanvasElement, o
     holds.forEach((rig) => {
       if (rig.hold) report(rig.hold.id, tA.set(rig.at.x, rig.at.y + rig.h + 1.32, rig.at.z));
     });
-    soon.forEach((s, i) => report(`soon-${i}`, tA.set(s.at.x, POST_H + 0.4, s.at.z), s.g.visible));
+    soon.forEach((s, i) => report(`soon-${i}`, tA.set(s.at.x, POST_H + 0.4, s.at.z), isShown(s.g)));
   };
 
   // ---- the loop ---------------------------------------------------------------------------------------------------

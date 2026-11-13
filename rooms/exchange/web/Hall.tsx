@@ -5,7 +5,7 @@ import "./hall.css";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useHide } from "@ceo/engine/web/hide.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import { asideLine, byMove } from "../data/asides.ts";
 import { biggestMove, floorWord } from "../data/floor.ts";
 import { bookWord, hallView, shareWord, type HallSoon } from "../data/hall.ts";
@@ -46,7 +46,7 @@ export function Hall({ soon, onBook }: { soon: readonly HallSoon[]; onBook: () =
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [hot, setHot] = useState<string | null>(null);
   const [gl, setGl] = useState<GL>("idle");
-  useRoomReady(gl === "on" || gl === "off");
+  useSceneReady(gl === "on" || gl === "off");
 
   useEffect(() => {
     startPolymarket();

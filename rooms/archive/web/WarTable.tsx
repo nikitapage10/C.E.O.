@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import { PLACES, placeOf, stepPlace, WT_SILVER, WT_SILVER_RGB, type PlaceId } from "../data/warTable.ts";
 import type { PlaceState, WarTable as Scene } from "./warTableScene.ts";
 import { LegendSigils } from "./LegendSigils.tsx";
@@ -41,7 +41,7 @@ export function WarTable({ head, panels, notes, states, open, onOpen }: WarTable
   const pins = useRef(new Map<PlaceId, HTMLElement>());
   const [gl, setGl] = useState<GL>("idle");
   const [hot, setHot] = useState<PlaceId | null>(null);
-  useRoomReady(gl === "on" || gl === "off");
+  useSceneReady(gl === "on" || gl === "off");
   // On a phone the sheet is lifted to the Desk's root, so it stands over the page's footer as a sheet should.
   const [port, setPort] = useState<Element | null>(null);
   useEffect(() => {

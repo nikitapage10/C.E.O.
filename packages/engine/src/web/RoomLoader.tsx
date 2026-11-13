@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { reducedMotion } from "../sigils/motion.tsx";
 import { GRID, pointOn, rgbOf, seats, sigilOf, sigilPath, type RoomSigil } from "../sigils/roomSigils.ts";
 import { TAU } from "../sigils/wvCanvas.ts";
-import { CAP_MS, ReadyGate, RoomReadyContext, RoomShownContext } from "./roomReady.ts";
+import { CAP_MS, ReadyGate, RoomReadyContext, RoomShownContext, SCENE_CAP_MS } from "./roomReady.ts";
 import "./roomLoader.css";
 
 /**
@@ -14,8 +14,8 @@ import "./roomLoader.css";
  *   - A page that is ready in the same commit it mounts in (its code already fetched, nothing to wait for) is never
  *     covered at all: no delay for its own sake.
  *   - A page opened before shows its sigil later (only a longer wait shows more than the veil) and fades faster.
- *   - Nothing is covered for longer than `cap` (CAP_MS, 4 s, unless the host gives a room with a 3D scene longer),
- *     whether the page signals or not.
+ *   - Nothing is covered for longer than `cap` (CAP_MS, 4 s), or SCENE_CAP_MS (20 s) for a page whose 3D scene opened
+ *     its gate with `useSceneReady` (#1124), whether the page signals or not.
  *   - With reduced motion the sigil is a still and the cover simply fades.
  *
  * The cover sits over the page (not the bar, Ask Skippy or the room mic), and takes no clicks. A room the Desk keeps
@@ -29,11 +29,13 @@ const SEEN = new Set<string>();
 type Phase = "cover" | "leave" | "gone";
 
 
-export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, children }: { room: string; name: string; accent: string; shown?: boolean; cap?: number; children: ReactNode }) {
+export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, onGone, children }: { room: string; name: string; accent: string; shown?: boolean; cap?: number; onGone?: (room: string) => void; children: ReactNode }) {
   const [revisit] = useState(() => SEEN.has(room));
   const [reduced] = useState(reducedMotion);
   const [phase, setPhase] = useState<Phase>("cover");
   const [fade, setFade] = useState(460);
+  // A page with a 3D scene (`useSceneReady`) waits longer for its first frame (#1124).
+  const [capMs, setCapMs] = useState(cap);
   const t0 = useRef(0);
   // True until this component's own layout effect has run: a page ready by then was never painted under a cover.
   const sync = useRef(true);
@@ -46,7 +48,7 @@ export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, chi
         setFade(quick ? 200 : reduced ? 280 : 460);
         // One frame for the page to draw under the cover, then the fade.
         requestAnimationFrame(() => requestAnimationFrame(() => setPhase((p) => (p === "cover" ? "leave" : p))));
-      }),
+      }, () => setCapMs((c) => Math.max(c, SCENE_CAP_MS))),
     [room, reduced],
   );
 
@@ -57,17 +59,26 @@ export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, chi
 
   useEffect(() => {
     if (phase === "cover") {
+      // Counted from when the page was opened, so a cap raised by a scene's gate doesn't start over.
       const timer = window.setTimeout(() => {
         SEEN.add(room);
         setPhase((p) => (p === "cover" ? "leave" : p));
-      }, cap);
+      }, Math.max(0, Math.max(cap, capMs) - (t0.current ? performance.now() - t0.current : 0)));
       return () => window.clearTimeout(timer);
     }
     if (phase === "leave") {
       const t = window.setTimeout(() => setPhase("gone"), fade + 80);
       return () => window.clearTimeout(t);
     }
-  }, [phase, fade, room, cap]);
+  }, [phase, fade, room, cap, capMs]);
+
+  // The cover is gone (#1124): the Desk holds its background warm-up (the kept rooms' scenes) until now, so a room's
+  // own scene never shares the main thread with another's build while its cover is up.
+  const gone = useRef(onGone);
+  gone.current = onGone;
+  useEffect(() => {
+    if (phase === "gone") gone.current?.(room);
+  }, [phase, room]);
 
   const sigil = sigilOf(room);
   const style = { "--rl-accent": `var(${accent})`, "--rl-fade": `${fade}ms`, "--rl-delay": revisit ? "240ms" : "70ms" } as CSSProperties;

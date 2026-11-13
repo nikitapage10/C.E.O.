@@ -1,5 +1,5 @@
 import "./roomHooks.ts";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { startFoundry } from "../../world/src/foundry.ts";
 import { keepLattice, warmLattice } from "../../world/src/latticeWarm.ts";
 import { navigate, renamedPath, usePathname } from "../../world/src/route.ts";
@@ -26,7 +26,7 @@ import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import { installHoldToTalk } from "./holdToTalk.ts";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
-import { ALWAYS_KEPT, keptAfter, onSenateBuilt, SCENE_ROOMS, SENATE_WAIT_MS, settleShown, waitsOnSenate } from "./keptRooms.ts";
+import { ALWAYS_KEPT, keptAfter, onSenateBuilt, SENATE_WAIT_MS, settleShown, waitsOnSenate } from "./keptRooms.ts";
 import { focusPage } from "./pageFocus.ts";
 import { RoomGuard } from "./RoomGuard.tsx";
 import { canWarm, warmRotunda } from "./rotunda/warm.ts";
@@ -73,11 +73,6 @@ function prefetchTabs() {
     idle(() => scenes.forEach((load) => void load().catch(() => {})), 8000);
   }, 5000);
 }
-
-/** A room with a 3D scene holds its cover until the scene's first frame, up to this long (#759); the rest, 4 s. */
-const SCENE_CAP_MS = 7000;
-/** The Senate's cover waits longer (#1111): lifted early, it showed an empty floor while the cans were still loading. */
-const SENATE_CAP_MS = 20000;
 
 /** Each page's colour, as its manifest names it (rooms/<id>/room.ts `accent`): the room loader's motes wear it. */
 const accentOf = (route: DeskPage) => (route === "today" ? "--ice" : `--room-${route}`);
@@ -177,7 +172,12 @@ export function Desk({ route }: { route: DeskPage }) {
       off();
     };
   }, []);
-  const held = !senateUp && waitsOnSenate(next);
+  // The room on screen first (#1124): nothing warms while its cover is up, so its own scene builds alone. Measured
+  // in .perf runs, a kept Senate building beside a room held that room's cover several seconds past its first frame.
+  const [ready, setReady] = useState<ReadonlySet<string>>(() => new Set());
+  const onGone = useCallback((r: string) => setReady((s) => (s.has(r) ? s : new Set(s).add(r))), []);
+  const shownReady = ready.has(route);
+  const held = (!senateUp && waitsOnSenate(next)) || !shownReady;
   useEffect(() => {
     if (warmed >= ALWAYS_KEPT.length || !keepLattice()) return;
     // One already mounted (the room on screen, or visited) costs nothing: straight on to the next.
@@ -216,14 +216,14 @@ export function Desk({ route }: { route: DeskPage }) {
   // Today, warmed while the Desk is idle on another room (rotunda/warm.ts): the likeliest next room opens quickly.
   const todayKept = kept.includes("today");
   useEffect(() => {
-    if (todayKept || !canWarm()) return;
+    if (todayKept || !shownReady || !canWarm()) return;
     let gone = false;
     const t = window.setTimeout(() => idle(() => !gone && void warmRotunda(), 6000), 3000);
     return () => {
       gone = true;
       window.clearTimeout(t);
     };
-  }, [todayKept]);
+  }, [todayKept, shownReady]);
 
   const phone = useIsPhone();
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
@@ -244,7 +244,7 @@ export function Desk({ route }: { route: DeskPage }) {
           Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. A kept room (#759) stays
           mounted, hidden and inert, with no cover, until it is back on screen. */}
       {[...kept].sort((a, b) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(b)).map((r) => (
-        <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} cap={r === "today" ? SENATE_CAP_MS : SCENE_ROOMS.has(r) ? SCENE_CAP_MS : undefined}>
+        <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} onGone={onGone}>
           <main
             ref={(el) => void (el ? mains.current.set(r, el) : mains.current.delete(r))}
             className="desk__main"

@@ -243,12 +243,11 @@ describe("Nikita's asks, on every surface, through the one brain (#926)", () => 
     expect(got.wrote).toEqual(["home_device"]);
   });
 
-  it("the Senate, hold Space, as text (#1104): the chair's answer comes back unspoken", async () => {
+  it("the Senate, hold Space (#1104): the chair answers with quips asked for, the same answer as without", async () => {
     const w = await world();
-    const got = await holdSpace(w, { room: "today", senate: "reply", said: "can you dispense one portion of dry food?", seated: ["foundry", "relay"], voice: false });
+    const got = await holdSpace(w, { room: "today", senate: "reply", said: "can you dispense one portion of dry food?", seated: ["foundry", "relay"], quips: true });
     expect(got.skippy).toBe(true);
     expect(got.lines).toEqual([{ by: "kernel", text: expect.stringMatching(/lid is open|feeder/i) }]);
-    expect((got as { audio?: string }).audio).toBeUndefined();
   });
 
   it("the Senate: a remark on the debate is judged by the fast pass, with the page as context, and goes to the members", async () => {

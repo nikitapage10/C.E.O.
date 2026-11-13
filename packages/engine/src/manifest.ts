@@ -184,6 +184,8 @@ export const ENGINE_ENDPOINTS: readonly string[] = [
   "skippy-act",
   "skippy-memory",
   "skippy-spend",
+  // Desk chats kept whole for the cloud threads (#1097).
+  "skippy-journal",
   "kernel-brief",
   "kernel-agent",
   "capture",

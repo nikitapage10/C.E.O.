@@ -48,6 +48,8 @@ import { pickStore } from "./_world/store.js";
 import { foundryIssues } from "./skippy.js";
 import { memo } from "./_feedcache.js";
 import { readScreen, screenLine } from "./_skippy/prompt.js";
+import { skipTermsFrom } from "./_email/filter.js";
+import { BlobChatLog, callTurns, type ChatLog } from "./_skippy/chatlog.js";
 
 export interface VoiceDeps {
   deskKey: string;
@@ -64,6 +66,8 @@ export interface VoiceDeps {
    */
   crew?: CrewStore | null;
   roomLog?: RoomLog | null;
+  /** Desk chats kept whole (#1097): a finished call's turns go here. */
+  chats?: ChatLog | null;
   site?: string;
   fetcher: typeof fetch;
   now: number;
@@ -130,6 +134,7 @@ function live(): VoiceDeps {
     ...(eleven && { credits: creditsReader(eleven.key) }),
     crew: blob ? new BlobCrewStore(blob) : null,
     roomLog: blob ? new BlobRoomLog(blob) : null,
+    chats: blob ? new BlobChatLog(blob, skipTermsFrom(env.EMAIL_SKIP_TERMS)) : null,
     site: siteUrl(env),
     fetcher: (input, init) => fetch(input, init),
     now: Date.now(),
@@ -149,7 +154,16 @@ async function settleQuietly(deps: VoiceDeps, only?: string): Promise<void> {
           for (const t of exchangesOf(conversation, agents, p.at)) await roomLog.add(t, deps.now);
         }
       : undefined;
-  await settle({ key: deps.eleven.key, store: deps.voice, fetcher: deps.fetcher, now: deps.now, only, onDone }).catch(() => 0);
+  // Every call's whole conversation, turn by turn, for the Magnificent's thread (#1097, api/_skippy/chatlog.ts).
+  const chats = deps.chats ?? null;
+  const done =
+    onDone || chats
+      ? async (p: { id: string; at: number }, conversation: unknown) => {
+          if (onDone) await onDone(p, conversation).catch(() => undefined);
+          if (chats) await chats.add(callTurns(conversation, p.id, p.at), deps.now).catch(() => 0);
+        }
+      : undefined;
+  await settle({ key: deps.eleven.key, store: deps.voice, fetcher: deps.fetcher, now: deps.now, only, onDone: done }).catch(() => 0);
 }
 
 /**

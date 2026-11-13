@@ -27,6 +27,7 @@ import { pickAuthStore } from "../../_desk/store.js";
 import { plainLine } from "../../foundry.js";
 import { BlobChatLedger, KERNEL_LEDGER_PATH, skippyBudget, skippySpend, type ChatLedger } from "../budget.js";
 import { liveHost, livePending } from "./host.js";
+import { BlobChatLog, chatLogGet } from "../chatlog.js";
 import { BlobMemory, FACT_MAX, isMemoryId, type MemorySource, type MemoryStore, type Refusal } from "./memory.js";
 import { isPendingId, type PendingStore } from "./pending.js";
 import { callTool, confirmTool, type ToolHost } from "./tools.js";
@@ -193,6 +194,14 @@ const memoryOf = (env: Env) => {
 export const memoryRoute = {
   GET: (request: Request) => memoryGet(request, { desk: deskOf(process.env), memory: memoryOf(process.env) }),
   POST: (request: Request) => memoryPost(request, { desk: deskOf(process.env), memory: memoryOf(process.env) }),
+};
+
+/** Desk chats kept whole (#1097): the read key or a passkey session (api/_skippy/chatlog.ts). */
+export const chatRoute = {
+  GET: (request: Request) => {
+    const blob = pickBlob(process.env);
+    return chatLogGet(request, { desk: deskOf(process.env), log: blob ? new BlobChatLog(blob, skipTermsFrom(process.env.EMAIL_SKIP_TERMS)) : null, env: process.env });
+  },
 };
 
 export const spendRoute = {

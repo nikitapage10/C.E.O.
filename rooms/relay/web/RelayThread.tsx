@@ -14,6 +14,7 @@ import { GroupFlipper } from "./GroupFlipper.tsx";
 import { groupsOf } from "../data/groups.ts";
 import { RelayQueue, useMedia } from "./RelayQueue.tsx";
 import { useSnapScroll } from "./useSnapScroll.ts";
+import { lengthOf, outline, pointAlong, traceCount, traceStops, TRACE_MS } from "../data/trace.ts";
 import { isTyping } from "@ceo/engine/web/wasdPan.ts";
 import { Said } from "./Said.tsx";
 import { EmojiPicker, Tapbacks } from "./Tapbacks.tsx";
@@ -60,7 +61,6 @@ const NANITE = { hi: "#eef2ff", you: "#ffffff", white: "#ffffff", sink: "#8a90a6
 const PARTS = ".cx-init, .cx-msg, .cx-adv, .cx-draft";
 /** How long a scroll of our own may take to arrive before scrolling picks the focus again (#895). */
 const STEER_MS = 2_000;
-const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 const rnd = Math.random;
 const first = (who: string) => who.trim().split(/\s+/)[0] || who;
 
@@ -858,7 +858,7 @@ export function RelayThread({ now }: { now: number }) {
     };
   }, []);
 
-  // Entries not yet written in stay blank (their words are still there for screen readers) until they come into focus.
+  // Words are never held back (#1162): a message reads the instant it is there. Only a draft, which is written in, waits blank.
   useLayoutEffect(() => {
     const s = sg.current;
     const root = pagesRef.current;
@@ -866,7 +866,7 @@ export function RelayThread({ now }: { now: number }) {
     for (const el of root.querySelectorAll<HTMLElement>(".cx-entry[data-key]")) {
       if (el.dataset.seen) continue;
       el.dataset.seen = "1";
-      if (!s.reduced && !hidden) for (const p of el.querySelectorAll<HTMLElement>(PARTS)) ghost(p, true);
+      if (!s.reduced && !hidden) for (const p of el.querySelectorAll<HTMLElement>(".cx-draft")) ghost(p, true);
     }
   });
 
@@ -875,6 +875,24 @@ export function RelayThread({ now }: { now: number }) {
     if (!hidden) return;
     for (const p of pagesRef.current?.querySelectorAll<HTMLElement>(PARTS) ?? []) ghost(p, false);
   }, [hidden]);
+
+  /** The accent (#1162): sigils run from the spine round the card's border, clockwise, fading as they go. */
+  const trace = useCallback((s: SigilStage, el: HTMLElement, X: number) => {
+    const card = el.querySelector(".cx-them") ?? el;
+    const b = s.rel(card);
+    const pts = outline(X, b.y, Math.max(0, b.x + b.w - X), b.h);
+    const len = lengthOf(pts);
+    const stops = traceStops(len, traceCount(len));
+    for (const d of stops) {
+      const dur = 200 + (d / len) * 110;
+      s.burst(X, pts[0]!.y, { n: 1, dur, stagger: TRACE_MS - dur * 1.4, size: 7, color: NANITE.hi, to: () => [pointAlong(pts, d).x, pointAlong(pts, d).y],
+        path: (_p, e) => {
+          const q = pointAlong(pts, d * e);
+          return [q.x, q.y];
+        },
+      });
+    }
+  }, []);
 
   /** Your draft climbs from the ear and the quill writes it in. */
   const writeDraft = useCallback(async (el: HTMLElement, id: number) => {
@@ -910,21 +928,10 @@ export function RelayThread({ now }: { now: number }) {
     if (!el) return;
     void (async () => {
       fx.current.rush = 1;
-      const init = el.querySelector<HTMLElement>(".cx-init");
-      const msgs = [...el.querySelectorAll<HTMLElement>(".cx-msg")];
-      const adv = el.querySelector<HTMLElement>(".cx-adv");
-      for (const p of el.querySelectorAll<HTMLElement>(PARTS)) ghost(p, !s.reduced);
-      // The illuminated initial gathers first, poured down the spine. Quick (Nikita, 2026-11-05: the texts loaded too
-      // slowly): 250 ms an item at most, about 600 ms for the whole entry; reduced motion shows it at once.
-      if (init) void s.form(init, { gap: 3, size: 8, ltr: false, swirl: 120, dur: 250, stagger: 100, glow: 0.3, color: NANITE.hi, from: () => [X + (rnd() - 0.5) * 6, -10 - rnd() * 140] });
-      if (!s.reduced) await sleep(120);
-      if (run.current !== id) return;
-      const vb = s.rel(el.querySelector(".cx-them") ?? el);
-      const top = (): [number, number] => [X + (rnd() - 0.5) * 4, Math.max(0, vb.y - 20 - rnd() * 160)];
-      // Every text at once (#758: one line each), not one after another.
-      await Promise.all(msgs.map((m) => s.form(m, { from: top, path: quill(X), dur: 250, stagger: 200, jitter: 60, max: 620, pre: 0, color: NANITE.hi })));
-      if (run.current !== id) return;
-      if (adv) void s.form(adv, { from: top, path: quill(X), dur: 220, stagger: 150, jitter: 40, max: 300, color: NANITE.hi });
+      // #1162 (Nikita: "the text itself should be the first thing I can see"): the words are on screen already and
+      // nothing waits on a particle. Sigils leave the spine and trace the card's border as an accent, about half a
+      // second; reduced motion has none.
+      if (!s.reduced) trace(s, el, X);
       if (el.querySelector(".cx-draft")) await writeDraft(el, id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,11 +1,11 @@
 import { StreamIn } from "../fx/Warm.tsx";
-import { ROOMS, WALK_SPEED, getStation, placeToWorld, roomAngle, roomToWorld, routeBetween, sampleRoute, worldToRoom, type Place, type RoomId, type Route } from "@ceo/core";
+import { ROOMS, WALK_SPEED, blockedAt, getStation, personalSpace, placeToWorld, roomAngle, roomToWorld, routeBetween, sampleRoute, worldToRoom, type Place, type RoomId, type Route } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Vector3, type Group } from "three";
 import { useCast } from "../cast/castStore.ts";
-import { agentPositions, clock } from "../clock.ts";
+import { agentPositions, bodiesNear, clock, petPositions } from "../clock.ts";
 import { unlock } from "../achievements/achievements.ts";
 import { KERNEL } from "../kernel/lines.ts";
 import { facingDir } from "../rooms/primitives.tsx";
@@ -63,6 +63,9 @@ function Pet({ def }: { def: PetDef }) {
   const [room, setRoom] = useState(petStart(def));
   const state = useRef<PetState | null>(null);
   const spotKey = useRef(0);
+  /** How far it has eased aside so it never stands in, or trots through, anyone else (#1136). */
+  const space = useRef({ x: 0, z: 0 });
+  useEffect(() => () => void petPositions.delete(`pet-${def.id}`), [def.id]);
   // Brogu's eyes (#47): while Nikita steers him, he goes where he's walked and the camera is his head.
   const steering = useEyes((e) => e.active) && def.id === "brogu";
   const steeredIn = useRef<RoomId | null>(null);
@@ -121,7 +124,11 @@ function Pet({ def }: { def: PetDef }) {
     if (!state.current) state.current = { place: init, spot: `${def.id}-0`, route: null, routeStart: now, mode: "sit", until: now + between(2000, 6000), hops: 0 };
     const s = state.current;
     const world = useWorld.getState();
-    if (def.id === "brogu" && steer(s, now, t)) return;
+    if (def.id === "brogu" && steer(s, now, t)) {
+      // Behind his eyes he is the camera: nobody makes way for him.
+      petPositions.delete(`pet-${def.id}`);
+      return;
+    }
     const zoomies = def.id === "myshka" && now < petOrders.zoomiesUntil;
     // The zoomies wake him from anything.
     if (zoomies && !s.route && s.until > now + 600) s.until = now;
@@ -188,6 +195,25 @@ function Pet({ def }: { def: PetDef }) {
         }
       }
     }
+
+    // Personal space (#1136): ease away from agents and other pets on the same spot, never into the furniture.
+    const key = `pet-${def.id}`;
+    const pos = root.current.position;
+    let want: [number, number] = [0, 0];
+    if (!streaming) {
+      want = personalSpace({ id: key, x: pos.x, z: pos.z }, bodiesNear(key, pos));
+      if (!moving && (want[0] || want[1])) {
+        const [lx, lz] = worldToRoom(s.place.room, pos.x + want[0], pos.z + want[1]);
+        if (blockedAt(s.place.room, lx, lz, 0.1)) want = [0, 0];
+      }
+    }
+    const ease = 1 - Math.exp(-dt * 3);
+    space.current.x += (want[0] - space.current.x) * ease;
+    space.current.z += (want[1] - space.current.z) * ease;
+    pos.x += space.current.x;
+    pos.z += space.current.z;
+    if (streaming) petPositions.delete(key);
+    else petPositions.set(key, (petPositions.get(key) ?? new Vector3()).copy(pos));
 
     // Face where it's going; at rest, face the nearest agent it likes the look of, or the room.
     let target = yaw.current;

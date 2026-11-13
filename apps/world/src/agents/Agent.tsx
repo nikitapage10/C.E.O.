@@ -1,11 +1,11 @@
-import { LINEAGES, RELATIONSHIP_LABEL, getStation, placeToWorld, relationshipsOf, roomAngle, routeBetween, sampleRoute, type Look } from "@ceo/core";
+import { LINEAGES, RELATIONSHIP_LABEL, blockedAt, getStation, inAir, personalSpace, placeToWorld, relationshipsOf, roomAngle, routeBetween, sampleRoute, worldToRoom, type Look } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { hop } from "../club/deck.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BufferGeometry, CylinderGeometry, Float32BufferAttribute, Quaternion, LatheGeometry, LineBasicMaterial, LineSegments, MeshPhysicalMaterial, Vector2, Vector3, type Group, type Mesh } from "three";
 import { useCast } from "../cast/castStore.ts";
-import { agentPositions, clock, talkSteps } from "../clock.ts";
+import { agentPositions, bodiesNear, clock, talkSteps } from "../clock.ts";
 import { Flare } from "../fx/Flare.tsx";
 import { emissive } from "../fx/materials.ts";
 import { PBR } from "../fx/pbr.ts";
@@ -278,6 +278,8 @@ export function Agent({ id }: { id: string }) {
   const yaw = useRef(0);
   /** How far this agent has stepped from their spot to leave room for a chat. */
   const step = useRef({ x: 0, z: 0 });
+  /** How far this agent has eased aside so nobody stands in, or walks through, anyone else (#1136). */
+  const space = useRef({ x: 0, z: 0 });
   /** How far this agent is riding the floating podium's sway (0 off it, 1 sat on it). */
   const aboard = useRef(0);
   /** The classic figure's own animation clock: runs at the Lattice's speed while walking, so strides keep up. */
@@ -356,6 +358,22 @@ export function Agent({ id }: { id: string }) {
     if (!live0 && wanted) talkSteps.delete(id);
     root.current.position.x += step.current.x;
     root.current.position.z += step.current.z;
+    // Personal space (#1136): ease away from anyone standing in, or passing through, the same spot. Someone in a seat
+    // or up in the air holds still (the others make way), and never into the furniture.
+    const st0 = getStation(rt.place.room, rt.place.station);
+    const holds = streaming || (!moving && (st0.exact || inAir(rt.place)));
+    let want: [number, number] = [0, 0];
+    if (!holds) {
+      want = personalSpace({ id, x: root.current.position.x, z: root.current.position.z }, bodiesNear(id, root.current.position));
+      if (!moving && (want[0] || want[1])) {
+        const [lx, lz] = worldToRoom(rt.place.room, root.current.position.x + want[0], root.current.position.z + want[1]);
+        if (blockedAt(rt.place.room, lx, lz, 0.1)) want = [0, 0];
+      }
+    }
+    space.current.x += (want[0] - space.current.x) * ease;
+    space.current.z += (want[1] - space.current.z) * ease;
+    root.current.position.x += space.current.x;
+    root.current.position.z += space.current.z;
     // Sitting on the floating podium, ride its bob and drift (faded in and out, so landing and leaving never jump).
     aboard.current += ((!moving && rt.place.station === "post" ? 1 : 0) - aboard.current) * ease;
     if (aboard.current > 0.001) {

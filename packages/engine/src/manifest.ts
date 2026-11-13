@@ -159,6 +159,8 @@ export const ENGINE_KEYS: readonly string[] = [
   "SKIPPY_PROBE_TOKEN",
   "CLAUDE_API_KEY",
   "ELEVENLABS_API_KEY",
+  // Skippy's world questions (#1124, api/_skippy/gemini.ts).
+  "GEMINI_API_KEY",
 ];
 
 /**

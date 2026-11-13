@@ -5,6 +5,7 @@ import type { ToolOutcome } from "@ceo/engine/tools";
 import type { RoomIntent, RoomIntentAction, RoomMic, RoomUtterance } from "@ceo/engine/voice";
 import { announceWrote, readWrote } from "../skippy/wrote.ts";
 import { screenJSON } from "@ceo/engine/web/screenFacts.ts";
+import { claim, letGo, micBusy, micFree, released } from "../micGate.ts";
 
 /**
  * The room mic, browser side (#638): one tap (or hold Space) on a Desk room's page and Nikita talks straight to the room's
@@ -324,15 +325,23 @@ function recognise(Rec: new () => Recognition, onWords: (words: string) => void)
       error = e.error === "not-allowed" ? "The browser blocked the microphone." : "Couldn't hear that. Try again.";
   };
   r.onend = () => {
+    released(r);
     ended = true;
     done?.();
   };
-  try {
-    r.start();
-  } catch {
-    error = "Couldn't start listening.";
-    ended = true;
-  }
+  // One recognition holds the phone's mic at a time (#1094): any other is let go, and this one waits for its end.
+  claim(r);
+  const go = () => {
+    if (ended) return;
+    try {
+      r.start();
+    } catch {
+      error = "Couldn't start listening.";
+      ended = true;
+    }
+  };
+  if (micBusy()) void micFree().then(go);
+  else go();
   return {
     finish: () =>
       new Promise<Heard>((resolve) => {
@@ -347,19 +356,11 @@ function recognise(Rec: new () => Recognition, onWords: (words: string) => void)
           done = null;
           settle();
         }, 1_500);
-        try {
-          r.stop();
-        } catch {
-          settle();
-        }
+        void letGo(r, "stop");
       }),
     cancel: () => {
       ended = true;
-      try {
-        r.abort();
-      } catch {
-        /* already stopped */
-      }
+      void letGo(r);
     },
   };
 }
@@ -719,11 +720,7 @@ function hfStop(): void {
     r.onend = null;
     r.onresult = null;
     r.onerror = null;
-    try {
-      r.abort();
-    } catch {
-      /* already stopped */
-    }
+    void letGo(r);
   }
 }
 
@@ -772,6 +769,7 @@ export function handsFreeTick(): void {
     } else if (e.error && e.error !== "no-speech" && e.error !== "aborted") hfFails++;
   };
   r.onend = () => {
+    released(r);
     // The browser stops a recognition now and then (a minute of quiet, a network blip): start the next one.
     if (hfRec !== r) return;
     hfRec = null;
@@ -779,13 +777,19 @@ export function handsFreeTick(): void {
     if (hfFails >= HF_MAX_FAILS) return handsFreeOff("Hands-free lost the microphone.");
     setTimeout(handsFreeTick, 250);
   };
-  try {
-    r.start();
-  } catch {
-    hfRec = null;
-    hfFails++;
-    if (hfFails >= HF_MAX_FAILS) handsFreeOff("Couldn't start listening.");
-  }
+  claim(r);
+  const go = () => {
+    if (hfRec !== r) return;
+    try {
+      r.start();
+    } catch {
+      hfRec = null;
+      hfFails++;
+      if (hfFails >= HF_MAX_FAILS) handsFreeOff("Couldn't start listening.");
+    }
+  };
+  if (micBusy()) void micFree().then(go);
+  else go();
 }
 
 /** A pause after words: they go to the lead of the page Nikita is on now. */

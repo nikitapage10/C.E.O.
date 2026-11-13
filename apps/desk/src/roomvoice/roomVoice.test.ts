@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetMicGate } from "../micGate.ts";
 import type { RoomIntent } from "@ceo/engine/voice";
 import { SKIPPY_VOICE, voiceTargetOf } from "@ceo/engine/voice";
 import {
@@ -177,6 +178,8 @@ class FakeRec {
   }
   abort() {
     FakeRec.live = FakeRec.live.filter((r) => r !== this);
+    // Like a browser, an aborted recognition still ends (#1094: the mic gate waits for that end).
+    this.onend?.();
   }
   say(text: string) {
     const res = Object.assign([{ transcript: text }], { isFinal: true });
@@ -188,6 +191,7 @@ describe("hands-free (#638): one toggle, listening page to page", () => {
   const sent: { room: string; text: unknown }[] = [];
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMicGate();
     FakeRec.live = [];
     sent.length = 0;
     vi.stubGlobal("window", { SpeechRecognition: FakeRec });

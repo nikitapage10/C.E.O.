@@ -5,6 +5,7 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { useIsPhone } from "@ceo/engine/web/phone.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { useTalk } from "../skippy/talk.ts";
+import { askSkippy } from "../skippy/callFirst.ts";
 import { holdHint, PRIORITY, registerHoldToTalk, useHoldToTalk } from "../holdToTalk.ts";
 import {
   handsFreeOff,
@@ -33,7 +34,6 @@ import "./roommic.css";
 export function VoiceDock({ route }: { route: string }) {
   const auth = useDeskAuth((s) => s.auth.status);
   const chatOpen = useSkippy((s) => s.open);
-  const setChat = useSkippy((s) => s.setOpen);
   const calling = useTalk((s) => s.phase !== "idle");
   const signedIn = auth === "in";
   // On a phone Ask Skippy is the bottom bar's middle slot (#1045, PhoneNav.tsx): the dock keeps the mic and the line.
@@ -92,10 +92,10 @@ export function VoiceDock({ route }: { route: string }) {
           <button
             type="button"
             className="desk__skippy vdock__ask"
-            onClick={() => setChat(true)}
+            onClick={askSkippy}
             aria-expanded={false}
             aria-controls="skippy-chat"
-            title="Ask Skippy: chat, or Talk on a call"
+            title="Call Skippy (end the call to type instead)"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3.8 7.6C5.9 4.7 8.7 3.4 12 3.4s6.1 1.3 8.2 4.2c-2.5-.8-5.2-1.1-8.2-1.1s-5.7.3-8.2 1.1z" fill="currentColor" />

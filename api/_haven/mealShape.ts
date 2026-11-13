@@ -939,6 +939,15 @@ function putOn(f: MealsState, day: Day, meal: string): string | null {
   const s = w.slots[DAYS.indexOf(day)]!;
   if (s.meal === meal) return null;
   const old = s.meal;
+  // Already another night's dinner this week (#1095: "swap tonight's for the rigatoni", which was Wednesday's): the two
+  // nights trade, each meal with its own changes and photo, so neither night is lost and nothing is cooked twice.
+  const other = w.slots.find((o) => o !== s && o.meal === meal);
+  if (other) {
+    [s.meal, other.meal] = [other.meal, s.meal];
+    [s.custom, other.custom] = [other.custom, s.custom];
+    [s.photo, other.photo] = [other.photo, s.photo];
+    return `${DAY_NAME[day]}: ${nameOf(f, meal)} instead of ${nameOf(f, old)}, which moves to ${DAY_NAME[other.day]}.`;
+  }
   w.slots.forEach((o2) => (o2.backups = o2.backups.filter((b) => b !== meal)));
   s.backups = [old, ...s.backups].filter((b) => b !== meal).slice(0, 2);
   s.meal = meal;
@@ -1577,8 +1586,25 @@ export function recipeWords(f: MealsState, s: Slot): string {
 export function findMeal(f: MealsState, said: string, course?: Course): Meal | undefined {
   const k = said.toLowerCase().trim();
   const all = course ? f.catalog.filter((x) => x.course === course) : f.catalog;
-  return all.find((x) => x.id === k) ?? all.find((x) => x.name.toLowerCase() === k) ?? all.find((x) => x.name.toLowerCase().includes(k) && k.length >= 3);
+  const exact = all.find((x) => x.id === k) ?? all.find((x) => x.name.toLowerCase() === k) ?? all.find((x) => x.name.toLowerCase().includes(k) && k.length >= 3);
+  if (exact) return exact;
+  // Said loosely (#1095: "the rigatoni", "rigatoni from Wednesday"): every word that names a meal is in its name, the
+  // week's own meals first, then the one with the fewest extra words.
+  const words = norm(said)
+    .split(" ")
+    .filter((w) => w.length >= 3 && !MEAL_FILLER.has(w));
+  if (!words.length) return undefined;
+  const hits = all.filter((x) => !x.passed && words.every((w) => norm(x.name).split(" ").some((n) => sameWord(n, w))));
+  if (!hits.length) return undefined;
+  const planned = new Set(f.week?.slots.flatMap((s) => [s.meal, s.lunch.meal ?? ""]) ?? []);
+  return hits.find((x) => planned.has(x.id)) ?? [...hits].sort((a, b) => a.name.length - b.name.length)[0];
 }
+
+/** One word, or the same with a plural "s"/"es" either way. */
+const sameWord = (a: string, b: string) => a === b || a === `${b}s` || a === `${b}es` || b === `${a}s` || b === `${a}es`;
+
+/** Words that don't name a meal: articles, nights, "tonight", "dinner". */
+const MEAL_FILLER = new Set(["the", "that", "this", "and", "with", "from", "for", "one", "meal", "dinner", "lunch", "tonight", "tonights", "today", "tomorrow", "night", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "instead", "swap", "switch"]);
 
 const norm = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
 

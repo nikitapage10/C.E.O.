@@ -4,6 +4,7 @@ import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { FEED_TOKEN, LOG_TOKEN } from "../_site/roomkeys.ts";
 import { KitchenList } from "./list.ts";
+import { findMeal } from "./mealShape.ts";
 import { fakeMeals } from "./meals.fixture.ts";
 import {
   applyEdit,
@@ -103,6 +104,27 @@ describe("applyEdit", () => {
     expect(got.changes[0]).toMatch(/Monday: steak bowl instead of beef bowl/);
     const back = applyEdit(got.file, { op: "undo" }, NOW);
     expect(back.ok && back.file.week!.slots[0]!.meal).toBe("beef-bowl");
+  });
+
+  it("trades two nights when the meal swapped in is already another night's (#1095)", () => {
+    const f = fixture();
+    const tue = f.week!.slots[1]!.meal;
+    const got = applyEdit(f, { op: "swap", day: "mon", meal: tue }, NOW);
+    if (!got.ok) throw new Error(got.error);
+    expect(got.file.week!.slots[0]!.meal).toBe(tue);
+    expect(got.file.week!.slots[1]!.meal).toBe("beef-bowl");
+    expect(got.file.week!.slots.filter((s) => s.meal === tue)).toHaveLength(1);
+    expect(got.changes[0]).toMatch(/^Monday: .+ instead of beef bowl, which moves to Tuesday\.$/);
+  });
+
+  it("finds a meal said loosely, the week's own first (#1095)", () => {
+    const f = fixture();
+    const tue = f.week!.slots[1]!.meal;
+    const name = f.catalog.find((m) => m.id === tue)!.name;
+    expect(findMeal(f, `the ${name} from Tuesday`, "dinner")?.id).toBe(tue);
+    expect(findMeal(f, `${name.split(" ").pop()}s`, "dinner")).toBeDefined();
+    expect(findMeal(f, "the", "dinner")).toBeUndefined();
+    expect(findMeal(f, "zzz unknown", "dinner")).toBeUndefined();
   });
 
   it("Not for me passes on the meal and puts the first backup on", () => {

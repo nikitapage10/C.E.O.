@@ -305,13 +305,16 @@ export function workoutAsk(raw: string, text: string): Extract<Capture, { kind: 
 export function classify(raw: string, last: Capture["kind"] | null = null): Capture {
   const text = uncorrected(tidy(raw));
   if (!text) return { kind: "skippy", text };
+  // A question is never an item (#1131): "what's on my shopping list?" was put on the list as "what's". The list rules
+  // below skip it; a device ask or a logged workout still reads as one, and anything else goes to Skippy.
+  const asking = isQuestion(text);
   // The Things to buy list said in so many words (#735), before "I need to…" reads as a to-do. Never "remove …".
-  const buy = /^(?:remove|delete|cross|scratch|strike|take|get rid of|drop|clear|knock)\b/i.test(text) ? null : buyAsk(text);
+  const buy = asking ? null : /^(?:remove|delete|cross|scratch|strike|take|get rid of|drop|clear|knock)\b/i.test(text) ? null : buyAsk(text);
   if (buy) return buy;
   // A correction that clearly says "on the list" (#641) is shopping, whatever else it says.
-  const fixed = listCorrection(text, last);
+  const fixed = asking ? null : listCorrection(text, last);
   if (fixed) return fixed.fromLastTodo ? fixed : shopping(fixed.items, listFor(fixed.items, text));
-  if (last === "shopping" && (FOLLOW_START.test(text) || FOLLOW_END.test(text))) {
+  if (!asking && last === "shopping" && (FOLLOW_START.test(text) || FOLLOW_END.test(text))) {
     const items = itemsOf(text.replace(FOLLOW_START, "").replace(FOLLOW_END, ""));
     if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return shopping(items, listFor(items));
   }
@@ -333,19 +336,24 @@ export function classify(raw: string, last: Capture["kind"] | null = null): Capt
   if (TODO_VERB.test(text)) return { kind: "todo", text: todoText(text) };
   // Shopping: "add …", "we need …", "out of …", with or without "to the list".
   const shop = SHOP_START.exec(text);
-  if (shop || LIST_TAIL.test(text)) {
+  if (!asking && (shop || LIST_TAIL.test(text))) {
     const rest = text.slice(shop ? shop[0].length : 0).replace(LIST_TAIL, "").trim();
     const items = itemsOf(rest);
     if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return shopping(items, listFor(items, text));
   }
   if (TIME.test(text) && !NOT_A_LIST.test(text)) return { kind: "todo", text: todoText(text) };
   // A bare list of two or more nouns, nothing else ("garlic and lemons").
-  if (!NOT_A_LIST.test(text)) {
+  if (!asking && !NOT_A_LIST.test(text)) {
     const items = itemsOf(text);
     if (items.length >= 2 && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return shopping(items, listFor(items));
   }
   return { kind: "skippy", text };
 }
+
+/** A question word first (or a question mark), with no add, remove or reminder verb in it. */
+const QUESTION = /^(?:what(?:'?s)?|which|how|is|are|was|were|do|does|did|have|has|where|when|who|whose|why|any|tell me|read|show|list (?:my|the|what))\b|\?\s*$/i;
+const ASKS_TO_CHANGE = /\b(?:add|put|remove|delete|take|get rid of|cross|scratch|remind)\b/i;
+export const isQuestion = (text: string): boolean => QUESTION.test(text) && !ASKS_TO_CHANGE.test(text);
 
 /** "a", "a and b", "a, b and c". */
 export function joinNames(names: string[]): string {

@@ -50,6 +50,8 @@ export interface ToolHost {
   read: (name: ReadName) => Promise<string>;
   memory: MemoryStore | null;
   kitchenAdd: ((items: string[]) => Promise<{ added: string[]; already: string[] }>) | null;
+  /** Every list's open items (#1131, api/_haven/list.ts allLists); absent or null where there's no private store. */
+  lists?: (() => Promise<{ name: string; items: string[] }[]>) | null;
   /** The Things to buy list (#735, api/_haven/list.ts); absent or null where there's no private store. */
   buyAdd?: ((items: string[]) => Promise<{ added: string[]; already: string[] }>) | null;
   /** The Kitchen's meal planner (#678, api/_haven/meals.ts): the same store and edits as the Kitchen's buttons. */
@@ -545,6 +547,16 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   weather: reader("weather"),
+  lists_read: {
+    run: async (i, host) => {
+      if (!host.lists) return { ok: false, text: "The lists aren't set up on this copy." };
+      const want = str(i.list).toLowerCase();
+      const all = await host.lists();
+      const picked = want ? all.filter((l) => l.name.toLowerCase().includes(want) || (want.includes("grocer") || want.includes("shopping") || want.includes("kitchen") ? /kitchen|grocer/i.test(l.name) : false)) : all;
+      const lines = (picked.length ? picked : all).map((l) => (l.items.length ? `${l.name} (${l.items.length}): ${l.items.slice(0, 40).join(", ")}` : `${l.name}: empty`));
+      return { ok: true, text: lines.join("\n") || "There are no lists yet." };
+    },
+  },
   house_check: reader("house"),
   home_device: {
     prepare: async (i) => ({ ok: true, label: "Do it", summary: `${homeLine(i)} (the Haven's rails still apply)` }),

@@ -150,3 +150,23 @@ describe("the Boiler Room names what's down (Nikita, 2026-11-05)", () => {
     expect(namesPhrase([])).toBe("");
   });
 });
+
+describe("the Boiler Room's token-waste warning (#1152)", () => {
+  const waste = { kind: "duplicate", feature: "skippy", label: "repeat calls in skippy" };
+  const boiler = (patch: Partial<PulseInput> = {}) => roomPulses(input(patch)).find((p) => p.id === "boiler")!;
+
+  it("warns and names the worst flag", () => {
+    const p = boiler({ waste });
+    expect(p.state).toBe("warn");
+    expect(p.status).toBe("Tokens wasted: repeat calls in skippy");
+    expect(p.href).toBe("/boiler/tokenomics");
+  });
+  it("changes nothing without a flag (signed out)", () => {
+    expect(boiler().state).toBe("steady");
+    expect(boiler({ waste: null }).status).toBe("2 of 4 links up");
+  });
+  it("lets a down link come first", () => {
+    const p = boiler({ waste, links: [link("hub", "off"), link("checks", "down")] });
+    expect(p.state).toBe("down");
+  });
+});

@@ -29,7 +29,7 @@ const STEPS = 20;
 
 export interface TempoIn {
   real: boolean;
-  state: "busy" | "steady" | "waiting" | "down" | "sim";
+  state: "busy" | "steady" | "waiting" | "warn" | "down" | "sim";
   activity: number;
 }
 

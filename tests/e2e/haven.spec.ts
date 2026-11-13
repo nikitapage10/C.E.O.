@@ -1093,8 +1093,13 @@ test("signed in, the Kitchen opens where the week is: Cook once the shopping's d
   await steps.getByRole("button", { name: /Shop/ }).click();
   await expect(steps.getByRole("button", { name: /Shop/ })).toHaveAttribute("aria-current", "step");
 
-  // With a week item still open, it opens on Shop.
+  // Once the week has begun (its Monday is Nov 9) it opens on Cook whatever the list says, even with a week item open (#1108).
   open = true;
+  await page.reload();
+  await expect(steps.getByRole("button", { name: /Cook/ })).toHaveAttribute("aria-current", "step");
+
+  // Shop is the opener only before the week starts: the clock on the Sunday before, with a week item still open.
+  await page.clock.setFixedTime(new Date(2026, 10, 8, 18));
   await page.reload();
   await expect(steps.getByRole("button", { name: /Shop/ })).toHaveAttribute("aria-current", "step");
 });

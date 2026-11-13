@@ -26,6 +26,7 @@ import { claudeKey } from "../../_world/claude.js";
 import { BlobChatLedger, canChat, KERNEL_LEDGER_PATH, skippyBudget, skippySpent, SONNET_PRICE, type ChatLedger } from "../budget.js";
 import { unfenceChat } from "../prompt.js";
 import { BlobMemory, CORE_MAX, CURIOUS_MAX, FACT_MAX, type MemoryStore } from "./memory.js";
+import { meteredFetch } from "../../_usage/meter.js";
 
 export const DISTILL_MODEL = "claude-sonnet-5-5";
 /** Daily at 11:00 UTC: 4am Mountain (5am in winter), after Nikita is asleep. */
@@ -125,7 +126,7 @@ export async function distill(d: DistillDeps): Promise<DistillResult> {
 
 /** The live client: the Azure copy's Claude key. */
 export function distillModel(key: string): DistillDeps["call"] {
-  const client = new Anthropic({ apiKey: key, timeout: 120_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 120_000, maxRetries: 1, fetch: meteredFetch("skippy.distill") });
   return (params) => client.messages.create(params);
 }
 

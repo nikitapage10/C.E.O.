@@ -127,7 +127,7 @@ export function liveRouteDeps(env: Env = process.env): EmailRouteDeps {
     budget: emailBudget(env.EMAIL_BUDGET_USD),
     fetcher: (url, init) => fetch(url, init),
     now: Date.now(),
-    call: claudeCall(env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY || ""),
+    call: claudeCall(env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY || "", ({ model }) => (model === SORT_MODEL ? "email.intent" : "email.advise")),
     skipTerms: skipTermsFrom(env.EMAIL_SKIP_TERMS),
     texts: async () => {
       const relay = pickRelayStore(env);

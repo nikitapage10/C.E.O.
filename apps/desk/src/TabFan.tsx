@@ -23,6 +23,7 @@ const ICONS: Record<string, string> = {
   controls: "M6 5v14M12 5v14M18 5v14M4 9h4M10 15h4M16 11h4",
   security: "M12 4 5 7v5c0 4 3 7 7 8 4-1 7-4 7-8V7zM9.5 12l2 2 3.5-4",
   compliance: "M7 4h8l3 3v13H7zM15 4v3h3M10 12h5M10 16h5",
+  tokenomics: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.8-2.5 2s1.1 1.6 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1.1 0-2-.4-2.5-1.2M12 6.5V8M12 16v1.5",
 };
 
 /** Each icon's width in the fan, for keeping it on screen. */

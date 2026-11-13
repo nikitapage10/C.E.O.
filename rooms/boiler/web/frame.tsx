@@ -24,7 +24,7 @@ export function BoilerFrame({
   onGo,
   children,
 }: {
-  page: "controls" | "security" | "compliance";
+  page: "controls" | "security" | "compliance" | "tokenomics";
   tabs: ReactNode;
   title: ReactNode;
   say?: ReactNode;

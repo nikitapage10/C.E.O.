@@ -16,12 +16,15 @@ export default defineRoom({
     "desk-timing": ["site"],
     "lattice-timing": ["site"],
     "talk-timing": ["site"],
+    // The Tokenomics tab (#1142): the AI usage ledger's report, passkey session only.
+    "boiler-usage": ["passkey"],
   },
   // The home devices (#632, docs/HOME-DEVICES.md): the sealing key and the Petlibro and Whisker logins.
   // The Haven's connections (#637, docs/HOME-DEVICES.md): Google (Nest, Tasks), and King Soopers through Kroger (#664;
   // MEALME_API_KEY is kept unread, from before King Soopers replaced MealMe).
   // The Haven's lights (#931): SwitchBot's token and secret and Govee's key.
-  keys: ["HOME_TOKEN_KEY", "PETLIBRO_EMAIL", "PETLIBRO_LOGIN_DIGEST", "WHISKER_EMAIL", "WHISKER_SRP_DIGEST", "HAVEN_GOOGLE_CLIENT_ID", "HAVEN_GOOGLE_CLIENT_SECRET", "HAVEN_NEST_PROJECT_ID", "KROGER_CLIENT_ID", "KROGER_CLIENT_SECRET", "MEALME_API_KEY", "SWITCHBOT_TOKEN", "SWITCHBOT_SECRET", "GOVEE_API_KEY"],
+  // The Tokenomics tab (#1142): Anthropic's and OpenAI's admin keys for the providers' own daily usage and cost.
+  keys: ["HOME_TOKEN_KEY", "PETLIBRO_EMAIL", "PETLIBRO_LOGIN_DIGEST", "WHISKER_EMAIL", "WHISKER_SRP_DIGEST", "HAVEN_GOOGLE_CLIENT_ID", "HAVEN_GOOGLE_CLIENT_SECRET", "HAVEN_NEST_PROJECT_ID", "KROGER_CLIENT_ID", "KROGER_CLIENT_SECRET", "MEALME_API_KEY", "SWITCHBOT_TOKEN", "SWITCHBOT_SECRET", "GOVEE_API_KEY", "ANTHROPIC_ADMIN_KEY", "OPENAI_ADMIN_KEY"],
   usesClaude: false,
   threat: ["TB6", "TB8", "TB10", "R7", "R8"],
   budgetKb: 200,

@@ -35,6 +35,7 @@ import { apiTools, callTool, toolsFor, type CallSurface, type TextAction, type T
 import type { WorldAsk } from "../gemini.js";
 import { withoutMeta } from "../voicelookups.js";
 import type { PendingStore } from "./pending.js";
+import { meteredFetch, skippyTier } from "../../_usage/meter.js";
 
 export const TRIAGE_MODEL = "claude-haiku-5-5";
 export const TALK_MODEL = "claude-sonnet-5-5";
@@ -468,6 +469,6 @@ function noteFailure(tier: Tier, e: unknown): void {
 
 /** The live client: the Azure copy's Claude key, no retries past one, a timeout that fits the Function's window. */
 export function claudeModel(key: string): CallModel {
-  const client = new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 1, fetch: meteredFetch(skippyTier("skippy", false)) });
   return (params) => client.beta.messages.create(params);
 }

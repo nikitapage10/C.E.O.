@@ -31,6 +31,7 @@ import { claudeKey } from "../_world/claude.js";
 import { readModelIntent, MODEL_KINDS, type Intent } from "./parse.js";
 import { BlobTodoStore, type TodoStore } from "./store.js";
 import { mergeState, publicCounts } from "./todos.js";
+import { meteredFetch } from "../_usage/meter.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -71,7 +72,7 @@ export interface TodoDeps {
 
 function liveParse(key: string): ParseCall | null {
   if (!key) return null;
-  const client = new Anthropic({ apiKey: key, timeout: 15_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: key, timeout: 15_000, maxRetries: 1, fetch: meteredFetch("today.todos") });
   return async (system, user) => {
     const res = await client.messages.create({
       model: PARSE_MODEL,

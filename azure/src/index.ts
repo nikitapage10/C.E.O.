@@ -7,8 +7,8 @@
 // First: unresolved Key Vault references count as unset before any handler module reads a setting.
 import "./env.js";
 
-import { app, type HttpMethod } from "@azure/functions";
-import { registerAzureBlob } from "../../api/_blob.js";
+import { app, type HttpMethod, type TimerFunctionOptions } from "@azure/functions";
+import { pickBlob, registerAzureBlob } from "../../api/_blob.js";
 import * as annex from "../../api/_annex/route.js";
 import { FIT_SCHEDULE, JOBS_SCHEDULE } from "../../api/_annex/jobs.js";
 import * as daystory from "../../api/day-story.js";
@@ -55,6 +55,9 @@ import * as kernelroute from "../../api/_skippy/kernelroute.js";
 import * as skippyagent from "../../api/_skippy/agent/routes.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
 import * as worldstep from "../../api/world-step.js";
+import * as boilerusage from "../../api/_usage/route.js";
+import { flushUsage } from "../../api/_usage/meter.js";
+import { PULL_SCHEDULE, runUsagePull } from "../../api/_usage/admin.js";
 import * as world from "../../api/world.js";
 import { withGate } from "../../api/_site/gate.js";
 import { pickSiteStore } from "../../api/_site/state.js";
@@ -161,6 +164,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["talk-timing", talktiming],
   // The Desk's load timings (#561): first paint and live data ready, in milliseconds, shown in the Boiler Room.
   ["desk-timing", desktiming],
+  // The Boiler Room's Tokenomics tab (#1142, api/_usage): the AI usage ledger's report and the providers' own daily
+  // totals. Passkey session only; dollars, tokens, models and feature ids, never a prompt or a key.
+  ["boiler-usage", boilerusage.usageRoute],
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
   // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk
@@ -234,9 +240,23 @@ for (const [name, mod, opts] of ENDPOINTS) {
   });
 }
 
+// Every timer waits for the AI usage ledger's queued lines (#1142, api/_usage/meter.ts) before it ends.
+function timer(name: string, options: TimerFunctionOptions): void {
+  app.timer(name, {
+    ...options,
+    handler: async (t, context) => {
+      try {
+        return await options.handler(t, context);
+      } finally {
+        await flushUsage();
+      }
+    },
+  });
+}
+
 // The world's steady clock (#271, ./tick.ts): steps the world in-process at :05 and :35 (the Vercel knock is off, #313),
 // so the world no longer waits on GitHub's best-effort hourly schedule.
-app.timer("world_tick", {
+timer("world_tick", {
   schedule: TICK_SCHEDULE,
   handler: async (_timer, context) => {
     await keysFresh();
@@ -246,7 +266,7 @@ app.timer("world_tick", {
 
 // The email agent's minute (#263, docs/GMAIL.md): Gmail's history every minute, Claude only for new inbox mail.
 // Logs only what happened, by kind ("checked", "busy", "waiting"…), never anything from a mail.
-app.timer("email_tick", {
+timer("email_tick", {
   schedule: "0 * * * * *",
   runOnStartup: false,
   useMonitor: false,
@@ -261,7 +281,7 @@ app.timer("email_tick", {
 // the Kitchen list, then marked completed in Tasks. Does nothing until Connect Google Tasks; logs counts only.
 // The same beat closes the wet food tray two hours after an opening from here (#713): one private-store read when
 // nothing is due, and the close times are rounded to this beat so the time the Desk shows is the time it shuts.
-app.timer("haven_tasks", {
+timer("haven_tasks", {
   schedule: "0 */5 * * * *",
   runOnStartup: false,
   useMonitor: false,
@@ -278,7 +298,7 @@ app.timer("haven_tasks", {
 // The meal photo library's generator (#687), named apart from the haven-photos route (a shared name stops the host
 // registering any function): every ten minutes, a run when a photo waits (a confirm's own run may have
 // been cut short). One blob read when nothing waits; one run at a time under the catalog's lease; logs counts only.
-app.timer("haven_photos_tick", {
+timer("haven_photos_tick", {
   schedule: "0 */10 * * * *",
   runOnStartup: false,
   useMonitor: false,
@@ -292,7 +312,7 @@ app.timer("haven_photos_tick", {
 // The cook steps' pictures backfill (#1026, api/_haven/meals.ts `backfillStepPhotos`): hourly at :05, a finalized week's
 // step pictures that were never queued (a week finalized before #1016) go into the photo library, then a run makes
 // them under the steps' own $3 cap. Never finalize again, never on a cook mode read; a no-op once they are all there.
-app.timer("haven_step_backfill", {
+timer("haven_step_backfill", {
   schedule: "0 5 * * * *",
   runOnStartup: false,
   useMonitor: false,
@@ -306,7 +326,7 @@ app.timer("haven_step_backfill", {
 
 // Skippy learns from talking to Nikita (#1126, api/_skippy/agent/distill.ts): once a night at 11:00 UTC, the turns his
 // journal kept since the last pass become facts, a refreshed core card and a few things to ask. Counts only.
-app.timer("skippy_distill", {
+timer("skippy_distill", {
   schedule: DISTILL_SCHEDULE,
   runOnStartup: false,
   useMonitor: false,
@@ -321,7 +341,7 @@ app.timer("skippy_distill", {
 
 // The Annex's Job search (#1000, api/_annex/jobs.ts): once a day at 13:00 UTC, the saved searches on SerpApi, inside
 // the month's search budget (JOBS_MONTHLY_SEARCHES). Nothing while it is shelved or SERPAPI_KEY isn't set. Counts only.
-app.timer("annex_jobs_daily", {
+timer("annex_jobs_daily", {
   schedule: JOBS_SCHEDULE,
   runOnStartup: false,
   useMonitor: false,
@@ -336,7 +356,7 @@ app.timer("annex_jobs_daily", {
 // The Job search's AI fit check (#1025, api/_annex/fit.ts): every 20 minutes, a finished Message Batch is read back and
 // the jobs still due a check go out in a new one (Claude Sonnet, under its own $15 a month cap). One private-store read
 // when nothing is due; the first tick after it shipped backfilled the stored jobs. Counts only, never job or resume text.
-app.timer("annex_jobs_fit", {
+timer("annex_jobs_fit", {
   schedule: FIT_SCHEDULE,
   runOnStartup: false,
   useMonitor: false,
@@ -352,7 +372,7 @@ app.timer("annex_jobs_fit", {
 // so this fires at :39 past 23:00 and 00:00 UTC on Tuesdays and Wednesdays and the run itself checks it is Tuesday's 5pm
 // hour in Denver (daylight saving or not); it never writes more than once a week (#261), and writes nothing while no
 // league data is connected. Logs only what happened.
-app.timer("green_weekly", {
+timer("green_weekly", {
   schedule: "0 39 23,0 * * 2,3",
   runOnStartup: false,
   useMonitor: false,
@@ -362,5 +382,19 @@ app.timer("green_weekly", {
     if (result === "failed") context.warn("green weekly: failed");
     else if (result === "written") context.log("green weekly: written");
     else if (result === "waiting") context.log("green weekly: waiting for league data");
+  },
+});
+
+// The providers' own AI spend (#1142, api/_usage/admin.ts): once a night, Anthropic's and OpenAI's daily cost and
+// tokens by model for the last 31 days, when ANTHROPIC_ADMIN_KEY or OPENAI_ADMIN_KEY is set. Counts only.
+timer("usage_pull", {
+  schedule: PULL_SCHEDULE,
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    await keysFresh();
+    const got = await runUsagePull({ env: process.env, fetcher: (url, init) => fetch(url, init), blob: pickBlob(process.env), now: Date.now() }).catch(() => "failed" as const);
+    if (got === "failed") context.warn("usage pull: failed");
+    else if (got !== "not-set-up") context.log(`usage pull: ${Object.entries(got).map(([p, v]) => `${p} ${v}`).join(", ")}`);
   },
 });

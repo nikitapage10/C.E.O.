@@ -9,4 +9,5 @@ export const SECTIONS: RoomSection[] = [
   { id: "controls", label: "Controls", path: "/boiler/controls", hint: "Usage, settings, switches, connections and keys" },
   { id: "security", label: "Security", path: "/boiler/security", hint: "Threat model and scans" },
   { id: "compliance", label: "Compliance", path: "/boiler/compliance", hint: "Frameworks and controls" },
+  { id: "tokenomics", label: "Tokenomics", path: "/boiler/tokenomics", hint: "AI spend by provider, feature and model" },
 ];

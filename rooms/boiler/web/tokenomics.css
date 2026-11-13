@@ -1,0 +1,106 @@
+/*
+ * Boiler Room > Tokenomics (#1142): a dashboard on the room's ink and brass (pages.css). The three providers each
+ * keep one colour across the chart, the legend, the swatches and the tables. Every rule is scoped to the room. On a
+ * phone (760px, the engine's PHONE_QUERY) the key numbers sit two by two, the flags follow straight after, every
+ * chart and list stacks in one column and nothing scrolls sideways.
+ */
+
+[data-room="boiler"] .bx-tokenomics {
+  --tk-anthropic: #e0875f;
+  --tk-google: #7fa8e8;
+  --tk-openai: #6cc4b0;
+}
+[data-room="boiler"] .tk-p-anthropic { fill: var(--tk-anthropic); background: var(--tk-anthropic); }
+[data-room="boiler"] .tk-p-google { fill: var(--tk-google); background: var(--tk-google); }
+[data-room="boiler"] .tk-p-openai { fill: var(--tk-openai); background: var(--tk-openai); }
+
+/* the window */
+[data-room="boiler"] .tk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+[data-room="boiler"] .tk-win { padding: 6px 12px; border: 1px solid var(--bx-gl, var(--bx-line)); border-radius: 2px; background: none; color: var(--bx-mut); font: 600 12px var(--bx-mono); letter-spacing: 0.06em; cursor: pointer; }
+[data-room="boiler"] .tk-win:hover { color: var(--bx-gold, var(--bx-fg)); }
+[data-room="boiler"] .tk-win[aria-pressed="true"] { color: #17120a; background: linear-gradient(180deg, #e3c98d, #c39a5b); border-color: #e3c98d; }
+[data-room="boiler"] .tk-span { margin-left: auto; color: var(--bx-dim); font: 500 11.5px var(--bx-mono); }
+
+/* the key numbers */
+[data-room="boiler"] .tk-kpis { display: grid; gap: 12px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+[data-room="boiler"] .tk-kpi { gap: 2px; }
+[data-room="boiler"] .tk-v { margin: 2px 0 0; font: 650 28px/1.05 var(--bx-cond); letter-spacing: 0.02em; color: var(--bx-fg); }
+[data-room="boiler"] .tk-kpi.is-warn .tk-v { color: var(--bx-amber); }
+[data-room="boiler"] .tk-kpi.is-ok .tk-v { color: var(--bx-ok); }
+
+/* the flags */
+[data-room="boiler"] .tk-flags ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+[data-room="boiler"] .tk-flags li { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px 10px; border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 6%, transparent); }
+[data-room="boiler"] .tk-flags li.is-info { --c: var(--bx-blue); }
+[data-room="boiler"] .tk-flags li p { margin: 0; font-size: 13px; color: var(--bx-fg); }
+
+/* two panels side by side */
+[data-room="boiler"] .tk-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+/* the caps */
+[data-room="boiler"] .tk-caps { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+[data-room="boiler"] .tk-caps li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; }
+[data-room="boiler"] .tk-caps li b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-room="boiler"] .tk-caps li .bx-cap { grid-column: 1 / -1; }
+
+/* the day chart */
+[data-room="boiler"] .tk-day { margin: 0; display: grid; gap: 6px; }
+[data-room="boiler"] .tk-day svg { display: block; width: 100%; height: 166px; }
+[data-room="boiler"] .tk-axis { stroke: var(--bx-line); stroke-width: 1; }
+[data-room="boiler"] .tk-tick { fill: var(--bx-dim); font: 500 10.5px var(--bx-mono); }
+[data-room="boiler"] .tk-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--bx-mut); font-size: 12px; }
+[data-room="boiler"] .tk-legend li { display: inline-flex; align-items: center; gap: 6px; }
+[data-room="boiler"] .tk-legend i, [data-room="boiler"] .tk-sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+/* providers and drivers */
+[data-room="boiler"] .tk-prov, [data-room="boiler"] .tk-drivers, [data-room="boiler"] .tk-list, [data-room="boiler"] .tk-billed, [data-room="boiler"] .tk-models { list-style: none; margin: 0; padding: 0; display: grid; }
+[data-room="boiler"] .tk-prov > li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--bx-line); }
+[data-room="boiler"] .tk-prov > li:first-child, [data-room="boiler"] .tk-drivers > li:first-child, [data-room="boiler"] .tk-list > li:first-child, [data-room="boiler"] .tk-billed > li:first-child { border-top: 0; }
+[data-room="boiler"] .tk-prov small, [data-room="boiler"] .tk-drivers small, [data-room="boiler"] .tk-list small { grid-column: 2 / -1; color: var(--bx-mut); font-size: 11.5px; }
+[data-room="boiler"] .tk-prov .tk-truth { color: var(--bx-dim); }
+[data-room="boiler"] .tk-prov b, [data-room="boiler"] .tk-drivers b, [data-room="boiler"] .tk-list b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+[data-room="boiler"] .tk-drivers > li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(40px, 1fr) auto; gap: 2px 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--bx-line); }
+[data-room="boiler"] .tk-drivers small { grid-column: 1 / -1; }
+[data-room="boiler"] .tk-share { display: block; height: 6px; border-radius: 3px; background: #1d222c; overflow: hidden; }
+[data-room="boiler"] .tk-share i { display: block; height: 100%; width: calc(var(--v) * 100%); background: var(--bx-brass); border-radius: 3px; }
+
+/* the tables */
+[data-room="boiler"] .tk-tw { overflow-x: auto; min-width: 0; }
+[data-room="boiler"] .tk-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+[data-room="boiler"] .tk-table th, [data-room="boiler"] .tk-table td { padding: 6px 8px; border-top: 1px solid var(--bx-line); text-align: right; white-space: nowrap; font-weight: 400; }
+[data-room="boiler"] .tk-table thead th { border-top: 0; color: var(--bx-dim); font: 500 10.5px var(--bx-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+[data-room="boiler"] .tk-table th:first-child { text-align: left; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+[data-room="boiler"] .tk-table tbody th { color: var(--bx-fg); font-family: var(--bx-mono); font-size: 12px; }
+[data-room="boiler"] .tk-table tbody th .tk-sw { margin-right: 8px; vertical-align: 0; }
+[data-room="boiler"] .tk-table td.is-warn { color: var(--bx-amber); }
+[data-room="boiler"] .tk-more { justify-self: start; margin-left: 0; }
+
+/* the bill against the ledger */
+[data-room="boiler"] .tk-billed > li { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--bx-line); }
+[data-room="boiler"] .tk-billed > li > .bx-note, [data-room="boiler"] .tk-billed > li > .tk-models { grid-column: 2; }
+[data-room="boiler"] .tk-models li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; color: var(--bx-mut); font: 400 11.5px var(--bx-mono); }
+[data-room="boiler"] .tk-models li span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* phone lists */
+[data-room="boiler"] .tk-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--bx-line); }
+[data-room="boiler"] .tk-list small { grid-column: 1 / -1; }
+
+@media (max-width: 1100px) {
+  [data-room="boiler"] .tk-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  [data-room="boiler"] .tk-grid { grid-template-columns: minmax(0, 1fr); }
+}
+/* The phone (#1045, PHONE_QUERY): the numbers two by two and the flags under them, above the fold; one column after. */
+@media (max-width: 760px) {
+  [data-room="boiler"] .tk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  [data-room="boiler"] .tk-kpi { padding: 9px 11px; }
+  [data-room="boiler"] .tk-v { font-size: 23px; }
+  [data-room="boiler"] .tk-kpi .bx-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-room="boiler"] .tk-win { min-height: 44px; flex: 1 1 0; }
+  [data-room="boiler"] .tk-span { flex-basis: 100%; margin-left: 0; }
+  [data-room="boiler"] .tk-day svg { height: 136px; }
+  [data-room="boiler"] .tk-flags li { padding: 7px 9px; }
+  [data-room="boiler"] .tk-flags li p { font-size: 12.5px; }
+  [data-room="boiler"] .tk-more { min-height: 44px; }
+}

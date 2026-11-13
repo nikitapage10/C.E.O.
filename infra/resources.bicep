@@ -154,6 +154,12 @@ var secrets = [
   // under Skippy's month. Typed by Nikita into the vault in Cloud Shell, like SerpApi's; not on the Keys form until the
   // role paste covers it. Without it, world questions go to Claude's own web search as before.
   { setting: 'GEMINI_API_KEY', secret: 'gemini-api-key' }
+  // The Tokenomics tab (#1142, api/_usage/admin.ts): Anthropic's Admin API key and OpenAI's admin key, used only by the
+  // nightly usage pull for GETs of each provider's own cost and usage reports. Either key could do more than read (an
+  // Anthropic admin key manages the organization), so both are typed by Nikita into the vault in Cloud Shell and are
+  // never settable from the Desk (api/_keys/allowlist.ts). Optional: without one, that provider's side waits.
+  { setting: 'ANTHROPIC_ADMIN_KEY', secret: 'anthropic-admin-key' }
+  { setting: 'OPENAI_ADMIN_KEY', secret: 'openai-admin-key' }
   // MealMe's key (#664), stored before King Soopers replaced MealMe. Nothing reads it; kept so a deploy doesn't stop
   // on a setting made outside the template. Remove this line and the setting together to retire it.
   { setting: 'MEALME_API_KEY', secret: 'haven-mealme-key' }

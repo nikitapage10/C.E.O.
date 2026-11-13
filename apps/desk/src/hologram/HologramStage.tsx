@@ -1,3 +1,4 @@
+import { playGlitchIn } from "./glitchSound.ts";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { submindOf } from "../../../../packages/simulator/src/subminds.ts";
 import { useSkippy } from "../skippy/chat.ts";
@@ -23,6 +24,8 @@ import "./hologram.css";
  */
 
 const STILL = "(prefers-reduced-motion: reduce)";
+/** How long the boot's glitch runs as he appears (hologram.css holo-glitch), in ms. */
+const BOOT_GLITCH_MS = 1000;
 /** How long the channel-switch glitch runs when the mic changes hands, in ms. */
 const SWITCH_MS = 700;
 
@@ -113,6 +116,11 @@ export default function HologramStage({ route, leaving = false }: { route: strin
     };
   }, [route, dockOpen]);
 
+  // He glitches into being (#1093): the boot's glitch (hologram.css holo-glitch, one second) with its sound.
+  useEffect(() => {
+    playGlitchIn(BOOT_GLITCH_MS);
+  }, []);
+
   // The dock's edge glows in whoever has the mic; with his words above it (a phone), it makes room for them.
   useEffect(() => {
     document.body.classList.add("holo-call");
@@ -138,6 +146,8 @@ export default function HologramStage({ route, leaving = false }: { route: strin
     wasPhase.current = phase;
     if (was !== "starting" || phase !== "live") return;
     setClearing(true);
+    // The glitch into clarity is heard as well as seen (#1093).
+    playGlitchIn(RESOLVE_MS, 0.7);
     const t = window.setTimeout(() => setClearing(false), RESOLVE_MS + 100);
     return () => window.clearTimeout(t);
   }, [phase]);

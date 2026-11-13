@@ -30,7 +30,7 @@ const WORK_EVENTS = new Set(["foundry", "archive"]);
 /** 0..1: how lit a member is now. 0 while nothing is happening for it, or while its room isn't connected. */
 export function memberLive(p: CouncilPulse, now: number): number {
   if (!p.real || p.state === "sim") return 0;
-  if (p.state === "busy" || p.state === "down") return 1;
+  if (p.state === "busy" || p.state === "warn" || p.state === "down") return 1;
   if (!WORK_EVENTS.has(p.id)) return 0;
   const last = p.events.filter((t) => t <= now).reduce((a, b) => Math.max(a, b), 0);
   if (!last || now - last > LIT_MS) return 0;
@@ -65,7 +65,7 @@ export function councilLines({ pulses, changes, ilyr, now }: { pulses: CouncilPu
     const add = (text: string, at: number) => text && lines.push({ room: p.id, text: clip(text), at });
     if (p.id === "foundry") {
       if (p.doing) add(p.doing, now);
-      else if (p.state === "busy" || p.state === "down") add(p.status, now);
+      else if (p.state === "busy" || p.state === "warn" || p.state === "down") add(p.status, now);
       for (const c of changes) if (c.at <= now && now - c.at <= LIT_MS) add(`Shipped${c.issue ? ` #${c.issue.number}` : ""} ${c.short || ideaTitle(c.title)}${c.by && CREW[c.by] ? ` · ${CREW[c.by].name}` : ""}`, c.at);
     } else if (p.id === "archive") {
       for (const e of ilyr) {

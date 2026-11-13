@@ -17,7 +17,7 @@ import type { CouncilPulse } from "./live.ts";
  * way into its room. Skippy's own card says what he says and opens his chat (Talk lives there).
  */
 
-const STATE_WORD: Record<PulseState, string> = { busy: "busy", steady: "steady", waiting: "waiting", down: "needs a look", sim: "not set up" };
+const STATE_WORD: Record<PulseState, string> = { busy: "busy", steady: "steady", waiting: "waiting", warn: "needs a look", down: "needs a look", sim: "not set up" };
 const MOMENT: Partial<Record<string, string>> = { archive: "An hour of Ilyr written", relay: "Email checked", boiler: "A link checked" };
 const job = (title: string) => title.replace(/^The /, "");
 

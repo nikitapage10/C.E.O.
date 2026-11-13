@@ -14,7 +14,7 @@ import type { EmailStatus } from "../../../rooms/relay/data/email.ts";
  * step set there (real entries of the living Lattice, not samples). Deterministic templates, no API calls.
  */
 
-export type PulseState = "busy" | "steady" | "waiting" | "down" | "sim";
+export type PulseState = "busy" | "steady" | "waiting" | "warn" | "down" | "sim";
 
 export interface RoomPulse {
   id: RoomId;
@@ -105,6 +105,8 @@ export interface PulseInput {
   email?: EmailStatus | null;
   /** The Spire's public invoice counts (#279), once PayPal has answered on the Azure copy; left out, the Spire stays simulated. */
   invoices?: InvoiceStatus | null;
+  /** The worst token-waste flag in the Tokenomics report (#1152), once a signed-in Desk has read it; left out, nothing warns. */
+  waste?: { kind: string; feature?: string; label: string } | null;
 }
 
 const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
@@ -238,19 +240,24 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
     const off = links.length - known.length;
     const named = downNames(links);
     const which = namesPhrase(named.map((d) => d.name));
+    // Token waste (#1152): a warning when no link is down, naming the worst flag. A down link still comes first.
+    const waste = !down && known.length ? input.waste : null;
     out.push(
       pulse("boiler", {
         real: true,
-        state: down ? "down" : known.length ? "steady" : "waiting",
+        state: down ? "down" : waste ? "warn" : known.length ? "steady" : "waiting",
         activity: clamp(0.15 + up * 0.05),
         drive: known.length ? `${up} of ${n(links.length, "link")} up${down ? ` · ${which} down` : ""}` : "nothing connected",
-        status: down ? (named.length === 1 ? `${which} is down` : `${which} down`) : slow ? `${n(slow, "link")} slow` : `${up} of ${links.length} links up`,
-        short: down ? `${which} down` : slow ? `${slow} slow` : known.length ? "steady" : "waiting",
+        status: down ? (named.length === 1 ? `${which} is down` : `${which} down`) : waste ? `Tokens wasted: ${waste.label}` : slow ? `${n(slow, "link")} slow` : `${up} of ${links.length} links up`,
+        short: down ? `${which} down` : waste ? "tokens wasted" : slow ? `${slow} slow` : known.length ? "steady" : "waiting",
         report: down
           ? `${namesPhrase(named.map((d) => d.name), "long")} ${named.length === 1 ? "is" : "are"} down. I said this would happen. I take no pleasure in it.`
-          : `${up} links up${slow ? `, ${slow} slow` : ""}${off ? `, ${off} not connected yet` : ""}. Nothing's burst. Yet.`,
+          : waste
+            ? `Tokens are going to waste: ${waste.label}. The Tokenomics tab has the details. I'd look before it adds up.`
+            : `${up} links up${slow ? `, ${slow} slow` : ""}${off ? `, ${off} not connected yet` : ""}. Nothing's burst. Yet.`,
         events: [],
         ...(named[0] && { href: boilerHref(named[0].id) }),
+        ...(waste && { href: "/boiler/tokenomics" }),
       }),
     );
   }
@@ -398,7 +405,7 @@ function greenPulse(green: NonNullable<PulseInput["green"]>, events: number[], p
 
 /** Skippy's opening line on Today: what needs a human, said his way. */
 export function skippyLine(todo: number, pulses: RoomPulse[]): string {
-  const down = pulses.filter((p) => p.state === "down");
+  const down = pulses.filter((p) => p.state === "down" || p.state === "warn");
   const busy = pulses.filter((p) => p.state === "busy");
   const lead =
     todo === 0
@@ -421,7 +428,7 @@ export function roomPhrase(p: RoomPulse): string {
     case "foundry":
       return p.state === "down" ? "the Foundry's checks are red" : p.state === "busy" ? "the Foundry's mid-build" : p.state === "waiting" ? "the Foundry's reaching GitHub" : "the Foundry's all clear";
     case "boiler":
-      return p.state === "down" ? `${p.short} in the Boiler Room` : p.state === "waiting" ? "the Boiler Room's waiting on its gauges" : "all quiet in the Boiler Room";
+      return p.state === "down" || p.state === "warn" ? `${p.short} in the Boiler Room` : p.state === "waiting" ? "the Boiler Room's waiting on its gauges" : "all quiet in the Boiler Room";
     case "relay":
       return p.state === "waiting" ? "the Relay's waiting on the Mac" : p.state === "down" ? "the Relay's hub is down" : p.state === "busy" ? `${p.short} in the Relay` : "the Relay's quiet";
     case "archive":

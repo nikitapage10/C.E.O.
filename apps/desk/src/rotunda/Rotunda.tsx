@@ -42,7 +42,7 @@ const isPhone = () => typeof window !== "undefined" && typeof window.matchMedia 
 const hex = (rgb: string) => `#${rgb.split(",").map((v) => Number(v).toString(16).padStart(2, "0")).join("")}`;
 /** The pods' order round the bowl, left to right (the concept's). */
 const ORDER = ["foundry", "relay", "exchange", "green", "spire", "archive", "boiler", "breakroom", "workshop", "studio", "annex", "haven"];
-const STATE_WORD = { busy: "at work", steady: "steady", waiting: "waiting", down: "needs a look", sim: "not set up" } as const;
+const STATE_WORD = { busy: "at work", steady: "steady", waiting: "waiting", warn: "needs a look", down: "needs a look", sim: "not set up" } as const;
 
 /** Where a pod sits in the flat chamber, in percent of the stage: the same arc as the 3D bowl, seen from the rim. */
 function flatSeat(i: number, n: number) {

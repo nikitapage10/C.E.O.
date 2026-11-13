@@ -11,6 +11,7 @@ import { useNow } from "@ceo/engine/sigils/motion.tsx";
 import { setToolbelt } from "@ceo/engine/tools";
 import { roomPulses, type RoomPulse } from "./roomPulse.ts";
 import { addPageSource, setTexting, type Texting } from "./skippy/rooms.ts";
+import { useWaste, wasteName } from "../../../rooms/boiler/data/waste.ts";
 import { useInvoices } from "../../../rooms/spire/data/invoices.ts";
 
 /**
@@ -39,6 +40,7 @@ export function useRoomPulse(room: RoomId | null): RoomPulse | null {
   const greenBoard = useGreen((s) => s.board);
   const invoices = useInvoices((s) => s.status);
   const email = useEmail((s) => s.status);
+  const wasteFlag = useWaste((s) => s.flag);
   // The Desk's clock already ticks every half minute; "today" only needs the minute.
   const minute = Math.floor(useNow(60_000) / 60_000);
   return useMemo(() => {
@@ -48,9 +50,9 @@ export function useRoomPulse(room: RoomId | null): RoomPulse | null {
     const hub = links.find((l) => l.id === "hub")?.state ?? "off";
     const lead = board?.top[0];
     const odds = board ? { markets: board.top.length, lead: lead ? { question: lead.question, prob: lead.prob } : null } : null;
-    const all = roomPulses({ now: at, dayStart, foundry: { connected, data, pending }, links, hub, owed, world, odds, green: { status: greenStatus, board: greenBoard }, invoices, email });
+    const all = roomPulses({ now: at, dayStart, foundry: { connected, data, pending }, links, hub, owed, world, odds, green: { status: greenStatus, board: greenBoard }, invoices, email, waste: wasteFlag ? { kind: wasteFlag.kind, feature: wasteFlag.feature, label: wasteName(wasteFlag) } : null });
     return all.find((p) => p.id === room) ?? null;
-  }, [room, minute, connected, data, pending, links, owed, world, board, greenStatus, greenBoard, invoices, email]);
+  }, [room, minute, connected, data, pending, links, owed, world, board, greenStatus, greenBoard, invoices, email, wasteFlag]);
 }
 
 /* ── Skippy's page block (skippy/page.ts): each live room's own lines, the Green's start/sit calls leading ── */

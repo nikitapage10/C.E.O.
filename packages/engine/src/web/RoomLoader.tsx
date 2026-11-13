@@ -29,7 +29,7 @@ const SEEN = new Set<string>();
 type Phase = "cover" | "leave" | "gone";
 
 
-export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, children }: { room: string; name: string; accent: string; shown?: boolean; cap?: number; children: ReactNode }) {
+export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, onGone, children }: { room: string; name: string; accent: string; shown?: boolean; cap?: number; onGone?: (room: string) => void; children: ReactNode }) {
   const [revisit] = useState(() => SEEN.has(room));
   const [reduced] = useState(reducedMotion);
   const [phase, setPhase] = useState<Phase>("cover");
@@ -71,6 +71,14 @@ export function RoomLoader({ room, name, accent, shown = true, cap = CAP_MS, chi
       return () => window.clearTimeout(t);
     }
   }, [phase, fade, room, cap, capMs]);
+
+  // The cover is gone (#1124): the Desk holds its background warm-up (the kept rooms' scenes) until now, so a room's
+  // own scene never shares the main thread with another's build while its cover is up.
+  const gone = useRef(onGone);
+  gone.current = onGone;
+  useEffect(() => {
+    if (phase === "gone") gone.current?.(room);
+  }, [phase, room]);
 
   const sigil = sigilOf(room);
   const style = { "--rl-accent": `var(${accent})`, "--rl-fade": `${fade}ms`, "--rl-delay": revisit ? "240ms" : "70ms" } as CSSProperties;

@@ -1,5 +1,5 @@
 import "./roomHooks.ts";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { startFoundry } from "../../world/src/foundry.ts";
 import { keepLattice, warmLattice } from "../../world/src/latticeWarm.ts";
 import { navigate, renamedPath, usePathname } from "../../world/src/route.ts";
@@ -172,7 +172,12 @@ export function Desk({ route }: { route: DeskPage }) {
       off();
     };
   }, []);
-  const held = !senateUp && waitsOnSenate(next);
+  // The room on screen first (#1124): nothing warms while its cover is up, so its own scene builds alone. Measured
+  // in .perf runs, a kept Senate building beside a room held that room's cover several seconds past its first frame.
+  const [ready, setReady] = useState<ReadonlySet<string>>(() => new Set());
+  const onGone = useCallback((r: string) => setReady((s) => (s.has(r) ? s : new Set(s).add(r))), []);
+  const shownReady = ready.has(route);
+  const held = (!senateUp && waitsOnSenate(next)) || !shownReady;
   useEffect(() => {
     if (warmed >= ALWAYS_KEPT.length || !keepLattice()) return;
     // One already mounted (the room on screen, or visited) costs nothing: straight on to the next.
@@ -211,14 +216,14 @@ export function Desk({ route }: { route: DeskPage }) {
   // Today, warmed while the Desk is idle on another room (rotunda/warm.ts): the likeliest next room opens quickly.
   const todayKept = kept.includes("today");
   useEffect(() => {
-    if (todayKept || !canWarm()) return;
+    if (todayKept || !shownReady || !canWarm()) return;
     let gone = false;
     const t = window.setTimeout(() => idle(() => !gone && void warmRotunda(), 6000), 3000);
     return () => {
       gone = true;
       window.clearTimeout(t);
     };
-  }, [todayKept]);
+  }, [todayKept, shownReady]);
 
   const phone = useIsPhone();
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
@@ -239,7 +244,7 @@ export function Desk({ route }: { route: DeskPage }) {
           Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. A kept room (#759) stays
           mounted, hidden and inert, with no cover, until it is back on screen. */}
       {[...kept].sort((a, b) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(b)).map((r) => (
-        <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route}>
+        <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} onGone={onGone}>
           <main
             ref={(el) => void (el ? mains.current.set(r, el) : mains.current.delete(r))}
             className="desk__main"

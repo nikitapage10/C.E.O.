@@ -161,6 +161,41 @@ describe("no repeats (#1149)", () => {
     expect(sameMotion("that the moon is overrated", "that the ocean is overrated")).toBe(false);
   });
 
+  it("doesn't call two motions the same for sharing the chamber's world words (#1163)", () => {
+    expect(sameMotion("that the old world's scraps of winged fire-lizards were real", "that the old world's tall grey wanderer was a sigil-smith")).toBe(false);
+    expect(sameMotion("that scraps of the old world should be kept in the chamber", "that the old world's scraps belong to every House")).toBe(false);
+    expect(sameMotion("that pizza is the finest scrap", "that pizza toppings matter")).toBe(false);
+  });
+
+  it("tries once more at once when a motion comes back a repeat, with that motion on the used list (#1163)", async () => {
+    const asked: string[] = [];
+    let n = 0;
+    const ask: SenateAsk = async (system, user) => {
+      asked.push(user);
+      const ids = /by id: ([a-z, ]+)\./.exec(user)![1]!.split(", ");
+      const motion = n++ === 0 ? "that every bridge is a love letter to gravity" : "that tea outranks coffee at the forge";
+      return {
+        answer: {
+          motion,
+          lines: [
+            { by: ids[0]!, stance: "open", text: "An opening line." },
+            { by: ids[1]!, stance: "aye", text: "A line in favour." },
+            { by: ids[2]!, stance: "nay", text: "A line against." },
+          ],
+          close: "Carried, magnificently.",
+          murmurs: [],
+        },
+        usage: { input_tokens: 100, output_tokens: 50 },
+      };
+    };
+    const d = deps({ ask });
+    d.topics.list = ["that every bridge is a love letter to gravity"];
+    const got = await newDebate({ seated: SEATED }, d);
+    expect("debate" in got && got.debate.motion).toBe("that tea outranks coffee at the forge");
+    expect(asked).toHaveLength(2);
+    expect(asked[1]).toContain("- that every bridge is a love letter to gravity\n</used>");
+  });
+
   it("keeps the lines said, and asks for new jokes and phrases than those", async () => {
     const m = fakeModel();
     const lines = new MemoryTopicStore(120);

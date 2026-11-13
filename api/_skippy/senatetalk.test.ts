@@ -12,6 +12,7 @@ import {
   SENATE_CEILING_USD,
   SENATE_PART,
   SEEDS,
+  noIlyr,
   chairQuips,
   freshSeed,
   sameMotion,
@@ -68,8 +69,14 @@ function deps(over: Partial<SenateDeps> = {}): SenateDeps & { chat: MemoryChatLe
 beforeEach(() => resetGaps());
 
 describe("a new argument (#910)", () => {
-  it("keeps Ilyr to its lore: a seed is a scrap from outside, never a creature that lives there", () => {
-    expect(DEBATE_SYSTEM).toContain("never in the Lattice: no dragons, wizards or kingdoms in Ilyr");
+  it("keeps the chamber in its own world: a seed is life in the Lattice or a scrap from outside, never Ilyr", () => {
+    expect(DEBATE_SYSTEM).toContain("never in the Lattice: no dragons, wizards or kingdoms in the Lattice");
+    expect(DEBATE_SYSTEM).toContain("the Lattice has no shops, food, drink, money, cities or weather");
+    expect(DEBATE_SYSTEM).toContain("never say Ilyr");
+    expect(DEBATE_SYSTEM).not.toMatch(/\(Ilyr\)/);
+    for (const s of SEEDS) expect(s).not.toMatch(/Ilyr|coffee|breakfast|Rome|Star Wars|Pokémon|Mass Effect/);
+    expect(SEEDS.some((s) => s.startsWith("a scrap: "))).toBe(true);
+    expect(noIlyr("Every Ilyr coffee shop, across Ilyr, by Ilyr's rule")).toBe("Every Lattice coffee shop, across the Lattice, by the Lattice's rule");
     expect(DEBATE_SYSTEM).toContain("never say a title or a creator's name");
     expect(DEBATE_SYSTEM).toContain("six Great Houses");
     expect(DEBATE_SYSTEM).toContain("House Unforked; the Senate is the Skippies' alone");

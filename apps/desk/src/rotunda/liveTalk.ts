@@ -160,8 +160,8 @@ export async function fetchFloor(said: string, seated: string[], topic: FloorTop
         room: "today",
         senate: join && topic ? "join" : "reply",
         said: said.slice(0, 300),
-        // The floor's answers are text (#1104): the chair's comes back unspoken, with a member's quip or two.
-        voice: false,
+        // The chair's answer comes back in his voice, with a member's quip or two underneath (#1104).
+        quips: true,
         seated,
         ...(topic && { motion: topic.motion, lines: topic.lines.slice(join ? -8 : -6), ...(join && topic.cast && { cast: topic.cast }) }),
       }),

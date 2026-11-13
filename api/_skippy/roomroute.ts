@@ -348,16 +348,13 @@ async function chairAnswers(said: string, body: Record<string, unknown>, deps: R
   const text = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);
   deps.log(`room voice: today senate-skippy${turn.error ? ` ${turn.error}` : ""}`);
   const wrote = !turn.error && turn.wrote?.length ? { wrote: turn.wrote, did: turn.did ?? [] } : {};
-  // The Senate's floor asks for text (#1104, `voice: false`): his answer shows written, unspoken, and a member or two
-  // may chime in underneath with a quip (never on a failed turn).
-  if (body.voice === false) {
-    const sd = turn.error ? null : deps.senate?.();
-    const quips = sd ? await chairQuips(said, text, readSeats(body.seated), sd).catch(() => []) : [];
-    return json({ lines: [{ by: "kernel", text }], skippy: true, ...(quips.length && { quips }), ...wrote });
-  }
-  // Said in his own voice, as any answer is (#926); past the cap, read.
+  // The Senate's floor asks for quips (#1104): a member or two may chime in underneath his answer (never on a failed
+  // turn). `voice: false` is the older ask for the same.
+  const sd = (body.quips === true || body.voice === false) && !turn.error ? deps.senate?.() : null;
+  const quips = sd ? await chairQuips(said, text, readSeats(body.seated), sd).catch(() => []) : [];
+  // Said in his own voice, as any answer is (#926; the floor's too since Nikita, 2026-11-13); past the cap, read.
   const spoken = privateParts(text).length ? null : await speakRoom(text, today.sound, deps.eleven, deps.ledger, deps.desk.now, deps.fetcher);
-  return json({ lines: [{ by: "kernel", text }], skippy: true, ...(spoken && { audio: Buffer.from(spoken).toString("base64") }), ...wrote });
+  return json({ lines: [{ by: "kernel", text }], skippy: true, ...(spoken && { audio: Buffer.from(spoken).toString("base64") }), ...(quips.length && { quips }), ...wrote });
 }
 
 /**

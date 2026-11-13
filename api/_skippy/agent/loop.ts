@@ -341,7 +341,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
 
   /* ── The world (#1124): Gemini with Google Search, Flash for a fact, Argon for depth; Claude if it can't ── */
   if (start === "world" || start === "world_deep") {
-    const w = ctx.world ? await ctx.world(ctx.message, start === "world_deep" ? "deep" : "quick", ctx.now ?? Date.now(), ctx.core.startsWith("(No core card") ? "" : ctx.core).catch(() => null) : null;
+    const w = ctx.world ? await ctx.world(ctx.message, start === "world_deep" ? "deep" : "quick", ctx.now ?? Date.now(), ctx.core.startsWith("(No core card") ? "" : ctx.core.split("\nThings you'd like to learn")[0]).catch(() => null) : null;
     if (w) {
       called = true;
       usage = add(usage, w.usage);

@@ -155,6 +155,9 @@ export function dryMemory(live: MemoryStore, note: (name: string) => void): Memo
       note("memory.core");
       return { ok: false, why: "missing" };
     },
+    setCurious: async () => {
+      note("memory.curious");
+    },
     journal: async () => false,
   };
 }

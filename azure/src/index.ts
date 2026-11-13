@@ -46,6 +46,7 @@ import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
+import { DISTILL_SCHEDULE, runDistill } from "../../api/_skippy/agent/distill.js";
 import * as todaytodos from "../../api/_today/route.js";
 import * as skippyvoice from "../../api/skippy-voice.js";
 import * as skippyroom from "../../api/_skippy/roomroute.js";
@@ -300,6 +301,21 @@ app.timer("haven_step_backfill", {
     const queued = await havenmeals.runStepBackfill().catch(() => "failed" as const);
     if (queued === "failed") context.warn("haven step backfill: failed");
     else if (typeof queued === "number" && queued > 0) context.log(`haven step backfill: ${queued} step pictures queued`);
+  },
+});
+
+// Skippy learns from talking to Nikita (#1126, api/_skippy/agent/distill.ts): once a night at 11:00 UTC, the turns his
+// journal kept since the last pass become facts, a refreshed core card and a few things to ask. Counts only.
+app.timer("skippy_distill", {
+  schedule: DISTILL_SCHEDULE,
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    await keysFresh();
+    const got = await runDistill().catch(() => ({ state: "failed" as const }));
+    if (got === "not-set-up") return;
+    if (got.state === "failed") context.warn("skippy distill: failed");
+    else if (got.state === "learned") context.log(`skippy distill: ${got.facts} facts kept, ${got.refused} refused, core ${got.core ? "updated" : "kept"}, ${got.curious} to ask`);
   },
 });
 

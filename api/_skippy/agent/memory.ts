@@ -7,7 +7,8 @@
  *   Pages       knowledge pages by topic, each with its source and date: a title and summary for the index, and a body.
  *   Facts       single facts Nikita confirmed ("remember that…" waits for his Yes tap), or mirrored from the project's
  *               memory (source "project"); looked up, never all loaded.
- *   Journal     the Desk's and the phone's turns, trimmed, the last JOURNAL_DAYS days, for the nightly distiller (later).
+ *   Journal     the Desk's and the phone's turns, trimmed, the last JOURNAL_DAYS days, read each night by the distiller
+ *               (#1126, ./distill.ts), which keeps new facts, refreshes the core card and notes what to ask him next.
  *
  * What never goes in (`memoryRefusal`), checked on every write, whoever writes: anything the privacy check flags
  * (emails, phone numbers, addresses, card, bank and ID numbers, keys, people's names given away by a cue), money and
@@ -37,6 +38,8 @@ export const PAGES_MAX = 200;
 export const FACTS_MAX = 400;
 export const JOURNAL_DAYS = 30;
 export const JOURNAL_MAX = 600;
+export const CURIOUS_MAX = 5;
+export const CURIOUS_LEN = 200;
 const JOURNAL_Q = 240;
 const JOURNAL_A = 360;
 
@@ -65,6 +68,10 @@ export interface Memory {
   core: string;
   pages: KbPage[];
   facts: Fact[];
+  /** What Skippy would like to learn about Nikita (#1126), from the nightly pass: he may ask one when it fits. */
+  curious?: string[];
+  /** When the nightly pass last read the journal (#1126). */
+  distilledAt?: string;
 }
 
 export interface JournalTurn {
@@ -125,7 +132,14 @@ function cleanMemory(raw: unknown): Memory {
     .map((f) => ({ id: f.id, text: plainLine(f.text, FACT_MAX), topic: cleanTopic(f.topic), source: cleanSource(f.source), at: iso(f.at, now) }))
     .filter((f) => f.text)
     .slice(-FACTS_MAX);
-  return { core: typeof r.core === "string" ? r.core.slice(0, CORE_MAX) : "", pages, facts };
+  const curious = (Array.isArray(r.curious) ? r.curious : []).filter((c): c is string => typeof c === "string").map((c) => plainLine(c, CURIOUS_LEN)).filter(Boolean).slice(0, CURIOUS_MAX);
+  return {
+    core: typeof r.core === "string" ? r.core.slice(0, CORE_MAX) : "",
+    pages,
+    facts,
+    ...(curious.length && { curious }),
+    ...(typeof r.distilledAt === "string" && !Number.isNaN(Date.parse(r.distilledAt)) && { distilledAt: new Date(r.distilledAt).toISOString() }),
+  };
 }
 
 /* ── Looking things up ── */
@@ -192,6 +206,8 @@ export interface MemoryStore {
   putPage(page: { title: string; topic: string; summary: string; body: string; source: MemorySource }, now: number): Promise<Saved<KbPage>>;
   forget(id: string): Promise<boolean>;
   setCore(text: string): Promise<Saved<string>>;
+  /** The nightly pass's bookkeeping (#1126): what to ask about next, and when it last ran. Each question through the rules. */
+  setCurious(curious: string[], distilledAt: string): Promise<void>;
   journal(turn: JournalTurn, now: number): Promise<boolean>;
   readJournal(now: number): Promise<JournalTurn[]>;
 }
@@ -257,6 +273,15 @@ abstract class Checked implements MemoryStore {
     return this.change<Saved<string>>((raw) => ({ next: { ...cleanMemory(raw), core }, result: { ok: true as const, value: core } }));
   }
 
+  async setCurious(curious: string[], distilledAt: string): Promise<void> {
+    const kept = curious.map((c) => plainLine(c, CURIOUS_LEN)).filter((c) => c && !memoryRefusal(c, this.skipTerms)).slice(0, CURIOUS_MAX);
+    await this.change((raw) => {
+      const cur = cleanMemory(raw);
+      const { curious: _c, ...rest } = cur;
+      return { next: { ...rest, ...(kept.length && { curious: kept }), distilledAt }, result: null };
+    });
+  }
+
   /** One turn into the journal, trimmed; a turn that trips the rules is left out whole (false). */
   async journal(turn: JournalTurn, now: number): Promise<boolean> {
     const q = plainLine(turn.q, JOURNAL_Q);
@@ -318,5 +343,6 @@ export class MemoryMemory extends Checked {
 
 /** The core card as the agent's always-loaded block. */
 export function coreBlock(m: Memory): string {
-  return m.core.trim() || "(No core card yet. Learn what Nikita tells you, and look things up in memory when it matters.)";
+  const core = m.core.trim() || "(No core card yet. Learn what Nikita tells you, and look things up in memory when it matters.)";
+  return m.curious?.length ? `${core}\nThings you'd like to learn about him (ask one only when it fits: small talk or a relaxed chat, never mid-task, on a quick lookup or more than once a conversation): ${m.curious.join(" | ")}` : core;
 }

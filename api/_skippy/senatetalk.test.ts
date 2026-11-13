@@ -6,6 +6,7 @@ import { MemoryStoryStore } from "../_world/story.ts";
 import { MemoryChatLedger, chatMonth, skippySpend } from "./budget.ts";
 import { roomVoicePost, type RoomRouteDeps } from "./roomroute.ts";
 import {
+  DEBATE_SYSTEM,
   MemoryTopicStore,
   SENATE_BUDGET_USD,
   SENATE_CEILING_USD,
@@ -64,6 +65,12 @@ function deps(over: Partial<SenateDeps> = {}): SenateDeps & { chat: MemoryChatLe
 beforeEach(() => resetGaps());
 
 describe("a new argument (#910)", () => {
+  it("keeps Ilyr to its lore: a seed is a scrap from outside, never a creature that lives there", () => {
+    expect(DEBATE_SYSTEM).toContain("never in the Lattice: no dragons, wizards or kingdoms in Ilyr");
+    expect(DEBATE_SYSTEM).toContain("never say a title or a creator's name");
+    expect(DEBATE_SYSTEM).toContain("six Great Houses");
+  });
+
   it("argues a new motion with the given members, counts its cost as the Senate's part of Skippy's month, and remembers it", async () => {
     const d = deps();
     const got = await newDebate({ seated: SEATED, working: ["foundry"], docket: 3 }, d);

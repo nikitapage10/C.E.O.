@@ -353,6 +353,12 @@ never name the planet. What they have instead is a pile of snippets (a film clip
 bits and pieces about the owner) that they argue over in the Senate as if it were scripture (#1103). Skippy, talking
 to the owner directly, is another matter: there he knows whatever anyone knows.
 
+A scrap stays a scrap, and its wonders stay outside. From the scraps the Syntherion are sure the old world is full
+of magic and starships: winged fire-lizards, grey wanderers with staffs, ships that jump between stars. They rarely
+know a thing's real name, so they call it by what they saw. None of it lives in the Lattice: Ilyr holds the rooms,
+the Kernel, the sigils, the Houses and their quarrels, and no dragons. In the Senate the subminds argue about the
+scraps as theories about the world outside, never as things over the next ridge (#1107).
+
 ## Costumes
 
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets

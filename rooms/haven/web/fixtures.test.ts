@@ -298,3 +298,14 @@ describe("the island's underglow (#1085)", () => {
     expect(islandGlowOn([L("Hall", false)])).toBe(true);
   });
 });
+
+describe("the island's under-light in the Studio's green (#1122)", () => {
+  const L = (name: string, rgb: string | null, on: boolean | null = true, online = true) => ({ name, on, online, rgb });
+  it("takes the Studio lamps' green while one is on in green, else none", async () => {
+    const { studioGreenOf } = await import("./fixtures.ts");
+    expect(studioGreenOf([L("Studio lamp NE", "#00ff22"), L("Bedroom lamp", "#ffd6a0")])).toBe(0x00ff22);
+    expect(studioGreenOf([L("Studio lamp NE", "#ffd6a0")])).toBeNull();
+    expect(studioGreenOf([L("Studio lamp NE", "#00ff22", false)])).toBeNull();
+    expect(studioGreenOf(null)).toBeNull();
+  });
+});

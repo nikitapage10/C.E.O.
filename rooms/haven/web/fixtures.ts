@@ -67,6 +67,20 @@ export function islandGlowOn(lights: readonly { name: string; on: boolean | null
   return under.online && under.on === true;
 }
 
+/**
+ * The green the island's under-light is drawn in (#1122): the Studio lamps' own colour while one is on in green, so
+ * the two always match; else null (the house keeps its Studio green).
+ */
+export function studioGreenOf(lights: readonly { name: string; on: boolean | null; online: boolean; rgb?: string | null }[] | null): number | null {
+  for (const l of lights ?? []) {
+    if (!/\bstudio\b/i.test(l.name) || !l.online || l.on !== true || !l.rgb || !/^#[0-9a-f]{6}$/i.test(l.rgb)) continue;
+    const n = parseInt(l.rgb.slice(1), 16);
+    const r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    if (g > 120 && g > r * 1.6 && g > b * 1.6) return n;
+  }
+  return null;
+}
+
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const KITCHEN = /\bkitchen\b/i;
 const LIVING = /\bliving\b/i;

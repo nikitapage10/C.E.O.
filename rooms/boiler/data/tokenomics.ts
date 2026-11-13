@@ -66,7 +66,8 @@ export function tokens(n: number): string {
   return String(Math.round(n));
 }
 
-export const pct = (x: number) => `${Math.round(x * 100)}%`;
+/** A share: whole percents, one decimal under 10% so a small cache hit doesn't read as none. */
+export const pct = (x: number) => (x > 0 && x < 0.1 ? `${(x * 100).toFixed(1)}%` : `${Math.round(x * 100)}%`);
 
 /** A row's per-call figures. */
 export function perCall(r: UsageRow): { usd: number; tokensIn: number; tokensOut: number } {

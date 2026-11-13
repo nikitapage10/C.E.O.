@@ -156,6 +156,16 @@ written only in a passkey session (`/api/annex-jobs`, no public view, the site g
 answer is untrusted data (capped plain strings, https apply links only, `api/_annex/jobs.ts`). Runs are one a day on a
 timer plus a tap at most every 30 minutes, inside a monthly budget, and log counts only.
 
+The Boiler Room's Tokenomics tab (#1142) keeps a usage ledger of every AI call the Function App makes
+(`api/_usage/meter.ts`): one line per call in the private store (`desk/usage/YYYY-MM-DD.jsonl`) with the provider, model,
+a fixed feature id, token counts, searches, list-price dollars, time and status. The ledger reads only a copy of each
+answer's usage numbers, never a prompt, an answer, a header or a key, and it never slows or fails the call. A nightly
+timer reads the providers' own daily cost and usage reports (`api/_usage/admin.ts`) with the Anthropic Admin API and
+OpenAI admin keys (`anthropic-admin-key`, `openai-admin-key`). Neither provider offers a read-only admin key, so these
+keys could manage the organizations. They are set from Cloud Shell, never settable from the site (`NEVER_SETTABLE`), sent
+only in a header to each provider's own API host, and used only for GETs of the two report paths each. The report is
+read only in a passkey session (`/api/boiler-usage`, TB1).
+
 Since #1025 the resume does leave Azure: the Job search's AI fit check (`api/_annex/fit.ts`) sends Claude Sonnet
 (`claude-sonnet-5-5`, the Anthropic API) the resume and each shown job's title, company, place, highlights and
 description (about 6,000 characters), to say whether the job's requirements line up with it (TB2). It uses the Claude

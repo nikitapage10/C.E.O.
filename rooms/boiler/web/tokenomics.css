@@ -93,6 +93,8 @@
 }
 /* The phone (#1045, PHONE_QUERY): the numbers two by two and the flags under them, above the fold; one column after. */
 @media (max-width: 760px) {
+  /* The head's line is the same every visit: the numbers and flags take its place above the fold. */
+  [data-room="boiler"] .bx-tokenomics .bx-say { display: none; }
   [data-room="boiler"] .tk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   [data-room="boiler"] .tk-kpi { padding: 9px 11px; }
   [data-room="boiler"] .tk-v { font-size: 23px; }

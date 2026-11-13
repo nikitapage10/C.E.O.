@@ -162,6 +162,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `paypal-client-id`, `paypal-client-secret` (the Spire's invoices, #279; Azure only, see [PAYPAL.md](PAYPAL.md)) | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
    | `builder-read-key` (the Builder's read-only key, #800; Azure only, added by hand, see [The Builder's read key](#the-builders-read-key)) | `BUILDER_READ_KEY` |
    | `skippy-probe-token` (the upkeep run's Skippy probe, #955; Azure only, added by hand, see [The Skippy probe's key](#the-skippy-probes-key)) | `SKIPPY_PROBE_TOKEN` |
+| `anthropic-admin-key`, `openai-admin-key` (the Tokenomics tab's providers' own numbers, #1142; Azure only, optional, typed in Cloud Shell, never on the Desk's Keys form; see [SECURITY.md](SECURITY.md), "The usage ledger") | `ANTHROPIC_ADMIN_KEY`, `OPENAI_ADMIN_KEY` |
 | `submind-log-token`, `submind-feed-token` (the subminds' room keys, #281, #312; Azure only, at least 32 random characters; see [The subminds' room keys](#the-subminds-room-keys)) | `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
@@ -445,6 +446,24 @@ az functionapp deployment source config-zip -g rg-ceo-prod -n <functionAppName> 
 
 The unit tests for the adapter, the Key Vault guard and the store choice run with the rest (`npm test`, files in
 `azure/src/*.test.ts` and `api/_blob.test.ts`), with the Azure SDKs mocked.
+
+## The Tokenomics admin keys (#1142)
+
+Optional. With them, the Boiler Room's Tokenomics tab sets each provider's own daily bill beside the usage ledger. Neither
+provider makes a read-only admin key, so they go into the vault from Cloud Shell only, never through the Desk's Keys form:
+
+1. Anthropic: an organization admin opens **platform.claude.com/settings/admin-keys** → **Create admin key**, names it
+   `ceo-usage-read`, picks an expiry, **Add**, and copies the `sk-ant-admin01-…` value (shown once).
+2. OpenAI: an organization owner opens **platform.openai.com/settings/organization/admin-keys** → **Create new admin key**,
+   names it `ceo-usage-read`, and copies the value (shown once).
+3. In Azure Cloud Shell (Bash), paste this; it asks for each key without echoing it (Enter skips one):
+
+```bash
+KV=kv-ceo-besgu7fnckib2; read -rsp "Anthropic admin key (Enter to skip): " AK; echo; read -rsp "OpenAI admin key (Enter to skip): " OK; echo; [ -n "$AK" ] && az keyvault secret set --vault-name $KV -n anthropic-admin-key --value "$AK" -o none && echo "set anthropic-admin-key"; [ -n "$OK" ] && az keyvault secret set --vault-name $KV -n openai-admin-key --value "$OK" -o none && echo "set openai-admin-key"; unset AK OK; az functionapp restart -g rg-ceo-prod -n func-ceo-besgu7fnckib2 -o none && echo "restarted; the usage pull runs at 06:30 UTC"
+```
+
+The template already points `ANTHROPIC_ADMIN_KEY` and `OPENAI_ADMIN_KEY` at those secrets. To turn one off, delete its
+secret (or revoke the key at the provider); the tab goes back to "waiting" for it.
 
 ## The Kernel responder (#501)
 

@@ -7,8 +7,8 @@ import { link } from "./nav.ts";
 import { phoneShelf } from "./phoneShelf.ts";
 import { pageName, pageSections, type DeskPage } from "./roomPages.ts";
 import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
-import { useSkippy } from "./skippy/index.ts";
 import { TabFan } from "./TabFan.tsx";
+import { askSkippy } from "./skippy/callFirst.ts";
 import "./phonenav.css";
 
 /**
@@ -138,7 +138,6 @@ export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
   const [fanX, setFanX] = useState(0);
   const closeFan = useCallback(() => setFan(null), []);
   const closeSheet = useCallback(() => setSheet(false), []);
-  const setChat = useSkippy((s) => s.setOpen);
   // A move to another page or tab shuts the sheet and starts the new one at its top: on a phone a room is a long
   // column, and the Desk's one scroller would otherwise open it where the last one was left.
   useEffect(() => {
@@ -211,7 +210,7 @@ export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
       <nav className="ph-bar" aria-label="Desk">
         {slot(pinned[0])}
         {slot(pinned[1])}
-        <button type="button" className="ph-slot ph-ask desk__skippy" onClick={() => setChat(true)} aria-controls="skippy-chat" title="Ask Skippy: chat, or Talk on a call">
+        <button type="button" className="ph-slot ph-ask desk__skippy" onClick={askSkippy} aria-controls="skippy-chat" title="Call Skippy (end the call to type instead)">
           <i aria-hidden="true">
             <svg viewBox="0 0 24 24">
               <path d="M3.8 7.6C5.9 4.7 8.7 3.4 12 3.4s6.1 1.3 8.2 4.2c-2.5-.8-5.2-1.1-8.2-1.1s-5.7.3-8.2 1.1z" fill="currentColor" />

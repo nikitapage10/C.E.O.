@@ -6,7 +6,7 @@ import { PhoneTodos } from "../_haven/todos.ts";
 import { MemoryStoryStore, elevenCost, storyMonth } from "../_world/story.ts";
 import { roomVoicePost, type RoomRouteDeps } from "./roomroute.ts";
 import { ROOM_TTS_MODEL, ROOM_VOICES } from "./roomvoice.ts";
-import { ROTUNDA_CACHE, ROTUNDA_SHARE_USD, ROTUNDA_VOICES, lineKey, speakCast } from "./rotundavoice.ts";
+import { ROTUNDA_CACHE, ROTUNDA_RESERVE_CHARS, ROTUNDA_VOICES, forgetCredits, lineKey, speakCast } from "./rotundavoice.ts";
 import { SUBMIND_TITLE } from "@ceo/desk/rotunda/rite.ts";
 import { rateOf } from "@ceo/desk/rotunda/senators.ts";
 
@@ -14,7 +14,7 @@ import { rateOf } from "@ceo/desk/rotunda/senators.ts";
 
 const DESK = "a test desk key, not a real one";
 const NOW = Date.parse("2026-11-05T02:00:00Z");
-const eleven = { key: "test-eleven", voice: "testSkippyVoice01", budget: 10 };
+const eleven = { key: "test-eleven", voice: "testSkippyVoice01", budget: Number.POSITIVE_INFINITY };
 
 function memoryBlob() {
   const files = new Map<string, Uint8Array>();
@@ -31,9 +31,12 @@ function memoryBlob() {
   return { blob, files };
 }
 
-function fakeEleven(status = 200) {
+function fakeEleven(status = 200, left: number | null = null) {
   const calls: { url: string; body: Record<string, unknown> }[] = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    // The plan's credits (a read, not a line): unreadable unless the test gives a number.
+    if (String(input).endsWith("/v1/user/subscription"))
+      return left === null ? new Response("no", { status: 401 }) : Response.json({ character_count: 100_000 - left, character_limit: 100_000 });
     calls.push({ url: String(input), body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown> });
     return status === 200 ? new Response(new Uint8Array(3_000).fill(9), { headers: { "Content-Type": "audio/mpeg" } }) : new Response("no", { status });
   }) as typeof fetch;
@@ -108,19 +111,23 @@ describe("the Rotunda's voices (#755)", () => {
     expect(calls[0]!.url).toContain("/text-to-speech/testSkippyVoice01");
   });
 
-  it("stops making lines at the Rotunda's share of the cap, or the cap itself, and still plays what it kept", async () => {
+  it("has no dollar share of its own: it speaks until the plan nears the calls' reserve, and still plays what it kept", async () => {
     const { blob } = memoryBlob();
     const ledger = new MemoryStoryStore();
-    const { calls, fetcher } = fakeEleven();
-    const deps = { blob, eleven, ledger, now: NOW, fetcher };
-    await speakCast("green", "Hear, hear", deps);
-    await ledger.addSpend(NOW, { rotundaUsd: ROTUNDA_SHARE_USD });
+    // Far past the old $3 share: no longer a reason to stop.
+    await ledger.addSpend(NOW, { rotundaUsd: 50, elevenUsd: 50 });
+    forgetCredits();
+    const plenty = fakeEleven(200, 50_000);
+    expect(await speakCast("green", "Hear, hear", { blob, eleven, ledger, now: NOW, fetcher: plenty.fetcher })).toMatchObject({ cached: false });
+    forgetCredits();
+    const low = fakeEleven(200, ROTUNDA_RESERVE_CHARS + 3);
+    const deps = { blob, eleven, ledger, now: NOW + 1, fetcher: low.fetcher };
     expect(await speakCast("green", "Seconded", deps)).toBeNull();
     expect(await speakCast("green", "Hear, hear", deps)).toMatchObject({ cached: true });
-    const capped = new MemoryStoryStore();
-    await capped.addSpend(NOW, { elevenUsd: 10 });
-    expect(await speakCast("green", "Seconded", { ...deps, ledger: capped })).toBeNull();
-    expect(calls).toHaveLength(1);
+    expect(low.calls).toHaveLength(0);
+    // A dollar cap still holds when one is set.
+    forgetCredits();
+    expect(await speakCast("green", "Seconded", { ...deps, eleven: { ...eleven, budget: 10 }, fetcher: plenty.fetcher })).toBeNull();
   });
 
   it("falls back to nothing when ElevenLabs refuses, a member is unknown, or there is no key or store", async () => {

@@ -77,7 +77,8 @@ export async function GET(request: Request): Promise<Response> {
       story: {
         month: monthOf(now),
         eleven: elevenFromEnv() !== null,
-        elevenBudget: elevenBudget(process.env.ELEVENLABS_BUDGET_USD),
+        // No dollar cap by default (the plan's credits are the limit): null, since JSON can't carry Infinity.
+        elevenBudget: Number.isFinite(elevenBudget(process.env.ELEVENLABS_BUDGET_USD)) ? elevenBudget(process.env.ELEVENLABS_BUDGET_USD) : null,
         ...storyMonth(storySpend, now),
       },
       email,

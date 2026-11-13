@@ -98,7 +98,11 @@ describe("the rooms' one tool registry (#646)", () => {
     expect(toolsFor("spoken").some(needsConfirm)).toBe(true);
     const h = host();
     const pending = new MemoryPending();
-    expect(await callTool("implement_it", { title: "Sample widget", pitch: "A made-up widget.", size: "small" }, h, { pending, surface: "spoken", said: "build a sample widget" })).toMatchObject({ ok: false, text: expect.stringMatching(/waits for Nikita's Yes tap/) });
+    expect(await callTool("remember", { fact: "Likes a sample widget.", topic: "sample" }, h, { pending, surface: "spoken", said: "remember I like a sample widget" })).toMatchObject({ ok: false, text: expect.stringMatching(/waits for Nikita's Yes tap/) });
+    // A build request files at once, said as well as typed (#1096).
+    expect(await callTool("implement_it", { title: "Sample widget", pitch: "A made-up widget.", size: "small" }, h, { pending, surface: "spoken", said: "build a sample widget" })).toMatchObject({ ok: true, did: "Filed #9001 for the Builder" });
+    expect(h.filed).toEqual(["Sample widget"]);
+    expect(pending.items ?? []).toHaveLength(0);
     expect(await callTool("home_device", { action: "wet.open" }, h, { pending, surface: "spoken", said: "what's the weather like" })).toMatchObject({ ok: false, text: expect.stringMatching(/Nothing ran/) });
     expect(h.acted).toEqual([]);
     expect(await callTool("home_device", { action: "wet.open" }, h, { pending, surface: "spoken", said: "open the cat's wet-food feeder please" })).toMatchObject({ ok: true, text: "Done." });
@@ -132,16 +136,15 @@ describe("the rooms' one tool registry (#646)", () => {
   it("keeps anything that sends, spends or deletes, and the asked-for writes, for the Yes tap, and runs it once", async () => {
     const h = host();
     const pending = new MemoryPending();
-    const got = await callTool("implement_it", { title: "Sample widget", pitch: "Add a made-up widget to the Desk.", size: "small" }, h, { pending, surface: "desk" });
+    const got = await callTool("home_device", { action: "vacuum.start" }, h, { pending, surface: "desk" });
     expect(got.ok && "confirm" in got).toBe(true);
-    expect(h.filed).toEqual([]);
+    expect(h.acted).toEqual([]);
     const id = got.ok && "confirm" in got ? got.confirm.id : "";
-    expect(got.ok && "confirm" in got && got.confirm.summary).toContain("Sample widget");
-    expect(await confirmTool(id, true, h, pending)).toMatchObject({ ok: true, did: "Filed #9001 for the Builder" });
-    expect(h.filed).toEqual(["Sample widget"]);
+    expect((await confirmTool(id, true, h, pending)).ok).toBe(true);
+    expect(h.acted).toHaveLength(1);
     // Once only.
     expect(await confirmTool(id, true, h, pending)).toMatchObject({ ok: false });
-    expect(h.filed).toHaveLength(1);
+    expect(h.acted).toHaveLength(1);
   });
 
   it("No drops the call, and an old or made-up id runs nothing", async () => {

@@ -202,8 +202,8 @@ passkey session, and asks again with the shot's opaque id. The picture lives onl
 (`desk/skippy/shots/shot-<20 hex>.jpg`), checked by its magic bytes (JPEG, PNG or WebP, 3 MB at most), and goes to the
 Claude API as an image input for that turn alone (TB2). It is read back only by `GET /api/foundry-shot?id=` with a
 passkey session or the Builder read key (#800, one `id` parameter, GET only), served `private, no-store` with
-`nosniff`, and every read is logged by who read it. A Foundry issue filed from that turn (`implement_it`, still behind
-the Yes tap) carries only the shot's id, written as private, and the screen description with its private part removed
+`nosniff`, and every read is logged by who read it. A Foundry issue filed from that turn (`implement_it`, filed at once
+since #1096, never after a web read in the same turn) carries only the shot's id, written as private, and the screen description with its private part removed
 and run through `privateParts`; neither the picture nor a link that opens it reaches GitHub. There is no blur: the
 stored copy is the original, since nothing public ever shows it.
 

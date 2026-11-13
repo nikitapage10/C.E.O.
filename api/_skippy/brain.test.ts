@@ -488,10 +488,17 @@ describe("the Desk's chat runs a plain device order at once, with no Yes tap (#1
   });
 
   it("remember and the other tapped tools still wait for the Yes", async () => {
-    const w = await world({ steps: [uses("implement_it", { title: "A sample idea", pitch: "A sample pitch.", size: "small" }), said({ reply: "Waiting on your Yes.", room: "foundry", deeper: "no" })] });
-    const body = await typed(w, "implement it: a sample idea");
+    const w = await world({ steps: [uses("remember", { fact: "Likes a sample thing.", topic: "sample" }), said({ reply: "Waiting on your Yes.", room: "today", deeper: "no" })] });
+    const body = await typed(w, "remember that I like a sample thing");
     expect(body.confirm).toHaveLength(1);
-    expect(w.pending.items.map((p) => p.tool)).toEqual(["implement_it"]);
+    expect(w.pending.items.map((p) => p.tool)).toEqual(["remember"]);
+  });
+
+  it("files a build request at once, with no Yes card (#1096)", async () => {
+    const w = await world({ steps: [uses("implement_it", { title: "A sample idea", pitch: "A sample pitch.", size: "small" }), said({ reply: "Filed.", room: "foundry", deeper: "no" })] });
+    const body = await typed(w, "implement it: a sample idea");
+    expect(body.confirm ?? []).toHaveLength(0);
+    expect(w.pending.items).toEqual([]);
   });
 
   it("signed out, the chat runs nothing: no cookie or a forged one is refused before the body is read", async () => {

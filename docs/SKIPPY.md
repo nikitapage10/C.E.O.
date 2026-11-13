@@ -269,10 +269,12 @@ Kernel (#501), signed-in only:
   run at once when Nikita's own words ordered that action (`spokenAsked` and `spokenLights`,
   `api/_skippy/agent/words.ts`), and the answer says what the device actually did. A question never runs one. Typed
   words that didn't order it (the model's guess) still get the Yes card; said ones run nothing. Every other tapped tool
-  (remember, implement_it, the King Soopers cart) waits for his Yes on the Desk, and spoken it says so. Money, legal, the skip list and privacy hold as typed.
+  (remember, the King Soopers cart) waits for his Yes on the Desk, and spoken it says so. Money, legal, the skip list and privacy hold as typed.
 - **Fetched content never acts.** Once a web search result is in a turn, only reads run for the rest of it.
 - **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
-  the Builder, after the tap. Skippy never writes code through the API. When the turn looked at the screen, the issue
+  the Builder at once, on every surface, typed or said (#1096, Nikita 2026-11-13: build requests need no tap; sends,
+  spends and deletes keep theirs). Fetched web content still can't start it, and the privacy check still stops anything
+  private reaching the public issue. Skippy never writes code through the API. When the turn looked at the screen, the issue
   also names the screenshot by its private id and carries the screen's scrubbed description (#1027, below).
 - **Chips.** Under each reply: "looked" chips (what he read: a room, a memory page, a web search) in ice and "did" chips
   (what changed) in gold. Words only, never the data.
@@ -336,7 +338,7 @@ Nikita can say "this", "here" or "that" and Skippy knows what he means.
 - **Screenshots stay private.** A shot is kept only in the private store (`desk/skippy/shots/shot-<20 hex>.jpg`,
   `api/_skippy/shots.ts`), JPEG, PNG or WebP by its magic bytes, 3 MB at most, posted only from a passkey session.
   `GET /api/foundry-shot?id=shot-<id>` reads it back with a passkey session or the Builder read key (#800,
-  docs/SECURITY.md), `private, no-store`. When `implement_it` runs after that turn (the Yes tap still decides), the
+  docs/SECURITY.md), `private, no-store`. When `implement_it` runs after that turn, the
   issue gets `**Screenshot:** shot-<id> (private; …)` and a `**Screen:**` line with the description minus its private
   part, left out if it trips the privacy check. The picture never goes to GitHub; nothing is blurred, since nothing
   public shows it.

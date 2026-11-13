@@ -18,13 +18,18 @@ repo="nikitapage10/C.E.O."
 # One line per open foundry issue and work label: "50 foundry:build". A new line means new work: an approved idea, a
 # Revise click, a red check, or a job that has just lost its foundry:working label (unless it has shipped: the Builder
 # labels a job foundry:shipped before taking foundry:working off and closing it). A shipped issue Nikita pressed Undo on
-# (foundry:undo, reopened with foundry:fix) rings as fix work all the same (docs/FOUNDRY.md, "Undo").
+# (foundry:undo, reopened with foundry:fix) rings as fix work all the same (docs/FOUNDRY.md, "Undo"). A build Skippy
+# filed from Nikita's own words (foundry:chat, #1096) rings too while nobody works it, if it is under a week old: older
+# chat issues are parked asks, not new work.
 look() {
+  local since
+  since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)
   gh api "repos/$repo/issues?labels=foundry&state=open&per_page=100" --jq '
     .[] | . as $i | [.labels[].name] as $l
     | select(($l | index("foundry:working")) | not)
     | select((($l | index("foundry:shipped")) | not) or ($l | index("foundry:undo")))
-    | $l[] | select(. == "foundry:build" or . == "foundry:revise" or . == "foundry:fix")
+    | $l[] | select(. == "foundry:build" or . == "foundry:revise" or . == "foundry:fix"
+        or (. == "foundry:chat" and $i.created_at >= "'"$since"'"))
     | "\($i.number) \(.)"' | sort
 }
 

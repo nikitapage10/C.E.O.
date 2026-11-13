@@ -332,7 +332,9 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   Claude Haiku (`CLAUDE_API_KEY`), which drops the label. Rusty is the builder; Rivet is who rewrites ideas. At each queue check, any `foundry:idea` still labelled `foundry:revise` is yours to shape:
   rewrite the title, pitch, size and builder from Nikita's words and notes, read with `scripts/foundry-issue.sh`
   (see "Trusted input" above), and drop the label. Any
-  `foundry:build` nobody is working is yours to build. Post nothing unless a question needs Nikita.
+  `foundry:build` nobody is working is yours to build, and so is a `foundry:chat` issue under a week old that nobody is
+  working: Skippy files those from Nikita's own words (#1096), so pick it up as chat work (Builder line, `foundry:working`).
+  Post nothing unless a question needs Nikita.
 - **Ask first** (Nikita, 2026-10-13: "a decision process to decide whether you need more feedback, a suggestion or a
   correction"). The same Haiku call that shapes the card also decides whether Nikita is asked something before the
   idea goes to the queue: its structured answer has an optional `question` (one short question, or a suggestion or

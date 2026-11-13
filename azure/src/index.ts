@@ -212,6 +212,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["skippy-spend", skippyagent.spendRoute],
   // Desk chats kept whole (#1097, api/_skippy/chatlog.ts): SUBMIND_LOG_TOKEN (Skippy, the Magnificent's thread) or a passkey session.
   ["skippy-journal", skippyagent.chatRoute],
+  // Call history in Skippy's chat (#1160, api/_skippy/chatlog.ts historyGet): the passkey session only, never a key.
+  ["skippy-history", skippyagent.historyRoute],
   // The always-on Kernel responder (#501, docs/AZURE.md, "The Kernel responder"): the private brief it reads, and the
   // run itself, called by the Function App on its own address when a hand-off is kept. SUBMIND_FEED_TOKEN only.
   ["kernel-brief", kernelroute.brief],

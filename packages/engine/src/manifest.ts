@@ -188,6 +188,8 @@ export const ENGINE_ENDPOINTS: readonly string[] = [
   "skippy-spend",
   // Desk chats kept whole for the cloud threads (#1097).
   "skippy-journal",
+  // Call history in Skippy's chat (#1160): the same chats as conversations, the passkey session only.
+  "skippy-history",
   "kernel-brief",
   "kernel-agent",
   "capture",

@@ -157,3 +157,105 @@ export async function chatLogGet(request: Request, deps: ChatReadDeps): Promise<
   const turns = all.slice(0, READ_MAX);
   return reply({ turns, more: all.length > turns.length });
 }
+
+/* ── History (#1160) ── */
+
+/**
+ * Call history in Skippy's chat (#1160, Nikita 2026-11-13): the same journal, grouped into conversations for the
+ * Desk's History button. The Desk's passkey session only (requireSession before anything is read: 401 signed out,
+ * 403 cross-site, 503 not set up); never the subminds' read key or the feed key, and the gate doesn't list it.
+ *
+ *   GET /api/skippy-history          → { conversations: [{ id, kind, via, at, end, turns, first }] }, newest first.
+ *   GET /api/skippy-history?id=<id>  → { conversation: { …the same, lines: ChatTurn[] } }, oldest turn first; 404 gone.
+ *
+ * A Talk call is one conversation (its `call` id). Typed, phone and room-mic turns run together while each comes within
+ * CHAT_GAP of the last one. `private, no-store`, like the journal.
+ */
+export const HISTORY_PATH = "/api/skippy-history";
+/** Typed turns this close together read as one conversation. */
+export const CHAT_GAP = 30 * 60_000;
+/** The most conversations one list answers. */
+export const HISTORY_MAX = 300;
+/** The first question as the list shows it. */
+export const FIRST_MAX = 160;
+
+export interface ChatSummary {
+  /** `t<call id>` for a Talk call, `c<start ms>` for a typed run. */
+  id: string;
+  kind: "talk" | "chat";
+  /** How it came in (a typed run takes its first turn's). */
+  via: ChatVia;
+  /** When it started and when its last turn was (ISO). */
+  at: string;
+  end: string;
+  turns: number;
+  /** The first thing Nikita said in it, trimmed for the list ("" when only Skippy spoke). */
+  first: string;
+}
+
+export interface ChatConversation extends ChatSummary {
+  lines: ChatTurn[];
+}
+
+const firstOf = (turns: ChatTurn[]) => {
+  const q = turns.find((t) => t.q.trim())?.q.trim().replace(/\s+/g, " ") ?? "";
+  return q.length > FIRST_MAX ? `${q.slice(0, FIRST_MAX - 1).trimEnd()}…` : q;
+};
+
+/** The journal's turns as conversations, newest first. */
+export function conversations(all: readonly ChatTurn[]): ChatConversation[] {
+  const sorted = [...all].sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
+  const calls = new Map<string, ChatTurn[]>();
+  const runs: ChatTurn[][] = [];
+  for (const t of sorted) {
+    if (t.call) {
+      const got = calls.get(t.call);
+      if (got) got.push(t);
+      else calls.set(t.call, [t]);
+      continue;
+    }
+    const run = runs[runs.length - 1];
+    const last = run?.[run.length - 1];
+    if (run && last && Date.parse(t.at) - Date.parse(last.at) <= CHAT_GAP) run.push(t);
+    else runs.push([t]);
+  }
+  const make = (id: string, kind: ChatSummary["kind"], lines: [ChatTurn, ...ChatTurn[]]): ChatConversation => ({
+    id,
+    kind,
+    via: kind === "talk" ? "talk" : lines[0].via,
+    at: lines[0].at,
+    end: (lines[lines.length - 1] ?? lines[0]).at,
+    turns: lines.length,
+    first: firstOf(lines),
+    lines,
+  });
+  const out = [...[...calls].map(([call, lines]) => make(`t${call}`, "talk", lines as [ChatTurn, ...ChatTurn[]])), ...runs.map((lines) => make(`c${Date.parse((lines as [ChatTurn])[0].at)}`, "chat", lines as [ChatTurn, ...ChatTurn[]]))];
+  return out.sort((x, y) => Date.parse(y.at) - Date.parse(x.at) || (x.id < y.id ? -1 : 1));
+}
+
+/** A conversation id as asked for: `t` and a call id, or `c` and a start time in ms. */
+const ID_RE = /^(t[A-Za-z0-9_.:-]{1,80}|c\d{1,15})$/;
+
+/** GET /api/skippy-history[?id=]: the passkey session only. */
+export async function historyGet(request: Request, deps: { desk: DeskDeps; log: ChatLog | null }): Promise<Response> {
+  if (request.method !== "GET") return json({ error: "method" }, 405);
+  const signed = await requireSession(request, deps.desk);
+  if (!signed.ok) return signed.response;
+  const reply = (body: unknown, status = 200) => withCookie(json(body, status), signed);
+  const url = new URL(request.url);
+  const keys = [...url.searchParams.keys()];
+  const id = url.searchParams.get("id");
+  if (keys.some((k) => k !== "id") || keys.length > 1 || (id !== null && !ID_RE.test(id))) return reply({ error: "bad-request" }, 400);
+  if (!deps.log) return reply({ error: "not-set-up" }, 503);
+  let all: ChatTurn[];
+  try {
+    all = await deps.log.read(0, deps.desk.now);
+  } catch {
+    return reply({ error: "unreadable" }, 502);
+  }
+  const convs = conversations(all);
+  if (id === null) return reply({ conversations: convs.slice(0, HISTORY_MAX).map(({ lines: _lines, ...s }) => s) });
+  const found = convs.find((c) => c.id === id);
+  if (!found) return reply({ error: "gone" }, 404);
+  return reply({ conversation: found });
+}

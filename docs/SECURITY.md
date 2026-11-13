@@ -522,8 +522,10 @@ Keys**, signed in. It is write-only by design:
 
 Desk Skippy can use the rooms' tools and keep a private memory (docs/SKIPPY.md, "Desk Skippy as an agent"). The rules:
 
-- **Passkey only.** `/api/skippy`, `/api/skippy-act`, `/api/skippy-memory` and `/api/skippy-spend` need the Desk's
-  session, checked before a body is read; nothing of the memory, the tools' results or the spend reaches the Lattice.
+- **Passkey only.** `/api/skippy`, `/api/skippy-act`, `/api/skippy-memory`, `/api/skippy-spend` and `/api/skippy-history`
+  (the chat's call history, #1160: the kept chats as conversations, `?id=` for one) need the Desk's session, checked
+  before a body is read; nothing of the memory, the tools' results, the spend or the history reaches the Lattice. The
+  history answers no key at all: not the subminds' read key, not the feed key, and the gate doesn't list it.
 - **The tap.** A tool that sends, spends or deletes, and any tool marked `confirm`, never runs from the model's call.
   The server keeps the exact input for 15 minutes, once only, and runs it only on Nikita's Yes (`POST /api/skippy-act`).
   The schema check runs on the server on every call, and a model can't widen a kept call.

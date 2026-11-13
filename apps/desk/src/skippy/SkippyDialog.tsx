@@ -169,6 +169,8 @@ function SpendGauge() {
 
 /** What Skippy keeps of Nikita (#646), its own download: opened from the header. */
 const MemoryPanel = lazy(() => import("./MemoryPanel.tsx"));
+/** Call history (#1160), its own download: opened from the header's clock. */
+const HistoryPanel = lazy(() => import("./HistoryPanel.tsx"));
 
 export interface SkippyChatProps {
   /** Where it sits: "dock" floats over the page's corner (a sheet at phone width), "inline" fills its container. */
@@ -194,6 +196,8 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
   const list = useRef<HTMLOListElement>(null);
   const titleId = useId();
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyBtn = useRef<HTMLButtonElement>(null);
   const shown = placement === "inline" || open;
   const talking = useTalk((s) => s.phase !== "idle");
   const signedIn = useDeskAuth((s) => s.auth.status === "in");
@@ -205,7 +209,16 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
   useLayoutEffect(() => {
     const el = list.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [turns, busy, shown]);
+  }, [turns, busy, shown, historyOpen]);
+  const closeHistory = () => {
+    setHistoryOpen(false);
+    historyBtn.current?.focus();
+  };
+  const toggleHistory = () => {
+    if (historyOpen) return closeHistory();
+    setHistoryOpen(true);
+    setMemoryOpen(false);
+  };
 
   const close = () => {
     void useTalk.getState().end();
@@ -233,17 +246,53 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
           {signedIn && <SpendGauge />}
         </div>
         {signedIn && (
-          <button type="button" className={`skp-chat__icon${memoryOpen ? " on" : ""}`} aria-pressed={memoryOpen} onClick={() => setMemoryOpen(!memoryOpen)} title="What Skippy remembers about you" aria-label="What Skippy remembers">
+          <button
+            type="button"
+            ref={historyBtn}
+            className={`skp-chat__icon${historyOpen ? " on" : ""}`}
+            aria-pressed={historyOpen}
+            onClick={toggleHistory}
+            title="Call history: past calls and chats"
+            aria-label="Call history"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.6h3.6M12 8v4.3l2.8 1.7" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+        {signedIn && (
+          <button
+            type="button"
+            className={`skp-chat__icon${memoryOpen ? " on" : ""}`}
+            aria-pressed={memoryOpen}
+            onClick={() => {
+              setMemoryOpen(!memoryOpen);
+              setHistoryOpen(false);
+            }}
+            title="What Skippy remembers about you"
+            aria-label="What Skippy remembers"
+          >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path d="M12 3l7 4v10l-7 4-7-4V7z M12 3v18 M5 7l7 4 7-4" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinejoin="round" />
             </svg>
           </button>
         )}
         {canSpeak() && (
-          <button type="button" className={`skp-chat__icon${voice ? " on" : ""}`} aria-pressed={voice} onClick={() => setVoice(!voice)} title={voice ? "Stop reading replies aloud" : "Read replies aloud"} aria-label="Read replies aloud">
+          <button
+            type="button"
+            className={`skp-chat__icon${voice ? " on" : ""}`}
+            aria-pressed={voice}
+            onClick={() => setVoice(!voice)}
+            title={voice ? "Stop reading replies aloud" : "Read replies aloud"}
+            aria-label="Read replies aloud"
+          >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
-              {voice ? <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" /> : <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />}
+              {voice ? (
+                <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+              ) : (
+                <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              )}
             </svg>
           </button>
         )}
@@ -267,44 +316,54 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
           <MemoryPanel onClose={() => setMemoryOpen(false)} />
         </Suspense>
       )}
-      <ol className="skp-chat__list" ref={list} aria-live="polite" aria-relevant="additions" tabIndex={0} aria-label="Conversation">
-        {turns.length === 0 && (
-          <li className="skp-turn skp-turn--skippy skp-turn--hello">
-            <p>Ah, the C.E.O. Ask me what's waiting, what's building, or tell me an idea and I'll route it. Magnificently.</p>
-          </li>
-        )}
-        {turns.map((t) => (
-          <li key={t.id} className={`skp-turn skp-turn--${t.who}${t.note ? " skp-turn--note" : ""}${t.pending ? " skp-turn--pending" : ""}${t.from ? " skp-turn--answer" : ""}`} aria-busy={t.pending ? true : undefined}>
-            <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : t.from ? (t.from === "skippy" ? "Skippy:" : `${handedName(t.from)}:`) : "Skippy:"}</span>
-            {t.from && t.from !== "skippy" && (
-              <p className="skp-turn__from" aria-hidden="true">
-                {handedName(t.from)} {t.pending ? "says, still pondering" : "answered"}
-              </p>
-            )}
-            {t.text && <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{spoken(t)}</Private>}</p>}
-            {t.compose && <TextCard id={t.compose} />}
-            {t.card && (
-              <Private block as="div">
-                <AnswerCard card={t.card} />
-              </Private>
-            )}
-            {t.who === "skippy" && !t.pending && <ConfirmCards turn={t} />}
-            {t.who === "skippy" && !t.pending && <ActionChips turn={t} />}
-            {t.who === "skippy" && !t.pending && <Sources turn={t} />}
-            {t.who === "skippy" && !t.pending && <TraceChips turn={t} />}
-          </li>
-        ))}
-        {busy && (
-          <li className="skp-turn skp-turn--skippy skp-turn--typing" aria-label="Skippy is thinking">
-            <i />
-            <i />
-            <i />
-          </li>
-        )}
-      </ol>
+      {historyOpen && signedIn ? (
+        <Suspense fallback={<p className="skp-hist__muted skp-hist--loading">Pulling up the history…</p>}>
+          <HistoryPanel onClose={closeHistory} />
+        </Suspense>
+      ) : (
+        <ol className="skp-chat__list" ref={list} aria-live="polite" aria-relevant="additions" tabIndex={0} aria-label="Conversation">
+          {turns.length === 0 && (
+            <li className="skp-turn skp-turn--skippy skp-turn--hello">
+              <p>Ah, the C.E.O. Ask me what's waiting, what's building, or tell me an idea and I'll route it. Magnificently.</p>
+            </li>
+          )}
+          {turns.map((t) => (
+            <li
+              key={t.id}
+              className={`skp-turn skp-turn--${t.who}${t.note ? " skp-turn--note" : ""}${t.pending ? " skp-turn--pending" : ""}${t.from ? " skp-turn--answer" : ""}`}
+              aria-busy={t.pending ? true : undefined}
+            >
+              <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : t.from ? (t.from === "skippy" ? "Skippy:" : `${handedName(t.from)}:`) : "Skippy:"}</span>
+              {t.from && t.from !== "skippy" && (
+                <p className="skp-turn__from" aria-hidden="true">
+                  {handedName(t.from)} {t.pending ? "says, still pondering" : "answered"}
+                </p>
+              )}
+              {t.text && <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{spoken(t)}</Private>}</p>}
+              {t.compose && <TextCard id={t.compose} />}
+              {t.card && (
+                <Private block as="div">
+                  <AnswerCard card={t.card} />
+                </Private>
+              )}
+              {t.who === "skippy" && !t.pending && <ConfirmCards turn={t} />}
+              {t.who === "skippy" && !t.pending && <ActionChips turn={t} />}
+              {t.who === "skippy" && !t.pending && <Sources turn={t} />}
+              {t.who === "skippy" && !t.pending && <TraceChips turn={t} />}
+            </li>
+          ))}
+          {busy && (
+            <li className="skp-turn skp-turn--skippy skp-turn--typing" aria-label="Skippy is thinking">
+              <i />
+              <i />
+              <i />
+            </li>
+          )}
+        </ol>
+      )}
       {talking ? (
         <SkippyLine />
-      ) : (
+      ) : historyOpen && signedIn ? null : (
         <>
           <SkippyComposer autoFocus />
           {signedIn && <TalkUsage />}

@@ -151,6 +151,70 @@ test("the agent's chips, a call waiting for the tap, the month, and the memory p
   expect(errors).toEqual([]);
 });
 
+/** Call history (#1160): made-up conversations, never a real one. */
+const HISTORY = {
+  conversations: [
+    { id: "tconv_sample", kind: "talk", via: "talk", at: new Date(Date.now() - 2 * 3_600_000).toISOString(), end: new Date(Date.now() - 2 * 3_600_000 + 9 * 60_000).toISOString(), turns: 4, first: "What's building in the Foundry right now?" },
+    { id: "c1700000000000", kind: "chat", via: "phone", at: new Date(Date.now() - 5 * 3_600_000).toISOString(), end: new Date(Date.now() - 5 * 3_600_000).toISOString(), turns: 1, first: "Add basil to the Kitchen list" },
+    { id: "c1600000000000", kind: "chat", via: "desk", at: new Date(Date.now() - 30 * 3_600_000).toISOString(), end: new Date(Date.now() - 30 * 3_600_000).toISOString(), turns: 2, first: "Plan a sample week of dinners with something new on Thursday, nothing too long to cook" },
+  ],
+};
+
+for (const width of [1280, 390]) {
+  test(`History lists past calls and chats and reads one back (${width} wide)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width > 600 ? 860 : 844 });
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await stub(page, true);
+    const asked: string[] = [];
+    await page.route(`${BASE}/api/skippy-history**`, (r) => {
+      const url = new URL(r.request().url());
+      asked.push(url.search);
+      if (!url.searchParams.has("id")) return r.fulfill({ json: HISTORY });
+      return r.fulfill({
+        json: {
+          conversation: {
+            ...HISTORY.conversations[0],
+            lines: [
+              { at: HISTORY.conversations[0]!.at, via: "talk", q: "What's building in the Foundry right now?", a: "[smug] Two things, monkey. Rusty has the history button and Rivet is tidying the docs." },
+              { at: HISTORY.conversations[0]!.end, via: "talk", q: "Nice. Anything waiting on me?", a: "One question from Rivet. I'd answer it, magnificently." },
+            ],
+          },
+        },
+      });
+    });
+    await page.goto(BASE + "/");
+    await page.locator(".desk__skippy").click();
+    const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+    await chat.getByRole("button", { name: "Call history" }).click();
+    const list = chat.getByRole("region", { name: "Call history" });
+    await expect(list.getByText("Add basil to the Kitchen list")).toBeVisible();
+    // Newest first, each with how it came in.
+    await expect(list.locator(".skp-hist__item").first()).toContainText("Call");
+    await expect(list.locator(".skp-hist__item").first()).toContainText("What's building in the Foundry");
+    if (width < 600) {
+      // Phone-native: no sideways scroll, and every tap target in the chat at least 44px.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      for (const b of await chat.locator(".skp-chat__icon, .skp-hist__back, .skp-hist__item").all()) {
+        const box = await b.boundingBox();
+        if (box) expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+      }
+    }
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/history-list-${width}.png` });
+    await list.locator(".skp-hist__item").first().click();
+    const read = chat.getByRole("region", { name: "A past conversation" });
+    await expect(read.getByText("Rusty has the history button")).toBeVisible();
+    // The voice's audio tags stay out of the transcript.
+    await expect(read.getByText("[smug]")).toHaveCount(0);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/history-read-${width}.png` });
+    expect(asked).toEqual(["", "?id=tconv_sample"]);
+    await read.getByRole("button", { name: "All chats" }).click();
+    await chat.getByRole("button", { name: "Back to chat" }).click();
+    await expect(chat.getByRole("textbox", { name: "Message to Skippy" })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
+
 test("Talk has no site budget: it shows the plan's credits left, and falls back to typing with ElevenLabs' own note when they are used up (#532)", async ({ page }) => {
   await stub(page, true);
   // A stand-in microphone, so the call gets past the browser's prompt in a headless run.

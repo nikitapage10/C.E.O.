@@ -906,7 +906,7 @@ export function RelayThread({ now }: { now: number }) {
     await s.form(d, { from: () => [X + (rnd() - 0.5) * 6, E.y + rnd() * E.h], path: quill(X), dur: 250, stagger: 250, jitter: 60, pre: 0.1, color: NANITE.hi });
   }, []);
 
-  // Focus moves: the old entry's words dissolve into the spine, the new one's are written in from the top of it.
+  // Focus moves: the old entry's words dissolve into the spine; the new one's are already there, and sigils trace its card.
   const shown = useRef<string | null>(null);
   const draftShown = useRef<string | null>(null);
   useEffect(() => {
@@ -922,6 +922,10 @@ export function RelayThread({ now }: { now: number }) {
     fx.current.lit = el?.querySelector(".cx-them") ?? null;
     fx.current.entry = el;
     fx.current.to = el ? 1 : 0;
+    // #1169: the entry's words show the moment it is in focus. Leaving an entry dissolves its words (below), and since
+    // #1162 nothing forms them back, so an entry scrolled away from and back to stayed blank bubbles. Only a draft,
+    // written in by the quill, waits.
+    for (const p of el?.querySelectorAll<HTMLElement>(PARTS) ?? []) if (!p.matches(".cx-draft")) ghost(p, false);
     if (hidden) return;
     const X = spineX();
     if (old && !s.reduced) for (const p of old.querySelectorAll<HTMLElement>(PARTS)) void s.dissolve(p, { color: NANITE.hi, dur: 250, stagger: 100, to: (_i, _x, y) => [X + (rnd() - 0.5) * 8, y + (rnd() - 0.5) * 60] });

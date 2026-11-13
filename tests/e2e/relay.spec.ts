@@ -577,6 +577,35 @@ test("with motion, the words are written in on a capped canvas", async ({ page }
   await expect(focused(page).locator(".cx-msg[data-sg-ghost]")).toHaveCount(0, { timeout: 8_000 });
 });
 
+test("#1169: scrolling away and back, the words are there the moment the entry is in focus again", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await stub(page);
+  await page.goto(`${BASE}/relay`);
+  await expect(focused(page)).toContainText("Sam Test");
+  const blank = () => focused(page).locator(".cx-msg[data-sg-ghost], .cx-adv[data-sg-ghost], .cx-init[data-sg-ghost]");
+  await expect(blank()).toHaveCount(0);
+  const pages = page.locator(".cx-pages");
+  await pages.hover();
+  // One wheel gesture a step (#1161): on to Jordan, and back to Sam.
+  await page.mouse.wheel(0, 240);
+  await expect(focused(page)).toContainText("Jordan Test");
+  await expect(blank()).toHaveCount(0);
+  await page.waitForTimeout(900);
+  await page.mouse.wheel(0, -240);
+  await expect(focused(page)).toContainText("Sam Test");
+  if (SHOTS) await page.waitForTimeout(700);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/1169-back-1440.png` });
+  // No particle has to land first (#1162): the words show at once, not after a form.
+  await expect(blank()).toHaveCount(0, { timeout: 400 });
+  await expect(focused(page).locator(".cx-msg").first()).toBeVisible();
+  // And the keys the same way, there and back.
+  await page.keyboard.press("s");
+  await expect(focused(page)).toContainText("Jordan Test");
+  await page.keyboard.press("w");
+  await expect(focused(page)).toContainText("Sam Test");
+  await expect(blank()).toHaveCount(0, { timeout: 400 });
+});
+
 test("signed out: counts only, never a name", async ({ page }) => {
   await stub(page, { signedIn: false });
   await page.goto(`${BASE}/relay`);

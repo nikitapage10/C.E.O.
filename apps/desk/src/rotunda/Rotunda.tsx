@@ -11,7 +11,7 @@ import type { ChamberLink } from "../../../../rooms/today/web/TodayNow.tsx";
 import type { Rotunda as Scene, RotundaSeat } from "./rotundaScene.ts";
 import { createVoice, setSound, useRotundaSound, type RotundaVoice } from "./voice.ts";
 import { isArchived, isSaid, useSenateMemory } from "./heard.ts";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { PRIORITY, registerHoldToTalk } from "../holdToTalk.ts";
 import { useSkippy } from "../skippy/chat.ts";
@@ -71,7 +71,7 @@ export function Rotunda({ link, pulses, now, since, held, skippySays, hotRef }: 
   const seatEls = useRef(new Map<string, HTMLElement>());
   const [gl, setGl] = useState<GL>("idle");
   // Today's room loader (#752, #759) holds until the chamber's first real frame (or its flat fallback, without WebGL).
-  useRoomReady(gl === "on" || gl === "off");
+  useSceneReady(gl === "on" || gl === "off");
   // Built: the Desk's warm-up may mount the Haven and Relay now (#973, keptRooms.ts).
   useEffect(() => {
     if (gl === "on" || gl === "off") senateBuilt();

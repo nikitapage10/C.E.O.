@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import type { BedState, GlassPopup, GlassView, Glasshouse as Scene } from "./glasshouse.ts";
 
 /**
@@ -40,7 +40,7 @@ export function GlassStage({ view, notes, onPick, children }: StageProps) {
   const els = useRef(new Map<string, HTMLElement>());
   const at = useRef(new Map<string, [number, number, boolean]>());
   const [gl, setGl] = useState<GL>("idle");
-  useRoomReady(gl === "on" || gl === "off");
+  useSceneReady(gl === "on" || gl === "off");
   const live = useRef(view);
   live.current = view;
   const pick = useRef(onPick);

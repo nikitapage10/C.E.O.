@@ -26,7 +26,7 @@ import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import { installHoldToTalk } from "./holdToTalk.ts";
 import { RoomLoader } from "@ceo/engine/web/RoomLoader.tsx";
 import { RoomMounted } from "@ceo/engine/web/roomReady.ts";
-import { ALWAYS_KEPT, keptAfter, onSenateBuilt, SCENE_ROOMS, SENATE_WAIT_MS, settleShown, waitsOnSenate } from "./keptRooms.ts";
+import { ALWAYS_KEPT, keptAfter, onSenateBuilt, SENATE_WAIT_MS, settleShown, waitsOnSenate } from "./keptRooms.ts";
 import { focusPage } from "./pageFocus.ts";
 import { RoomGuard } from "./RoomGuard.tsx";
 import { canWarm, warmRotunda } from "./rotunda/warm.ts";
@@ -73,11 +73,6 @@ function prefetchTabs() {
     idle(() => scenes.forEach((load) => void load().catch(() => {})), 8000);
   }, 5000);
 }
-
-/** A room with a 3D scene holds its cover until the scene's first frame, up to this long (#759); the rest, 4 s. */
-const SCENE_CAP_MS = 7000;
-/** The Senate's cover waits longer (#1111): lifted early, it showed an empty floor while the cans were still loading. */
-const SENATE_CAP_MS = 20000;
 
 /** Each page's colour, as its manifest names it (rooms/<id>/room.ts `accent`): the room loader's motes wear it. */
 const accentOf = (route: DeskPage) => (route === "today" ? "--ice" : `--room-${route}`);
@@ -244,7 +239,7 @@ export function Desk({ route }: { route: DeskPage }) {
           Pages hold it with useRoomReady; RoomMounted tells it the page's code has mounted. A kept room (#759) stays
           mounted, hidden and inert, with no cover, until it is back on screen. */}
       {[...kept].sort((a, b) => KEY_ORDER.indexOf(a) - KEY_ORDER.indexOf(b)).map((r) => (
-        <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route} cap={r === "today" ? SENATE_CAP_MS : SCENE_ROOMS.has(r) ? SCENE_CAP_MS : undefined}>
+        <RoomLoader key={r} room={r} name={pageName(r)} accent={accentOf(r)} shown={r === route}>
           <main
             ref={(el) => void (el ? mains.current.set(r, el) : mains.current.delete(r))}
             className="desk__main"

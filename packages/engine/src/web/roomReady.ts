@@ -13,18 +13,31 @@ import { createContext, useCallback, useContext, useLayoutEffect, useRef } from 
 
 /** The most a page is covered, from the moment it is opened. */
 export const CAP_MS = 4000;
+/**
+ * The most a page with a 3D scene is covered (#1124): a room that opens its gate with `useSceneReady` waits this long
+ * for its scene's first frame. One rule for every room's scene; before, only the Senate and the Haven had a longer
+ * cap, so the rest lifted at 4 s onto an empty stage while their models were still loading.
+ */
+export const SCENE_CAP_MS = 20_000;
 
 export class ReadyGate {
   private gates = new Map<number, boolean>();
   private next = 0;
   private mounted = false;
   private done = false;
-  constructor(private readonly onReady: () => void) {}
+  constructor(
+    private readonly onReady: () => void,
+    /** A scene's gate was opened (`useSceneReady`): the loader may wait up to SCENE_CAP_MS. */
+    private readonly onScene?: () => void,
+  ) {}
 
-  /** A new gate, closed. */
-  add(): number {
+  /** A new gate, closed; `scene` for a 3D scene's first frame. */
+  add(scene = false): number {
     const id = ++this.next;
-    if (!this.done) this.gates.set(id, false);
+    if (!this.done) {
+      this.gates.set(id, false);
+      if (scene) this.onScene?.();
+    }
     return id;
   }
 
@@ -67,7 +80,7 @@ export const useRoomShown = (): boolean => useContext(RoomShownContext);
  * Hold the room loader until `ready` is true. Returns a function that opens the gate by hand (for a callback, such as
  * a scene's first frame); once opened that way it stays open. Outside a room loader it does nothing.
  */
-export function useRoomReady(ready = true): () => void {
+export function useRoomReady(ready = true, scene = false): () => void {
   const gate = useContext(RoomReadyContext);
   const id = useRef(0);
   const forced = useRef(false);
@@ -75,13 +88,23 @@ export function useRoomReady(ready = true): () => void {
   // the page's life: dropping it on cleanup would read as "ready" in StrictMode's second pass.
   useLayoutEffect(() => {
     if (!gate) return;
-    if (!id.current) id.current = gate.add();
+    if (!id.current) id.current = gate.add(scene);
     gate.set(id.current, ready || forced.current);
   }, [gate, ready]);
   return useCallback(() => {
     forced.current = true;
     if (gate && id.current) gate.set(id.current, true);
   }, [gate]);
+}
+
+/**
+ * A 3D scene's gate (#1124): hold the room loader until the scene has drawn its first frame (or given up on WebGL),
+ * for up to SCENE_CAP_MS. Every room's stage uses this, so the loader never lifts onto a scene still loading.
+ *
+ *   useSceneReady(gl === "on" || gl === "off");
+ */
+export function useSceneReady(ready: boolean): () => void {
+  return useRoomReady(ready, true);
 }
 
 /**

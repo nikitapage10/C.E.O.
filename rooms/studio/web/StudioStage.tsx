@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import { EPISODES, LINE } from "./line.ts";
 import type { Soundstage, StudioView } from "./soundstage.ts";
 
@@ -25,7 +25,7 @@ export function StudioStage({ sel, children }: { sel: number; children: ReactNod
   const scene = useRef<Soundstage | null>(null);
   const labels = useRef(new Map<string, HTMLElement>());
   const [gl, setGl] = useState<GL>("idle");
-  useRoomReady(gl === "on" || gl === "off");
+  useSceneReady(gl === "on" || gl === "off");
   const view = (s: number): StudioView => ({ steps: LINE, sel: s, episodes: EPISODES.map((e) => e.t) });
   const selRef = useRef(sel);
   selRef.current = sel;

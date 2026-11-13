@@ -42,8 +42,6 @@ export const waitsOnSenate = (room: string | undefined): boolean => room !== und
 
 /** The rooms always kept loaded, in the bar's order (#934). */
 export const ALWAYS_KEPT = ["today", "haven", "relay"] as const;
-/** The rooms whose 3D scene holds the room loader's cover until its first frame. */
-export const SCENE_ROOMS: ReadonlySet<string> = new Set(["today", "haven"]);
 /** The most rooms mounted at once: the one on screen and the three always kept. */
 export const KEEP = ALWAYS_KEPT.length + 1;
 

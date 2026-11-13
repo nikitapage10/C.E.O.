@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Keeper, type Wait } from "@ceo/desk/rooms/parts.tsx";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import { LAYER_MM, PAWN, preflight, slice, STAGES, viewKey, type FlowView, type Stage } from "./flow.ts";
 import type { Flow } from "./flowScene.ts";
 import { PlateSigils } from "./PlateSigils.tsx";
@@ -50,7 +50,7 @@ export function Workshop() {
   const [view, setView] = useState<FlowView>(FLOW);
   const [gl, setGl] = useState<"wait" | "on" | "none">("wait");
   const [tab, setTab] = useState<Tab>("line");
-  const ready = useRoomReady(false);
+  const ready = useSceneReady(false);
   const checks = useMemo(() => preflight(PAWN), []);
   const cut = useMemo(() => slice(PAWN), []);
   const passed = checks.filter((c) => c.ok).length;

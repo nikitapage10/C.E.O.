@@ -4,7 +4,7 @@ import { countdown, nextRuns } from "@ceo/desk/crewRuns.ts";
 import { FOUNDRY_THREAD, formatWait } from "@ceo/desk/deskData.ts";
 import { ideaTitle } from "@ceo/desk/IdeaCard.tsx";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
-import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
+import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import { MILESTONES, progressWords, stepWords, type Progress } from "../data/progress.ts";
 import { forgeLanes, LANES, queueOf, STAGE_WORDS, type Lane, type Stage } from "../data/forge.ts";
 import { CHECKS, coilState, furnaceOf, heightOf, mainCoil, paintOf, SLOT_HANDS, TRAIL, trailStep, type CoilState } from "../data/furnace.ts";
@@ -79,7 +79,7 @@ export function FurnaceStage({ data, ideas, progress, now, connected, lead, stop
   const at = useRef(new Map<string, [number, number]>());
   const card = useRef<HTMLDivElement>(null);
   const [gl, setGl] = useState<GL>("idle");
-  useRoomReady(gl === "on" || gl === "off");
+  useSceneReady(gl === "on" || gl === "off");
   const [hot, setHot] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const open = sel ?? hot;

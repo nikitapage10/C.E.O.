@@ -8,6 +8,7 @@ import { phoneShelf } from "./phoneShelf.ts";
 import { pageName, pageSections, type DeskPage } from "./roomPages.ts";
 import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
 import { useSkippy } from "./skippy/index.ts";
+import { createHold, type Hold } from "./navHold.ts";
 import "./phonenav.css";
 
 /**
@@ -16,7 +17,7 @@ import "./phonenav.css";
  * its tab, which opens the Rooms sheet, and the account and the Lattice on the right. At the bottom a fixed bar of the
  * pages used most, thumb height: the Senate, the Haven, Skippy in the middle, Relay, and Rooms (or the room you're in,
  * when it's another), which opens every page and the room's own tabs in a sheet (shut by the scrim, the X, Escape or
- * a swipe down). Neither bar scrolls, wraps or moves under a held finger (`touch-action: none`), and the page under
+ * a swipe down). Holding a room's slot opens that sheet with the room's own tabs first (#1113). Neither bar scrolls, wraps or moves under a held finger (`touch-action: none`), and the page under
  * them is the one thing that scrolls.
  */
 
@@ -32,10 +33,11 @@ function Sigil({ id }: { id: DeskPage }) {
 }
 
 /** The Rooms sheet: the room's own tabs first (when it has some), then every page, then the Lattice. */
-function RoomsSheet({ route, pathname, onClose }: { route: DeskPage; pathname: string; onClose: () => void }) {
+function RoomsSheet({ route, room = route, pathname, onClose }: { route: DeskPage; room?: DeskPage; pathname: string; onClose: () => void }) {
   const box = useRef<HTMLDivElement>(null);
-  const sections = pageSections(route);
-  const current = sections.length ? sectionOf(sections, pathname).id : null;
+  // Whose tabs lead the sheet: the room you're in, or the one whose slot was held (#1113).
+  const sections = pageSections(room);
+  const current = sections.length && room === route ? sectionOf(sections, pathname).id : null;
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     box.current?.querySelector<HTMLElement>('[aria-current="page"], a')?.focus({ preventScroll: true });
@@ -99,7 +101,7 @@ function RoomsSheet({ route, pathname, onClose }: { route: DeskPage; pathname: s
           </button>
         </div>
         {sections.length > 0 && (
-          <nav className="ph-secs" aria-label={`${pageName(route)} tabs`} style={{ ["--rc" as string]: accentOf(route) }}>
+          <nav className="ph-secs" aria-label={`${pageName(room)} tabs`} style={{ ["--rc" as string]: accentOf(room) }}>
             {sections.map((s) => (
               <a key={s.id} href={s.path} aria-current={current === s.id ? "page" : undefined} onClick={go(s.path)}>
                 <span>{s.label}</span>
@@ -131,12 +133,19 @@ function RoomsSheet({ route, pathname, onClose }: { route: DeskPage; pathname: s
 export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
   const pathname = usePathname();
   const [sheet, setSheet] = useState(false);
-  const closeSheet = useCallback(() => setSheet(false), []);
+  // A room's slot held (#1113, navHold.ts): the sheet opens with that room's tabs first, to jump straight to one.
+  const [tabsOf, setTabsOf] = useState<DeskPage | null>(null);
+  const pressed = useRef<Hold | null>(null);
+  const closeSheet = useCallback(() => {
+    setSheet(false);
+    setTabsOf(null);
+  }, []);
   const setChat = useSkippy((s) => s.setOpen);
   // A move to another page or tab shuts the sheet and starts the new one at its top: on a phone a room is a long
   // column, and the Desk's one scroller would otherwise open it where the last one was left.
   useEffect(() => {
     setSheet(false);
+    setTabsOf(null);
     document.querySelector(".desk")?.scrollTo?.({ top: 0 });
   }, [pathname, route]);
   // The safe areas (the notch, the home bar) reach the Desk only with viewport-fit=cover; set while the phone frame is up.
@@ -152,7 +161,26 @@ export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
   const section = sections.length ? sectionOf(sections, pathname) : null;
   const { pinned, other } = phoneShelf(route);
   const slot = (id: DeskPage) => (
-    <a key={id} className="ph-slot" href={pathOf(id)} aria-current={route === id ? "page" : undefined} onClick={link(id)} style={{ ["--rc" as string]: accentOf(id) }}>
+    <a
+      key={id}
+      className="ph-slot"
+      href={pathOf(id)}
+      aria-current={route === id ? "page" : undefined}
+      onClick={(e) => {
+        if (pressed.current?.eatClick()) return e.preventDefault();
+        link(id)(e);
+      }}
+      onPointerDown={(e) => {
+        if (e.button !== 0 || !pageSections(id).length) return;
+        pressed.current = createHold(() => setTabsOf(id));
+        pressed.current.down(e.clientX, e.clientY);
+      }}
+      onPointerMove={(e) => pressed.current?.move(e.clientX, e.clientY)}
+      onPointerUp={() => pressed.current?.up()}
+      onPointerCancel={() => pressed.current?.up()}
+      onContextMenu={(e) => pressed.current?.busy() && e.preventDefault()}
+      style={{ ["--rc" as string]: accentOf(id) }}
+    >
       <Sigil id={id} />
       <span>{id === "today" ? "Senate" : pageName(id)}</span>
       {id === "today" && owed > 0 && (
@@ -213,7 +241,7 @@ export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
           <span>{other ? pageName(other) : "Rooms"}</span>
         </button>
       </nav>
-      {sheet && <RoomsSheet route={route} pathname={pathname} onClose={closeSheet} />}
+      {(sheet || tabsOf) && <RoomsSheet route={route} room={tabsOf ?? route} pathname={pathname} onClose={closeSheet} />}
     </>
   );
 }

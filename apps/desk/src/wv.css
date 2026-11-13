@@ -1492,7 +1492,7 @@
 @keyframes wv-menu{from{opacity:0;transform:translateY(-4px)}}
 /* A room's drop-down of its tabs (#871): a small caret beside the name, the list under it on a gold hairline. */
 .desk .wv-tabw{position:relative;display:flex;flex:none;align-items:stretch}
-.desk .wv-tabw>.wv-tab{padding-right:3px}
+.desk .wv-tabw>.wv-tab{padding-right:3px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .desk .wv-tabw>.wv-tab::after{right:3px}
 .desk .wv-tabcaret{display:grid;place-items:center;flex:none;width:22px;padding:0 6px 0 0;border:0;background:none;color:var(--wv-faint,var(--wv-mute));cursor:pointer;transition:color .3s}
 .desk .wv-tabcaret svg{width:10px;height:10px;transition:transform .3s var(--wv-ease)}

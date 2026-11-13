@@ -9,6 +9,7 @@ import { DeskSignIn } from "@ceo/engine/web/SignIn.tsx";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { useHide } from "@ceo/engine/web/hide.ts";
 import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
+import { createHold, type Hold } from "./navHold.ts";
 
 /**
  * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the Lattice C and the wordmark (#640), then every page as a plain word
@@ -21,7 +22,8 @@ import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
  * Lattice: Ilyr's clock, Hide and Hands-free moved to the Boiler Room's Settings (/boiler/controls), and while
  * Hands-free is on the bar shows who it is listening for, with a tap to stop it. A room with tabs (its manifest's
  * `sections`, from its nav.ts) gets a drop-down of them (#871): pointed at with a mouse, or the small caret beside its
- * name tapped or opened from the keyboard; each tab is its own link (/haven/kitchen, /boiler/controls).
+ * name tapped or opened from the keyboard, or the room's name held (#1113, navHold.ts); each tab is its own link
+ * (/haven/kitchen, /boiler/controls).
  */
 
 /** Each room tab's line, shown when pointed at. The pages' names come from their manifests (roomPages.ts, `pageName`). */
@@ -237,6 +239,8 @@ export function DeskNav({ route, owed }: { route: Exclude<Route, "lattice">; owe
   const [opened, setDrop] = useState<Drop | null>(null);
   const drop = shownDrop(opened, pathname);
   const shut = useRef(0);
+  // A press on a room's name, held to open its tabs (navHold.ts, #1113).
+  const pressed = useRef<Hold | null>(null);
   const hold = () => window.clearTimeout(shut.current);
   const later = () => {
     hold();
@@ -340,7 +344,33 @@ export function DeskNav({ route, owed }: { route: Exclude<Route, "lattice">; owe
           if (!t.sections.length) return tab;
           const isOpen = drop?.id === t.id;
           return (
-            <div key={t.id} className="wv-tabw" data-drop={t.id} data-open={isOpen || undefined} onPointerEnter={(e) => e.pointerType === "mouse" && openAt(t.id, e.currentTarget, { pinned: false, focus: false })} onPointerLeave={(e) => e.pointerType === "mouse" && later()}>
+            <div
+              key={t.id}
+              className="wv-tabw"
+              data-drop={t.id}
+              data-open={isOpen || undefined}
+              onPointerEnter={(e) => e.pointerType === "mouse" && openAt(t.id, e.currentTarget, { pinned: false, focus: false })}
+              onPointerLeave={(e) => {
+                if (e.pointerType === "mouse") later();
+              }}
+              // Held, the room's name opens its tabs (#1113); a tap still goes to the room.
+              onPointerDown={(e) => {
+                if (e.button !== 0 || (e.target as Element).closest(".wv-tabcaret")) return;
+                const at = e.currentTarget;
+                pressed.current = createHold(() => openAt(t.id, at, { pinned: true, focus: false }));
+                pressed.current.down(e.clientX, e.clientY);
+              }}
+              onPointerMove={(e) => pressed.current?.move(e.clientX, e.clientY)}
+              onPointerUp={() => pressed.current?.up()}
+              onPointerCancel={() => pressed.current?.up()}
+              onClickCapture={(e) => {
+                if (pressed.current?.eatClick()) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              onContextMenu={(e) => pressed.current?.busy() && e.preventDefault()}
+            >
               {tab}
               <button
                 type="button"

@@ -440,3 +440,108 @@
     animation: none;
   }
 }
+
+/* ── A room's tabs, fanned over its slot on a tap (#1118, TabFan.tsx) ── */
+.desk .ph-fan {
+  position: fixed;
+  bottom: calc(var(--ph-bot) + 10px);
+  z-index: 31;
+  display: flex;
+  gap: 4px;
+  padding: 8px 6px 6px;
+  border: 1px solid var(--wv-line);
+  border-radius: 20px;
+  background: linear-gradient(#121419, #0b0c10);
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.8), 0 0 22px -10px var(--rc);
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  animation: ph-fan-in 0.22s cubic-bezier(0.22, 0.61, 0.24, 1);
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.desk .ph-fan::after {
+  content: "";
+  position: absolute;
+  left: calc(50% + var(--ax, 0px));
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-right: 1px solid var(--wv-line);
+  border-bottom: 1px solid var(--wv-line);
+  background: #0b0c10;
+  transform: rotate(45deg);
+}
+.desk .ph-fan a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 58px;
+  color: var(--wv-mute);
+  font: 500 10.5px/1.1 var(--wv-sans);
+  text-decoration: none;
+  -webkit-touch-callout: none;
+  animation: ph-fan-icon 0.26s cubic-bezier(0.22, 0.61, 0.24, 1) backwards;
+  animation-delay: calc(var(--i) * 30ms);
+}
+.desk .ph-fan i {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid color-mix(in srgb, var(--rc) 35%, transparent);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 14%, #14161b), #0b0c10 72%);
+  color: var(--rc);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.desk .ph-fan svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.desk .ph-fan b {
+  font: 600 15px/1 var(--wv-sans);
+}
+.desk .ph-fan a:active i {
+  transform: scale(0.92);
+}
+.desk .ph-fan a[aria-current="page"] {
+  color: var(--wv-ink);
+}
+.desk .ph-fan a[aria-current="page"] i {
+  border-color: var(--rc);
+  box-shadow: 0 0 14px -3px var(--rc);
+}
+.desk .ph-fan a:focus-visible {
+  outline: 1px solid var(--wv-hot);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+.desk .ph-slot {
+  -webkit-touch-callout: none;
+}
+@keyframes ph-fan-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.92);
+  }
+}
+@keyframes ph-fan-icon {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk .ph-fan,
+  .desk .ph-fan a {
+    animation: none;
+  }
+}

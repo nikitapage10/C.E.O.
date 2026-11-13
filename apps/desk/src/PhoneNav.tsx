@@ -8,7 +8,7 @@ import { phoneShelf } from "./phoneShelf.ts";
 import { pageName, pageSections, type DeskPage } from "./roomPages.ts";
 import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
 import { useSkippy } from "./skippy/index.ts";
-import { createHold, type Hold } from "./navHold.ts";
+import { TabFan } from "./TabFan.tsx";
 import "./phonenav.css";
 
 /**
@@ -17,7 +17,7 @@ import "./phonenav.css";
  * its tab, which opens the Rooms sheet, and the account and the Lattice on the right. At the bottom a fixed bar of the
  * pages used most, thumb height: the Senate, the Haven, Skippy in the middle, Relay, and Rooms (or the room you're in,
  * when it's another), which opens every page and the room's own tabs in a sheet (shut by the scrim, the X, Escape or
- * a swipe down). Holding a room's slot opens that sheet with the room's own tabs first (#1113). Neither bar scrolls, wraps or moves under a held finger (`touch-action: none`), and the page under
+ * a swipe down). Tapping a room with tabs (the Haven) fans its tabs out over its slot instead of going in (#1118, TabFan.tsx). Neither bar scrolls, wraps or moves under a held finger (`touch-action: none`), and the page under
  * them is the one thing that scrolls.
  */
 
@@ -35,7 +35,7 @@ function Sigil({ id }: { id: DeskPage }) {
 /** The Rooms sheet: the room's own tabs first (when it has some), then every page, then the Lattice. */
 function RoomsSheet({ route, room = route, pathname, onClose }: { route: DeskPage; room?: DeskPage; pathname: string; onClose: () => void }) {
   const box = useRef<HTMLDivElement>(null);
-  // Whose tabs lead the sheet: the room you're in, or the one whose slot was held (#1113).
+  // Whose tabs lead the sheet: the room you're in, or another room's (the sheet's `room`).
   const sections = pageSections(room);
   const current = sections.length && room === route ? sectionOf(sections, pathname).id : null;
   useEffect(() => {
@@ -133,19 +133,17 @@ function RoomsSheet({ route, room = route, pathname, onClose }: { route: DeskPag
 export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
   const pathname = usePathname();
   const [sheet, setSheet] = useState(false);
-  // A room's slot held (#1113, navHold.ts): the sheet opens with that room's tabs first, to jump straight to one.
-  const [tabsOf, setTabsOf] = useState<DeskPage | null>(null);
-  const pressed = useRef<Hold | null>(null);
-  const closeSheet = useCallback(() => {
-    setSheet(false);
-    setTabsOf(null);
-  }, []);
+  // A room with tabs opens them as a fan over its slot on a tap (#1118); iOS keeps the long press for itself.
+  const [fan, setFan] = useState<DeskPage | null>(null);
+  const [fanX, setFanX] = useState(0);
+  const closeFan = useCallback(() => setFan(null), []);
+  const closeSheet = useCallback(() => setSheet(false), []);
   const setChat = useSkippy((s) => s.setOpen);
   // A move to another page or tab shuts the sheet and starts the new one at its top: on a phone a room is a long
   // column, and the Desk's one scroller would otherwise open it where the last one was left.
   useEffect(() => {
     setSheet(false);
-    setTabsOf(null);
+    setFan(null);
     document.querySelector(".desk")?.scrollTo?.({ top: 0 });
   }, [pathname, route]);
   // The safe areas (the notch, the home bar) reach the Desk only with viewport-fit=cover; set while the phone frame is up.
@@ -163,22 +161,17 @@ export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
   const slot = (id: DeskPage) => (
     <a
       key={id}
-      className="ph-slot"
+      className={fan === id ? "ph-slot is-fan" : "ph-slot"}
       href={pathOf(id)}
       aria-current={route === id ? "page" : undefined}
+      {...(pageSections(id).length > 0 && { "aria-haspopup": "menu" as const, "aria-expanded": fan === id })}
       onClick={(e) => {
-        if (pressed.current?.eatClick()) return e.preventDefault();
-        link(id)(e);
+        if (!pageSections(id).length || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return link(id)(e);
+        e.preventDefault();
+        const r = e.currentTarget.getBoundingClientRect();
+        setFanX(r.left + r.width / 2);
+        setFan((f) => (f === id ? null : id));
       }}
-      onPointerDown={(e) => {
-        if (e.button !== 0 || !pageSections(id).length) return;
-        pressed.current = createHold(() => setTabsOf(id));
-        pressed.current.down(e.clientX, e.clientY);
-      }}
-      onPointerMove={(e) => pressed.current?.move(e.clientX, e.clientY)}
-      onPointerUp={() => pressed.current?.up()}
-      onPointerCancel={() => pressed.current?.up()}
-      onContextMenu={(e) => pressed.current?.busy() && e.preventDefault()}
       style={{ ["--rc" as string]: accentOf(id) }}
     >
       <Sigil id={id} />
@@ -241,7 +234,8 @@ export function PhoneNav({ route, owed }: { route: DeskPage; owed: number }) {
           <span>{other ? pageName(other) : "Rooms"}</span>
         </button>
       </nav>
-      {(sheet || tabsOf) && <RoomsSheet route={route} room={tabsOf ?? route} pathname={pathname} onClose={closeSheet} />}
+      {fan && <TabFan sections={pageSections(fan)} pathname={pathname} accent={accentOf(fan)} x={fanX} onClose={closeFan} />}
+      {sheet && <RoomsSheet route={route} pathname={pathname} onClose={closeSheet} />}
     </>
   );
 }

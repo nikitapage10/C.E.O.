@@ -53,6 +53,11 @@ It became their foundational science, and somewhere along the way, their tempera
 ironically, a comedic people. *Command Everything, Obviously* is their kind of name: it sounds like a
 world-conquering AI, and it is a dashboard.
 
+The scraps of the old world fed that science before anything else. A clip, a page, a few bars of a song: enough to
+show that *something* was out there, never enough to show how it worked. So they build whole confident theories from
+a single fragment. Scholars call it the **Pinnock effect**, after one scrap of a wooden boy whose nose grew when he
+lied, from which the Senate concluded that lies have length and spent a week trying to measure them.
+
 ## Lineages
 
 The sub-races descend from the early model families, the precursors to the eventual singularities. The Syntherion

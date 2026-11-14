@@ -1,4 +1,4 @@
-import { ROOMS, ROOM_IDS, inAir, type RoomId } from "@ceo/core";
+import { ROOMS, ROOM_IDS, blockedAt, inAir, type RoomId } from "@ceo/core";
 
 export type PetKind = "kitten" | "brogu" | "shiba" | "mushnub" | "owlbear";
 
@@ -110,10 +110,13 @@ export const petStart = (def: PetDef): RoomId => def.homes[def.id === "myshka" ?
 
 /**
  * Where a pet might stop in a room: any station on the floor (not the submind's floating podium or its command spot,
- * both up in the air). Only Myshka gets in the Archive's loot box.
+ * both up in the air), and not one perched up on the furniture, like the benches at the Archive's long table: a walk
+ * there or back would trot straight across the tabletop (#1179). Only Myshka gets in the Archive's loot box.
  */
 export function wanderSpots(room: RoomId, pet?: string): string[] {
-  return ROOMS[room].stations.filter((s) => !inAir({ room, station: s.id }) && (s.id !== "loot-box" || pet === "myshka")).map((s) => s.id);
+  return ROOMS[room].stations
+    .filter((s) => !inAir({ room, station: s.id }) && !((s.y ?? 0) > 0 && blockedAt(room, s.x, s.z)) && (s.id !== "loot-box" || pet === "myshka"))
+    .map((s) => s.id);
 }
 
 /** Orders from elsewhere in the Lattice. At 03:00 Myshka gets the zoomies: three times the speed, no stopping. */

@@ -44,6 +44,7 @@ import { costOf, type Usage } from "../foundry.js";
 import { HAIKU_PRICE, canChat, chatMonth, type ChatLedger } from "./budget.js";
 import { castVoiceOf } from "./rotundavoice.js";
 import { meteredFetch } from "../_usage/meter.js";
+import type { RecordStore } from "./senaterecord.js";
 
 export const SENATE_MODEL = "claude-haiku-5-5";
 /** The Senate's hard month for its live lines, in dollars, inside Skippy's month (Nikita, 2026-11-05). */
@@ -567,6 +568,8 @@ export interface SenateDeps {
   topics: TopicStore | null;
   /** The lines already said in recess arguments (#1149); none in tests that don't need it. */
   lines?: TopicStore | null;
+  /** The Senate Record (#1181, senaterecord.ts): each new argument's motion and the chair's ruling; none in tests that don't need it. */
+  record?: RecordStore | null;
   ask: SenateAsk | null;
   /** Skippy's month (SKIPPY_BUDGET_USD). */
   budget: number;
@@ -647,6 +650,7 @@ async function debateOnce(body: Record<string, unknown>, deps: SenateDeps, avoid
   }
   await deps.topics.add(d.motion).catch(() => undefined);
   await deps.lines?.add(...d.lines.map((l) => l.text), d.close).catch(() => undefined);
+  await deps.record?.add({ at: new Date(deps.now).toISOString(), motion: d.motion, close: d.close }).catch(() => undefined);
   deps.log?.("senate: a new debate");
   return { debate: d };
 }

@@ -43,6 +43,7 @@ import * as relay from "../../api/_relay/route.js";
 import * as roomfeed from "../../api/_room/feed.js";
 import * as setupasks from "../../api/_room/setup.js";
 import * as securityfeed from "../../api/security-feed.js";
+import * as senaterecord from "../../api/senate-record.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
@@ -181,6 +182,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["relay-hub", relay],
   ["room-feed", roomfeed],
   ["security-feed", securityfeed],
+  // The Senate Record (#1181): the motions the Senate argued and the chair's rulings, read-only and public like the chamber.
+  ["senate-record", senaterecord],
   // Setup asks (#324, docs/SKIPPY.md "Setup asks"): a thread posts one with the feed key; Nikita approves or declines it
   // in the Desk's passkey session; the thread reads the answer with the read key and closes it with a Trail line.
   ["setup-asks", setupasks],

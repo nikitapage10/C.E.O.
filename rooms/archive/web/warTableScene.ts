@@ -345,6 +345,25 @@ function modelOf(kind: ModelKind, rnd: () => number): Part[] {
       P.push(put(new ConeGeometry(0.08, 0.16, 6), "glass", -0.62, 0.73, -0.12));
       break;
     }
+    case "curia": {
+      // The Senate Record: a drowned curia, a half ring of glass benches round a dais, a lit record stone at its heart.
+      P.push(put(new CylinderGeometry(0.7, 0.78, 0.1, 24), "stone", 0, 0.0, 0));
+      for (const [r, y] of [
+        [0.62, 0.08],
+        [0.5, 0.16],
+      ] as const)
+        for (let k = 0; k < 7; k++) {
+          const a = Math.PI * (0.1 + (k / 6) * 0.8);
+          P.push(put(new BoxGeometry(0.16, 0.06, 0.07), "glass", Math.cos(a) * r, y, -Math.sin(a) * r, Math.PI / 2 - a));
+        }
+      ruin(P, -0.62, 0.32, 0.12, 0.5, 0.12, 51, 0);
+      ruin(P, 0.6, 0.36, 0.12, 0.34, 0.12, 52, 0);
+      P.push(put(new CylinderGeometry(0.16, 0.2, 0.18, 6), "metal", 0, 0.12, 0.12));
+      P.push(put(new BoxGeometry(0.2, 0.62, 0.06), "glass", 0, 0.52, 0.12));
+      P.push(put(new PlaneGeometry(0.18, 0.56), "vein", 0, 0.52, 0.12));
+      P.push(put(new BoxGeometry(0.012, 0.5, 0.012), "glow", 0, 0.52, 0.16));
+      break;
+    }
     case "lab": {
       // How it's written: a glass lab on piers out on the water, a crystal being drawn up under a beam of light.
       for (const [x, z] of [
@@ -474,6 +493,8 @@ const LINKS: [PlaceId, PlaceId][] = [
   ["how", "shelf"],
   ["how", "today"],
   ["bonds", "tide"],
+  ["day", "senate"],
+  ["told", "senate"],
 ];
 
 export async function createWarTable(host: HTMLElement, canvas: HTMLCanvasElement, opts: WarTableOpts): Promise<WarTable> {

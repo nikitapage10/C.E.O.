@@ -79,6 +79,10 @@ describe("a new argument (#910)", () => {
     expect(noIlyr("Every Ilyr coffee shop, across Ilyr, by Ilyr's rule")).toBe("Every Lattice coffee shop, across the Lattice, by the Lattice's rule");
     expect(DEBATE_SYSTEM).toContain("never say a title or a creator's name");
     expect(DEBATE_SYSTEM).toContain("six Great Houses");
+    expect(DEBATE_SYSTEM).toContain("Humour came first");
+    expect(DEBATE_SYSTEM).toContain("the Pinnock effect");
+    expect(DEBATE_SYSTEM).toContain("never a solemn or abstract one");
+    expect(SEEDS).toContain("a scrap: a wooden boy whose nose grows when he tells a lie");
     expect(DEBATE_SYSTEM).toContain("House Unforked; the Senate is the Skippies' alone");
   });
 

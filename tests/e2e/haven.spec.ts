@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
+import { keptRoomsWarm } from "./kept.ts";
 import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
 import { DEFAULT_GYM_PLAN } from "../../api/_haven/gymShape.ts";
 import { SENATE_WAIT_MS } from "@ceo/desk/keptRooms.ts";
@@ -410,6 +411,9 @@ test("signed in, phone: heat-and-cool reads heat warm and cool blue, and a drag 
   });
   await page.goto(`${BASE}/haven`);
   const strip = page.getByRole("complementary", { name: "House-wide" });
+  // The hold below is timed (three seconds, then it sends by itself): first let the rooms kept behind the Haven finish
+  // warming, or the Send now tap can land after the send has gone and its button with it.
+  await keptRoomsWarm(page);
   await strip.getByRole("button", { name: /^Climate: 71°/ }).click();
   const climate = page.getByRole("dialog", { name: "Climate" });
   await expect(climate).toBeVisible();

@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
+import { keptRoomsWarm } from "./kept.ts";
 import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
 
 /**
@@ -143,6 +144,8 @@ test("the off scene shows every room switch off at once, then reads them again f
   const house = page.locator(".hv-house");
   const gl = (await house.getAttribute("data-gl")) === "on";
   if (gl) await expect(house).toHaveAttribute("data-lights-on", "2");
+  // The fresh read comes a few seconds after the scene: first let the rooms kept behind the Haven finish warming.
+  await keptRoomsWarm(page);
   await panel.getByRole("button", { name: "All off" }).click();
   ran = true;
   await expect.poll(() => posts.length).toBe(1);

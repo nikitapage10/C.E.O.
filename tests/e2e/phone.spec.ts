@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
+import { keptRoomsWarm } from "./kept.ts";
 import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
 
 /**
@@ -45,7 +46,9 @@ test("the phone frame: fixed bars, the Rooms sheet with the room's tabs, and bar
     if (b) expect(Math.min(b.width, b.height)).toBeGreaterThanOrEqual(44);
   }
 
-  // A drag on the bottom bar or the top bar scrolls nothing; one on the page does.
+  // A drag on the bottom bar or the top bar scrolls nothing; one on the page does. The drags and the tap after them are
+  // timed, so first let the rooms kept behind the Boiler Room finish warming.
+  await keptRoomsWarm(page);
   const scroll = () => page.evaluate(() => document.querySelector(".desk")!.scrollTop);
   const cdp = await page.context().newCDPSession(page);
   const drag = async (x: number, y0: number, y1: number) => {

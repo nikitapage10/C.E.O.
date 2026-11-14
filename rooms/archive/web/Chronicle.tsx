@@ -8,6 +8,7 @@ import { shipWeeks } from "@ceo/desk/shipWeeks.ts";
 import { mountainHour, ThreadedWeek, type Reading } from "./ChronicleHours.tsx";
 import { TideFolio } from "./ChronicleTide.tsx";
 import { ShipWeeksFolio } from "./ShipWeeks.tsx";
+import { SenateRecordFolio, useSenateRecord } from "./SenateRecord.tsx";
 import { chronicleDay, dayTitle, hourLabel, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../../../apps/world/src/chronicle.ts";
 import { previousWeek, weekDaysOf, weekStartOf } from "../../../api/_world/weeks.ts";
 import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, Kin, ROOM_NAME, Shelf, shortDay, WeekTold } from "./ChronicleWeave.tsx";
@@ -58,6 +59,9 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
   }, [changelog, trails, now]);
   // What Skippy's reading has reached, which lights that room's thread in the week above.
   const [reading, setReading] = useState<Reading | null>(null);
+  // The Senate Record (#1181): every motion argued, with the chair's ruling.
+  const record = useSenateRecord();
+  const motions = record.status === "ready" ? record.lines.length : 0;
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -286,6 +290,7 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
     shelf: <Shelf days={shelfDays} pages={pages} recent={recent} onOpen={pick} />,
     told: <WeekTold weeks={weeks} monday={week} written={weekEntries.length > 0} />,
     ships: <ShipWeeksFolio now={now} />,
+    senate: <SenateRecordFolio record={record} now={now} />,
     tide: <TideFolio week={weekEntries} />,
     how: (
       <p className="wv-note ax-how-p">
@@ -311,6 +316,7 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
     shelf: feed ? `${n(feed.days.length, "day")} on file` : "Opening the case",
     told: weekEntries.length ? "Told on Sunday evenings" : "Waits for a written week",
     ships: shipsThisWeek ? `${shipsThisWeek} shipped this week` : "Week by week",
+    senate: motions ? `${n(motions, "motion")} on file` : record.status === "loading" ? "Opening the record" : "Waits for a motion",
     tide: "Waiting for its feed",
     how: "One step an hour",
   };
@@ -323,6 +329,7 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
     shelf: { lit: ready, level: lv(days.length, 20) },
     told: { lit: ready && weekEntries.length > 0, level: 0.3 },
     ships: { lit: shipsThisWeek > 0, level: lv(shipsThisWeek, 10) },
+    senate: { lit: motions > 0, level: Math.max(0.15, lv(motions, 200)) },
     tide: { lit: false, level: 0 },
     how: { lit: true, level: 0.3 },
   };

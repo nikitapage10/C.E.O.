@@ -8,10 +8,10 @@
  */
 
 /** The Archive's features, each a place on the table. */
-export type PlaceId = "today" | "week" | "day" | "bonds" | "shelf" | "told" | "ships" | "tide" | "how";
+export type PlaceId = "today" | "week" | "day" | "bonds" | "shelf" | "told" | "ships" | "senate" | "tide" | "how";
 
 /** Which miniature stands there. */
-export type ModelKind = "beacon" | "hourglass" | "citadel" | "monoliths" | "stacks" | "amphitheatre" | "harbour" | "ghost" | "lab";
+export type ModelKind = "beacon" | "hourglass" | "citadel" | "monoliths" | "stacks" | "amphitheatre" | "harbour" | "curia" | "ghost" | "lab";
 
 export interface Place {
   id: PlaceId;
@@ -103,6 +103,15 @@ export const PLACES: Place[] = [
     z: -2.4,
   },
   {
+    id: "senate",
+    name: "Senate Record",
+    what: "Every motion argued, with the chair's ruling",
+    model: "The drowned curia",
+    kind: "curia",
+    x: 2.8,
+    z: 2.8,
+  },
+  {
     id: "tide",
     name: "The Tide",
     what: "The campaign, once its feed is connected",
@@ -178,7 +187,7 @@ const LAND: [number, number, number, number][] = [
   [4.7, -1.45, 0.5, 0.95],
   [4.1, 2.2, 0.45, 0.7],
   [5.5, 0.9, 0.3, 0.6],
-  [2.6, 2.9, 0.35, 0.55],
+  [2.8, 2.8, 0.8, 0.8],
   [-2.2, -3.6, 0.4, 0.6],
   [0.8, -3.3, 0.5, 0.6],
   [6.6, 0.2, 0.3, 0.5],

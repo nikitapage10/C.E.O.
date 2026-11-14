@@ -5,7 +5,7 @@ describe("the war table (#826)", () => {
   it("has one place for each of the Archive's features, each with its own spot on the chart", () => {
     const ids = PLACES.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toEqual(expect.arrayContaining(["today", "week", "day", "bonds", "shelf", "told", "ships", "tide", "how"]));
+    expect(ids).toEqual(expect.arrayContaining(["today", "week", "day", "bonds", "shelf", "told", "ships", "senate", "tide", "how"]));
     for (const p of PLACES) {
       expect(Math.abs(p.x)).toBeLessThan(MAP_W / 2 - 0.8);
       expect(Math.abs(p.z)).toBeLessThan(MAP_D / 2 - 0.8);

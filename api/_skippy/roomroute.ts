@@ -53,6 +53,7 @@ import { ROOM_SUBMINDS, isNeeds } from "./log.js";
 import { castVoiceOf, ROTUNDA_SAY_MAX, speakCast } from "./rotundavoice.js";
 import { BlobChatLedger, KERNEL_LEDGER_PATH, skippyBudget } from "./budget.js";
 import { BlobTopicStore, LINES_KEEP, LINES_PATH, chairQuips, floorReply, joinDebate, liveAsk, newDebate, readSeats, type SenateDeps } from "./senatetalk.js";
+import { BlobRecordStore } from "./senaterecord.js";
 import {
   CLIP_MAX_BYTES,
   CLIP_TYPES,
@@ -114,6 +115,7 @@ export function liveDeps(env: Env = process.env): RoomRouteDeps {
         kernel: blob ? new BlobChatLedger(blob, KERNEL_LEDGER_PATH) : null,
         topics: blob ? new BlobTopicStore(blob) : null,
         lines: blob ? new BlobTopicStore(blob, LINES_PATH, LINES_KEEP) : null,
+        record: blob ? new BlobRecordStore(blob) : null,
         ask: liveAsk(),
         budget: skippyBudget(env.SKIPPY_BUDGET_USD),
         now: Date.now(),

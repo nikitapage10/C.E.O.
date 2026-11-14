@@ -10,7 +10,7 @@ export default defineRoom({
   accent: "--room-archive",
   submind: "vellum",
   live: false,
-  auth: { "day-story": ["site", "passkey"] },
+  auth: { "day-story": ["site", "passkey"], "senate-record": ["public"] },
   keys: [],
   usesClaude: true,
   threat: ["TB2", "TB6"],

@@ -1751,3 +1751,53 @@
   text-transform: uppercase;
   color: var(--ax-mute);
 }
+
+/* The Senate Record (#1181): the motions argued and the chair's rulings, newest first. Silver on black, no gold. */
+.desk .ax-senate-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.desk .ax-senate-list li {
+  display: grid;
+  gap: 4px;
+  padding: 14px 0;
+  border-top: 1px solid var(--ax-line2);
+  min-width: 0;
+}
+.desk .ax-senate-m {
+  margin: 0;
+  font-family: var(--ax-disp);
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--ax-ink);
+  overflow-wrap: anywhere;
+}
+.desk .ax-senate-r {
+  margin: 0;
+  font-family: var(--ax-text);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ax-soft);
+  overflow-wrap: anywhere;
+}
+.desk .ax-senate-r span {
+  margin-right: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ax-mute);
+}
+.desk .ax-senate-list time {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ax-mute);
+}
+.desk .ax-senate-list li.is-bare .ax-senate-m {
+  color: var(--ax-soft);
+}
+.desk .ax-senate .ax-more {
+  margin-top: 12px;
+}

@@ -129,6 +129,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // DoorDash, phase 0 (#1195, docs/HOME-DEVICES.md): DoorDash's own CLI in this app, Sign in to DoorDash from the
   // Kitchen (passkey session only; ?view=status is the public state alone) and its token sealed in the private store.
   ["haven/doordash", havendoordash.doordashRoute],
+  // DoorDash, phase 1 (#1195): the Kitchen's Order tab. Search, menus, the cart, the priced preview and Place order,
+  // passkey session only, through the same CLI (api/_haven/doordash/order.ts). Nothing about orders is public.
+  ["haven/doordash/order", havendoordash.doordashOrderRoute],
   // The Haven's floor plan (#616): the home's shape for the Desk's 3D house, kept only in the private store and served
   // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
   ["haven-plan", havenplan.planRoute],

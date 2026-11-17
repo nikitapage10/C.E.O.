@@ -1204,7 +1204,7 @@
 }
 [data-room="haven"] .mp-steps {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 0.9fr);
   gap: 8px;
   margin: 0 0 14px;
   padding: 0;
@@ -1643,7 +1643,7 @@
 }
 @media (max-width: 640px) {
   [data-room="haven"] .mp-steps {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
   }
   [data-room="haven"] .mp-steps button {
@@ -1705,4 +1705,16 @@
   bottom: 4px;
   padding: 1px 6px;
   font-size: 10px;
+}
+/* Order (#1195): beside the four steps, not numbered with them; its own tab body, and its button before a week exists. */
+[data-room="haven"] .mp-steps .is-order button {
+  border-style: dashed;
+}
+[data-room="haven"] .mp-steps .is-order i {
+  border-color: rgba(var(--hv-gold), 0.5);
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-order,
+[data-room="haven"] .mp-orderSolo {
+  margin-top: 6px;
 }

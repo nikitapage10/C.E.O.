@@ -3305,3 +3305,332 @@
   flex: none;
   width: 100%;
 }
+/* The Kitchen's Order tab (#1195, phase 1): DoorDash, any night. Tonight, a store's menu, the cart, the priced preview
+   with its one Place button, and the orders. */
+[data-room="haven"] .hv-or {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 760px;
+}
+[data-room="haven"] .hv-or .hv-btns .hv-btn.is-pri,
+[data-room="haven"] .hv-orHead .hv-btn.is-pri {
+  width: auto;
+}
+[data-room="haven"] .hv-orTabs,
+[data-room="haven"] .hv-orSeg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--hv-line);
+  border-radius: 12px;
+}
+[data-room="haven"] .hv-orSeg.is-wrap {
+  flex-wrap: wrap;
+}
+[data-room="haven"] .hv-orTabs button,
+[data-room="haven"] .hv-orSeg button {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 14px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-orTabs button[aria-pressed="true"],
+[data-room="haven"] .hv-orSeg button[aria-pressed="true"] {
+  background: rgba(var(--hv-gold), 0.16);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-orSeg button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+[data-room="haven"] .hv-orH,
+[data-room="haven"] .hv-orHead h4,
+[data-room="haven"] .hv-orPlaced h4 {
+  margin: 8px 0 2px;
+  font: italic 500 22px var(--hv-disp);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-orHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+[data-room="haven"] .hv-orHead h4 {
+  flex: 1;
+  margin: 0;
+}
+[data-room="haven"] .hv-orHead .hv-btn {
+  margin-top: 0;
+}
+[data-room="haven"] .hv-orSearch,
+[data-room="haven"] .hv-orPromo {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+[data-room="haven"] .hv-orSearch label,
+[data-room="haven"] .hv-orPromo label,
+[data-room="haven"] .hv-orWin {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-or input[type="search"],
+[data-room="haven"] .hv-or input[type="text"],
+[data-room="haven"] .hv-or select {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hv-ink);
+  font: 15px var(--hv-text);
+}
+[data-room="haven"] .hv-orSearch .hv-btn,
+[data-room="haven"] .hv-orPromo .hv-btn {
+  width: auto;
+  min-height: 44px;
+  margin-top: 0;
+}
+[data-room="haven"] .hv-orStores,
+[data-room="haven"] .hv-orUsuals,
+[data-room="haven"] .hv-orItems,
+[data-room="haven"] .hv-orLines,
+[data-room="haven"] .hv-orOrders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-orStores button,
+[data-room="haven"] .hv-orItems button,
+[data-room="haven"] .hv-orRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid var(--hv-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--hv-ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-orStores img,
+[data-room="haven"] .hv-orStores i {
+  flex: none;
+  width: 56px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(var(--hv-gold), 0.08);
+}
+[data-room="haven"] .hv-orItems img {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  margin-left: auto;
+  border-radius: 10px;
+  object-fit: cover;
+}
+[data-room="haven"] .hv-orStores span,
+[data-room="haven"] .hv-orItems span,
+[data-room="haven"] .hv-orUsuals li > span,
+[data-room="haven"] .hv-orLines li > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+[data-room="haven"] .hv-or small {
+  color: var(--hv-mute);
+  font-size: 12.5px;
+}
+[data-room="haven"] .hv-orItems em {
+  color: var(--hv-soft);
+  font-style: normal;
+  font-size: 13px;
+}
+[data-room="haven"] .hv-orItems .is-off button {
+  opacity: 0.5;
+  cursor: default;
+}
+[data-room="haven"] .hv-orUsuals li,
+[data-room="haven"] .hv-orLines li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+[data-room="haven"] .hv-orUsuals .hv-btns {
+  flex: none;
+  margin-top: 0;
+}
+[data-room="haven"] .hv-orLines.is-tight li {
+  padding: 4px 0;
+  font-size: 14px;
+}
+[data-room="haven"] .hv-orSecs {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-bottom: 4px;
+}
+[data-room="haven"] .hv-orSecs .hv-chip {
+  flex: none;
+}
+[data-room="haven"] .hv-chip[aria-selected="true"] {
+  border-color: rgba(var(--hv-gold), 0.7);
+  background: rgba(var(--hv-gold), 0.16);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-orSheet,
+[data-room="haven"] .hv-orAsk {
+  padding: 14px;
+  border: 1px solid rgba(var(--hv-gold), 0.4);
+  border-radius: 14px;
+  background: var(--hv-glass);
+}
+[data-room="haven"] .hv-orAsk p {
+  margin: 0 0 8px;
+}
+[data-room="haven"] .hv-orGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 10px 0;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-orGroup legend {
+  padding: 0;
+  font-weight: 600;
+}
+[data-room="haven"] .hv-orGroup label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-orGroup input {
+  width: 18px;
+  height: 18px;
+  accent-color: #f3dcae;
+}
+[data-room="haven"] .hv-orGroup em {
+  margin-left: auto;
+  color: var(--hv-soft);
+  font-style: normal;
+}
+[data-room="haven"] .hv-orQty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+[data-room="haven"] .hv-orQty .hv-btn {
+  min-width: 44px;
+  min-height: 44px;
+  margin-top: 0;
+}
+[data-room="haven"] .hv-orQty .hv-btn.is-pri {
+  flex: 1;
+}
+[data-room="haven"] .hv-orOpts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+[data-room="haven"] .hv-orBill,
+[data-room="haven"] .hv-orFacts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0;
+}
+[data-room="haven"] .hv-orBill div,
+[data-room="haven"] .hv-orFacts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+[data-room="haven"] .hv-orBill dt,
+[data-room="haven"] .hv-orFacts dt {
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-orBill dd,
+[data-room="haven"] .hv-orFacts dd {
+  margin: 0;
+  text-align: right;
+}
+[data-room="haven"] .hv-orBill .is-sum {
+  padding-top: 6px;
+  border-top: 1px solid var(--hv-line);
+  font-weight: 600;
+}
+[data-room="haven"] .hv-orTip {
+  margin: 6px 0;
+  padding: 0;
+  border: 0;
+}
+[data-room="haven"] .hv-orTip legend {
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-orTipOwn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-or .hv-orTipOwn input {
+  width: 72px;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+[data-room="haven"] .hv-orPlace {
+  min-height: 52px;
+  font-size: 16px;
+}
+[data-room="haven"] .hv-orText {
+  white-space: pre-line;
+}
+[data-room="haven"] .hv-orDetail {
+  padding: 6px 4px 10px;
+}
+[data-room="haven"] .hv-orPlaced.is-maybe h4,
+[data-room="haven"] .hv-orPlaced.is-failed h4 {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-note.is-ok {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .hv-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--hv-gold));
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

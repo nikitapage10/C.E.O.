@@ -11,6 +11,7 @@ import { pickBlob } from "../../_blob.js";
 import { pickAuthStore } from "../../_desk/store.js";
 import { HomeVault, homeKey } from "../devices/vault.js";
 import { bundledDir, makeRunner, type DdRunner } from "./cli.js";
+import { doordashOrderPost } from "./order.js";
 import { doordashGet, doordashPost, type DoorDashDeps } from "./route.js";
 
 type Env = Record<string, string | undefined>;
@@ -38,4 +39,9 @@ export function doordashDeps(env: Env = process.env): DoorDashDeps {
 export const doordashRoute = {
   GET: (request: Request) => doordashGet(request, doordashDeps()),
   POST: (request: Request) => doordashPost(request, doordashDeps()),
+};
+
+/** The Order tab (#1195, phase 1): passkey session only, POST only. */
+export const doordashOrderRoute = {
+  POST: (request: Request) => doordashOrderPost(request, doordashDeps()),
 };

@@ -6,12 +6,13 @@ import { DD_NOTE, doordashAction, expiryWords, loadDoorDash, type DdAction, type
  * The Kitchen's DoorDash card (#1195, phase 0: Connect; api/_haven/doordash/route.ts). DoorDash's own CLI runs on the
  * server; signing in is its remote two-step: **Sign in to DoorDash** opens DoorDash's page in a new tab, the page ends
  * on "localhost refused to connect" (expected), and Nikita pastes that address here and taps **Finish**. The token
- * lasts about 72 hours and can't renew itself, so the card says when it runs out. Ordering comes in a later phase.
+ * lasts about 72 hours and can't renew itself, so the card says when it runs out. The Order tab (Order.tsx) shows this
+ * card in place of its actions while signed out or expired, and `onChange` tells it when the sign-in changes.
  */
 
 const TAG: Record<DdView["state"], string> = { "not-set-up": "not set up", "signed-out": "signed out", live: "live", expired: "expired" };
 
-export function DoorDashCard() {
+export function DoorDashCard({ onChange }: { onChange?: () => void } = {}) {
   const [view, setView] = useState<DdView | null>(null);
   const [load, setLoad] = useState<"idle" | "off" | "failed" | "ready">("idle");
   const [busy, setBusy] = useState(false);
@@ -38,6 +39,7 @@ export function DoorDashCard() {
     setBusy(false);
     if (r.status === 401) useDeskAuth.getState().lost();
     if (r.view) setView(r.view);
+    if (r.ok && r.view) onChange?.();
     if (!r.ok) setNote(DD_NOTE[r.error ?? "failed"] ?? DD_NOTE.failed!);
     return r;
   };

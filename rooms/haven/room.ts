@@ -37,9 +37,9 @@ export default defineRoom({
       { name: "Kroger", use: "the Kitchen list matched at King Soopers and sent to the cart on a tap" },
       { name: "SwitchBot", use: "the lights on and off, its scenes, and the projector's power" },
       { name: "Govee", use: "the Govee lights on and off" },
-      // DoorDash (#1195): its own CLI in the Function app, signed in from the Kitchen; ordering comes in a later phase.
-      // Its endpoint, haven/doordash, is registered like haven/kroger in azure/src/index.ts.
-      { name: "DoorDash", use: "signed in from the Kitchen, for ordering to come" },
+      // DoorDash (#1195): its own CLI in the Function app, signed in and ordered from the Kitchen's Order tab. Its
+      // endpoints, haven/doordash and haven/doordash/order, are registered like haven/kroger in azure/src/index.ts.
+      { name: "DoorDash", use: "the Kitchen's Order tab: search, menus, the cart, a priced preview and Place order" },
     ],
     measure: "devices live, rooms lit, and Kitchen list items open",
   },

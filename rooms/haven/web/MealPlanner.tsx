@@ -953,9 +953,10 @@ const PHASES = [
 
 /**
  * The planner (#678; the phases and weeks ahead, #721). `onListChanged` rereads the Kitchen list after Finalize puts
- * the shopping on it; `rail` is the Kitchen list and King Soopers, shown in the Shop step.
+ * the shopping on it; `rail` is the Kitchen list and King Soopers, shown in the Shop step. `order` is the Order tab
+ * (#1195, DoorDash): beside the four steps, not one of them, so a one-off delivery is a tap away whatever the week's at.
  */
-export function MealPlanner({ onListChanged, rail, items = null }: { onListChanged: () => void; rail: ReactNode; items?: KitchenItem[] | null }) {
+export function MealPlanner({ onListChanged, rail, items = null, order }: { onListChanged: () => void; rail: ReactNode; items?: KitchenItem[] | null; order?: ReactNode }) {
   /** When the King Soopers cart was last sent (#1055): with the list, how the planner tells the shopping is done. */
   const [cartSentAt, setCartSent] = useState<string | null>(lastCartSent);
   useEffect(() => onCartSent(setCartSent), []);
@@ -964,6 +965,8 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
   /** The week shown: null for the current one, else a week ahead by its Monday. */
   const [start, setStart] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase | null>(null);
+  /** The Order tab is open (#1195), over whichever step the week is at. */
+  const [ordering, setOrdering] = useState(false);
   const [pick, setPick] = useState<Pick>(null);
   const [over, setOver] = useState<"catalog" | "taste" | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -986,7 +989,7 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
           tab: "Kitchen",
           item: pickSlot ? `${DAY_NAME[pickSlot.day]}'s ${pick!.course}` : "The week's meal plan",
           stage: weekStage(shownWeek),
-          fields: { week: shownWeek.start, phase: phase ?? openingStep(shownWeek, { items, cartSentAt }), ...(pickSlot && { day: pickSlot.day }), ...(over && { panel: over }) },
+          fields: { week: shownWeek.start, phase: ordering ? "order" : (phase ?? openingStep(shownWeek, { items, cartSentAt })), ...(pickSlot && { day: pickSlot.day }), ...(over && { panel: over }) },
           private: {
             ...(pickDish && { meal: pickDish.meal.name, steps: pickDish.meal.steps.map((t, k) => `${k + 1}. ${t}`.slice(0, 120)) }),
             nights: shownWeek.slots.map((s) => `${s.day}: ${file ? (mealNamed(file, s.meal)?.name ?? s.meal) : s.meal}${s.helloFresh ? " (HelloFresh)" : ""}`),
@@ -1146,11 +1149,25 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
     setPhase("shop");
   };
 
+  // Before the week is there (loading, no planner, no week yet), Order still opens from its own button (#1195).
+  const orderSolo = order ? (
+    <section className="mp-orderSolo" aria-label="Order from DoorDash">
+      {ordering ? (
+        order
+      ) : (
+        <button type="button" className="hv-btn" onClick={() => setOrdering(true)}>
+          Order from DoorDash
+        </button>
+      )}
+    </section>
+  ) : null;
+
   if (load !== "ready")
     return (
       <>
         {load === "off" ? null : <p className="mp-note">{load === "failed" ? "The meal planner didn't load. It'll try again when you come back." : "Reading the meal planner…"}</p>}
         <div className="mp-railOnly">{rail}</div>
+        {orderSolo}
       </>
     );
   if (!file) {
@@ -1158,6 +1175,7 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
       <div className="mp-layout">
         <div className="mp-main">
           <Seed onSeeded={setFile} />
+          {orderSolo}
         </div>
         <aside className="mp-rail">{rail}</aside>
       </div>
@@ -1175,6 +1193,7 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
             Plan a week from the catalog
           </button>
           {note ? <p className="mp-note">{note}</p> : null}
+          {orderSolo}
         </div>
         <aside className="mp-rail">{rail}</aside>
       </div>
@@ -1221,6 +1240,7 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
                 setStart(k === 0 ? null : x.start);
                 setPick(null);
                 setPhase(null);
+                setOrdering(false);
               }}
             >
               <small>{k === 0 ? "This week" : k === 1 ? "Next week" : `In ${k} weeks`}</small>
@@ -1281,7 +1301,15 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
         <ol className="mp-steps" aria-label="Steps">
           {PHASES.map((p, k) => (
             <li key={p.id}>
-              <button type="button" aria-current={step === p.id ? "step" : undefined} className={PHASES.findIndex((x) => x.id === step) > k ? "is-past" : ""} onClick={() => setPhase(p.id)}>
+              <button
+                type="button"
+                aria-current={!ordering && step === p.id ? "step" : undefined}
+                className={PHASES.findIndex((x) => x.id === step) > k ? "is-past" : ""}
+                onClick={() => {
+                  setPhase(p.id);
+                  setOrdering(false);
+                }}
+              >
                 <i>{k + 1}</i>
                 <span>
                   <b>{p.name}</b>
@@ -1290,6 +1318,17 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
               </button>
             </li>
           ))}
+          {order ? (
+            <li className="is-order">
+              <button type="button" aria-current={ordering ? "step" : undefined} onClick={() => setOrdering(true)}>
+                <i aria-hidden="true">↗</i>
+                <span>
+                  <b>Order</b>
+                  <small>DoorDash, any night</small>
+                </span>
+              </button>
+            </li>
+          ) : null}
         </ol>
 
         {note ? (
@@ -1302,7 +1341,9 @@ export function MealPlanner({ onListChanged, rail, items = null }: { onListChang
           </p>
         ) : null}
 
-        {step === "plan" || step === "customize" ? (
+        {ordering && order ? (
+          <div className="mp-order">{order}</div>
+        ) : step === "plan" || step === "customize" ? (
           <div className="mp-plan">
             <DayList f={view} pick={pick} onPick={setPick} edit={edit} />
             <div className="mp-detail" ref={detail}>

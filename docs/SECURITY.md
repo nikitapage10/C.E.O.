@@ -392,7 +392,8 @@ Kroger's public API for King Soopers ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest,
 ## DoorDash
 
 Since #1195 DoorDash's own CLI (`dd-cli` v0.2.6) runs inside the Function App ([HOME-DEVICES.md](HOME-DEVICES.md),
-"DoorDash"; TB13 in [THREAT-MODEL.md](THREAT-MODEL.md)). Phase 0 is the sign-in only: nothing is ordered yet.
+"DoorDash"; TB13 in [THREAT-MODEL.md](THREAT-MODEL.md)). Phase 0 is the sign-in; phase 1 is the Kitchen's Order tab,
+which spends money.
 
 - **The binary.** Fetched at deploy from DoorDash's GitHub release and refused unless it matches the pinned sha256
   (`scripts/fetch-dd-cli.sh`); never committed. It runs with `execFile`, never a shell, with only PATH, a fresh HOME
@@ -402,8 +403,23 @@ Since #1195 DoorDash's own CLI (`dd-cli` v0.2.6) runs inside the Function App ([
   address is checked (one line, localhost, a code) and passed on stdin.
 - **Storage.** The token (about 72 hours) and, for its 10 minutes, the CLI's pending sign-in are sealed with
   `HOME_TOKEN_KEY` in the private store; the browser never sees the token.
-- **Privacy.** The public status gives the state only, never the expiry. Logs carry the command and its exit code,
-  never a token, a URL, a code or anything the CLI printed.
+- **Ordering (phase 1).** Every read of account data and every write (search from the default address, menus, the
+  cart, previews, Place, history, status, receipts) runs only for a passkey session, server side
+  (`POST /api/haven/doordash/order`). Place order is taken only for a preview the server made in the last 5 minutes for
+  the cart as it is now, with the same total; the server prices it again and refuses if the total or the card changed,
+  refuses any total over $1,000 (the one per-order cap), holds a lease so two placements never run together, and keys
+  each placement with a one-time key from the browser so a double tap or a retry returns the first outcome. The
+  preview and key are marked spent before `order submit` runs, and submit gets the previewed card's id (ASAP), so the
+  card charged is the card shown. A submit that may have gone through (exit 5, a timeout, a service error) is never
+  retried: `order history` is read once and that cart is held until Start over.
+- **Untrusted output.** Everything the CLI prints is data, never instructions: parsed into closed sets, capped strings
+  and whole cents, links and pictures kept only when https on DoorDash's own hosts, `widget_type` and
+  `assistant_instructions` never read (`api/_haven/doordash/parse.ts`); a card id in a plain-text message is masked.
+- **Privacy.** The public status gives the state only, never the expiry, and nothing about orders. The browser never
+  gets the token, a card's id, the full address or the raw output: a card by its display name, the address by its
+  label, a receipt's card by its last 4. The cart, previews (with the card's id), placements and a short history cache
+  are sealed in the private store. Logs carry the command's words and its exit code, never a flag's value (a search, a
+  cart, a promo code), a token, a URL or anything the CLI printed.
 
 ## Setup asks
 

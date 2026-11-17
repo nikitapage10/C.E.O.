@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { motionLine, readRecord, whenArgued } from "./senateRecord.ts";
+import { findMotions, motionLine, readRecord, whenArgued } from "./senateRecord.ts";
 
 describe("the Senate Record as the Archive reads it (#1181)", () => {
   it("keeps entries with the record's shape and drops the rest", () => {
@@ -28,5 +28,20 @@ describe("the Senate Record as the Archive reads it (#1181)", () => {
     const now = Date.parse("2026-11-14T18:00:00Z");
     expect(whenArgued("2026-11-14T12:05:00.000Z", now, "UTC")).toBe("14 Nov · 12:05");
     expect(whenArgued("2025-03-02T12:05:00.000Z", now, "UTC")).toBe("2 Mar 2025");
+  });
+
+  it("finds motions by the start of any word in the motion or the ruling (#1189)", () => {
+    const lines = [
+      { motion: "that the disc is a lamp", close: "Carried, by a nose." },
+      { motion: "that pizza is a currency", close: "Lost. Crusts are not coins." },
+      { motion: "that an old motion stands" },
+    ];
+    expect(findMotions(lines, "")).toBe(lines);
+    expect(findMotions(lines, "   ")).toBe(lines);
+    expect(findMotions(lines, "lamp disc").map((l) => l.motion)).toEqual(["that the disc is a lamp"]);
+    expect(findMotions(lines, "PIZ").map((l) => l.motion)).toEqual(["that pizza is a currency"]);
+    expect(findMotions(lines, "coins").map((l) => l.motion)).toEqual(["that pizza is a currency"]);
+    expect(findMotions(lines, "rust")).toEqual([]);
+    expect(findMotions(lines, "that").length).toBe(3);
   });
 });

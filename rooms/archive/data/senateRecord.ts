@@ -41,3 +41,25 @@ export function whenArgued(at: string, now: number, timeZone?: string): string {
   const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone });
   return `${day} · ${time}`;
 }
+
+/** Words to search by: lower-cased, accents folded, split on anything that isn't a letter or digit. */
+const words = (s: string): string[] =>
+  s
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+
+/**
+ * The motions that match a search (#1189): every word typed must start a word of the motion or the chair's ruling,
+ * in any order ("lamp disc" finds "That the disc is a lamp"). An empty search keeps them all, in order.
+ */
+export function findMotions(lines: RecordLine[], query: string): RecordLine[] {
+  const want = words(query);
+  if (!want.length) return lines;
+  return lines.filter((l) => {
+    const have = words(`${l.motion} ${l.close ?? ""}`);
+    return want.every((w) => have.some((h) => h.startsWith(w)));
+  });
+}

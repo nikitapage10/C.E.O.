@@ -1801,3 +1801,42 @@
 .desk .ax-senate .ax-more {
   margin-top: 12px;
 }
+/* The search (#1189). */
+.desk .ax-senate-find {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  min-width: 0;
+}
+.desk .ax-senate-find span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ax-mute);
+}
+.desk .ax-senate-find input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font: 16px/1.3 var(--ax-text);
+  color: var(--ax-ink);
+  background: transparent;
+  border: 1px solid var(--ax-line2);
+  border-radius: 6px;
+}
+.desk .ax-senate-find input::placeholder {
+  color: var(--ax-mute);
+}
+.desk .ax-senate-find input:focus-visible {
+  outline: 2px solid var(--ax-soft);
+  outline-offset: 2px;
+}
+.desk .ax-senate-count {
+  margin: 8px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ax-mute);
+}

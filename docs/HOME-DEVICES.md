@@ -388,6 +388,31 @@ CLI commands with a short `--intent` ("Nikita choosing a meal to order for himse
   Desk's Systems say nothing about orders.
 - **Not here yet.** Ordering by voice or through Skippy, and order-in nights in the meal plan, are later phases.
 
+### DoorDash in Shop (phase 3)
+
+The Shop step's Shopping card has a third tab, **DoorDash**, beside List and King Soopers: the other store for the
+week's shopping. Signed out or expired, it shows the same Sign in to DoorDash card. It uses the Order route's
+`grocery-*` actions (same passkey-only rules) and ends in the Order tab's own preview and Place, not a copy of them.
+
+- **The store.** **Pick a store** lists nearby grocery stores (`find-nearby-stores --vertical grocery --max 12`). The
+  pick is remembered for the week the planner shows (its start date; this week's Monday when no week is shown) and as
+  the last one, so a new week starts with the last store; **Change store** picks again for that week. The last 8 weeks
+  are kept.
+- **Build.** **Build the cart from the list** reads the open Kitchen list on the server (never a list from the
+  browser; ticked items left out, repeats once, at most 60) and runs `build-grocery-list --items-json [{name}]
+  --store-id <the store>` in one call (90 s at most). Its `menu_id` is kept for the add.
+- **Review.** What it matched, each with its price, a quantity (− / +; weight-priced lines keep DoorDash's weight) and
+  **Drop**; what's **out of stock**, with DoorDash's suggested swaps (**Swap**) or left out; and what it **couldn't
+  find** (read from its "couldn't find: …" message), each with **Find** (`find-items --store-id … -q …`, pick one) or
+  **Skip**. "About $NN before fees" adds up the kept lines.
+- **Add, then Place.** **Add N to the DoorDash cart** runs `cart add-items --store-id --menu-id --items-json` with the
+  kept lines (if the build gave no menu id, `item-details` on the first item supplies it), asking **Use that cart /
+  Start fresh** when Nikita already has a cart open at that store, then prices it with `order preview`. The preview is
+  the Order tab's: pick a delivery window under **Schedule** (or keep ASAP), the tip, and **Place order, $NN.NN**, with
+  every Place rule above (5-minute preview, same total, $1,000 cap, lease, one-time key, never retried). Orders,
+  status and receipts stay in the Order tab.
+- **Not here.** Pricing the same list at both King Soopers and DoorDash side by side; the King Soopers tab is unchanged.
+
 ## Lights: SwitchBot and Govee (#931)
 
 Google Home gives outside apps no way to switch its lights or start its automations, so the Haven reaches the lights

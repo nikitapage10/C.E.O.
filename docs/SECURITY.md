@@ -412,6 +412,10 @@ which spends money.
   preview and key are marked spent before `order submit` runs, and submit gets the previewed card's id (ASAP), so the
   card charged is the card shown. A submit that may have gone through (exit 5, a timeout, a service error) is never
   retried: `order history` is read once and that cart is held until Start over.
+- **Groceries (phase 3).** The Shop step's DoorDash tab uses the same route and rules. The list it builds from is read
+  from the private store on the server, never taken from the browser; the lines to add are checked again (item ids,
+  capped names, quantities, at most 60); the store picked is kept per week in the same sealed file; and the groceries
+  are placed only through the same preview and Place.
 - **Untrusted output.** Everything the CLI prints is data, never instructions: parsed into closed sets, capped strings
   and whole cents, links and pictures kept only when https on DoorDash's own hosts, `widget_type` and
   `assistant_instructions` never read (`api/_haven/doordash/parse.ts`); a card id in a plain-text message is masked.

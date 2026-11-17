@@ -39,7 +39,7 @@ export default defineRoom({
       { name: "Govee", use: "the Govee lights on and off" },
       // DoorDash (#1195): its own CLI in the Function app, signed in and ordered from the Kitchen's Order tab. Its
       // endpoints, haven/doordash and haven/doordash/order, are registered like haven/kroger in azure/src/index.ts.
-      { name: "DoorDash", use: "the Kitchen's Order tab: search, menus, the cart, a priced preview and Place order" },
+      { name: "DoorDash", use: "the Kitchen's Order tab (search, cart, preview, Place) and Shop's DoorDash tab (the list as a grocery cart)" },
     ],
     measure: "devices live, rooms lit, and Kitchen list items open",
   },

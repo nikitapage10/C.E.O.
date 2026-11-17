@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ddLink, money, noteOf, orderCall, picksOk, placeKey, readCart, readMenu, readPlacement, readPreview, readStatus, tipChoices } from "./order.ts";
+import { addLinesOf, ddLink, money, noteOf, orderCall, picksOk, placeKey, readCart, readFound, readGroceryBuild, readMenu, readPlacement, readPreview, readStatus, rowsCents, tipChoices, weekKey } from "./order.ts";
 
 /** The Order tab's browser side (#1195): what the server sends is read again as untrusted data. */
 
@@ -77,5 +77,56 @@ describe("the Order tab's readers (#1195)", () => {
     expect(off.error).toBe("off");
     const down = await orderCall({ action: "home" }, (async () => Promise.reject(new Error("net"))) as unknown as typeof fetch);
     expect(down).toMatchObject({ ok: false, status: 0, error: "failed" });
+  });
+});
+
+describe("Shop's DoorDash tab, browser side (#1195, phase 3)", () => {
+  const BUILD = {
+    store: { id: "777001", name: "Fresh Mart" },
+    asked: ["bananas", "kale", 7],
+    lines: [
+      { id: "501", name: "Bananas, each", forName: "bananas", qty: 6, unit: null, priceCents: 29, out: false, subs: [] },
+      { id: "502", name: "Organic Kale", forName: "kale", qty: 1, unit: null, priceCents: 249, out: true, subs: [{ id: "503", name: "Curly Kale", priceCents: 199, image: "https://evil.test/k.png" }] },
+      { id: "504", name: "Chicken thighs", qty: 1.5, unit: "lb", priceCents: 399, out: false, subs: [] },
+      { id: "<bad>", name: "Junk", qty: 1 },
+    ],
+    missing: ["saffron", null],
+    message: "Couldn't find: saffron",
+  };
+
+  it("reads a build: good ids only, out-of-stock lines start dropped, swaps without outside pictures", () => {
+    const b = readGroceryBuild(BUILD)!;
+    expect(b.store).toEqual({ id: "777001", name: "Fresh Mart" });
+    expect(b.asked).toEqual(["bananas", "kale"]);
+    expect(b.missing).toEqual(["saffron"]);
+    expect(b.rows.map((r) => [r.id, r.drop])).toEqual([
+      ["501", false],
+      ["502", true],
+      ["504", false],
+    ]);
+    expect(b.rows[1]!.subs).toEqual([{ id: "503", name: "Curly Kale", priceCents: 199, image: null }]);
+    expect(readGroceryBuild({ store: { id: "x y" } })).toBeNull();
+    expect(readFound({ id: "9", name: "Red Boat", priceCents: 549, image: "https://img.cdn4dd.com/r.jpg" })).toEqual({ id: "9", name: "Red Boat", priceCents: 549, image: "https://img.cdn4dd.com/r.jpg" });
+  });
+
+  it("sends the kept, in-stock rows once each, and adds up about what they cost", () => {
+    const b = readGroceryBuild(BUILD)!;
+    const rows = [...b.rows, { ...b.rows[0]!, key: "f1", qty: 2 }];
+    expect(addLinesOf(rows)).toEqual([
+      { id: "501", name: "Bananas, each", qty: 8 },
+      { id: "504", name: "Chicken thighs", qty: 1.5 },
+    ]);
+    expect(rowsCents(b.rows)).toBe(6 * 29 + Math.round(1.5 * 399));
+    // A swap brings the out-of-stock row back.
+    const swapped = b.rows.map((r) => (r.out ? { ...r, id: "503", name: "Curly Kale", out: false, drop: false } : r));
+    expect(addLinesOf(swapped).map((l) => l.id)).toEqual(["501", "503", "504"]);
+    expect(addLinesOf(b.rows.map((r) => ({ ...r, drop: true })))).toEqual([]);
+  });
+
+  it("remembers a store by the planner's week, else this week's Monday", () => {
+    expect(weekKey("2026-11-16")).toBe("2026-11-16");
+    expect(weekKey(null, new Date(2026, 10, 19, 12))).toBe("2026-11-16");
+    expect(weekKey("junk", new Date(2026, 10, 22, 12))).toBe("2026-11-16");
+    expect(weekKey(null, new Date(2026, 10, 23, 8))).toBe("2026-11-23");
   });
 });

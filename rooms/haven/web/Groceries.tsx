@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { KitchenItem } from "@ceo/desk/haven.ts";
 import { Private } from "@ceo/engine/web/Private.tsx";
@@ -8,7 +8,8 @@ import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, listCleare
 /**
  * The Kitchen's Shopping card (#737; Send to King Soopers, #664): one card, two tabs. **List** is the Kitchen list by
  * shelf, with Finalize & match, which matches every open item at the home store in one press and turns to the second
- * tab. **King Soopers** is each item's pick with its price and stock, a swap, a rematch and the product's own sheet, the
+ * tab. **DoorDash** (#1195, phase 3) is the other store: the list built into a DoorDash grocery cart, reviewed, and
+ * placed with the Order tab's own preview. **King Soopers** is each item's pick with its price and stock, a swap, a rematch and the product's own sheet, the
  * total, and one tap that adds the shown picks to the King Soopers cart. Kroger's public Cart API can only add (it can't
  * read or empty the cart), so the Desk remembers what it sent and never adds it twice. Checkout, pickup or delivery,
  * happens in the King Soopers app: nothing is bought from the Desk. After matching, each pick's quantity is checked
@@ -20,6 +21,9 @@ import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, listCleare
 
 const SETUP = "/boiler/controls#ct-house";
 const CART = "https://www.kingsoopers.com/cart";
+// The DoorDash tab (#1195, phase 3) loads only when opened.
+const DoorDashShop = lazy(() => import("./DoorDashShop.tsx"));
+
 const WAITING = "King Soopers: waiting for the Kroger app's keys in the Key Vault (docs/HOME-DEVICES.md).";
 
 const stamp = (iso: string) => {
@@ -532,14 +536,14 @@ function ListTab({ items, view, onTick, onRemove }: { items: KitchenItem[] | nul
 export function Shopping({ items, onTick, onRemove, undo, tag }: { items: KitchenItem[] | null; onTick: (i: KitchenItem) => void; onRemove: (i: KitchenItem) => void; undo: ReactNode; tag: ReactNode }) {
   const open = items?.filter((i) => !i.done) ?? [];
   const g = useGroceries(open.length);
-  const [tab, setTab] = useState<"list" | "ks">("list");
+  const [tab, setTab] = useState<"list" | "ks" | "dd">("list");
   const [progress, setProgress] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const { view, load, busy } = g;
   const ks = load !== "off";
   const picked = view?.lines.filter(goes).length ?? 0;
   const canMatch = Boolean(view?.ready && view.store);
-  const go = (t: "list" | "ks") => {
+  const go = (t: "list" | "ks" | "dd") => {
     setTab(t);
     body.current?.scrollTo(0, 0);
   };
@@ -581,18 +585,25 @@ export function Shopping({ items, onTick, onRemove, undo, tag }: { items: Kitche
         <h3>Shopping</h3>
         {tag ? <span className="hv-tag">{tag}</span> : null}
       </header>
-      {ks ? (
-        <div className="hv-shopTabs" role="tablist" aria-label="Shopping">
-          <button type="button" role="tab" id="hv-shop-list" aria-controls="hv-shop-body" aria-selected={tab === "list"} onClick={() => go("list")}>
-            List <b>{open.length}</b>
-          </button>
+      <div className="hv-shopTabs" role="tablist" aria-label="Shopping">
+        <button type="button" role="tab" id="hv-shop-list" aria-controls="hv-shop-body" aria-selected={tab === "list"} onClick={() => go("list")}>
+          List <b>{open.length}</b>
+        </button>
+        {ks ? (
           <button type="button" role="tab" id="hv-shop-ks" aria-controls="hv-shop-body" aria-selected={tab === "ks"} onClick={() => go("ks")}>
             King Soopers <b>{picked}</b>
           </button>
-        </div>
-      ) : null}
-      <div ref={body} className="hv-shopBody" id="hv-shop-body" role={ks ? "tabpanel" : undefined} aria-labelledby={ks ? (tab === "list" ? "hv-shop-list" : "hv-shop-ks") : undefined} tabIndex={0}>
-        {tab === "list" || !ks ? (
+        ) : null}
+        <button type="button" role="tab" id="hv-shop-dd" aria-controls="hv-shop-body" aria-selected={tab === "dd"} onClick={() => go("dd")}>
+          DoorDash
+        </button>
+      </div>
+      <div ref={body} className="hv-shopBody" id="hv-shop-body" role="tabpanel" aria-labelledby={`hv-shop-${tab}`} tabIndex={0}>
+        {tab === "dd" ? (
+          <Suspense fallback={<p className="hv-note">Opening DoorDash…</p>}>
+            <DoorDashShop listCount={open.length} />
+          </Suspense>
+        ) : tab === "list" || !ks ? (
           <ListTab items={items} view={view} onTick={onTick} onRemove={onRemove} />
         ) : !view ? (
           <p className="hv-note">{load === "failed" ? "King Soopers didn't load. It'll try again when you come back." : "Reading King Soopers…"}</p>

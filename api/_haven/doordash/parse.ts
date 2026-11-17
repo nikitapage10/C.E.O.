@@ -722,3 +722,100 @@ export function promoOf(json: unknown): { ok: boolean; discountCents: number | n
   const o = obj(json);
   return { ok: o.success === true, discountCents: centsField(o.discount_cents), message: str(o.message, 160) };
 }
+
+/* ── Groceries (phase 3: DoorDash in the Kitchen's Shop step) ── */
+
+export interface DdGroceryLine {
+  /** The item id for `cart add-items` (`items[].id`). */
+  id: string;
+  name: string;
+  /** The Kitchen list's words it was found for, when DoorDash said. */
+  forName: string | null;
+  qty: number;
+  /** Weight-priced: the unit ("lb"); null for a count. */
+  unit: string | null;
+  priceCents: number | null;
+  out: boolean;
+  /** DoorDash's suggested swaps when it's out of stock. */
+  subs: { id: string; name: string; priceCents: number | null }[];
+}
+
+export interface DdGroceryList {
+  storeId: string | null;
+  storeName: string | null;
+  menuId: string | null;
+  lines: DdGroceryLine[];
+  /** What it couldn't find, from its `message` ("couldn't find: bananas, kale"). */
+  missing: string[];
+  message: string | null;
+}
+
+/** "couldn't find: bananas, kale" (and near wordings) as a list of the names. */
+export function missingOf(message: string | null): string[] {
+  if (!message) return [];
+  const m = /(?:couldn['’]?t|could not|unable to|did not|didn['’]?t)\s+(?:find|match)[^:]*:\s*(.+)$/i.exec(message);
+  if (!m) return [];
+  return m[1]!
+    .split(/,|;|\band\b/)
+    .map((s) => str(s.replace(/[."]+$/g, ""), 60))
+    .filter((s): s is string => s !== null)
+    .slice(0, 60);
+}
+
+type Found = { id: string; name: string; priceCents: number | null; image: string | null };
+
+const foundOf = (raw: unknown): Found | null => {
+  const s = obj(raw);
+  const id = itemIdOf(pick(s, "item_id", "id"));
+  const name = str(pick(s, "name", "item_name"), 90);
+  return id && name ? { id, name, priceCents: centsOfPrice(pick(s, "price")), image: ddUrl(pick(s, "image_url", "image")) } : null;
+};
+
+/** `build-grocery-list`: `items[]`, `menu_id`, `store_name`, `message`; the store's id from `items[].store_id`. */
+export function groceryListOf(json: unknown): DdGroceryList | null {
+  const o = obj(json);
+  const lines: DdGroceryLine[] = [];
+  let storeId: string | null = null;
+  for (const raw of arr(o.items, 120)) {
+    const i = obj(raw);
+    const id = itemIdOf(pick(i, "id", "item_id"));
+    const name = str(pick(i, "name", "item_name"), 90);
+    if (!id || !name) continue;
+    storeId ??= storeIdOf(i.store_id);
+    const stock = str(pick(i, "stock_status", "availability", "stock_level"), 30) ?? "";
+    lines.push({
+      id,
+      name,
+      forName: str(pick(i, "query", "search_term", "requested_name", "input_name", "original_name", "input"), 60),
+      qty: qtyOf(pick(i, "quantity")) ?? 1,
+      unit: i.purchase_type === "PURCHASE_TYPE_MEASUREMENT" ? str(i.measurement_unit, 8) : null,
+      priceCents: centsOfPrice(pick(i, "price")),
+      out: i.is_available === false || i.out_of_stock === true || /out|unavailable/i.test(stock),
+      subs: arr(i.substitutions, 5)
+        .map(foundOf)
+        .filter((s): s is Found => s !== null)
+        .map(({ id: sid, name: sname, priceCents }) => ({ id: sid, name: sname, priceCents })),
+    });
+  }
+  const message = str(o.message, 400);
+  if (!lines.length && !message) return null;
+  return { storeId, storeName: str(o.store_name, 80), menuId: idOf(o.menu_id), lines, missing: missingOf(message), message };
+}
+
+/** `find-items`: `results` keyed by each query (or a plain list): the items it found for `query`. */
+export function foundItemsOf(json: unknown, query: string, max = 8): Found[] {
+  const o = obj(json);
+  const results = o.results ?? o.items;
+  let list: unknown = results;
+  if (!Array.isArray(results)) {
+    const keyed = obj(results);
+    list = Array.isArray(keyed[query]) ? keyed[query] : Object.values(keyed).find(Array.isArray);
+  }
+  return arr(list, 30)
+    .map(foundOf)
+    .filter((x): x is Found => x !== null)
+    .slice(0, max);
+}
+
+/** `item-details`: its top-level `menu_id` (the fallback when `build-grocery-list` gives none). */
+export const menuIdOf = (json: unknown): string | null => idOf(obj(json).menu_id ?? obj(obj(json).item).menu_id);

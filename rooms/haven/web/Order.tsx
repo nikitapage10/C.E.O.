@@ -55,6 +55,11 @@ interface Pending {
 }
 
 export default function OrderTab() {
+  return <DoorDashGate intro="Order dinner from DoorDash here, any night.">{(onExpired) => <Ordering onExpired={onExpired} />}</DoorDashGate>;
+}
+
+/** DoorDash's sign-in first: signed out or expired, the sign-in card; live, the children (told when it runs out). Shared with Shop's DoorDash tab. */
+export function DoorDashGate({ intro, children }: { intro: string; children: (onExpired: () => void) => ReactNode }) {
   const [dd, setDd] = useState<DdView | null>(null);
   const [ddLoad, setDdLoad] = useState<"idle" | "off" | "failed" | "ready">("idle");
   const readDd = useCallback(() => {
@@ -73,11 +78,11 @@ export default function OrderTab() {
   if (dd.state !== "live")
     return (
       <div className="hv-or is-out">
-        <p className="hv-note">Order dinner from DoorDash here, any night. Sign in first: a sign-in lasts about three days.</p>
+        <p className="hv-note">{intro} Sign in first: a sign-in lasts about three days.</p>
         <DoorDashCard onChange={readDd} />
       </div>
     );
-  return <Ordering onExpired={readDd} />;
+  return <>{children(readDd)}</>;
 }
 
 function Ordering({ onExpired }: { onExpired: () => void }) {
@@ -233,7 +238,7 @@ const BUSY: Record<string, string> = {
   receipt: "Reading the receipt…",
 };
 
-type Call = (body: Record<string, unknown>, label: string) => Promise<OrderReply>;
+export type Call = (body: Record<string, unknown>, label: string) => Promise<OrderReply>;
 
 /* ── Tonight ── */
 
@@ -629,7 +634,8 @@ function CartView({ cart, call, busy, onCart, onNote, onPriced, onShop }: { cart
 
 /* ── The preview and Place ── */
 
-function PreviewView({ preview: p, call, busy, onPriced, onNote, onPlaced, onBack }: { preview: Preview; call: Call; busy: string | null; onPriced: (r: OrderReply) => void; onNote: (n: string | null) => void; onPlaced: (pl: Placement, message: string | null) => void; onBack: () => void }) {
+/** The priced order and its one Place button; Shop's DoorDash tab reuses it for the groceries (`back` names its way back, `hint` adds a line). */
+export function PreviewView({ preview: p, call, busy, onPriced, onNote, onPlaced, onBack, back = "← Cart", hint }: { preview: Preview; call: Call; busy: string | null; onPriced: (r: OrderReply) => void; onNote: (n: string | null) => void; onPlaced: (pl: Placement, message: string | null) => void; onBack: () => void; back?: string; hint?: string | null }) {
   const choices = useMemo(() => tipChoices(p), [p]);
   const [tip, setTip] = useState<number | null>(p.pickup || !p.pretippable ? 0 : (p.tipDefault ?? null));
   const [custom, setCustom] = useState("");
@@ -667,10 +673,11 @@ function PreviewView({ preview: p, call, busy, onPriced, onNote, onPlaced, onBac
     <div className="hv-orPreview">
       <header className="hv-orHead">
         <button type="button" className="hv-btn" onClick={onBack}>
-          ← Cart
+          {back}
         </button>
         <h4>{p.storeName ?? "Your order"}</h4>
       </header>
+      {hint ? <p className="hv-note">{hint}</p> : null}
       {p.dropped.length ? <p className="hv-note is-warn">Not in this cart any more (out of stock or gone): {p.dropped.join(", ")}. Check it&apos;s still what you want.</p> : null}
       <ul className="hv-orLines is-tight">
         {p.lines.map((l, i) => (
@@ -809,7 +816,7 @@ function PreviewView({ preview: p, call, busy, onPriced, onNote, onPlaced, onBac
 
 /* ── After Place ── */
 
-function Placed({ placement, message, onOrders, onCart }: { placement: Placement; message: string | null; onOrders: () => void; onCart: () => void }) {
+export function Placed({ placement, message, onOrders, onCart, cartWord = "the cart" }: { placement: Placement; message: string | null; onOrders: () => void; onCart: () => void; cartWord?: string }) {
   const [status, setStatus] = useState<OrderStatus | null>(null);
   const tries = useRef(0);
   useEffect(() => {
@@ -848,7 +855,7 @@ function Placed({ placement, message, onOrders, onCart }: { placement: Placement
         <h4>Not placed</h4>
         <p className="hv-note">{placement.error === "restricted" ? "This cart has an age-restricted item: finish it in the DoorDash app." : placement.error === "expired" ? "Your DoorDash sign-in ran out. Sign in again and price it again." : (message ?? "DoorDash turned it down. Nothing was charged.")}</p>
         <button type="button" className="hv-btn is-pri" onClick={onCart}>
-          Back to the cart
+          Back to {cartWord}
         </button>
       </div>
     );

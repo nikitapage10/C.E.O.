@@ -2684,7 +2684,8 @@
 }
 [data-room="haven"] .hv-shopTabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--hv-line);
@@ -3633,4 +3634,62 @@
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Shop's DoorDash tab (#1195, phase 3): the store, the review and the same preview as Order. */
+[data-room="haven"] .hv-ddShop .hv-orLines li {
+  flex-wrap: wrap;
+}
+[data-room="haven"] .hv-ddShop .hv-orLines li.is-dropped > span {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+[data-room="haven"] .hv-ddQty {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+[data-room="haven"] .hv-ddQty > span {
+  min-width: 2.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+[data-room="haven"] .hv-ddMissing {
+  flex-direction: column;
+  align-items: stretch !important;
+}
+[data-room="haven"] .hv-ddMissing .hv-orSearch input {
+  flex: 1;
+  min-width: 0;
+}
+[data-room="haven"] .hv-ddFound {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-ddFound button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-ddFound button span {
+  flex: 1;
+  min-width: 0;
+}
+[data-room="haven"] .hv-ddFound img {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
 }

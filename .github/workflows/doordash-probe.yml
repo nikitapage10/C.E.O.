@@ -1,4 +1,4 @@
-# One-off probe for #1195 (removed before merge; never on main): where the CLI keeps a pending sign-in, and the sign-in URL's host.
+# One-off probe for #1195 (removed before merge; never on main): leaf --help for the ordering commands, with a placeholder token (no account).
 name: doordash-probe
 on:
   push:
@@ -9,80 +9,19 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Pending sign-in state
+      - name: Leaf help
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          cat > /tmp/shape.py <<'PY'
-          import json, sys, re, urllib.parse as u
-          s = open(sys.argv[1]).read()
-          try:
-              j = json.loads(s)
-              print("json keys:", sorted(j.keys()) if isinstance(j, dict) else type(j).__name__)
-              s = json.dumps(j)
-          except Exception:
-              print("not json")
-          for m in re.findall(r"https?://[^\s\"]+", s):
-              p = u.urlparse(m)
-              q = u.parse_qs(p.query)
-              print("url:", p.scheme, p.netloc, p.path, "params:", sorted(q.keys()))
-              if "redirect_uri" in q:
-                  r = u.urlparse(q["redirect_uri"][0])
-                  print("redirect_uri:", r.scheme, r.netloc, r.path)
-          PY
-          cat > /tmp/fshape.py <<'PY'
-          import json, sys
-          def shape(v):
-              if isinstance(v, dict): return {k: shape(x) for k, x in v.items()}
-              if isinstance(v, list): return [shape(v[0])] if v else []
-              return type(v).__name__
-          try:
-              print(json.dumps(shape(json.load(open(sys.argv[1])))))
-          except Exception as e:
-              print("not json:", type(e).__name__)
-          PY
           mkdir dl && cd dl
           gh release download -R doordash-oss/doordash-cli v0.2.6 --pattern 'dd-cli-v0.2.6-linux-amd64.tar.gz'
-          sha256sum *.tar.gz
           mkdir x && tar -xzf *.tar.gz -C x
-          # Run from a read-only copy under a fresh /tmp dir, the way the Function app will.
-          W=$(mktemp -d /tmp/ddw.XXXX); cp -r x/dd-cli-v0.2.6-linux-amd64 "$W/cli"; bin="$W/cli/dd-cli-v0.2.6-linux-amd64"
-          chmod -R a-w "$W/cli"
+          bin="$PWD/x/dd-cli-v0.2.6-linux-amd64/dd-cli-v0.2.6-linux-amd64"
           H=$(mktemp -d /tmp/ddh.XXXX)
-          touch /tmp/.mark; sleep 1
-          run() { env -i PATH=/usr/bin:/bin HOME="$H" "$bin" "$@"; }
-          echo "=== auth status --help"; run auth status --help 2>&1 | head -30
-          echo "=== auth status (no token)"; run --json-output auth status; echo "exit=$?"
-          echo "=== auth status (bogus token)"; env -i PATH=/usr/bin:/bin HOME="$H" DD_CLI_ACCESS_TOKEN=bogus "$bin" --json-output auth status; echo "exit=$?"
-          echo "=== export-token --start --intent accepted?"; run --json-output export-token --start --intent "probe" >/dev/null 2>"$W/e0"; echo "exit=$?"; head -c 400 "$W/e0"; echo
-          echo "=== export-token --start (json)"
-          run --json-output export-token --start >"$W/o1" 2>"$W/e1"; echo "exit=$?"
-          echo "stdout bytes: $(wc -c <"$W/o1")"; echo "stderr:"; sed -E 's#https?://[^ ]*#<url>#g' "$W/e1" | head -20
-          python3 -I /tmp/shape.py "$W/o1"
-          echo "=== files written since start (HOME, /tmp, cwd)"
-          find "$H" /tmp "$PWD" -newer /tmp/.mark -type f 2>/dev/null | grep -v "^$W/[oe][0-9]" | while read f; do echo "$f $(stat -c '%s %a' "$f")"; done
-          echo "=== state file shapes (keys only)"
-          find "$H" -type f | while read f; do echo "-- $f"; python3 -I /tmp/fshape.py "$f"; done
-          echo "=== plain-text start (stdout shape)"
-          H2=$(mktemp -d /tmp/ddh.XXXX)
-          env -i PATH=/usr/bin:/bin HOME="$H2" "$bin" export-token --start > "$W/o2" 2>/dev/null; echo "exit=$?"
-          sed -E 's#(https?://[^/ ?]+)[^ ]*#\1/<rest>#g' "$W/o2"
-          echo "=== finish with bogus code, other HOME (no pending state)"
-          H3=$(mktemp -d /tmp/ddh.XXXX)
-          echo "code=bogus" | env -i PATH=/usr/bin:/bin HOME="$H3" "$bin" --json-output export-token --finish - 2>&1 | sed -E 's#https?://[^ ]*#<url>#g' | head -5; echo "exit=${PIPESTATUS[1]}"
-          echo "=== finish with bogus code, restored state (copy of HOME)"
-          cp -a "$H/." "$H3/"
-          echo "http://localhost:4180/callback?code=bogus&state=bogus" | env -i PATH=/usr/bin:/bin HOME="$H3" "$bin" --json-output export-token --finish - 2>&1 | sed -E 's#https?://[^ ]*#<url>#g' | head -5; echo "exit=${PIPESTATUS[1]}"
-          echo "=== finish with bare bogus code, restored state"
-          echo "bogus" | env -i PATH=/usr/bin:/bin HOME="$H3" "$bin" --json-output export-token --finish - 2>&1 | sed -E 's#https?://[^ ]*#<url>#g' | head -5; echo "exit=${PIPESTATUS[1]}"
-          echo "=== XDG honoured? start with XDG dirs elsewhere"
-          H4=$(mktemp -d /tmp/ddh.XXXX); X=$(mktemp -d /tmp/ddx.XXXX)
-          env -i PATH=/usr/bin:/bin HOME="$H4" XDG_CONFIG_HOME="$X/config" XDG_DATA_HOME="$X/data" XDG_STATE_HOME="$X/state" XDG_CACHE_HOME="$X/cache" "$bin" export-token --start >/dev/null 2>&1; echo "exit=$?"
-          find "$H4" "$X" -type f | while read f; do echo "$f $(stat -c '%s' "$f")"; done
-          echo "=== verbose start (stderr, URLs and long values masked)"
-          H5=$(mktemp -d /tmp/ddh.XXXX)
-          env -i PATH=/usr/bin:/bin HOME="$H5" "$bin" export-token --start -v 2>&1 >/dev/null | sed -E 's#https?://[^ ]*#<url>#g; s#[A-Za-z0-9_-]{24,}#<long>#g' | head -30
-          echo "=== libs"; ldd "$bin" | head -20
-          echo "=== startup time"; time (env -i PATH=/usr/bin:/bin HOME="$H" "$bin" --version)
-          echo "=== zip keeps exec bit?"; cd x && zip -qry /tmp/t.zip dd-cli-v0.2.6-linux-amd64 && zipinfo /tmp/t.zip | grep -m3 -- '-rwx'
+          run() { env -i PATH=/usr/bin:/bin HOME="$H" DD_CLI_ACCESS_TOKEN=placeholder-not-a-token "$bin" "$@"; }
+          for c in "search" "menu" "restaurant-item-details" "store-details" "cart" "cart add-items" "cart show" "cart list" "cart remove-items" "cart update-items" "cart delete" "cart clear" "order" "order history" "order status" "order preview" "order submit" "order reorder" "order receipt" "promo" "promo list" "promo apply" "payment-method" "payment-method list" "address" "address list" "find-nearby-stores" "find-items" "item-details" "build-grocery-list" "find-item-across-retailers"; do
+            echo "=================== $c"
+            run $c --help 2>&1 | head -160
+            echo "exit=${PIPESTATUS[0]}"
+          done

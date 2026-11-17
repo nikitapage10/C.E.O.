@@ -149,6 +149,15 @@ export const BOUNDARIES: Boundary[] = [
     from: "vercel",
     to: "public",
   },
+  {
+    id: "TB13",
+    name: "Functions to DoorDash through its CLI (#1195)",
+    crosses: "Phase 0: DoorDash's sign-in only. Out: the CLI's sign-in start and the address Nikita pastes back after signing in on DoorDash's page; in: DoorDash's sign-in URL and an access token that lasts about 72 hours. No order, cart, address or card yet",
+    controls:
+      "DoorDash's own CLI (`dd-cli` v0.2.6) runs inside the Function app: the release is fetched at deploy from DoorDash's GitHub and refused unless it matches the pinned sha256 (`scripts/fetch-dd-cli.sh`), copied once per instance to `/tmp` and started with `execFile`, never a shell, with only PATH, a fresh HOME for that one call and `DD_CLI_ACCESS_TOKEN` when a token is needed, and a timeout (`api/_haven/doordash/cli.ts`); no key of C.E.O.'s own: the token comes from DoorDash's two-step remote sign-in, started and finished only in a passkey session that refuses any bearer or phone key (`POST /api/haven/doordash`); the sign-in URL is opened only when it is https on `identity.doordash.com`, and the pasted address is taken only as one line on localhost with a code (or the code alone) and passed to the CLI on stdin, never as an argument; the token and its expiry, and the CLI's pending sign-in (its PKCE verifier and state, kept so a finish on another instance works) for at most 10 minutes, are sealed with AES-256-GCM under a key derived from `HOME_TOKEN_KEY` in the private store and never reach the browser; the public `GET /api/haven/doordash?view=status` gives the state only (not set up, signed out, live, expired), never the expiry or anything the CLI printed; the CLI's output is read as untrusted data (a closed set of exit and error codes, the token's shape checked) and logs carry the command's name and exit code only, never a token, a URL, a code or what it printed; Sign out forgets the token",
+    from: "vercel",
+    to: "public",
+  },
 ];
 
 /**

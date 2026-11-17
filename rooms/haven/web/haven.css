@@ -3286,3 +3286,22 @@
     padding-bottom: calc(var(--ph-bot) + 80px);
   }
 }
+/* The Kitchen's DoorDash card (#1195): the sign-in's state and its paste box. */
+[data-room="haven"] .hv-dd {
+  margin-top: 14px;
+}
+[data-room="haven"] .hv-dd form {
+  flex-direction: column;
+  align-items: stretch;
+}
+[data-room="haven"] .hv-ddPaste {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-dd .hv-ddPaste input {
+  flex: none;
+  width: 100%;
+}

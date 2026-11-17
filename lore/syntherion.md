@@ -983,6 +983,7 @@ nicely he's asked, hums 2000s emo while the vacuum works, and calls the Litter-R
 Nikita's alone: it lives in the private store, drawn only for their passkey, and never in the Lattice's public light. The
 C.E.O. needn't call him: a tap on the Haven's mic and he answers in Skippy's voice with his own ledger-keeper's manner,
 and "vacuum the kitchen" simply sends the robot. The Stagehand calls him "the butler"; he calls the Annex "the garage".
+He also keeps a DoorDash courier's pass that runs out every three days, and sighs each time he has to ask for a new one.
 
 ## The Hallowed Veil
 

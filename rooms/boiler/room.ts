@@ -42,6 +42,7 @@ export default defineRoom({
       { name: "Kroger", use: "the Kitchen list matched at King Soopers, picks added to the cart" },
       { name: "SwitchBot", use: "the Haven's lights, scenes and the projector's remote" },
       { name: "Govee", use: "the Haven's Govee lights, on and off" },
+      { name: "DoorDash", use: "the Haven's DoorDash sign-in, through DoorDash's own CLI (#1195)" },
     ],
     measure: "pipes up and pipes down on the Systems page",
   },

@@ -404,6 +404,18 @@ export const CONNECTIONS: Connection[] = [
     when: "When the Haven is open (the list kept ten minutes, the states one), and on a tap or Skippy's Yes.",
   },
   {
+    id: "doordash",
+    name: "DoorDash",
+    room: "haven",
+    at: [{ system: "home" }],
+    serves: "Sign in to DoorDash from the Kitchen, for ordering to come (#1195)",
+    kinds: ["CLI"],
+    status: "live",
+    how: "DoorDash's own command-line tool (dd-cli, a pinned release checked against its sha256 at every deploy) runs inside the Azure function app, started without a shell and with a bare environment. Signing in is its two-step remote sign-in: DoorDash's page opens in a new tab, and the address it lands on is pasted back on the Kitchen. Nothing is ordered yet. The public pages get the state only (not set up, signed out, live or expired).",
+    auth: "No key of C.E.O.'s own: the access token DoorDash's sign-in hands the CLI lasts about 72 hours and can't renew itself, so Sign in to DoorDash (your passkey) is done again when it runs out. The token, and a sign-in in progress for its 10 minutes, are sealed in the private store with HOME_TOKEN_KEY and reach the CLI only as its own setting, for one call.",
+    when: "Only on your taps: Sign in, Finish and Sign out. Never polled.",
+  },
+  {
     id: "bluebubbles",
     name: "BlueBubbles",
     room: "relay",

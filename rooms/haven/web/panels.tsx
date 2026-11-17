@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { closeClock, useHome, type DeviceReading } from "@ceo/desk/homeDevices.ts";
 import { removeItem, undoRemoveItem, type KitchenItem } from "@ceo/desk/haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Shopping } from "./Groceries.tsx";
-import { DoorDashCard } from "./DoorDash.tsx";
 import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
 import { MealPlanner } from "./MealPlanner.tsx";
 import { DryStage, FountainStage, LitterStage, Plate, VacuumStage, WetStage } from "./DevicePlates.tsx";
@@ -12,6 +11,9 @@ import { flowing, frontBowl } from "./plates.ts";
 import { chipsBeside, useFlash, VacuumModes, type Suction, type Water } from "./DevicePops.tsx";
 import { RoomMap, vacuumName } from "./RoomMap.tsx";
 import { HallLive } from "./LiveRun.tsx";
+
+/** The Kitchen's Order tab (#1195): loaded when it is first opened, so the Kitchen's first load doesn't carry it. */
+const OrderTab = lazy(() => import("./Order.tsx"));
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
@@ -140,10 +142,17 @@ export function KitchenTab({ items, onTick, onDrop, onReread }: { items: Kitchen
   return (
     <>
       <p className="hv-say">{items === null ? "Reading the Kitchen list…" : open.length ? `${open.length} thing${open.length === 1 ? "" : "s"} on the list.` : "Nothing on the list."}</p>
-      {/* The meal planner (#678) with the list and King Soopers as its rail: one page, no second row of tabs. */}
-      <MealPlanner onListChanged={onReread} rail={rail} items={items} />
-      {/* DoorDash (#1195): signing in only, for now; ordering comes in a later phase. */}
-      <DoorDashCard />
+      {/* The meal planner (#678) with the list and King Soopers as its rail, and Order (#1195): DoorDash, any night. */}
+      <MealPlanner
+        onListChanged={onReread}
+        rail={rail}
+        items={items}
+        order={
+          <Suspense fallback={<p className="hv-note">Opening Order…</p>}>
+            <OrderTab />
+          </Suspense>
+        }
+      />
     </>
   );
 }

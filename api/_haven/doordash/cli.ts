@@ -34,7 +34,8 @@ export const DD_EXE = `dd-cli-v${DD_VERSION}-linux-amd64`;
 export const PENDING_FILE = ".config/dd-cli/pending-login.json";
 /** Long enough for a sign-in or a search; the CLI's own calls time out sooner. */
 export const DD_TIMEOUT_MS = 45_000;
-const OUT_MAX = 1024 * 1024;
+/** A big menu runs to a few hundred kB of JSON; anything past this is cut off and reads as a failure. */
+const OUT_MAX = 4 * 1024 * 1024;
 const INTENT_MAX = 200;
 
 /** What a non-zero exit means, by the CLI's documented exit codes. */
@@ -184,6 +185,19 @@ export async function prepareCli(src: string, tmp = "/tmp"): Promise<string> {
   return exe;
 }
 
+/**
+ * The command's name for the log: its words up to the first flag ("order preview"), never a flag's value (a query, a
+ * cart, a promo code or an item list stays out of the log).
+ */
+export function commandName(cmd: readonly string[]): string {
+  const words: string[] = [];
+  for (const c of cmd) {
+    if (c.startsWith("-") || !/^[a-z][a-z-]{0,30}$/.test(c)) break;
+    words.push(c);
+  }
+  return words.join(" ") || "dd-cli";
+}
+
 export interface DdRunner {
   /** Whether the CLI is in this package. */
   ready: boolean;
@@ -199,7 +213,7 @@ export function makeRunner(opts: { dir: string; log: (line: string) => void; spa
   return {
     ready: opts.ready ?? hasCli(opts.dir),
     async run(cmd, call = {}) {
-      const name = cmd.filter((c) => !c.startsWith("-")).join(" ") || "dd-cli";
+      const name = commandName(cmd);
       let file: string;
       try {
         file = await prepared();

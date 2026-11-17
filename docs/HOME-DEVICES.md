@@ -305,8 +305,8 @@ before King Soopers replaced MealMe.
 
 ## DoorDash
 
-DoorDash ordering from the Haven (#1195) is built in phases; **phase 0, Connect,** is in: the sign-in. Nothing is
-ordered from the Desk yet. Nikita chose Azure for it: DoorDash's own beta CLI, `dd-cli` v0.2.6, runs inside the
+DoorDash ordering from the Haven (#1195) is built in phases: **phase 0, Connect** (the sign-in) and **phase 1,
+Order** (the Kitchen's Order tab, below) are in. Nikita chose Azure for it: DoorDash's own beta CLI, `dd-cli` v0.2.6, runs inside the
 existing Function App (Linux Flex Consumption, x86_64). No VM and no Mac. Decided for the ordering phases: a cap of
 $1,000 per order and no weekly cap (Nikita, 2026-11-17).
 
@@ -337,6 +337,56 @@ $1,000 per order and no weekly cap (Nikita, 2026-11-17).
   `{ url, until }`, `{ action: "signin-finish", pasted }` and `{ action: "signout" }`
   ([`api/_haven/doordash/route.ts`](../api/_haven/doordash/route.ts)). Trust boundary TB13 in
   [THREAT-MODEL.md](THREAT-MODEL.md).
+
+### Order (phase 1)
+
+Haven → Kitchen → **Order** sits beside Plan, Customize, Shop and Cook (not a step of the week: it opens any day, and
+before a week exists it is a button under the planner). Signed out or expired, it shows the Sign in to DoorDash card
+in place of everything else. Every call is `POST /api/haven/doordash/order` (passkey session only; a phone key or
+bearer is refused; [`api/_haven/doordash/order.ts`](../api/_haven/doordash/order.ts)), and each one runs one or two
+CLI commands with a short `--intent` ("Nikita choosing a meal to order for himself from his home dashboard", and so on).
+
+- **Tonight.** A search box (`search -q … --address-id <the default address>`; without a default address the tab says
+  so instead of letting the CLI fall back to a location far away) and **Usuals**: the places in `order history` (180
+  days) ordered from most, each with **Reorder** (`order reorder`, then straight to the preview, naming anything that
+  fell off the old order) and **Menu**.
+- **A store.** `menu` gives the sections and items (unavailable ones greyed, "schedule ahead" marked); tapping one reads
+  its choices (`restaurant-item-details`), with each group's minimum and maximum, and a quantity. **Add to cart** runs
+  `cart add-items` with the item and its option ids. Before the first add at a store, `cart list --store-id` checks for
+  a cart Nikita already has open there (DoorDash allows one per store) and asks: **Use that cart** or **Start fresh**
+  (`cart delete` first).
+- **Cart.** `cart show`; **Remove** per line (`cart remove-item`; the CLI has no set-quantity, so a quantity changes by
+  removing the line and adding it again); a promo code (`promo apply`); **Start over** (`cart delete`).
+- **Preview.** `order preview`: the items, DoorDash's own breakdown (subtotal, fees, tax, credits), the total before tip
+  (`net_total_before_tip`), **Delivery / Pick-up** (`--fulfillment`), **ASAP / Schedule** with DoorDash's delivery
+  windows (`--scheduled-time`, the window's midpoint in UTC), **Standard / Priority** when the cart offers Priority
+  (`--priority`), the tip (DoorDash's suggestions, no tip, or an amount; none on pick-up), the card by its name ("Visa
+  ending in 4242"; a scheduled order names the default card from `payment-method list`), the address by its label, the
+  ETA, and a PIN note when the drop-off needs one. One button: **Place order, $NN.NN**. A price holds 5 minutes, then
+  the button becomes **Price it again**.
+- **Place order.** The server takes it only for a preview it made in the last 5 minutes for the cart as it is now (any
+  cart change drops the previews), with the same total (preview plus tip), and never over **$1,000** (Nikita's per-order
+  cap). It takes a lease (`haven/devices/doordash-place.lease.json`) so two taps can't run together, prices the cart
+  again with the same flags and card and refuses if the total or the card changed (showing the new price), marks the
+  preview and the browser's one-time key spent, then runs `order submit --cart-uuid … --tip-cents N [--fulfillment]
+  [--scheduled-time] [--priority] [--card-id <the previewed card>, ASAP only] --yes`. A second request with the same key
+  gets the first outcome. Exit 5, a timeout, a service error, or a success with no order id may still have placed the
+  order: it is **never retried**; the server reads `order history` once, says "placed" if it finds the order and "may
+  have gone through, check Orders" if not, and holds that cart (no preview or Place from it) until **Start over**. A
+  refusal (exit 7, an age-restricted item, an expired sign-in) places nothing and says why.
+- **Orders.** `order history`; a recent order shows its `order status`; **Receipt** (`order receipt`: lines, totals and
+  the card's last 4); **Reorder**. After Place, the tab follows the order with `order status` every 15 s while it's
+  processing, then every minute, for at most half an hour and only while it's on screen, and shows **Open in
+  DoorDash** when the CLI gives a tracking link (only https on doordash.com).
+- **What's kept.** The open cart, the recent previews (with the priced card's id), a day of placements, the default
+  address's id and label and an hour's history cache are sealed in the private store
+  (`haven/devices/doordash-order.json`). The browser never gets the token, a card's id, the full address or the CLI's
+  raw output: [`api/_haven/doordash/parse.ts`](../api/_haven/doordash/parse.ts) reads every answer as untrusted data
+  (closed sets, capped strings, whole cents, https links and pictures only on DoorDash's hosts, `widget_type` and
+  `assistant_instructions` ignored) and, when an answer can't be read, shows the CLI's plain-text message instead.
+  Logs carry the command's words (never a flag's value) and its exit code. The public status, the Lattice and the
+  Desk's Systems say nothing about orders.
+- **Not here yet.** Ordering by voice or through Skippy, and order-in nights in the meal plan, are later phases.
 
 ## Lights: SwitchBot and Govee (#931)
 

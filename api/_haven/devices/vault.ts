@@ -14,6 +14,9 @@
  *   haven/devices/kroger.json            the Kroger refresh token for the King Soopers cart (Connect King Soopers, #664)
  *   haven/devices/doordash.json          the DoorDash CLI's access token and its expiry (Sign in to DoorDash, #1195)
  *   haven/devices/doordash-pending.json  a DoorDash sign-in in progress: the CLI's pending-login file, 10 minutes
+ *   haven/devices/doordash-order.json    the Order tab's open cart, its recent previews (with the priced card's id),
+ *                                        the day's placements and a short history cache (#1195, phase 1)
+ *   haven/devices/doordash-place.lease.json  a placement in progress (a time only), so two taps never both submit
  *
  * The Petlibro and Whisker emails and login digests are never written here: they live only in the Key Vault
  * (`petlibro-email`, `petlibro-login-digest`, `whisker-email`, `whisker-srp-digest`) and reach the app as settings.
@@ -33,9 +36,9 @@ export const MIN_HOME_KEY = 32;
 
 /**
  * Each vendor's login, Connect Roborock's pending code, the Haven's two Google grants (#637), the King Soopers cart
- * grant (#664), and DoorDash's token and pending sign-in (#1195).
+ * grant (#664), and DoorDash's token, pending sign-in, ordering state and placement lease (#1195).
  */
-export type VaultName = Vendor | "roborock-pending" | "google-nest" | "google-tasks" | "kroger" | "doordash" | "doordash-pending";
+export type VaultName = Vendor | "roborock-pending" | "google-nest" | "google-tasks" | "kroger" | "doordash" | "doordash-pending" | "doordash-order" | "doordash-place";
 export const vaultPath = (name: VaultName) => `haven/devices/${name}.json`;
 /** A short lease beside a login (#683): it holds only when it runs out, nothing sealed or secret. */
 export const leasePath = (name: VaultName) => `haven/devices/${name}.lease.json`;

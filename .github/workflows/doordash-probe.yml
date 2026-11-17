@@ -20,8 +20,11 @@ jobs:
           bin="$PWD/x/dd-cli-v0.2.6-linux-amd64/dd-cli-v0.2.6-linux-amd64"
           H=$(mktemp -d /tmp/ddh.XXXX)
           run() { env -i PATH=/usr/bin:/bin HOME="$H" DD_CLI_ACCESS_TOKEN=placeholder-not-a-token "$bin" "$@"; }
-          for c in "search" "menu" "restaurant-item-details" "store-details" "cart" "cart add-items" "cart show" "cart list" "cart remove-items" "cart update-items" "cart delete" "cart clear" "order" "order history" "order status" "order preview" "order submit" "order reorder" "order receipt" "promo" "promo list" "promo apply" "payment-method" "payment-method list" "address" "address list" "find-nearby-stores" "find-items" "item-details" "build-grocery-list" "find-item-across-retailers"; do
+          for c in "cart add-items" "cart remove-item" "order preview" "order submit" "order checkout-url" "promo remove"; do
             echo "=================== $c"
-            run $c --help 2>&1 | head -160
+            run $c --help 2>&1 | sed -n '160,520p' | grep -v "^ *\(For agents — before writing\|the command is doing\|audience and the\|Format as two\|Summary: <who\|order a healthy\|drinks and snacks\|user prompt/purpose\|started this\|Trace back\|recent message\|DoorDash may review\)"
             echo "exit=${PIPESTATUS[0]}"
           done
+          echo "=================== cart remove-item (full)"; run cart remove-item --help 2>&1 | head -60
+          echo "=================== order checkout-url (full)"; run order checkout-url --help 2>&1 | head -80
+          echo "=================== auth status json with placeholder"; run --json-output auth status; echo "exit=$?"

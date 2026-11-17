@@ -19,7 +19,11 @@ jobs:
           ls -la
           sha256sum *
           mkdir x && tar -xzf *linux-amd64.tar.gz -C x && find x -maxdepth 3 -exec ls -ld {} \;
-          cat $(find x -name 'quickstart.txt') || true
-          bin=$(find x -type f -name 'dd-cli' | head -1); file "$bin"; ldd "$bin" || true
+          d=$(ls -d x/dd-cli-*); bin="$d/$(basename $d)"; file "$bin"
+          cat "$d/skills/dd-cli-usage/"* || true
+          ls "$d/skills/dd-cli-usage/"
+          du -sh "$d"
           "$bin" --help || true
-          for c in search store menu cart order address payment promo list export-token login; do echo "=== $c"; "$bin" $c --help 2>&1 | head -60 || true; done
+          "$bin" --help 2>/dev/null | awk '/^ {2,}[a-z]/{print $1}' | sort -u > cmds.txt; cat cmds.txt
+          for c in $(cat cmds.txt); do echo "=== $c"; "$bin" $c --help 2>&1 | head -80 || true; done
+          "$bin" login --help 2>&1 | head -60 || true

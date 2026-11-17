@@ -408,7 +408,7 @@ export const CONNECTIONS: Connection[] = [
     name: "DoorDash",
     room: "haven",
     at: [{ system: "home" }],
-    serves: "Sign in to DoorDash and order from the Kitchen's Order tab (#1195)",
+    serves: "Sign in to DoorDash, order from the Kitchen's Order tab, and shop the Kitchen list from a DoorDash grocery store (#1195)",
     kinds: ["CLI"],
     status: "live",
     how: "DoorDash's own command-line tool (dd-cli, a pinned release checked against its sha256 at every deploy) runs inside the Azure function app, started without a shell and with a bare environment. Signing in is its two-step remote sign-in: DoorDash's page opens in a new tab, and the address it lands on is pasted back on the Kitchen. The Kitchen's Order tab searches, reads menus, builds the cart, prices it and places it through the same tool, on your passkey only; Place takes only a fresh price for that exact cart, under $1,000, priced again just before, once. The public pages get the state only (not set up, signed out, live or expired), never an order.",

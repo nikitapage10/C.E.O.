@@ -12,6 +12,13 @@
  *     preview  { fulfillment?, at?, priority? }   `order preview` → the breakdown, the card's name, the ETA
  *     place    { previewId, key, tipCents, totalCents }   `order submit` (the rules below)
  *     orders / status { orderId } / receipt { orderId } / reorder { orderId, open? }
+ *   The Shop step's DoorDash switch (phase 3), the same preview and Place after:
+ *     grocery-home { week }     the week's store (else the last one picked) and how many Kitchen items are open
+ *     grocery-stores            `find-nearby-stores --vertical grocery` → stores
+ *     grocery-pick { storeId, storeName, week }   remembers the store for that week (and as the last one)
+ *     grocery-build { week }    `build-grocery-list` over the open Kitchen list (read here, not sent by the browser)
+ *     grocery-find { query }    `find-items` at that store, to swap in a line it couldn't find
+ *     grocery-add { lines:[{id,name,qty}], open? }   `cart add-items` with the reviewed lines → the cart
  *
  * Money rules. Placing takes a preview the server made in the last 5 minutes for the cart as it is now (any change to
  * the cart drops its previews), and the total Nikita saw (the preview's total before tip, plus his tip). The server
@@ -33,6 +40,7 @@
 import { randomBytes } from "node:crypto";
 import { requireSession, withCookie } from "../../_desk/session.js";
 import { PHONE_KEY_HEADER } from "../links.js";
+import { KitchenList } from "../list.js";
 import type { DdResult } from "./cli.js";
 import {
   cartOf,
@@ -41,11 +49,14 @@ import {
   defaultCardOf,
   failureOf,
   FINAL_STATUSES,
+  foundItemsOf,
+  groceryListOf,
   historyOf,
   idOf,
   itemDetailsOf,
   itemErrorsOf,
   itemIdOf,
+  menuIdOf,
   menuOf,
   ORDER_CAP_CENTS,
   previewOf,
@@ -84,7 +95,12 @@ export const INTENT = {
   checkout: 'Summary: Nikita checking out a DoorDash order he chose on his home dashboard, after seeing the price and card. user prompt/purpose: "Place my order"',
   orders: 'Summary: Nikita reviewing or repeating his own past DoorDash orders on his home dashboard. user prompt/purpose: "My DoorDash orders"',
   account: 'Summary: Nikita ordering delivery to his own default address from his home dashboard. user prompt/purpose: "Order dinner from the Kitchen"',
+  grocery: 'Summary: Nikita getting the groceries for his own week of planned meals delivered from a store he picked, from his home dashboard. user prompt/purpose: "Shop my Kitchen list on DoorDash"',
 } as const;
+
+/** The most Kitchen items one grocery build sends, and the most lines one add takes. */
+export const GROCERY_MAX = 60;
+const WEEK = /^\d{4}-\d{2}-\d{2}$/;
 
 /* ── What the private store keeps ── */
 
@@ -131,6 +147,13 @@ export interface OrderState {
   history?: { at: number; orders: DdPastOrder[] };
   /** Orders placed from the Desk, newest first, so Orders can follow them. */
   placed?: { id: string; at: number }[];
+  /** The Shop step's DoorDash store (phase 3): the last one picked, each week's, and the last build's menu id. */
+  shop?: { last?: ShopStore | null; byWeek?: Record<string, ShopStore>; menuId?: string | null; menuStore?: string | null };
+}
+
+export interface ShopStore {
+  id: string;
+  name: string;
 }
 
 /* ── Plumbing ── */
@@ -187,7 +210,12 @@ export function pruned(s: OrderState, now: number): OrderState {
       .filter(([, p]) => now - p.at < 86_400_000)
       .slice(-30),
   );
-  return { ...s, previews: (s.previews ?? []).filter((p) => now - p.at < 30 * 60_000).slice(-5), placements, placed: (s.placed ?? []).slice(0, 10) };
+  const byWeek = Object.fromEntries(
+    Object.entries(s.shop?.byWeek ?? {})
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .slice(-8),
+  );
+  return { ...s, previews: (s.previews ?? []).filter((p) => now - p.at < 30 * 60_000).slice(-5), placements, placed: (s.placed ?? []).slice(0, 10), ...(s.shop ? { shop: { ...s.shop, byWeek } } : {}) };
 }
 
 /* ── The route ── */
@@ -294,6 +322,18 @@ class Orders {
         return this.receipt(b.orderId);
       case "reorder":
         return this.reorder(b.orderId, b.open);
+      case "grocery-home":
+        return this.groceryHome(b.week);
+      case "grocery-stores":
+        return this.groceryStores();
+      case "grocery-pick":
+        return this.groceryPick(b);
+      case "grocery-build":
+        return this.groceryBuild(b.week);
+      case "grocery-find":
+        return this.groceryFind(b.query);
+      case "grocery-add":
+        return this.groceryAdd(b.lines, b.open);
       default:
         return [{ error: "bad-request" }, 400];
     }
@@ -683,5 +723,122 @@ class Orders {
     const stored: StoredCart = { uuid: cart.uuid, storeId: cart.storeId ?? past?.storeId ?? null, storeName: cart.storeName ?? past?.store ?? null, menuId: null, expected: past?.items.slice(0, 30) };
     await this.save({ ...s, cart: stored, previews: [] });
     return this.preview({});
+  }
+
+  /* ── Groceries: the Shop step's DoorDash switch (phase 3) ── */
+
+  /** The week's store, else the last one picked. */
+  private shopStore(s: OrderState, week: unknown): ShopStore | null {
+    const w = typeof week === "string" && WEEK.test(week) ? week : null;
+    return (w ? s.shop?.byWeek?.[w] : undefined) ?? s.shop?.last ?? null;
+  }
+
+  private async kitchenOpen(): Promise<string[]> {
+    const items = await new KitchenList(this.deps.blob!).items(this.now).catch(() => []);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const i of items) {
+      const name = i.done ? null : str(i.name, 60);
+      if (!name || seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      out.push(name);
+    }
+    return out.slice(0, GROCERY_MAX);
+  }
+
+  private async groceryHome(week: unknown): Promise<Out> {
+    const s = await this.load();
+    const open = await this.kitchenOpen();
+    return [{ ok: true, store: this.shopStore(s, week), open: open.length, cart: this.cartView(s.cart) }];
+  }
+
+  private async groceryStores(): Promise<Out> {
+    const r = await this.run(["find-nearby-stores", "--vertical", "grocery", "--max", "12"], INTENT.grocery);
+    if (r.code !== 0) return this.fail(r);
+    const stores = storesOf(r.json, 12);
+    return [{ ok: true, stores, ...(stores.length ? {} : { text: textOf(r.json) }) }];
+  }
+
+  private async groceryPick(b: Record<string, unknown>): Promise<Out> {
+    const id = storeIdOf(b.storeId);
+    const name = str(b.storeName, 80);
+    const week = typeof b.week === "string" && WEEK.test(b.week) ? b.week : null;
+    if (!id || !name || !week) return [{ error: "bad-request" }, 400];
+    const s = await this.load();
+    const store = { id, name };
+    await this.save({ ...s, shop: { ...s.shop, last: store, byWeek: { ...s.shop?.byWeek, [week]: store }, menuId: null, menuStore: null } });
+    return [{ ok: true, store }];
+  }
+
+  /** The open Kitchen list matched at the week's store in one call; what it couldn't find comes back to review. */
+  private async groceryBuild(week: unknown): Promise<Out> {
+    const s = await this.load();
+    const store = this.shopStore(s, week);
+    if (!store) return [{ error: "no-store" }, 409];
+    const names = await this.kitchenOpen();
+    if (!names.length) return [{ error: "empty-list" }, 409];
+    const items = JSON.stringify(names.map((name) => ({ name })));
+    const r = await this.run(["build-grocery-list", "--items-json", items, "--store-id", store.id], INTENT.grocery, 90_000);
+    if (r.code !== 0) return this.fail(r);
+    const list = groceryListOf(r.json);
+    if (!list) return [{ ok: false, error: "unreadable", text: failureOf(r.json) ?? textOf(r.json) ?? "DoorDash couldn't build that list." }];
+    // The store it really used (it can differ when the picked one can't take the list).
+    const used = list.storeId && list.storeId !== store.id ? { id: list.storeId, name: list.storeName ?? store.name } : store;
+    const fresh = await this.load();
+    await this.save({ ...fresh, shop: { ...fresh.shop, menuId: list.menuId, menuStore: used.id } });
+    const found = new Set(list.lines.map((l) => (l.forName ?? "").toLowerCase()).filter(Boolean));
+    const missing = list.missing.length ? list.missing : list.lines.some((l) => l.forName) ? names.filter((n) => !found.has(n.toLowerCase())) : [];
+    return [{ ok: true, store: used, asked: names, lines: list.lines, missing: missing.slice(0, GROCERY_MAX), message: list.message }];
+  }
+
+  private async groceryFind(q: unknown): Promise<Out> {
+    const query = str(q, 60);
+    const s = await this.load();
+    const store = s.shop?.menuStore ? { id: s.shop.menuStore } : this.shopStore(s, null);
+    if (!query) return [{ error: "bad-request" }, 400];
+    if (!store) return [{ error: "no-store" }, 409];
+    const r = await this.run(["find-items", "--store-id", store.id, "-q", query], INTENT.grocery);
+    if (r.code !== 0) return this.fail(r);
+    return [{ ok: true, items: foundItemsOf(r.json, query) }];
+  }
+
+  /** The reviewed lines into one DoorDash cart at the week's store (asking first about a cart already open there). */
+  private async groceryAdd(raw: unknown, open: unknown): Promise<Out> {
+    const s = await this.load();
+    const storeId = s.shop?.menuStore ?? this.shopStore(s, null)?.id ?? null;
+    if (!storeId || !Array.isArray(raw) || !raw.length || raw.length > GROCERY_MAX) return [{ error: "bad-request" }, 400];
+    const lines: { item_id: string; item_name: string; quantity: number }[] = [];
+    for (const l of raw) {
+      const o = l && typeof l === "object" ? (l as Record<string, unknown>) : {};
+      const id = itemIdOf(o.id);
+      const name = str(o.name, 90);
+      const qty = typeof o.qty === "number" && o.qty > 0 && o.qty <= 99 && Math.round(o.qty * 100) === o.qty * 100 ? o.qty : null;
+      if (!id || !name || qty === null) return [{ error: "bad-request" }, 400];
+      lines.push({ item_id: id, item_name: name, quantity: qty });
+    }
+    let menuId = s.shop?.menuStore === storeId ? (s.shop?.menuId ?? null) : null;
+    if (!menuId) {
+      const d = await this.run(["item-details", "--store-id", storeId, "--item-id", lines[0]!.item_id], INTENT.grocery);
+      menuId = d.code === 0 ? menuIdOf(d.json) : null;
+      if (!menuId) return d.code === 0 ? [{ error: "vendor" }, 502] : this.fail(d);
+    }
+    let uuid = s.cart && s.cart.storeId === storeId && !s.cart.maybeSpentAt ? s.cart.uuid : null;
+    if (!uuid) {
+      const got = await this.openCartAt(storeId, open);
+      if (Array.isArray(got)) return got;
+      uuid = got.uuid;
+    }
+    const cmd = ["cart", "add-items", "--store-id", storeId, "--menu-id", menuId, "--items-json", JSON.stringify(lines), ...(uuid ? ["--cart-uuid", uuid] : [])];
+    const r = await this.run(cmd, INTENT.grocery);
+    const errors = r.json ? itemErrorsOf(r.json) : [];
+    if (r.code !== 0) return this.fail(r, errors.length ? { errors } : {});
+    const cart = cartOf(r.json);
+    const nextUuid = cart?.uuid ?? uuid;
+    if (!nextUuid) return [{ error: errors.length ? "rejected" : "vendor", errors, message: failureOf(r.json) ?? textOf(r.json, 300) }, errors.length ? 422 : 502];
+    const storeName = cart?.storeName ?? s.shop?.last?.name ?? null;
+    const stored: StoredCart = { uuid: nextUuid, storeId, storeName, menuId };
+    const fresh = await this.load();
+    await this.save({ ...fresh, cart: stored, previews: [] });
+    return [{ ok: !errors.length, errors, cart: this.cartView(stored, cart) }];
   }
 }

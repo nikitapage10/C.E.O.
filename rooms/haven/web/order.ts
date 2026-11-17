@@ -424,6 +424,9 @@ export const ORDER_NOTE: Record<string, string> = {
   "bad-time": "Pick one of the delivery windows.",
   "not-set-up": "DoorDash isn't set up on the server yet.",
   off: "Ordering isn't on this server.",
+  "no-store": "Pick a DoorDash grocery store first.",
+  "empty-list": "The Kitchen list has nothing open to shop for.",
+  "bad-request": "That didn't look right. Build the list again.",
   failed: "That didn't go through. Try again.",
 };
 
@@ -445,4 +448,106 @@ export function tipChoices(p: Pick<Preview, "tips" | "tipDefault" | "pickup" | "
   if (!out.length) out.push(...[300, 500, 800].map((c) => ({ label: money(c), cents: c })));
   if (!seen.has(0)) out.push({ label: "No tip", cents: 0 });
   return out;
+}
+
+/* ── Groceries: the Shop step's DoorDash tab (phase 3) ── */
+
+export interface Found {
+  id: string;
+  name: string;
+  priceCents: number | null;
+  image: string | null;
+}
+
+/** One row of the review: what DoorDash matched (or Nikita found), kept or dropped. */
+export interface GroceryRow {
+  key: string;
+  id: string;
+  name: string;
+  /** The Kitchen list's words it stands for. */
+  forName: string | null;
+  qty: number;
+  unit: string | null;
+  priceCents: number | null;
+  out: boolean;
+  subs: Found[];
+  drop: boolean;
+}
+
+export interface GroceryBuild {
+  store: { id: string; name: string };
+  asked: string[];
+  rows: GroceryRow[];
+  /** The list's words DoorDash couldn't find: find each by hand or skip it. */
+  missing: string[];
+  message: string | null;
+}
+
+export const readFound = (v: unknown): Found | null => {
+  const f = obj(v);
+  const fid = id(f.id);
+  const name = text(f.name, 90);
+  return fid && name ? { id: fid, name, priceCents: cents(f.priceCents), image: ddLink(f.image) } : null;
+};
+
+const names = (v: unknown, max = 60): string[] => list(v, max).map((x) => text(x, 60)).filter((x): x is string => x !== null);
+
+export function readGroceryBuild(d: Record<string, unknown>): GroceryBuild | null {
+  const st = obj(d.store);
+  const sid = id(st.id);
+  const sname = text(st.name, 80);
+  if (!sid || !sname) return null;
+  const rows: GroceryRow[] = [];
+  list(d.lines, 120).forEach((raw, i) => {
+    const l = obj(raw);
+    const lid = id(l.id);
+    const name = text(l.name, 90);
+    if (!lid || !name) return;
+    const out = l.out === true;
+    rows.push({
+      key: `b${i}`,
+      id: lid,
+      name,
+      forName: text(l.forName, 60),
+      qty: num(l.qty, 99) || 1,
+      unit: text(l.unit, 8),
+      priceCents: cents(l.priceCents),
+      out,
+      subs: list(l.subs, 5)
+        .map(readFound)
+        .filter((x): x is Found => x !== null),
+      drop: out,
+    });
+  });
+  return { store: { id: sid, name: sname }, asked: names(d.asked), rows, missing: names(d.missing), message: text(d.message, 400) };
+}
+
+/** What goes to the cart: the kept, in-stock rows, one line per item (quantities added, at most 99). */
+export function addLinesOf(rows: GroceryRow[]): { id: string; name: string; qty: number }[] {
+  const by = new Map<string, { id: string; name: string; qty: number }>();
+  for (const r of rows) {
+    if (r.drop || r.out || !(r.qty > 0)) continue;
+    const had = by.get(r.id);
+    if (had) had.qty = Math.min(99, Math.round((had.qty + r.qty) * 100) / 100);
+    else by.set(r.id, { id: r.id, name: r.name, qty: Math.min(99, Math.round(r.qty * 100) / 100) });
+  }
+  return [...by.values()].slice(0, 60);
+}
+
+/** About what the kept rows cost before fees (null when a price is missing). */
+export function rowsCents(rows: GroceryRow[]): number | null {
+  let sum = 0;
+  for (const r of rows) {
+    if (r.drop || r.out) continue;
+    if (r.priceCents === null) return null;
+    sum += Math.round(r.priceCents * r.qty);
+  }
+  return sum;
+}
+
+/** The week a store is remembered for: the planner's week start when it's shown, else this week's Monday (local). */
+export function weekKey(start: string | null, now = new Date()): string {
+  if (start && /^\d{4}-\d{2}-\d{2}$/.test(start)) return start;
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

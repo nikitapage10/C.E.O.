@@ -47,6 +47,7 @@ import { cookLunchOf, cookOf, type Cook } from "./cook.ts";
 import { CookMode } from "./CookMode.tsx";
 import { openingStep, weekDays, type Phase } from "./kitchenDay.ts";
 import { lastCartSent, onCartSent, onListCleared } from "./groceries.ts";
+import { ShopWeek } from "./shopWeek.ts";
 import "./meals.css";
 
 /**
@@ -980,6 +981,8 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
   // What Nikita is looking at (#1027): the week's stage and the open night; the meals themselves only in the private
   // part (a public Foundry issue never carries them).
   const shownWeek = file ? viewOf(file, start && file.ahead.some((w) => w.start === start) ? start : null).week : null;
+  // The rail knows the week shown, so Shop's DoorDash tab remembers its store by week (#1195).
+  const railed = <ShopWeek.Provider value={shownWeek?.start ?? null}>{rail}</ShopWeek.Provider>;
   const pickSlot = pick && shownWeek ? shownWeek.slots[pick.i] : undefined;
   const pickDish = file && pickSlot ? (pick!.course === "lunch" ? lunchDish(viewOf(file, start), pickSlot) : slotDish(viewOf(file, start), pickSlot)) : null;
   useScreenContext(
@@ -1166,7 +1169,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
     return (
       <>
         {load === "off" ? null : <p className="mp-note">{load === "failed" ? "The meal planner didn't load. It'll try again when you come back." : "Reading the meal planner…"}</p>}
-        <div className="mp-railOnly">{rail}</div>
+        <div className="mp-railOnly">{railed}</div>
         {orderSolo}
       </>
     );
@@ -1177,7 +1180,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
           <Seed onSeeded={setFile} />
           {orderSolo}
         </div>
-        <aside className="mp-rail">{rail}</aside>
+        <aside className="mp-rail">{railed}</aside>
       </div>
     );
   }
@@ -1195,7 +1198,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
           {note ? <p className="mp-note">{note}</p> : null}
           {orderSolo}
         </div>
-        <aside className="mp-rail">{rail}</aside>
+        <aside className="mp-rail">{railed}</aside>
       </div>
     );
   }
@@ -1385,7 +1388,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
           w.confirmedAt ? (
             // Finalized, the week's shopping is on the Kitchen list: the one Shopping card says it, not a second copy (#737).
             <div className="mp-shopStep is-solo">
-              <div className="mp-railIn">{rail}</div>
+              <div className="mp-railIn">{railed}</div>
             </div>
           ) : (
             <div className="mp-shopStep">
@@ -1395,7 +1398,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
                   <p className="mp-note">Finalize the week (above) to put its shopping on the Kitchen list, then Finalize &amp; match there: every item matched at King Soopers, ready to check and send to the cart.</p>
                 </section>
               </div>
-              <div className="mp-railIn">{rail}</div>
+              <div className="mp-railIn">{railed}</div>
             </div>
           )
         ) : (

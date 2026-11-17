@@ -49,10 +49,19 @@ jobs:
         # signature still fails both tries.
         run: npm audit signatures || (echo "retrying once (#527)"; sleep 15; npm audit signatures)
       - name: Known vulnerabilities (high and above)
-        # A finding fails the run. npm's audit service itself sometimes answers 400/503 (and npm takes minutes to give
-        # up on it); then warn instead of failing. Dependency review and Dependabot still cover the run.
+        # A finding in a shipped (production) package fails the run. Dev-only tooling (build, test, lint) is listed as
+        # a warning instead, so an advisory with no patched release yet doesn't stop typecheck, lint and tests on main
+        # (Nikita, 2026-11-17, #1193). npm's audit service itself sometimes answers 400/503 (and npm takes minutes to
+        # give up on it); then warn instead of failing. Dependency review and Dependabot still cover the run.
         run: |
-          if npm audit --audit-level=high --fetch-retries=1 > audit.txt 2>&1; then cat audit.txt; exit 0; fi
+          if npm audit --audit-level=high --omit=dev --fetch-retries=1 > audit.txt 2>&1; then
+            cat audit.txt
+            if ! npm audit --audit-level=high --fetch-retries=1 > audit-dev.txt 2>&1; then
+              cat audit-dev.txt
+              echo "::warning::Dev-only packages have high advisories (not shipped); see the list above."
+            fi
+            exit 0
+          fi
           cat audit.txt
           grep -q "audit endpoint returned an error" audit.txt || exit 1
           echo "::warning::npm's audit service is down, so known vulnerabilities weren't checked this run."

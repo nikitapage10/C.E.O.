@@ -1,7 +1,8 @@
 # Home devices: the vacuum, the cat's feeders and fountain, the Litter-Robot, the thermostat
 
 Since #637 also the Google Nest thermostat and Google Tasks' "Shopping" list, and since #664 Send to King Soopers (see
-["Nest, Google Tasks and King Soopers"](#nest-google-tasks-and-king-soopers) below).
+["Nest, Google Tasks and King Soopers"](#nest-google-tasks-and-king-soopers) below). Since #1195 the Kitchen also signs
+in to DoorDash, through DoorDash's own CLI (see ["DoorDash"](#doordash) below).
 
 Nikita's home devices, read and run straight from the Azure Function App (#632; Nikita, 2026-11-04: "integrate
 directly, not through Home Assistant", "Vacuum, go clean the kitchen", "Feed the cat a portion", "Run a litter clean
@@ -301,6 +302,41 @@ again, which takes those lines off the list.
 Calls happen only on those taps (Kroger's limits: 10,000 product calls and 1,600 location calls a day, 5,000 cart calls
 a day), never on a timer. `MEALME_API_KEY` (Key Vault `haven-mealme-key`) stays on the Function App, unread, from
 before King Soopers replaced MealMe.
+
+## DoorDash
+
+DoorDash ordering from the Haven (#1195) is built in phases; **phase 0, Connect,** is in: the sign-in. Nothing is
+ordered from the Desk yet. Nikita chose Azure for it: DoorDash's own beta CLI, `dd-cli` v0.2.6, runs inside the
+existing Function App (Linux Flex Consumption, x86_64). No VM and no Mac. Decided for the ordering phases: a cap of
+$1,000 per order and no weekly cap (Nikita, 2026-11-17).
+
+- **The CLI.** [`scripts/fetch-dd-cli.sh`](../scripts/fetch-dd-cli.sh) downloads the release asset
+  `dd-cli-v0.2.6-linux-amd64.tar.gz` from github.com/doordash-oss/doordash-cli in Deploy to Azure, refuses it unless
+  its sha256 is the pinned `b6abad40…5ff051`, and unpacks it into `azure/vendor/dd-cli/` (gitignored, about 33 MB: the
+  PyInstaller executable beside its `_internal/`). `azure/build.mjs` copies it into the package as `bin/dd-cli/`, and
+  only warns when it isn't there, so a local build still works (DoorDash then shows "not set up").
+- **The runner.** [`api/_haven/doordash/cli.ts`](../api/_haven/doordash/cli.ts) copies the folder to `/tmp` once per
+  instance (the package mount may be read-only or noexec), makes it executable, and runs it with `execFile` (no
+  shell): `--json-output` first, then the command, then `--intent "<plain goal>"` for a command that calls DoorDash
+  (the sign-in and `auth` commands take none). The environment is PATH, a fresh HOME under `/tmp` for that one call,
+  and `DD_CLI_ACCESS_TOKEN` only when a call needs the token. Logs carry the command and its exit code only.
+- **Sign in to DoorDash** (Haven → Kitchen, the DoorDash card, your passkey): the button opens DoorDash's sign-in page
+  in a new tab (`export-token --start`; only an https URL on `identity.doordash.com` is ever opened). Sign in there;
+  the page ends on "localhost refused to connect", which is expected. Copy that page's whole address, paste it in
+  **Paste the address the page landed on** and tap **Finish** within 10 minutes (`export-token --finish -`, the
+  address on stdin). The card then says "Signed in, expires <time>", with **Sign out**.
+- **Where it lives.** The token (about 72 hours; the CLI can't renew it without a browser, so sign in again when the
+  card says expired) and its expiry are sealed with `home-token-key` in the private store
+  (`haven/devices/doordash.json`). Between start and finish the CLI keeps its pending sign-in on the instance's disk
+  (`~/.config/dd-cli/pending-login.json`: the PKCE verifier and state), and Flex may send the finish to another
+  instance, so start seals that file in the private store (`haven/devices/doordash-pending.json`) for its 10 minutes
+  and finish puts it back first. No new Key Vault secret.
+- **API.** `GET /api/haven/doordash?view=status` is public and gives the state only (`not-set-up`, `signed-out`,
+  `live`, `expired`); with a passkey session, and at `GET /api/haven/doordash`, also `expiresAt`. `POST
+  /api/haven/doordash` (passkey session only; a phone key or bearer is refused) takes `{ action: "signin-start" }` →
+  `{ url, until }`, `{ action: "signin-finish", pasted }` and `{ action: "signout" }`
+  ([`api/_haven/doordash/route.ts`](../api/_haven/doordash/route.ts)). Trust boundary TB13 in
+  [THREAT-MODEL.md](THREAT-MODEL.md).
 
 ## Lights: SwitchBot and Govee (#931)
 

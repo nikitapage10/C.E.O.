@@ -5,9 +5,11 @@
 //
 //   npm run build:azure            (from the repo root; npm ci first)
 //   → azure/dist/app/{index.mjs, host.json, package.json}, and azure/dist/functions.zip when `zip` is on the PATH
+//   → azure/dist/app/bin/dd-cli/ too when scripts/fetch-dd-cli.sh has fetched DoorDash's CLI (#1195); without it the
+//     build only warns, and DoorDash shows as not set up
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "vite";
@@ -75,6 +77,22 @@ writeFileSync(
   join(out, "package.json"),
   JSON.stringify({ name: "ceo-functions", private: true, type: "module", main: "index.mjs" }, null, 2) + "\n",
 );
+
+// DoorDash's CLI (#1195, api/_haven/doordash/cli.ts): the pinned PyInstaller folder, links resolved and the executable
+// kept executable. zip keeps the mode bits, and the runner copies the folder to /tmp and sets them again anyway.
+{
+  const vendor = join(here, "vendor/dd-cli");
+  const version = existsSync(join(vendor, ".version")) ? readFileSync(join(vendor, ".version"), "utf8").trim() : "";
+  const exe = `dd-cli-v${version}-linux-amd64`;
+  if (version && existsSync(join(vendor, exe))) {
+    const to = join(out, "bin/dd-cli");
+    cpSync(vendor, to, { recursive: true, dereference: true });
+    chmodSync(join(to, exe), 0o755);
+    console.log(`dd-cli ${version} copied into bin/dd-cli`);
+  } else {
+    console.warn("warning: no DoorDash CLI in azure/vendor/dd-cli (scripts/fetch-dd-cli.sh fetches it): DoorDash will show as not set up");
+  }
+}
 
 try {
   execFileSync("zip", ["-qr", join(dist, "functions.zip"), "."], { cwd: out, stdio: "ignore" });

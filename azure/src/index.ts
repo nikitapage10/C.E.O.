@@ -34,6 +34,7 @@ import * as homedevices from "../../api/_haven/devices/live.js";
 import * as havenlights from "../../api/_haven/lights/live.js";
 import * as havengoogle from "../../api/_haven/google/live.js";
 import * as havenkroger from "../../api/_haven/kroger/live.js";
+import * as havendoordash from "../../api/_haven/doordash/live.js";
 import * as havenplan from "../../api/_haven/plan.js";
 import * as havenmeals from "../../api/_haven/meals.js";
 import * as keys from "../../api/_keys/route.js";
@@ -125,6 +126,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // count), and where Kroger sends the browser back after Connect King Soopers. Checkout stays in the King Soopers app.
   ["haven/kroger", havenkroger.krogerRoute],
   ["haven/kroger-callback", havenkroger.krogerCallbackRoute],
+  // DoorDash, phase 0 (#1195, docs/HOME-DEVICES.md): DoorDash's own CLI in this app, Sign in to DoorDash from the
+  // Kitchen (passkey session only; ?view=status is the public state alone) and its token sealed in the private store.
+  ["haven/doordash", havendoordash.doordashRoute],
   // The Haven's floor plan (#616): the home's shape for the Desk's 3D house, kept only in the private store and served
   // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
   ["haven-plan", havenplan.planRoute],

@@ -51,6 +51,11 @@ jobs:
       - run: npm ci
       - name: Build the site
         run: npm run build
+      # DoorDash's CLI (#1195, docs/HOME-DEVICES.md, "DoorDash"): the pinned release, sha256-checked, into the package.
+      - name: Fetch the DoorDash CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/fetch-dd-cli.sh
       - name: Build the functions package
         run: npm run build:azure
       # Ship first, test after (#863, Nikita 2026-11-05): typecheck, lint and unit tests run on main in checks.yml

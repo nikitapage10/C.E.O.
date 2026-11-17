@@ -389,6 +389,22 @@ Kroger's public API for King Soopers ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest,
   gets the open items' names as search terms and, on Nikita's tap, the confirmed picks for his cart; nothing is bought
   from the Desk (checkout stays in the King Soopers app). Logs carry counts and results only.
 
+## DoorDash
+
+Since #1195 DoorDash's own CLI (`dd-cli` v0.2.6) runs inside the Function App ([HOME-DEVICES.md](HOME-DEVICES.md),
+"DoorDash"; TB13 in [THREAT-MODEL.md](THREAT-MODEL.md)). Phase 0 is the sign-in only: nothing is ordered yet.
+
+- **The binary.** Fetched at deploy from DoorDash's GitHub release and refused unless it matches the pinned sha256
+  (`scripts/fetch-dd-cli.sh`); never committed. It runs with `execFile`, never a shell, with only PATH, a fresh HOME
+  for that call and the token when needed (`api/_haven/doordash/cli.ts`).
+- **Sign-in.** No key of C.E.O.'s own. DoorDash's two-step remote sign-in starts and finishes only in a passkey session
+  (a phone key or bearer is refused); only an https sign-in URL on `identity.doordash.com` is opened, and the pasted
+  address is checked (one line, localhost, a code) and passed on stdin.
+- **Storage.** The token (about 72 hours) and, for its 10 minutes, the CLI's pending sign-in are sealed with
+  `HOME_TOKEN_KEY` in the private store; the browser never sees the token.
+- **Privacy.** The public status gives the state only, never the expiry. Logs carry the command and its exit code,
+  never a token, a URL, a code or anything the CLI printed.
+
 ## Setup asks
 
 When a submind's thread needs something set up only Nikita can allow (#324; [SKIPPY.md](SKIPPY.md), "Setup asks"):

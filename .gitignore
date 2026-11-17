@@ -16,3 +16,5 @@ test-results/
 api/_skippy/stackDeps.ts
 # Desk Skippy's library of the repo's docs and lore (#1141): written at every install and build
 api/_skippy/deskIndex.ts
+# DoorDash's CLI for the functions package (#1195): fetched by scripts/fetch-dd-cli.sh, never committed
+azure/vendor/

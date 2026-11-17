@@ -1,0 +1,25 @@
+# One-off probe for #1195 (removed before merge; never on main): reads the DoorDash CLI's latest release and its help.
+name: doordash-probe
+on:
+  push:
+    branches: [chat/1195-doordash-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view -R doordash-oss/doordash-cli --json tagName,publishedAt,body,assets --jq '.tagName, .publishedAt, .body, (.assets[] | "\(.name) \(.size) \(.digest // "")")'
+          mkdir dl && cd dl
+          gh release download -R doordash-oss/doordash-cli --pattern '*linux-amd64*'
+          ls -la
+          sha256sum *
+          mkdir x && tar -xzf *linux-amd64.tar.gz -C x && find x -maxdepth 3 -exec ls -ld {} \;
+          cat $(find x -name 'quickstart.txt') || true
+          bin=$(find x -type f -name 'dd-cli' | head -1); file "$bin"; ldd "$bin" || true
+          "$bin" --help || true
+          for c in search store menu cart order address payment promo list export-token login; do echo "=== $c"; "$bin" $c --help 2>&1 | head -60 || true; done

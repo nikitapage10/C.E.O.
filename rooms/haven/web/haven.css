@@ -745,6 +745,35 @@
   [data-room="haven"] .hv-eyb {
     margin-top: 24px;
   }
+}
+/* On a phone (#1210): the top menu already picks the Haven's tab, so a tab's sheet drops its back button, its tab row and
+   the eyebrow (a room opened from the house keeps them, to close it), and the title sits on one slim line, the Kitchen's Meal prep / DoorDash switch beside it. */
+@media (max-width: 760px) {
+  [data-room="haven"] .hv-sheet.is-tab .hv-sheetBar,
+  [data-room="haven"] .hv-sheet.is-tab .hv-eyb {
+    display: none;
+  }
+  [data-room="haven"] .hv-sheetHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  [data-room="haven"] .hv-sheetHead .hv-h2 {
+    margin: 0;
+    text-align: left;
+    font-size: 34px;
+  }
+  [data-room="haven"] .hv-sheetHead .hv-kmode {
+    flex: none;
+    width: auto;
+    margin: 0;
+  }
+  [data-room="haven"] .hv-sheetHead .hv-kmode button {
+    padding: 7px 12px;
+    font-size: 13px;
+  }
   [data-room="haven"] .hv-num b {
     font-size: 34px;
   }

@@ -629,7 +629,7 @@ export function Haven() {
 
 
       {open && signedIn && (
-        <div className="hv-sheet" role="dialog" aria-modal="false" aria-label={sheetTitle} style={{ ["--hv-top" as string]: `${top}px` }}>
+        <div className={`hv-sheet${pathTab ? " is-tab" : ""}`} role="dialog" aria-modal="false" aria-label={sheetTitle} style={{ ["--hv-top" as string]: `${top}px` }}>
           <SheetSigils />
           <div className="hv-sheetIn">
             <div className="hv-sheetBar">
@@ -645,8 +645,11 @@ export function Haven() {
               </div>
             </div>
             <p className="hv-eyb">Haven · {sheetTitle}</p>
-            <h2 className="hv-h2">{sheetTitle}</h2>
-            {openTab === "kitchen" ? <KitchenSwitch mode={kitchenMode} onPick={pickKitchen} /> : null}
+            {/* On a phone (#1210) the title and the Kitchen's switch share one slim line; the top menu picks the tab. */}
+            <div className={`hv-sheetHead${openTab === "kitchen" ? " is-kitchen" : ""}`}>
+              <h2 className="hv-h2">{sheetTitle}</h2>
+              {openTab === "kitchen" ? <KitchenSwitch mode={kitchenMode} onPick={pickKitchen} /> : null}
+            </div>
             {openTab === "kitchen" && kitchenMode === "doordash" ? (
               <DoorDashTab />
             ) : openTab === "kitchen" ? (

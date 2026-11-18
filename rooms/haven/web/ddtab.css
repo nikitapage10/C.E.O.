@@ -1229,7 +1229,40 @@
 }
 
 /* A phone: cards scroll sideways, sheets rise from the bottom. */
+/* Shown only on a phone (#1210), where the Tonight / Orders / Cart bar gives way to one feed and the cart bar. */
+[data-room="haven"] .dd-onPhone {
+  display: none;
+}
 @media (max-width: 760px) {
+  [data-room="haven"] .dd-bar {
+    display: none;
+  }
+  [data-room="haven"] .dd-onPhone {
+    display: inline-flex;
+  }
+  [data-room="haven"] .dd-secHead .dd-onPhone {
+    margin-left: auto;
+  }
+  [data-room="haven"] .dd-toFeed {
+    align-self: flex-start;
+  }
+  /* A section's title stays on one line; its note drops below, and All orders keeps the right. */
+  [data-room="haven"] .dd-secHead {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  [data-room="haven"] .dd-secHead h4 {
+    white-space: nowrap;
+  }
+  [data-room="haven"] .dd-secHead small {
+    order: 3;
+    flex-basis: 100%;
+  }
+  /* The cart bar leaves the right edge to the mic button, so the total is never under it. */
+  [data-room="haven"] .dd-cartBar {
+    width: calc(100% - 68px);
+    margin-left: 0;
+  }
   [data-room="haven"] .dd-hero {
     padding: 20px 16px 16px;
     border-radius: 18px;

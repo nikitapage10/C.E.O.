@@ -97,6 +97,8 @@ export function dryHost(live: ToolHost, rec: DryRecord): ToolHost {
           },
         }
       : null,
+    // DoorDash never runs from the probe: no cart, no read-back, no order (#1195).
+    doordash: null,
     homeAct: live.homeAct
       ? async (req) => {
           // The one read on the rails (what's in the wet tray, its next meal) goes through; nothing else reaches them.

@@ -39,6 +39,7 @@ import { allLightsName, spokenAsked, spokenLights } from "./words.js";
 import { SHOT_ID } from "../shots.js";
 import { deskLookupText, deskReadText, deskSection, lookupSource, sourceOf, type DeskSection, type DeskSource } from "../desk.js";
 import { liveScores } from "../sports.js";
+import type { DoorDashTools, PrepareInput, TurnWho } from "../../_haven/doordash/voice.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, ingredientLine, mealNamed, readEdit, recipeWords, ROLES, weekStage, weekWords, type Day, type EditResult, type Ingredient, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
@@ -95,6 +96,13 @@ export interface ToolHost {
   attach?: ShotAttach;
   /** The Desk library's live plans (#1141, ../desk.ts livePlans): the Foundry's open issues; absent, the library alone. */
   plans?: (() => Promise<DeskSection[]>) | null;
+  /** DoorDash by voice or chat (#1195, phase 4, api/_haven/doordash/voice.ts); absent or null where it isn't set up. */
+  doordash?: DoorDashTools | null;
+  /**
+   * Who is talking, where, and which turn (#1195): set by the chat's turn (api/skippy.ts), never by the model. The
+   * DoorDash order tools bind their pending confirmation to it; without it they refuse.
+   */
+  who?: TurnWho;
   /** The skip list's terms (EMAIL_SKIP_TERMS), which never go in memory. */
   skipTerms: readonly string[];
   now: number;
@@ -143,6 +151,7 @@ interface Executor {
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
+const NO_DOORDASH = "DoorDash isn't set up on this copy.";
 const reader = (name: ReadName): Executor => ({ run: async (_i, host) => ({ ok: true, text: (await host.read(name).catch(() => "")) || "That room didn't answer just now." }) });
 const held = (text: string) => {
   const kinds = privateParts(text);
@@ -606,6 +615,25 @@ const EXECUTORS: Record<string, Executor> = {
     },
   },
   lights_list: { run: async (_i, host) => ({ ok: true, text: await lightsText(host) }) },
+  doordash_search: { run: async (i, host) => (host.doordash ? { ok: true, text: await host.doordash.search(str(i.query)) } : { ok: false, text: NO_DOORDASH }) },
+  doordash_usuals: { run: async (_i, host) => (host.doordash ? { ok: true, text: await host.doordash.usuals() } : { ok: false, text: NO_DOORDASH }) },
+  doordash_status: { run: async (_i, host) => (host.doordash ? { ok: true, text: await host.doordash.status() } : { ok: false, text: NO_DOORDASH }) },
+  doordash_recent: { run: async (_i, host) => (host.doordash ? { ok: true, text: await host.doordash.recent() } : { ok: false, text: NO_DOORDASH }) },
+  doordash_prepare_order: {
+    run: async (i, host) => {
+      if (!host.doordash) return { ok: false, text: NO_DOORDASH };
+      const r = await host.doordash.prepare(i as PrepareInput, host.who);
+      return r.ok ? { ok: true, text: r.text, did: "Set up a DoorDash order (not placed)" } : { ok: false, text: r.text };
+    },
+  },
+  // Spends: it never waits for a Yes tap; Nikita's own "confirm" is the tap, checked in ../../_haven/doordash/voice.ts.
+  doordash_confirm_order: {
+    run: async (_i, host) => {
+      if (!host.doordash) return { ok: false, text: NO_DOORDASH };
+      const r = await host.doordash.confirm(host.who);
+      return r.ok ? { ok: true, text: r.text, ...(r.did && { did: r.did }) } : { ok: false, text: r.text };
+    },
+  },
   // The agent loop answers look_at_screen itself (#1027, ./loop.ts): the browser captures the page and the turn starts
   // again with the picture. Reached here, it's a surface with no screen to see (the phone shortcut, a call, a voice hook).
   look_at_screen: { run: async () => ({ ok: true, text: "There's no screen to look at from here: go on what <screen> says, or ask him what he means." }) },
@@ -698,6 +726,13 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
       const ran = await ex.run(checked.value, host);
       return ran.ok ? { ok: true, text: ran.text, ...(ran.action && { action: ran.action }), tool } : { ok: false, text: ran.text, tool };
     }
+    // DoorDash's confirm (#1195): never a Yes card or a voice hook; its own rules (the pending confirmation's principal,
+    // channel, turn and expiry, and Nikita's own "confirm") are checked in code where it runs.
+    if (SPOKEN_CONFIRM.has(name)) {
+      if (opts.direct) return { ok: false, text: "That only runs from Nikita's own turn with Skippy.", tool };
+      const ran = await ex.run(checked.value, host);
+      return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), tool } : { ok: false, text: ran.text, tool };
+    }
     if (needsConfirm(tool)) {
       // A home device or the lights, ordered in Nikita's own words, runs at once on every surface, typed in the Desk's
       // chat or said out loud (#632, #1011, #1015), through its rails; a question never counts as an order.
@@ -780,10 +815,13 @@ function apiProp(p: RoomTool["input"]["properties"][string]): Record<string, unk
  */
 export const WORDS_RUN: ReadonlySet<string> = new Set(["home_device", "lights_set", "lights_scene"]);
 
+/** The tools whose confirm is Nikita's own "confirm" right after a read-back, never a tap (#1195). */
+export const SPOKEN_CONFIRM: ReadonlySet<string> = new Set(["doordash_confirm_order"]);
+
 export function apiTools(tools: readonly RoomTool[]) {
   return tools.map((t) => ({
     name: t.name,
-    description: needsConfirm(t) ? `${t.description} (${WORDS_RUN.has(t.name) ? "It runs at once when Nikita's own words order it, typed or said; a question never runs it." : "Waits for Nikita's Yes tap on the Desk."})` : t.description,
+    description: needsConfirm(t) && !SPOKEN_CONFIRM.has(t.name) ? `${t.description} (${WORDS_RUN.has(t.name) ? "It runs at once when Nikita's own words order it, typed or said; a question never runs it." : "Waits for Nikita's Yes tap on the Desk."})` : t.description,
     input_schema: { type: "object" as const, properties: Object.fromEntries(Object.entries(t.input.properties).map(([k, p]) => [k, apiProp(p)])), required: [...t.input.required], additionalProperties: false },
   }));
 }

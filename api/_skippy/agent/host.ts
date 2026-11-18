@@ -118,9 +118,25 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
     },
     // The Desk library's plans (#1141): the Foundry's open issues, read with the read token and kept ten minutes.
     plans: async () => (await import("../desk.js")).livePlans(),
+    // DoorDash by voice or chat (#1195, phase 4): each call builds its deps then, so the clock is the call's own.
+    doordash: {
+      search: async (q) => (await doordashOf(env)).search(q),
+      usuals: async () => (await doordashOf(env)).usuals(),
+      status: async () => (await doordashOf(env)).status(),
+      recent: async () => (await doordashOf(env)).recent(),
+      prepare: async (input, who) => (await doordashOf(env)).prepare(input, who),
+      confirm: async (who) => (await doordashOf(env)).confirm(who),
+      turnStarted: async (who) => (await doordashOf(env)).turnStarted(who),
+      heard: async (who, id) => (await doordashOf(env)).heard(who, id),
+    },
     skipTerms,
     now,
   };
+}
+
+/** Skippy's DoorDash tools (#1195), loaded only when one runs. */
+async function doordashOf(env: Env) {
+  return (await import("../../_haven/doordash/live.js")).doordashVoice(env);
 }
 
 const WHERE_WORDS: Record<string, string> = { n: "north wall", s: "south wall", e: "east wall", w: "west wall", ne: "north-east corner", nw: "north-west corner", se: "south-east corner", sw: "south-west corner" };

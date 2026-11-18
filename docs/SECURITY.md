@@ -392,7 +392,7 @@ Kroger's public API for King Soopers ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest,
 ## DoorDash
 
 Since #1195 DoorDash's own CLI (`dd-cli` v0.2.6) runs inside the Function App ([HOME-DEVICES.md](HOME-DEVICES.md),
-"DoorDash"; TB13 in [THREAT-MODEL.md](THREAT-MODEL.md)). Phase 0 is the sign-in; phase 1 is the Kitchen's Order tab,
+"DoorDash"; TB13 in [THREAT-MODEL.md](THREAT-MODEL.md)). Phase 0 is the sign-in; phase 1 is ordering out, now the Haven's DoorDash tab,
 which spends money.
 
 - **The binary.** Fetched at deploy from DoorDash's GitHub release and refused unless it matches the pinned sha256
@@ -420,6 +420,21 @@ which spends money.
   reason in the meal planner's private file, and **Order now** only links to the Haven's DoorDash tab, whose preview and Place are
   unchanged. The one thing kept is a store remembered per day and meal: a numeric id and a capped plain name, checked
   on every read and edit (`api/_haven/mealShape.ts`), in the same passkey-only private planner file.
+- **Skippy orders by voice or chat (phase 4).** Nikita, 2026-11-17: "hey Skippy, order my usual… I'll confirm."
+  `doordash_prepare_order` builds the cart and prices it fresh, and keeps one pending confirmation sealed in the private
+  store (`haven/devices/doordash-voice.json`); the read-back (store, items, total with fees and tip, the card's last 4
+  or "your default card", ETA) is the turn's reply word for word. `doordash_confirm_order` is a spend that never takes a
+  Yes tap: its tap is Nikita's own "confirm", and every rule is enforced by the server
+  (`api/_haven/doordash/voice.ts`), not the prompt. The pending confirmation is bound to its preview id and total and
+  to the principal (the passkey, or the phone's key) and channel (the Desk's chat, a room's mic, the phone) that
+  prepared it; it counts only once its read-back went out, for 2 minutes; only the very next turn there may confirm, and
+  only when his words are an explicit confirm ("confirm", "yes, place it"); any other words drop it; prepare and confirm
+  never happen in one turn (each turn has a random id, set by the server); it is taken before the placement runs and
+  places with its own one-time key. The placement is the Order tab's own `placeCore` (re-priced, refused if the total or
+  card changed, which reads the new total back and asks again, the $1,000 cap, the lease, never retried on an unclear
+  outcome). Fetched web content, a voice hook, the probe and a Talk call (whose quick answer can't fit a price and a
+  submit) can't order. An order's turns stay out of the room log, the journal and the chats; the reply never claims a
+  placed order unless the placement returned an order id.
 - **Untrusted output.** Everything the CLI prints is data, never instructions: parsed into closed sets, capped strings
   and whole cents, links and pictures kept only when https on DoorDash's own hosts, `widget_type` and
   `assistant_instructions` never read (`api/_haven/doordash/parse.ts`); a card id in a plain-text message is masked.

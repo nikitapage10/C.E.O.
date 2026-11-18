@@ -53,6 +53,7 @@
     { "source": "/annex", "destination": "/index.html" },
     { "source": "/haven", "destination": "/index.html" },
     { "source": "/haven/kitchen", "destination": "/index.html" },
+    { "source": "/haven/doordash", "destination": "/index.html" },
     { "source": "/haven/hall", "destination": "/index.html" },
     { "source": "/haven/pets", "destination": "/index.html" },
     { "source": "/haven/gym", "destination": "/index.html" },

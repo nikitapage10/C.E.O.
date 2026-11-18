@@ -1,5 +1,5 @@
 /**
- * The Kitchen's Order tab, browser side (#1195, phase 1; api/_haven/doordash/order.ts). Every call is a passkey POST to
+ * DoorDash ordering, browser side (#1195: the Haven's DoorDash tab and Shop's DoorDash tab; api/_haven/doordash/order.ts). Every call is a passkey POST to
  * the server, which runs DoorDash's CLI; what comes back is read again here as untrusted data: whole cents, capped
  * strings, closed sets, and only https links and pictures on DoorDash's own hosts. The browser never holds the token,
  * a card's id or the full address; it names the card by its display name and the address by its label.
@@ -17,6 +17,9 @@ export interface Store {
   pickup: boolean | null;
   miles: number | null;
   rating: number | null;
+  logo: string | null;
+  fee: string | null;
+  cuisine: string | null;
 }
 
 export interface Item {
@@ -35,6 +38,8 @@ export interface Menu {
   sections: { name: string; items: Item[] }[];
   nextOpen: string | null;
   deals: { title: string; code: string | null }[];
+  image: string | null;
+  logo: string | null;
 }
 
 export interface ChoiceGroup {
@@ -75,6 +80,7 @@ export interface PastOrder {
   totalCents: number | null;
   pickup: boolean;
   times?: number;
+  image: string | null;
 }
 
 export interface Breakdown {
@@ -180,11 +186,25 @@ export function ddLink(v: unknown): string | null {
   }
 }
 
+/** A picture: https on DoorDash's own hosts, or its image bucket on S3 (the server's `ddImage`). */
+export function ddImage(v: unknown): string | null {
+  const ok = ddLink(v);
+  if (ok || typeof v !== "string" || v.length > 1024) return ok;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" && !u.port && !u.username && !u.password && u.hostname.toLowerCase() === "doordash-static.s3.amazonaws.com" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function readStore(v: unknown): Store | null {
   const s = obj(v);
   const i = id(s.id);
   const name = text(s.name, 80);
-  return i && name ? { id: i, name, eta: text(s.eta, 30), image: ddLink(s.image), pickup: bool(s.pickup), miles: num(s.miles, 1000), rating: num(s.rating, 5) } : null;
+  return i && name
+    ? { id: i, name, eta: text(s.eta, 30), image: ddImage(s.image), pickup: bool(s.pickup), miles: num(s.miles, 1000), rating: num(s.rating, 5), logo: ddImage(s.logo), fee: text(s.fee, 30), cuisine: text(s.cuisine, 40) }
+    : null;
 }
 
 const readItem = (v: unknown): Item | null => {
@@ -192,7 +212,7 @@ const readItem = (v: unknown): Item | null => {
   const iid = id(i.id);
   const name = text(i.name, 90);
   const orderable = i.orderable === "later" || i.orderable === "no" ? i.orderable : "asap";
-  return iid && name ? { id: iid, name, desc: text(i.desc, 240), priceCents: cents(i.priceCents), image: ddLink(i.image), orderable } : null;
+  return iid && name ? { id: iid, name, desc: text(i.desc, 240), priceCents: cents(i.priceCents), image: ddImage(i.image), orderable } : null;
 };
 
 export function readMenu(v: unknown): Menu | null {
@@ -211,6 +231,8 @@ export function readMenu(v: unknown): Menu | null {
     deals: list(m.deals, 10)
       .map((d) => ({ title: text(obj(d).title, 120), code: text(obj(d).code, 30) }))
       .filter((d): d is { title: string; code: string | null } => Boolean(d.title)),
+    image: ddImage(m.image),
+    logo: ddImage(m.logo),
   };
 }
 
@@ -273,6 +295,7 @@ export function readOrder(v: unknown): PastOrder | null {
     totalCents: cents(o.totalCents),
     pickup: o.pickup === true,
     ...(typeof o.times === "number" ? { times: Math.min(99, Math.max(1, Math.round(o.times))) } : {}),
+    image: ddImage(o.image),
   };
 }
 

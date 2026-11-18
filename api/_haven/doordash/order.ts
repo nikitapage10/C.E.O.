@@ -3,8 +3,10 @@
  * cart, prices it and places it through DoorDash's own CLI (./cli.ts), on Nikita's passkey session only. Azure only.
  *
  *   POST /api/haven/doordash/order   passkey session only (a phone key or bearer is refused); { action, … }:
- *     home                      the Usuals (from `order history`), the open cart and the address's label
+ *     home                      the Usuals (from `order history`), the open cart, the address's label and the
+ *                               orders placed from the Desk in the last 3 hours (the DoorDash tab's Active order)
  *     search   { query }        `search` from the default address → stores
+ *     nearby                    `find-nearby-stores` → stores (the DoorDash tab's Nearby; kept 20 minutes)
  *     menu     { storeId }      `menu` → sections and items
  *     item     { storeId, menuId, itemId }   `restaurant-item-details` → choices
  *     add      { storeId, menuId, storeName, item:{id,name,qty,options[]}, open? }   `cart add-items`
@@ -73,6 +75,7 @@ import {
   type DdCart,
   type DdPastOrder,
   type DdPreviewView,
+  type DdStore,
   type Fulfillment,
 } from "./parse.js";
 import { doordashToken, stateOf, type DoorDashDeps, type StoredDoorDash } from "./route.js";
@@ -85,6 +88,10 @@ export const PLACE_LEASE_MS = 2 * 60_000;
 const ADDRESS_MS = 12 * 60 * 60_000;
 /** The history cache (for Reorder's store and its dropped-item check). */
 const HISTORY_MS = 60 * 60_000;
+/** The Nearby cache (the DoorDash tab opens on it). */
+const NEARBY_MS = 20 * 60_000;
+/** An order placed from the Desk counts as active (the DoorDash tab follows it) this long. */
+const ACTIVE_MS = 3 * 60 * 60_000;
 const BODY_MAX = 8 * 1024;
 const TIP_MAX = 50_000;
 
@@ -147,6 +154,8 @@ export interface OrderState {
   history?: { at: number; orders: DdPastOrder[] };
   /** Orders placed from the Desk, newest first, so Orders can follow them. */
   placed?: { id: string; at: number }[];
+  /** The DoorDash tab's Nearby stores, read at most every 20 minutes. */
+  nearby?: { at: number; stores: DdStore[] };
   /** The Shop step's DoorDash store (phase 3): the last one picked, each week's, and the last build's menu id. */
   shop?: { last?: ShopStore | null; byWeek?: Record<string, ShopStore>; menuId?: string | null; menuStore?: string | null };
 }
@@ -249,9 +258,41 @@ export async function doordashOrderPost(request: Request, deps: OrderDeps): Prom
   }
 }
 
-type Out = [unknown, number?];
+/** An action's answer: the JSON body and its HTTP status (200 when left out). */
+export type Out = [unknown, number?];
 
-class Orders {
+/** What one placement came to (`placeCore`), with the Order tab's answer for it in `out`. */
+export type PlaceOutcome =
+  /** A submit ran (placed, failed or maybe placed), or the same key had already run: its placement. */
+  | { kind: "placement"; placement: Placement; message?: string | null; out: Out }
+  /** Priced again, the total or the card had changed: nothing placed, and the new preview (already stored). */
+  | { kind: "changed"; preview: PreviewOut; out: Out }
+  /** Refused before submit (stale, spent, over the cap, the lease taken, a failed re-preview…): nothing placed. */
+  | { kind: "refused"; out: Out };
+
+/** A preview as the Order tab (and Skippy's read-back) gets it. */
+export type PreviewOut = DdPreviewView & {
+  id: string;
+  until: string;
+  card: string | null;
+  cardNote: string | null;
+  address: string;
+  storeName: string | null;
+  scheduled: string | null;
+  priority: boolean;
+  pickup: boolean;
+  dropped: string[];
+  capCents: number;
+};
+
+/** The Orders for a signed-in DoorDash token (Skippy's tools, ./voice.ts); null when DoorDash isn't set up or signed in. */
+export async function ordersFor(deps: OrderDeps): Promise<Orders | null> {
+  if (!deps.blob || !deps.vault || !deps.cli.ready) return null;
+  const token = await doordashToken(deps);
+  return token ? new Orders(deps, token) : null;
+}
+
+export class Orders {
   private state: OrderState | null = null;
   private readonly vault;
   private readonly now: number;
@@ -271,6 +312,11 @@ class Orders {
   private async load(): Promise<OrderState> {
     this.state ??= (await this.vault.read<OrderState>("doordash-order").catch(() => null)) ?? {};
     return this.state;
+  }
+
+  /** What the private store holds now (Skippy's tools read the cart and the placed orders from it). */
+  async snapshot(): Promise<OrderState> {
+    return this.load();
   }
 
   private async save(next: OrderState): Promise<void> {
@@ -296,6 +342,8 @@ class Orders {
         return this.home();
       case "search":
         return this.search(b.query);
+      case "nearby":
+        return this.nearby();
       case "menu":
         return this.menu(b.storeId);
       case "item":
@@ -370,7 +418,19 @@ class Orders {
     const [addr, h] = [await this.address(), await this.history()];
     const s = await this.load();
     const orders = "orders" in h ? h.orders : [];
-    return [{ ok: true, address: addr ? { label: addr.label } : null, usuals: usualsOf(orders), recent: orders.slice(0, 5), cart: this.cartView(s.cart), ...("orders" in h ? {} : { historyError: errorOf(h).error }) }];
+    const active = (s.placed ?? []).filter((p) => this.now - p.at < ACTIVE_MS).map((p) => p.id);
+    return [{ ok: true, address: addr ? { label: addr.label } : null, usuals: usualsOf(orders), recent: orders.slice(0, 5), cart: this.cartView(s.cart), active, ...("orders" in h ? {} : { historyError: errorOf(h).error }) }];
+  }
+
+  /** The DoorDash tab's Nearby: `find-nearby-stores`, kept 20 minutes so opening the tab doesn't call DoorDash each time. */
+  private async nearby(): Promise<Out> {
+    const s = await this.load();
+    if (s.nearby && this.now - s.nearby.at < NEARBY_MS && this.now >= s.nearby.at) return [{ ok: true, stores: s.nearby.stores }];
+    const r = await this.run(["find-nearby-stores", "--max", "16"], INTENT.browse);
+    if (r.code !== 0) return this.fail(r);
+    const stores = storesOf(r.json, 16);
+    await this.save({ ...(await this.load()), nearby: { at: this.now, stores } });
+    return [{ ok: true, stores, ...(stores.length ? {} : { text: textOf(r.json) }) }];
   }
 
   private async search(q: unknown): Promise<Out> {
@@ -552,7 +612,7 @@ class Orders {
     return [{ ok: true, preview: this.previewOut(stored, parsed.view, card, await this.load()) }];
   }
 
-  private previewOut(p: StoredPreview, view: DdPreviewView, card: string | null, s: OrderState) {
+  private previewOut(p: StoredPreview, view: DdPreviewView, card: string | null, s: OrderState): PreviewOut {
     const have = new Set(view.lines.map((l) => l.name.toLowerCase()));
     const dropped = (s.cart?.expected ?? []).filter((n) => !have.has(n.replace(/^\d+(\.\d+)?× /, "").toLowerCase())).slice(0, 20);
     return {
@@ -577,38 +637,55 @@ class Orders {
     const tip = typeof b.tipCents === "number" && Number.isInteger(b.tipCents) && b.tipCents >= 0 && b.tipCents <= TIP_MAX ? b.tipCents : null;
     const total = typeof b.totalCents === "number" && Number.isInteger(b.totalCents) && b.totalCents > 0 ? b.totalCents : null;
     if (!key || !previewId || tip === null || total === null) return [{ error: "bad-request" }, 400];
+    return (await this.placeCore({ key, previewId, tipCents: tip, totalCents: total })).out;
+  }
+
+  /**
+   * The one placement path (#1195): the Order tab's Place and Skippy's spoken confirm (./voice.ts) both come here, so
+   * both get the same rules. The key is the one-time idempotency key; the preview, tip and total are what Nikita saw
+   * (or heard). Priced again before submit; refused if the total or the card changed (with the new preview), over the
+   * cap, without the lease, or on a spent or stale preview; an unclear submit is never retried.
+   */
+  async placeCore(a: { key: string; previewId: string; tipCents: number; totalCents: number }): Promise<PlaceOutcome> {
+    const { key, previewId } = a;
+    const tip = a.tipCents;
+    const total = a.totalCents;
+    const refused = (out: Out): PlaceOutcome => ({ kind: "refused", out });
+    if (!KEY_SHAPE.test(key) || !/^[0-9a-f]{16}$/.test(previewId) || !Number.isInteger(tip) || tip < 0 || tip > TIP_MAX || !Number.isInteger(total) || total <= 0) return refused([{ error: "bad-request" }, 400]);
 
     // The same key again: the first outcome, never a second order.
     const before = await this.load();
     const had = before.placements?.[key];
-    if (had) return [this.placementOut(had), had.status === "placed" ? 200 : 409];
+    if (had) return { kind: "placement", placement: had, out: [this.placementOut(had), had.status === "placed" ? 200 : 409] };
 
-    if (!(await this.vault.lease("doordash-place", PLACE_LEASE_MS, this.now))) return [{ error: "placing" }, 409];
+    if (!(await this.vault.lease("doordash-place", PLACE_LEASE_MS, this.now))) return refused([{ error: "placing" }, 409]);
     try {
       const s = await this.load();
-      if (s.placements?.[key]) return [this.placementOut(s.placements[key]!), 409];
-      if (s.cart?.maybeSpentAt) return [{ error: "maybe-placed" }, 409];
+      const dup = s.placements?.[key];
+      if (dup) return { kind: "placement", placement: dup, out: [this.placementOut(dup), 409] };
+      if (s.cart?.maybeSpentAt) return refused([{ error: "maybe-placed" }, 409]);
       const p = (s.previews ?? []).find((x) => x.id === previewId);
-      if (!s.cart || !p || p.cartUuid !== s.cart.uuid) return [{ error: "stale" }, 409];
-      if (p.spent) return [{ error: "spent" }, 409];
-      if (this.now - p.at > PREVIEW_MS || p.at > this.now + 60_000) return [{ error: "stale" }, 409];
-      if (p.pickup && tip !== 0) return [{ error: "bad-request" }, 400];
-      if (p.netCents + tip !== total) return [{ error: "total-mismatch" }, 409];
-      if (total > ORDER_CAP_CENTS) return [{ error: "over-cap", capCents: ORDER_CAP_CENTS }, 422];
+      if (!s.cart || !p || p.cartUuid !== s.cart.uuid) return refused([{ error: "stale" }, 409]);
+      if (p.spent) return refused([{ error: "spent" }, 409]);
+      if (this.now - p.at > PREVIEW_MS || p.at > this.now + 60_000) return refused([{ error: "stale" }, 409]);
+      if (p.pickup && tip !== 0) return refused([{ error: "bad-request" }, 400]);
+      if (p.netCents + tip !== total) return refused([{ error: "total-mismatch" }, 409]);
+      if (total > ORDER_CAP_CENTS) return refused([{ error: "over-cap", capCents: ORDER_CAP_CENTS }, 422]);
 
       // Priced again, now: the same flags and card, or nothing is placed.
       const again = await this.run(this.previewArgs(s.cart.uuid, p.opts, p.cardId), INTENT.checkout);
-      if (again.code !== 0) return this.fail(again);
+      if (again.code !== 0) return refused(await this.fail(again));
       const parsed = previewOf(again.json);
-      if (!parsed) return [{ error: "unreadable", text: failureOf(again.json) ?? textOf(again.json) ?? "DoorDash didn't price this cart." }, 502];
+      if (!parsed) return refused([{ error: "unreadable", text: failureOf(again.json) ?? textOf(again.json) ?? "DoorDash didn't price this cart." }, 502]);
       const cardNow = p.opts.at ? null : parsed.cardId;
       if (parsed.view.netCents !== p.netCents || (p.cardId && cardNow !== p.cardId)) {
         const fresh: StoredPreview = { id: newId(), at: this.now, cartUuid: s.cart.uuid, opts: p.opts, netCents: parsed.view.netCents, cardId: cardNow, pickup: p.pickup };
         await this.save({ ...s, previews: [...(s.previews ?? []).map((x) => (x.id === p.id ? { ...x, spent: true } : x)), fresh] });
         const card = await this.cardName(parsed.view, p.opts);
-        return [{ error: "changed", preview: this.previewOut(fresh, parsed.view, card, s) }, 409];
+        const preview = this.previewOut(fresh, parsed.view, card, s);
+        return { kind: "changed", preview, out: [{ error: "changed", preview }, 409] };
       }
-      if (parsed.view.netCents + tip > ORDER_CAP_CENTS) return [{ error: "over-cap", capCents: ORDER_CAP_CENTS }, 422];
+      if (parsed.view.netCents + tip > ORDER_CAP_CENTS) return refused([{ error: "over-cap", capCents: ORDER_CAP_CENTS }, 422]);
 
       // Spent before submit runs: a retry of any kind finds this, not a fresh chance to order.
       const placing: Placement = { at: this.now, previewId: p.id, status: "submitting", totalCents: total };
@@ -628,14 +705,14 @@ class Orders {
         "--yes",
       ];
       const r = await this.run(cmd, INTENT.checkout, 45_000);
-      return this.settle(key, placing, r);
+      return await this.settle(key, placing, r);
     } finally {
       await this.vault.release("doordash-place");
     }
   }
 
   /** What submit's exit means: placed, refused (nothing ordered), or maybe placed (never retried). */
-  private async settle(key: string, placing: Placement, r: DdResult): Promise<Out> {
+  private async settle(key: string, placing: Placement, r: DdResult): Promise<PlaceOutcome> {
     const s = await this.load();
     const sub = r.json ? submitOf(r.json) : { orderUuid: null, restricted: false, failure: null };
     const definite = r.kind === "spawn" || r.kind === "usage" || r.kind === "auth" || r.kind === "gated" || r.kind === "rejected";
@@ -655,7 +732,7 @@ class Orders {
     await this.save({ ...next, placements: { ...next.placements, [key]: done } });
     this.deps.log(`doordash: placement ${done.status}`);
     const message = done.status === "failed" ? (sub.failure ?? null) : null;
-    return [{ ...this.placementOut(done), ...(message ? { message } : {}) }, done.status === "placed" ? 200 : done.status === "maybe" ? 202 : 422];
+    return { kind: "placement", placement: done, message, out: [{ ...this.placementOut(done), ...(message ? { message } : {}) }, done.status === "placed" ? 200 : done.status === "maybe" ? 202 : 422] };
   }
 
   /** After an unclear submit: an order at the same store in `order history`, started no earlier than the tap. */

@@ -285,18 +285,27 @@ Kernel (#501), signed-in only:
   `memory_read`, `remember`, `forget`) and the Desk's library (`desk_lookup`, `desk_read`, #1141, above); the Foundry has `foundry_board` and `implement_it`; Relay has its counts and
   `draft_text` (the existing Send/Edit/Cancel card); the Green, the Exchange and the Boiler Room have their reads; the
   Haven has `kitchen_add`, `home_device` and the meal planner's tools (`meals_*`, docs/HOME-DEVICES.md, "The meal
-  planner"), `meals_recipe` among them; Today has `look_at_screen` (both #1027, "Skippy sees the screen" below).
+  planner"), `meals_recipe` among them, and DoorDash (docs/HOME-DEVICES.md, "Skippy orders by voice or chat"):
+  `doordash_search`, `doordash_usuals`, `doordash_status`, `doordash_recent`, `doordash_cart` (reads),
+  `doordash_add_to_cart` (#1207: named items or his last order into the DoorDash cart in the Kitchen, "my usual spot"
+  found from his history; never priced or placed), `doordash_prepare_order` and `doordash_confirm_order`; Today has `look_at_screen` (both #1027, "Skippy sees the screen" below).
   Every input is checked against its schema on the server.
 - **The tap.** Anything that sends, spends or deletes (and anything marked `confirm`, like `remember`) never runs from
   the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the chat shows exactly what
   will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the input it was kept with.
-  The home devices and the lights (`home_device`, `lights_set`, `lights_scene`: `WORDS_RUN`) are the exception: on
+  The home devices, the lights and adding to the DoorDash cart (`home_device`, `lights_set`, `lights_scene`,
+  `doordash_add_to_cart`: `WORDS_RUN`) are the exception: on
   every surface, typed in the Desk's chat (#1015) or said (a call, the mic, hold Space, the phone; #926, #1011), they
-  run at once when Nikita's own words ordered that action (`spokenAsked` and `spokenLights`,
+  run at once when Nikita's own words ordered that action (`spokenAsked`, `spokenLights` and `spokenAdd`,
   `api/_skippy/agent/words.ts`), and the answer says what the device actually did. A question never runs one. Typed
   words that didn't order it (the model's guess) still get the Yes card; said ones run nothing. Every other tapped tool
   (remember, the King Soopers cart) waits for his Yes on the Desk, and spoken it says so. Money, legal, the skip list and privacy hold as typed.
 - **Fetched content never acts.** Once a web search result is in a turn, only reads run for the rest of it.
+- **No claimed DoorDash add or order (#1207).** The quick pass's Desk lane names DoorDash ("the usual spot" is his
+  DoorDash usual, never the world or his memory). A reply that says something was or will be added or ordered on
+  DoorDash (`claimsDoorDash`, api/_haven/doordash/voice.ts) when no DoorDash tool added, set up or placed anything that
+  turn (`doordashDid` over the turn's `wrote`) is never kept: from the quick pass the ask goes deeper with the tools,
+  and in the chat's turn (api/skippy.ts) the reply is replaced with the plain truth (`DOORDASH_NOT_DONE`).
 - **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
   the Builder at once, on every surface, typed or said (#1096, Nikita 2026-11-13: build requests need no tap; sends,
   spends and deletes keep theirs). Fetched web content still can't start it, and the privacy check still stops anything

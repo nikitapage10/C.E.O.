@@ -369,7 +369,7 @@ export class Orders {
       case "receipt":
         return this.receipt(b.orderId);
       case "reorder":
-        return this.reorder(b.orderId, b.open);
+        return this.reorder(b.orderId, b.open, b.priced !== false);
       case "grocery-home":
         return this.groceryHome(b.week);
       case "grocery-stores":
@@ -419,7 +419,11 @@ export class Orders {
     const s = await this.load();
     const orders = "orders" in h ? h.orders : [];
     const active = (s.placed ?? []).filter((p) => this.now - p.at < ACTIVE_MS).map((p) => p.id);
-    return [{ ok: true, address: addr ? { label: addr.label } : null, usuals: usualsOf(orders), recent: orders.slice(0, 5), cart: this.cartView(s.cart), active, ...("orders" in h ? {} : { historyError: errorOf(h).error }) }];
+    // The open cart with its lines read live (#1207), so the DoorDash tab shows what Skippy put in it the moment it
+    // opens; when DoorDash can't be read just now, the cart as kept (its store, no lines).
+    const live = s.cart ? await this.cart().catch(() => null) : null;
+    const cart = live && (live[1] ?? 200) < 400 ? (live[0] as { cart: ReturnType<Orders["cartView"]> }).cart : this.cartView((await this.load()).cart);
+    return [{ ok: true, address: addr ? { label: addr.label } : null, usuals: usualsOf(orders), recent: orders.slice(0, 5), cart, active, ...("orders" in h ? {} : { historyError: errorOf(h).error }) }];
   }
 
   /** The DoorDash tab's Nearby: `find-nearby-stores`, kept 20 minutes so opening the tab doesn't call DoorDash each time. */
@@ -774,8 +778,11 @@ export class Orders {
     return [{ ok: true, receipt, ...(receipt ? {} : { text: textOf(r.json) ?? "DoorDash sent a receipt this page can't read." }) }];
   }
 
-  /** One tap: the old order's cart again (asking first about an open cart at that store), then its preview. */
-  private async reorder(raw: unknown, open: unknown): Promise<Out> {
+  /**
+   * One tap: the old order's cart again (asking first about an open cart at that store), then its preview. `priced`
+   * false (Skippy's doordash_add_to_cart, #1207) stops at the cart: no preview, so nothing is priced or placeable yet.
+   */
+  private async reorder(raw: unknown, open: unknown, priced = true): Promise<Out> {
     const id = uuidOf(raw);
     if (!id) return [{ error: "bad-request" }, 400];
     const h = await this.history();
@@ -788,7 +795,7 @@ export class Orders {
         const s = await this.load();
         const kept: StoredCart = { uuid: got.uuid, storeId: past.storeId, storeName: past.store, menuId: null };
         await this.save({ ...s, cart: kept, previews: [] });
-        return this.preview({});
+        return priced ? this.preview({}) : [{ ok: true, kept: true, cart: this.cartView(kept) }];
       }
     }
     const r = await this.run(["order", "reorder", "--order-uuid", id], INTENT.orders);
@@ -799,7 +806,7 @@ export class Orders {
     const s = await this.load();
     const stored: StoredCart = { uuid: cart.uuid, storeId: cart.storeId ?? past?.storeId ?? null, storeName: cart.storeName ?? past?.store ?? null, menuId: null, expected: past?.items.slice(0, 30) };
     await this.save({ ...s, cart: stored, previews: [] });
-    return this.preview({});
+    return priced ? this.preview({}) : [{ ok: true, cart: this.cartView(stored, cart) }];
   }
 
   /* ── Groceries: the Shop step's DoorDash switch (phase 3) ── */

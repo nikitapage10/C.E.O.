@@ -5,8 +5,8 @@ import { privateParts } from "../../_privacy.ts";
 import { callTool, type ToolHost } from "../../_skippy/agent/tools.ts";
 import { HomeVault, homeKey } from "../devices/vault.ts";
 import { commandName, resultOf, type DdCall, type DdResult, type DdRunner, type Spawned } from "./cli.ts";
-import type { OrderDeps } from "./order.ts";
-import { CONFIRM_MS, DoorDashVoice, READBACK_MAX, cardWords, confirmWords, readbackOf, type TurnWho, type VoicePending } from "./voice.ts";
+import { ordersFor, type OrderDeps } from "./order.ts";
+import { CONFIRM_MS, DoorDashVoice, claimsDoorDash, usualStore, READBACK_MAX, cardWords, confirmWords, readbackOf, type TurnWho, type VoicePending } from "./voice.ts";
 
 /**
  * DoorDash, phase 4 (#1195): Skippy orders by voice or chat. Every confirm rule is the server's, so each one is tested
@@ -93,7 +93,7 @@ async function setup(answers: Record<string, Answer> = {}) {
   const at = (now = NOW) => new DoorDashVoice(deps(now));
   const pending = async () => ((await vault.read<{ pending?: VoicePending | null }>("doordash-voice")) ?? {}).pending ?? null;
   const submits = () => calls.filter((c) => commandName(c.cmd) === "order submit");
-  return { at, vault, all, calls, pending, submits };
+  return { at, vault, all, calls, pending, submits, deps };
 }
 
 const turn = (id: string, said: string, over: Partial<TurnWho> = {}): TurnWho => ({ principal: "passkey-1", channel: "phone", turn: id, said, ...over });
@@ -294,5 +294,94 @@ describe("Skippy's DoorDash confirm rules (#1195)", () => {
     await say(t, b, NOW + 5_000, (v) => v.confirm(b));
     expect(await t.at(NOW + 20 * 60_000).status()).toMatch(/is nearly there/);
     expect(await t.at(NOW).recent()).toMatch(/^Recent DoorDash orders: Ramen Bar/);
+  });
+});
+
+/* ── Adding to the cart (#1207) ── */
+
+const LA = 555001;
+const ADD_HISTORY = {
+  orders: [
+    { order_uuid: "cccccccc-0000-1111-2222-333333333333", store_id: LA, store_name: "La Esquina", items: [{ name: "Beef Empanadas", quantity: 3 }], is_reorderable: true, created_at: "2026-11-15T02:00:00Z" },
+    { order_uuid: PAST, store_id: 928163, store_name: "Ramen Bar", items: [{ name: "Tonkotsu", quantity: 2 }], is_reorderable: true, created_at: "2026-11-12T02:00:00Z" },
+    { order_uuid: "dddddddd-0000-1111-2222-333333333333", store_id: LA, store_name: "La Esquina", items: [{ name: "Beef Empanadas", quantity: 2 }], is_reorderable: true, created_at: "2026-11-08T02:00:00Z" },
+  ],
+};
+const LA_MENU = {
+  menu_id: "7001",
+  store_name: "La Esquina",
+  items: [
+    { item_id: "e_1", name: "Beef Empanada", price: 4.5, category: "Empanadas", orderability: ["asap"] },
+    { item_id: "e_2", name: "Chicken Empanada", price: 4.5, category: "Empanadas", orderability: ["asap"] },
+    { item_id: "e_3", name: "Combo Plate", price: 14, category: "Plates", orderability: ["asap"] },
+  ],
+};
+const LA_CART = { success: true, cart_uuid: CART, cart: { store_name: "La Esquina", store_id: LA, items: [{ id: "line_1", item_id: "e_1", name: "Beef Empanada", quantity: 2, price: 4.5 }] } };
+const ADDING: Record<string, Answer> = {
+  "order history": ok(ADD_HISTORY),
+  menu: ok(LA_MENU),
+  "restaurant-item-details": (cmd) => ok({ item: { item_id: cmd[cmd.indexOf("--item-id") + 1], name: cmd.includes("e_3") ? "Combo Plate" : "Beef Empanada", price: 4.5, extras: cmd.includes("e_3") ? [{ extra_id: "x1", name: "Filling", min_num_options: 1, max_num_options: 1, options: [{ option_id: "o1", name: "Beef" }] }] : [] } }),
+  "cart add-items": ok(LA_CART),
+  "cart show": ok(LA_CART),
+  "order reorder": ok({ success: true, cart_uuid: CART, cart: { store_name: "La Esquina", store_id: LA, items: [{ id: "line_1", name: "Beef Empanada", quantity: 3, price: 4.5 }] } }),
+};
+const names = (t: Awaited<ReturnType<typeof setup>>) => t.calls.map((c) => commandName(c.cmd));
+
+describe("Skippy adds to the DoorDash cart (#1207)", () => {
+  it("adds the empanadas from the usual spot to the DoorDash tab's own cart, says the total so far, prices and places nothing", async () => {
+    const t = await setup(ADDING);
+    const who = turn("turn-add", "add the empanadas from the usual spot", { channel: "desk" });
+    const out = await t.at().addToCart({ store: "the usual spot", items: ["2 empanadas"] }, who);
+    expect(out).toMatchObject({ ok: true, did: "Added to the DoorDash cart" });
+    // The usual spot is the place he orders from most (La Esquina, twice), and "empanadas" is the one he had there.
+    expect(out.text).toBe("Added 2 Beef Empanada from La Esquina to your DoorDash cart: $9.00 so far before fees (2 items). It's in your DoorDash cart in the Kitchen; nothing is ordered until you check out there or ask me to order it.");
+    expect(who.outcome).toBe(out.text);
+    const add = t.calls.find((c) => commandName(c.cmd) === "cart add-items")!;
+    expect(add.cmd).toContain(String(LA));
+    expect(names(t)).not.toContain("search");
+    expect(names(t)).not.toContain("order preview");
+    expect(t.submits()).toHaveLength(0);
+    expect(await t.pending()).toBeNull();
+    // The DoorDash tab reads the very same cart, lines and all, the moment it opens (`home`) and in its drawer (`cart`).
+    const o = (await ordersFor(t.deps(NOW)))!;
+    const [home] = (await o.handle({ action: "home" })) as [{ cart: { storeName: string; lines: { name: string; qty: number }[] } }];
+    expect(home.cart).toMatchObject({ storeName: "La Esquina", lines: [{ name: "Beef Empanada", qty: 2 }] });
+    expect(await t.at().cart()).toBe("His DoorDash cart in the Kitchen, at La Esquina: 2 Beef Empanada, $9.00 before fees. Nothing is ordered.");
+    expect(privateParts(out.text)).toEqual([]);
+  });
+
+  it("says plainly when an item needs choices picked, and adds nothing", async () => {
+    const t = await setup(ADDING);
+    const who = turn("turn-add", "add a combo plate from la esquina", { channel: "desk" });
+    const out = await t.at().addToCart({ items: ["combo plate"] }, who);
+    expect(out.ok).toBe(false);
+    expect(out.text).toMatch(/^Nothing was added\. Combo Plate needs choices picked \(Filling\), so it isn't in the cart/);
+    expect(names(t)).not.toContain("cart add-items");
+    expect(who.outcome).toBeUndefined();
+    expect(claimsDoorDash(out.text)).toBe(false);
+  });
+
+  it("repeats his last order at the usual spot into the cart without pricing it, and asks about an open cart first", async () => {
+    const t = await setup(ADDING);
+    const out = await t.at().addToCart({}, turn("turn-add", "add my usual", { channel: "desk" }));
+    expect(out.text).toMatch(/^Added your last order \(3× Beef Empanadas\) from La Esquina to your DoorDash cart: \$13\.50 so far before fees \(3 items\)\./);
+    expect(t.calls.find((c) => commandName(c.cmd) === "order reorder")!.cmd).toContain("cccccccc-0000-1111-2222-333333333333");
+    expect(names(t)).not.toContain("order preview");
+
+    const open = await setup({ ...ADDING, "cart list": ok({ carts: [{ cart_uuid: CART, store_id: LA, items_count: 2 }] }) });
+    const asked = await open.at().addToCart({ items: ["beef empanada"] }, turn("turn-add", "add a beef empanada", { channel: "desk" }));
+    expect(asked).toMatchObject({ ok: false });
+    expect(asked.text).toMatch(/already an open DoorDash cart at that store with 2 items/);
+    expect(names(open)).not.toContain("cart add-items");
+  });
+
+  it("refuses on a Talk call, and knows the usual spot from a store's name", async () => {
+    const t = await setup(ADDING);
+    const out = await t.at().addToCart({ items: ["beef empanada"] }, turn("turn-add", "add a beef empanada", { channel: "call" }));
+    expect(out).toMatchObject({ ok: false });
+    expect(out.text).toMatch(/Nothing was added/);
+    expect(t.calls).toHaveLength(0);
+    for (const u of [undefined, "", "my usual spot", "the usual place", "usual", "my regular", "my go-to"]) expect(usualStore(u), String(u)).toBe(true);
+    for (const n of ["La Esquina", "Usual Suspects Pizza"]) expect(usualStore(n), n).toBe(false);
   });
 });

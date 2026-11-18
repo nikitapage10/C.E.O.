@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chat, followUp, isAnswer, isLog, roomLog, answerPing, type AnswerDeps, type Ask, type ChatDeps } from "./skippy.ts";
+import { DOORDASH_NOT_DONE, chat, followUp, isAnswer, isLog, roomLog, answerPing, type AnswerDeps, type Ask, type ChatDeps } from "./skippy.ts";
 import { MemoryRoomLog, cleanCard } from "./_skippy/log.ts";
 import { PONDER_LINES, UNSPOKEN } from "./_skippy/ponder.ts";
 import { PAGE_LINES, PAGE_MAX, readPage, saysHandedOff } from "./_skippy/prompt.ts";
@@ -220,6 +220,19 @@ describe("POST /api/skippy, with Claude stubbed", () => {
     expect(res.headers.get("set-cookie")).toContain("__Host-ceo-desk=");
     expect(calls).toHaveLength(1);
     expect(chatMonth(ledger.spend, NOW).calls).toBe(1);
+  });
+
+  // #1207: "yeah, we'll do that on DoorDash", and nothing was in the cart.
+  it("never lets a reply claim a DoorDash add or order that no DoorDash tool made this turn", async () => {
+    const claim: Ask = async () => ({ answer: { reply: "Yeah, we'll do that on DoorDash.", actions: [] }, usage: { input_tokens: 10, output_tokens: 5 } });
+    const bluff = await (await setup({ ask: claim })).post({ message: "add the empanadas from the usual spot" });
+    expect((await bluff.json()).reply).toBe(DOORDASH_NOT_DONE);
+    // A tool that really added keeps its words.
+    const real: Ask = async () => ({ answer: { reply: "Added them to your DoorDash cart.", actions: [] }, usage: { input_tokens: 10, output_tokens: 5 }, wrote: ["doordash_add_to_cart"] });
+    expect((await (await (await setup({ ask: real })).post({ message: "add the empanadas" })).json()).reply).toBe("Added them to your DoorDash cart.");
+    // Talking about DoorDash without claiming anything is untouched.
+    const status: Ask = async () => ({ answer: { reply: "Your DoorDash order is nearly there.", actions: [] }, usage: { input_tokens: 10, output_tokens: 5 } });
+    expect((await (await (await setup({ ask: status })).post({ message: "where's my food?" })).json()).reply).toBe("Your DoorDash order is nearly there.");
   });
 
   it("tells Skippy the month's ElevenLabs bill in <desk>, and answers without it when it can't be read (#477)", async () => {

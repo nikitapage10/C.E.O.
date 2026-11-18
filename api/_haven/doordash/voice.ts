@@ -12,6 +12,12 @@
  *              items, the total with fees and tip, the card's last 4 or "your default card", the ETA) is what Skippy
  *              says, word for word: the chat's turn puts it in as the reply itself (api/skippy.ts).
  *   Confirm    doordash_confirm_order places it through `Orders.placeCore`, the Order tab's one placement path.
+ *   Add        doordash_add_to_cart (#1207) puts named items, or a repeat of his newest order at a store, in the same
+ *              server-side cart the DoorDash tab shows (`Orders` "add" and "reorder" without a preview). "The usual spot"
+ *              (no store, or words like it) is the store he orders from most, from his history. It never prices or
+ *              places, keeps no pending confirmation, and its "Added …" line, the cart's subtotal so far included, is the
+ *              turn's reply word for word (`outcome`). An item that needs choices picked (a size, a flavour) adds
+ *              nothing and says so. doordash_cart reads the cart back.
  *
  * The confirm rules, in code here, never in the prompt:
  *   - the pending confirmation is bound to its preview id and total, and to the principal (the passkey, or the phone)
@@ -92,6 +98,15 @@ export interface PrepareInput {
   tip_dollars?: number;
 }
 
+/** What doordash_add_to_cart takes (#1207). */
+export interface AddInput {
+  /** The store as he said it; left out (or "my usual spot") for the store he orders from most. */
+  store?: string;
+  /** Menu items, a count first when more than one; left out to repeat his newest order there. */
+  items?: string[];
+  open_cart?: "use" | "fresh";
+}
+
 export interface VoiceOut {
   ok: boolean;
   text: string;
@@ -106,6 +121,10 @@ export interface DoorDashTools {
   recent(): Promise<string>;
   prepare(input: PrepareInput, who: TurnWho | undefined): Promise<VoiceOut>;
   confirm(who: TurnWho | undefined): Promise<VoiceOut>;
+  /** Named items, or his newest order at a store, into the DoorDash tab's cart: never priced, never placed (#1207). */
+  addToCart(input: AddInput, who: TurnWho | undefined): Promise<VoiceOut>;
+  /** The DoorDash tab's open cart, read back (#1207). */
+  cart(): Promise<string>;
   /** At the start of every turn: drops a pending confirmation unless these words are the explicit confirm right after. */
   turnStarted(who: TurnWho): Promise<void>;
   /** At the end of the turn that said a read-back: it went out, so the next turn may confirm it. */
@@ -126,6 +145,37 @@ export function confirmWords(said: string): boolean {
   return t.length <= 60 && CONFIRM.test(t);
 }
 
+/** "My usual spot", "the usual place", "my regular": the store he orders from most, not a store's name. */
+const USUAL_STORE = /^(?:(?:my|the|our)\s+)?(?:usual|regular|normal|go[\s-]?to)(?:\s+(?:spot|place|restaurant|store|joint|one|order))?$/i;
+
+/** Whether a store as said means his usual spot. */
+export const usualStore = (store: string | undefined): boolean => !store?.trim() || USUAL_STORE.test(store.normalize("NFKC").replace(/[’`]/g, "'").replace(/\s+/g, " ").trim());
+
+/** A sentence that says something was, or will be, added or ordered: first person, done, or "it's in your cart". */
+const CLAIM = [
+  /\b(?:i|we)(?:'ll| will|'m| am|'re| are|'ve| have|'d| would)?\s+(?:going to\s+|gonna\s+|just\s+|already\s+)?(?:add|added|adding|order|ordered|ordering|place|placed|placing|put|putting|get|getting|grab|grabbing|do|doing|done|did|send|sent|set)\b/i,
+  /\b(?:added|adding)\b/i,
+  /\b(?:on it|done|all set|coming right up)\b/i,
+  /\bin your (?:doordash )?(?:cart|basket)\b/i,
+];
+/** Words that make a sentence say it didn't happen, or only might. */
+const NOT_CLAIM = /\b(?:nothing|not|never|no longer|can't|cannot|couldn't|didn't|won't|wasn't|isn't|aren't|haven't|hasn't|don't|if|once|when|after|as soon as|want me|should i|shall i)\b|n't\b/i;
+
+/**
+ * Whether a reply claims a DoorDash add or order (#1207): one of its sentences says it was or will be done ("yeah,
+ * we'll do that on DoorDash", "added the empanadas", "it's in your cart"), with no "not", "if" or question about it,
+ * and the reply is about DoorDash (or a cart that isn't King Soopers'). Status, usuals and menus aren't claims. The chat
+ * holds such a reply back unless a DoorDash tool really added, set up or placed something that turn.
+ */
+export function claimsDoorDash(reply: string): boolean {
+  const t = reply.normalize("NFKC").replace(/[’`]/g, "'").replace(/\s+/g, " ").trim();
+  const dd = /\bdoor\s?dash\b/i.test(t) || (/\b(?:cart|basket)\b/i.test(t) && !/\bking soopers\b/i.test(t));
+  if (!dd) return false;
+  return t
+    .split(/(?<=[.!?…;:])\s+/)
+    .some((s) => !s.trim().endsWith("?") && !NOT_CLAIM.test(s) && CLAIM.some((re) => re.test(s)));
+}
+
 const usd = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 /** A name as it is said: one line, no sentence breaks (the phone says the first two sentences only). */
 const said = (v: string, max = 60) =>
@@ -141,6 +191,19 @@ const nameMatch = (have: string, want: string) => {
   const b = norm(want);
   return Boolean(b) && (a === b || (b.length >= 3 && a.includes(b)) || (a.length >= 3 && b.includes(a)));
 };
+/** An item as said, for matching (#1207): "the empanadas" is "empanadas"; a plural also matches its singular. */
+const itemWant = (v: string) => v.replace(/^(?:the|some|a|an|my|his|those|these)\s+/i, "").trim();
+const singular = (v: string) => norm(v).replace(/(?<=[a-z]{3})(?:es|s)$/, "");
+/** A cart's subtotal before fees, as the DoorDash tab adds it up (null when a line has no price). */
+function subtotalOf(lines: { qty: number; unit?: string | null; priceCents: number | null }[]): number | null {
+  if (!lines.length) return null;
+  let sum = 0;
+  for (const l of lines) {
+    if (l.priceCents === null) return null;
+    sum += Math.round(l.priceCents * (l.unit ? 1 : l.qty));
+  }
+  return sum;
+}
 
 /** "25-35 min" as said: "25 to 35 minutes". */
 function etaWords(eta: string | null): string | null {
@@ -275,7 +338,7 @@ export class DoorDashVoice implements DoorDashTools {
     return [
       usuals.length ? `His usuals: ${usuals.map((u) => `${one(u)}, ordered ${u.times} time${u.times === 1 ? "" : "s"}`).join("; ")}.` : "",
       recent.length ? `Recent orders he can repeat: ${recent.slice(0, 4).map(one).join("; ")}.` : "",
-      "\"My usual from <store>\" repeats the newest order there: doordash_prepare_order with that store.",
+      "\"Add my usual from <store>\" or \"add X from the usual spot\": doordash_add_to_cart (no store means the place he orders from most). \"Order my usual from <store>\" now: doordash_prepare_order with that store.",
     ]
       .filter(Boolean)
       .join(" ");
@@ -394,24 +457,50 @@ export class DoorDashVoice implements DoorDashTools {
   /** Named items at a store: each matched to one menu item with no required choices, added, then priced. */
   private async itemsAt(o: Orders, store: string, items: string[], open: "use" | "fresh" | undefined): Promise<Out | string> {
     if (items.length > ITEMS_MAX) return `At most ${ITEMS_MAX} items by voice; build bigger orders in the DoorDash tab.`;
+    const at = await this.storeNamed(o, store);
+    if (typeof at === "string") return at;
+    const got = await this.pickAt(o, at, items);
+    if (typeof got === "string") return got;
+    for (const [n, item] of got.picked.entries()) {
+      const [ab, ac] = (await o.handle({ action: "add", storeId: at.id, menuId: got.menuId, storeName: at.name, item: { ...item, options: [] }, ...(n === 0 && open && { open }) })) as [Record<string, unknown>, number?];
+      if ((ac ?? 200) >= 400 || ab.ok === false) return whyOf(ab);
+    }
+    return o.handle({ action: "preview" });
+  }
+
+  /** The one store near home that a name means, or why not. */
+  private async storeNamed(o: Orders, store: string): Promise<{ id: string; name: string } | string> {
     const [sb, sc] = (await o.handle({ action: "search", query: store.slice(0, 60) })) as [Record<string, unknown>, number?];
     if ((sc ?? 200) >= 400) return whyOf(sb);
     const stores = ((sb.stores as DdStore[] | undefined) ?? []).filter((s) => nameMatch(s.name, store));
     const at = stores.find((s) => norm(s.name) === norm(store)) ?? (stores.length === 1 ? stores[0] : undefined);
     if (!at) return stores.length ? `More than one store matches ${said(store, 40)}: ${stores.slice(0, 4).map((s) => said(s.name, 40)).join(", ")}. Ask which.` : `No store called ${said(store, 40)} came up near home.`;
+    return { id: at.id, name: at.name };
+  }
+
+  /**
+   * Each named item matched to one menu item at the store that can be ordered now and needs no choices picked, or why
+   * not (nothing is added on any refusal). `had`: what he ordered there before, which settles "the empanadas" when the
+   * menu has several (#1207).
+   */
+  private async pickAt(o: Orders, at: { id: string; name: string }, items: string[], had: string[] = []): Promise<{ menuId: string; picked: { id: string; name: string; qty: number }[] } | string> {
     const [mb, mc] = (await o.handle({ action: "menu", storeId: at.id })) as [Record<string, unknown>, number?];
     if ((mc ?? 200) >= 400) return whyOf(mb);
     const menu = mb.menu as DdMenu | null;
-    if (!menu) return `${said(at.name, 40)}'s menu didn't come through; try the DoorDash tab.`;
+    if (!menu) return `${said(at.name, 40)}'s menu didn't come through; try DoorDash in the Kitchen.`;
     const all = menu.sections.flatMap((x) => x.items);
     const picked: { id: string; name: string; qty: number }[] = [];
     for (const raw of items) {
       const m = /^(\d{1,2})\s*(?:x|×)?\s+(.+)$/i.exec(raw.trim());
       const qty = m ? Number(m[1]) : 1;
-      const want = (m ? m[2]! : raw).trim();
+      const want = itemWant((m ? m[2]! : raw).trim());
       if (qty < 1 || qty > 20) return `${said(want, 40)}: at most 20 of one item.`;
       const exact = all.filter((i) => norm(i.name) === norm(want));
-      const close = exact.length ? exact : all.filter((i) => nameMatch(i.name, want));
+      let close = exact.length ? exact : all.filter((i) => nameMatch(i.name, want));
+      if (!close.length) close = all.filter((i) => nameMatch(singular(i.name), singular(want)));
+      // Several fit: the one he ordered there before settles it.
+      const before = close.length > 1 && had.length ? close.filter((i) => had.some((h) => nameMatch(singular(h), singular(i.name)))) : [];
+      if (new Set(before.map((i) => i.name)).size === 1) close = before;
       const names = [...new Set(close.map((i) => i.name))];
       if (!close.length) return `${said(at.name, 40)} has nothing called ${said(want, 40)} on its menu.`;
       if (names.length > 1) return `${said(want, 40)} could be ${names.slice(0, 4).map((n) => said(n, 40)).join(", ")}. Ask which.`;
@@ -420,15 +509,120 @@ export class DoorDashVoice implements DoorDashTools {
       const [db, dc] = (await o.handle({ action: "item", storeId: at.id, menuId: menu.menuId, itemId: item.id })) as [Record<string, unknown>, number?];
       if ((dc ?? 200) >= 400) return whyOf(db);
       const details = db.item as DdItemDetails | null;
-      if (!details) return `${said(item.name, 40)}'s details didn't come through; pick it in the DoorDash tab.`;
-      if (details.groups.some((g) => g.min > 0)) return `${said(item.name, 40)} needs choices picked (${details.groups.filter((g) => g.min > 0).map((g) => said(g.name, 30)).slice(0, 3).join(", ")}): pick it in the DoorDash tab, then ask me to price that cart.`;
+      if (!details) return `${said(item.name, 40)}'s details didn't come through; pick it in DoorDash in the Kitchen.`;
+      if (details.groups.some((g) => g.min > 0)) return `${said(item.name, 40)} needs choices picked (${details.groups.filter((g) => g.min > 0).map((g) => said(g.name, 30)).slice(0, 3).join(", ")}), so it isn't in the cart: pick its choices in DoorDash in the Kitchen, then ask me to price that cart.`;
       picked.push({ id: item.id, name: item.name, qty });
     }
-    for (const [n, item] of picked.entries()) {
-      const [ab, ac] = (await o.handle({ action: "add", storeId: at.id, menuId: menu.menuId, storeName: at.name, item: { ...item, options: [] }, ...(n === 0 && open && { open }) })) as [Record<string, unknown>, number?];
-      if ((ac ?? 200) >= 400 || ab.ok === false) return whyOf(ab);
+    return { menuId: menu.menuId, picked };
+  }
+
+  /**
+   * doordash_add_to_cart (#1207): named items, or a repeat of his newest order there, into the DoorDash tab's cart at a
+   * store ("my usual spot" or no store: the one he orders from most). Never priced, never placed, no pending
+   * confirmation. A success is the turn's reply word for word (`outcome`), so the reply says only what reached the cart.
+   */
+  async addToCart(input: AddInput, who: TurnWho | undefined): Promise<VoiceOut> {
+    if (who?.channel === "call") return { ok: false, text: "Adding to the DoorDash cart isn't on Talk calls yet (finding the store and its menu takes longer than a call's quick answer): say it to Hey Skippy on the phone or type it in the Desk's chat. Nothing was added." };
+    const items = (input.items ?? []).map((i) => i.trim()).filter(Boolean);
+    if (items.length > ITEMS_MAX) return { ok: false, text: `At most ${ITEMS_MAX} items at a time; nothing was added. Add the rest in the DoorDash cart in the Kitchen.` };
+    const o = await this.orders();
+    if (!o) return { ok: false, text: DoorDashVoice.SIGN_IN };
+    const s = await o.snapshot();
+    if (s.cart?.maybeSpentAt) return { ok: false, text: whyOf({ error: "maybe-placed" }) };
+    const open = input.open_cart === "use" || input.open_cart === "fresh" ? input.open_cart : undefined;
+
+    // Where: the store he named, or his usual spot from his own history.
+    const [hb, hc] = (await o.handle({ action: "orders" })) as [Record<string, unknown>, number?];
+    const past = (hc ?? 200) < 400 ? ((hb.orders as DdPastOrder[] | undefined) ?? []).filter((r) => r.reorderable && !r.grocery) : [];
+    let at: { id: string; name: string } | null = null;
+    let there: DdPastOrder[];
+    if (usualStore(input.store)) {
+      if ((hc ?? 200) >= 400) return { ok: false, text: whyOf(hb) };
+      const usual = usualsOf(past, 1)[0];
+      if (!usual) return { ok: false, text: "There's no usual spot yet: no past DoorDash orders to go by. Ask which store; nothing was added." };
+      there = past.filter((r) => (usual.storeId ? r.storeId === usual.storeId : norm(r.store) === norm(usual.store)));
+      if (usual.storeId) at = { id: usual.storeId, name: usual.store };
+      else if (items.length) {
+        const named = await this.storeNamed(o, usual.store);
+        if (typeof named === "string") return { ok: false, text: named };
+        at = named;
+      }
+    } else {
+      const store = input.store!.trim();
+      there = past.filter((r) => nameMatch(r.store, store));
+      if (items.length) {
+        const named = await this.storeNamed(o, store);
+        if (typeof named === "string") return { ok: false, text: named };
+        at = named;
+        there = past.filter((r) => (r.storeId && r.storeId === named.id) || nameMatch(r.store, named.name));
+      } else if (!there.length) {
+        return { ok: false, text: `No past order from ${said(store, 40)} to repeat, so nothing was added. Name the items to add there.` };
+      }
     }
-    return o.handle({ action: "preview" });
+
+    // Named items: each matched and added as it is on the menu. None named: his newest order there, repeated.
+    let lines: { name: string; qty: number; unit?: string | null; priceCents: number | null }[] = [];
+    let storeName = at?.name ?? there[0]?.store ?? "DoorDash";
+    const added: string[] = [];
+    if (items.length && at) {
+      const got = await this.pickAt(o, at, items, there.flatMap((r) => r.items));
+      if (typeof got === "string") return { ok: false, text: `Nothing was added. ${got}` };
+      for (const [n, item] of got.picked.entries()) {
+        const [ab, ac] = (await o.handle({ action: "add", storeId: at.id, menuId: got.menuId, storeName: at.name, item: { ...item, options: [] }, ...(n === 0 && open && { open }) })) as [Record<string, unknown>, number?];
+        if ((ac ?? 200) >= 400 || ab.ok === false) {
+          const why = whyOf(ab);
+          if (!added.length) return { ok: false, text: ab.error === "open-cart" ? why : `Nothing was added. ${why}` };
+          return this.added(who, storeName, added, await this.cartLines(o), `${said(item.name, 40)} didn't go in: ${why}`);
+        }
+        added.push(`${item.qty > 1 ? `${item.qty} ` : ""}${said(item.name, 40)}`);
+        const view = ab.cart as { storeName?: string | null; lines?: typeof lines } | null | undefined;
+        if (view?.storeName) storeName = view.storeName;
+        lines = view?.lines ?? [];
+      }
+    } else {
+      const newest = there[0];
+      if (!newest) return { ok: false, text: "No past order there to repeat, so nothing was added. Name the items to add." };
+      const [rb, rc] = (await o.handle({ action: "reorder", orderId: newest.id, priced: false, ...(open && { open }) })) as [Record<string, unknown>, number?];
+      if ((rc ?? 200) >= 400 || rb.ok !== true) return { ok: false, text: rb.error === "open-cart" ? whyOf(rb) : `Nothing was added. ${whyOf(rb)}` };
+      const view = rb.cart as { storeName?: string | null; lines?: typeof lines } | null | undefined;
+      if (view?.storeName) storeName = view.storeName;
+      if (rb.kept === true) return this.added(who, storeName, [], await this.cartLines(o), "kept the cart already open there, as you said; your last order wasn't added to it");
+      added.push(`your last order (${newest.items.slice(0, 3).map((i) => said(i, 40)).join(", ") || "the same items"})`);
+      lines = view?.lines ?? [];
+    }
+    return this.added(who, storeName, added, subtotalOf(lines) !== null ? lines : await this.cartLines(o));
+  }
+
+  /** The DoorDash tab's cart lines, read fresh (empty when it can't be read). */
+  private async cartLines(o: Orders): Promise<{ name: string; qty: number; unit?: string | null; priceCents: number | null }[]> {
+    const [cb, cc] = (await o.handle({ action: "cart" })) as [Record<string, unknown>, number?];
+    if ((cc ?? 200) >= 400) return [];
+    return ((cb.cart as { lines?: { name: string; qty: number; unit?: string | null; priceCents: number | null }[] } | null)?.lines ?? []).slice(0, 100);
+  }
+
+  /** What reached the cart, said as the turn's reply: what was added, the subtotal so far, and where to see it. */
+  private added(who: TurnWho | undefined, store: string, added: string[], lines: { qty: number; unit?: string | null; priceCents: number | null }[], but?: string): VoiceOut {
+    const total = subtotalOf(lines);
+    const count = lines.reduce((n, l) => n + (l.unit ? 1 : Math.round(l.qty)), 0);
+    const sofar = total !== null ? `: ${usd(total)} so far before fees${count ? ` (${count} item${count === 1 ? "" : "s"})` : ""}` : count ? ` (${count} item${count === 1 ? "" : "s"} in it)` : "";
+    const head = added.length ? `Added ${added.join(", ")} from ${said(store, 40)} to your DoorDash cart${sofar}.` : `Nothing new was added: I ${but ?? "added nothing"}${sofar}.`;
+    const text = `${head}${added.length && but ? ` But ${but}` : ""} It's in your DoorDash cart in the Kitchen; nothing is ordered until you check out there or ask me to order it.`;
+    if (who) who.outcome = text;
+    return { ok: true, text, ...(added.length && { did: "Added to the DoorDash cart" }) };
+  }
+
+  /** doordash_cart (#1207): the DoorDash tab's open cart, read back. */
+  async cart(): Promise<string> {
+    const o = await this.orders();
+    if (!o) return DoorDashVoice.SIGN_IN;
+    const [body, code] = (await o.handle({ action: "cart" })) as [Record<string, unknown>, number?];
+    if ((code ?? 200) >= 400) return whyOf(body);
+    const c = body.cart as { storeName?: string | null; lines?: { name: string; qty: number; unit?: string | null; priceCents: number | null }[]; maybeSpent?: boolean } | null;
+    const lines = c?.lines ?? [];
+    if (!c || !lines.length) return "His DoorDash cart in the Kitchen is empty.";
+    const total = subtotalOf(lines);
+    const names = lines.slice(0, 8).map((l) => `${l.qty > 1 && !l.unit ? `${Math.round(l.qty)} ` : ""}${said(l.name, 40)}`);
+    return `His DoorDash cart in the Kitchen${c.storeName ? `, at ${said(c.storeName, 40)}` : ""}: ${names.join(", ")}${lines.length > 8 ? ` and ${lines.length - 8} more` : ""}${total !== null ? `, ${usd(total)} before fees` : ""}. Nothing is ordered.${c.maybeSpent ? " An order from it may already have gone through: he checks the DoorDash tab." : ""}`;
   }
 
   async confirm(who: TurnWho | undefined): Promise<VoiceOut> {

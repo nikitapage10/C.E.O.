@@ -35,11 +35,11 @@ import type { Lights } from "../../_haven/lights/lights.js";
 import { LIGHT_WHERE, type LightWhere } from "../../_haven/planShape.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
-import { allLightsName, spokenAsked, spokenLights } from "./words.js";
+import { allLightsName, spokenAdd, spokenAsked, spokenLights } from "./words.js";
 import { SHOT_ID } from "../shots.js";
 import { deskLookupText, deskReadText, deskSection, lookupSource, sourceOf, type DeskSection, type DeskSource } from "../desk.js";
 import { liveScores } from "../sports.js";
-import type { DoorDashTools, PrepareInput, TurnWho } from "../../_haven/doordash/voice.js";
+import { usualStore, type AddInput, type DoorDashTools, type PrepareInput, type TurnWho } from "../../_haven/doordash/voice.js";
 import { componentFor, DAY_NAME, DAYS, findMeal, ingredientLine, mealNamed, readEdit, recipeWords, ROLES, weekStage, weekWords, type Day, type EditResult, type Ingredient, type MealEdit, type MealsFile, type Role, type SkipReason, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
@@ -619,6 +619,20 @@ const EXECUTORS: Record<string, Executor> = {
   doordash_usuals: { run: async (_i, host) => (host.doordash ? { ok: true, text: await host.doordash.usuals() } : { ok: false, text: NO_DOORDASH }) },
   doordash_status: { run: async (_i, host) => (host.doordash ? { ok: true, text: await host.doordash.status() } : { ok: false, text: NO_DOORDASH }) },
   doordash_recent: { run: async (_i, host) => (host.doordash ? { ok: true, text: await host.doordash.recent() } : { ok: false, text: NO_DOORDASH }) },
+  // Into the DoorDash tab's cart, never priced or placed (#1207): on Nikita's own words to add (WORDS_RUN), else the Yes card.
+  doordash_add_to_cart: {
+    prepare: async (i) => {
+      const items = Array.isArray(i.items) ? (i.items as string[]).filter(Boolean) : [];
+      const where = typeof i.store === "string" && i.store.trim() && !usualStore(i.store) ? plainLine(i.store, 40) : "your usual spot";
+      return { ok: true, label: "Add to cart", summary: `Add ${items.length ? plainLine(items.join(", "), 160) : "your last order"} from ${where} to your DoorDash cart in the Kitchen (nothing is ordered)` };
+    },
+    run: async (i, host) => {
+      if (!host.doordash) return { ok: false, text: NO_DOORDASH };
+      const r = await host.doordash.addToCart(i as AddInput, host.who);
+      return r.ok ? { ok: true, text: r.text, ...(r.did && { did: r.did }) } : { ok: false, text: r.text };
+    },
+  },
+  doordash_cart: { run: async (_i, host) => (host.doordash ? { ok: true, text: await host.doordash.cart() } : { ok: false, text: NO_DOORDASH }) },
   doordash_prepare_order: {
     run: async (i, host) => {
       if (!host.doordash) return { ok: false, text: NO_DOORDASH };
@@ -737,11 +751,12 @@ export async function callTool(name: string, rawInput: unknown, host: ToolHost, 
       // A home device or the lights, ordered in Nikita's own words, runs at once on every surface, typed in the Desk's
       // chat or said out loud (#632, #1011, #1015), through its rails; a question never counts as an order.
       if (!opts.direct && WORDS_RUN.has(name)) {
-        const asked = name === "home_device" ? spokenAsked(opts.said, checked.value) : spokenLights(opts.said, name, checked.value);
+        const asked = name === "home_device" ? spokenAsked(opts.said, checked.value) : name === "doordash_add_to_cart" ? spokenAdd(opts.said) : spokenLights(opts.said, name, checked.value);
         if (asked) {
           const ran = await ex.run(name === "home_device" ? { ...checked.value, via: opts.via ?? "desk", said: opts.said } : checked.value, host);
           return ran.ok ? { ok: true, text: ran.text, ...(ran.did && { did: ran.did }), ...(ran.warned && { warned: true }), tool } : { ok: false, text: ran.text, tool };
         }
+        if (opts.surface !== "desk" && name === "doordash_add_to_cart") return { ok: false, text: "Nothing was added: the DoorDash cart changes on Nikita's own words to add (\"add the empanadas from my usual spot\"), never on a question. Answer what he asked; offer to add it.", tool };
         if (opts.surface !== "desk") {
           const plain = name === "home_device" ? homeLine(checked.value).toLowerCase() : name === "lights_scene" ? `run ${plainLine(str(checked.value.name), 40)}` : `turn ${checked.value.on ? "on" : "off"} the lights`;
           return { ok: false, text: `Nothing ran: ${name === "home_device" ? "the home devices act" : "the lights switch"} on Nikita's own words for them. Ask him to say it plainly ("${plain}") and it runs.`, tool };
@@ -810,10 +825,10 @@ function apiProp(p: RoomTool["input"]["properties"][string]): Record<string, unk
  * input is checked in code instead (`checkInput` in `callTool`), and a bad one goes back to the model as a tool error.
  */
 /**
- * The device tools that run at once on Nikita's own words for them, typed or said (#632, #1011, #1015): the home devices
- * and the lights. Every other tapped tool (remember, the King Soopers cart) waits for the Yes; implement_it files at once (#1096).
+ * The tools that run at once on Nikita's own words for them, typed or said (#632, #1011, #1015): the home devices,
+ * the lights, and adding to the DoorDash cart (#1207, `spokenAdd`; it never prices or places). Every other tapped tool (remember, the King Soopers cart) waits for the Yes; implement_it files at once (#1096).
  */
-export const WORDS_RUN: ReadonlySet<string> = new Set(["home_device", "lights_set", "lights_scene"]);
+export const WORDS_RUN: ReadonlySet<string> = new Set(["home_device", "lights_set", "lights_scene", "doordash_add_to_cart"]);
 
 /** The tools whose confirm is Nikita's own "confirm" right after a read-back, never a tap (#1195). */
 export const SPOKEN_CONFIRM: ReadonlySet<string> = new Set(["doordash_confirm_order"]);

@@ -226,7 +226,7 @@ describe("readBody: every named builder", () => {
 
 describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
-    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", hand: "Rocky", images: [], model: null, short: "", question: "" });
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", hand: "Rocky", images: [], model: null, short: "", thread: "", question: "" });
   });
   it("reads attached pictures as names in the private store, and only the Desk's own (#127)", () => {
     const body = "**Pitch:** Look.\n\n![Picture 1](https://ceo.example/api/foundry-image?p=foundry%2Fideas%2Fold.jpg)\n![other](https://x.public.blob.vercel-storage.com/a.jpg)\n![bad](http://no.tls/c.png)\n\n**Pictures:** 1, kept private and shown only on the Desk (foundry/ideas/b.png)";
@@ -239,7 +239,7 @@ describe("readBody", () => {
     expect(readBody("**Pitch:** No question here.").question).toBe("");
   });
   it("is empty for a plain issue", () => {
-    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, hand: null, images: [], model: null, short: "", question: "" });
+    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, hand: null, images: [], model: null, short: "", thread: "", question: "" });
   });
 });
 

@@ -357,6 +357,53 @@
   font-size: clamp(56px, 7vw, 96px);
   line-height: 1;
 }
+/* The Kitchen's two sides (#1206): Meal prep and DoorDash, one segmented switch under the title. */
+[data-room="haven"] .hv-kmode {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  width: min(320px, 100%);
+  margin: 16px auto 0;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+[data-room="haven"] .hv-kmode > i {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--n));
+  transform: translateX(calc(var(--i) * 100%));
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(var(--hv-gold), 0.32), rgba(var(--hv-gold), 0.2));
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+[data-room="haven"] .hv-kmode button {
+  position: relative;
+  padding: 9px 8px;
+  border: 0;
+  background: none;
+  color: var(--hv-mute);
+  font: 500 14px var(--hv-text);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+[data-room="haven"] .hv-kmode button[aria-pressed="true"] {
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-kmode button:focus-visible {
+  outline: 2px solid rgba(var(--hv-gold), 0.6);
+  outline-offset: -2px;
+  border-radius: 9px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .hv-kmode > i {
+    transition: none;
+  }
+}
 [data-room="haven"] .hv-say {
   margin: 14px auto 28px;
   max-width: 52ch;

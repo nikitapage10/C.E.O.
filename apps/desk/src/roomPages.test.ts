@@ -25,7 +25,6 @@ describe("the Desk's pages from the manifests", () => {
     expect(pageSections("haven").map((s) => [s.label, s.path])).toEqual([
       ["House", "/haven"],
       ["Kitchen", "/haven/kitchen"],
-      ["DoorDash", "/haven/doordash"],
       ["Hall", "/haven/hall"],
       ["Pets", "/haven/pets"],
       ["Gym", "/haven/gym"],

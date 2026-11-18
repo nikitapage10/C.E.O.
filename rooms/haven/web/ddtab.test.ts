@@ -23,9 +23,9 @@ describe("the DoorDash tab (#1195)", () => {
     expect(storeParam("?store=928163")).toBe("928163");
     expect(storeParam("?store=92;rm")).toBeNull();
     expect(storeParam("")).toBeNull();
-    expect(withStore("/haven/doordash", "?slot=sat-dinner", "5")).toBe("/haven/doordash?slot=sat-dinner&store=5");
-    expect(withStore("/haven/doordash", "?store=5&slot=sat-dinner", null)).toBe("/haven/doordash?slot=sat-dinner");
-    expect(withStore("/haven/doordash", "?store=5", null)).toBe("/haven/doordash");
+    expect(withStore("/haven/kitchen/doordash", "?slot=sat-dinner", "5")).toBe("/haven/kitchen/doordash?slot=sat-dinner&store=5");
+    expect(withStore("/haven/kitchen/doordash", "?store=5&slot=sat-dinner", null)).toBe("/haven/kitchen/doordash?slot=sat-dinner");
+    expect(withStore("/haven/kitchen/doordash", "?store=5", null)).toBe("/haven/kitchen/doordash");
   });
 
   it("the meal plan's slot, and remembering a store for it", async () => {

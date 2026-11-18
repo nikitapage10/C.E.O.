@@ -3,8 +3,8 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { startHome, useHome, type Vendor, type VendorState } from "@ceo/desk/homeDevices.ts";
 import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "@ceo/desk/haven.ts";
 import { openTodos, useTodos } from "@ceo/desk/todos/todos.ts";
-import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
-import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
+import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type SheetTab, type Spot } from "./data.ts";
+import { DoorDashTab, HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
 import { LightsPanel, type Look } from "./LightsPanel.tsx";
@@ -33,7 +33,7 @@ import "./sheetdeck.css";
  * The Haven (#616): home and health on the Desk. Nikita's round-6 pick: the house in 3D, night-lit behind frosted
  * glass, where only the rooms with something going on light up, with the house-wide readings on the instrument plinth
  * in the dark to its lower right (#680), a thread of nanites from each gauge's lamp to its device. Tap a room and the camera flies in (300 ms), the house blurs behind,
- * and the room's content opens over it (Kitchen, Hall, Pets, Gym, or the room's own sheet). Each tab has its own address
+ * and the room's content opens over it (Kitchen, DoorDash, Hall, Pets, Gym, or the room's own sheet). Each tab has its own address
  * (/haven/kitchen and on, `../sections.ts`, #871), which the Desk's bar lists under the Haven.
  *
  * Privacy: the floor plan lives in the private store and is read only by a passkey session (/api/haven-plan); signed
@@ -43,13 +43,13 @@ import "./sheetdeck.css";
 
 const ACCENT = "240,201,135";
 /** The tabs, from the sub-menu past the house (`../sections.ts`), so the bar and the page list the same ones. */
-const TABS = SECTIONS.slice(1).map((s) => s.id as Tab);
+const TABS = SECTIONS.slice(1).map((s) => s.id as SheetTab);
 
 const reduce = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const dayWord = (d = new Date()) => `${d.toLocaleDateString("en-US", { weekday: "long" })} ${d.getHours() < 12 ? "morning" : d.getHours() < 17 ? "afternoon" : "evening"}`;
 const stateWord: Record<VendorState, string> = { live: "live", down: "down", waiting: "waiting" };
 
-type Open = { tab: Tab } | { room: string } | null;
+type Open = { tab: SheetTab } | { room: string } | null;
 
 const thePlanOf = (p: PlanLoad) => (p.state === "ready" ? p.plan : null);
 
@@ -122,12 +122,16 @@ export function Haven() {
   // room picked on the house has no address of its own and opens over /haven.
   const pathname = usePathname();
   const section = routeOf(pathname) === "haven" ? sectionOf(SECTIONS, pathname).id : "house";
-  const pathTab = section === "house" ? null : (section as Tab);
+  const pathTab = section === "house" ? null : (section as SheetTab);
   const [room, setRoom] = useState<string | null>(null);
   const open: Open = useMemo(() => (pathTab ? { tab: pathTab } : room ? { room } : null), [pathTab, room]);
   const setOpen = useCallback((o: Open) => {
     setRoom(o && "room" in o ? o.room : null);
-    if (routeOf(window.location.pathname) === "haven") navigateTo((o && "tab" in o ? `/haven/${o.tab}` : "/haven") + window.location.search);
+    if (routeOf(window.location.pathname) !== "haven") return;
+    // The DoorDash tab's own parameters (a store, a meal-plan slot) stay with it, not with the other tabs.
+    const q = new URLSearchParams(window.location.search);
+    if (!(o && "tab" in o && o.tab === "doordash")) for (const k of ["store", "slot", "week"]) q.delete(k);
+    navigateTo((o && "tab" in o ? `/haven/${o.tab}` : "/haven") + (q.size ? `?${q}` : ""));
   }, []);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
   // On a phone (#1045) the controls come first and the house lies behind them, dimmed and still to the touch; "Explore
@@ -513,7 +517,7 @@ export function Haven() {
 
   const summary = thePlan ? summaryOf(lit, thePlan) : signedIn ? "The house, the pets and the kitchen, from what's connected." : "Counts and states only. Sign in to see the house.";
   const openRoom = open && "room" in open ? thePlan?.rooms.find((r) => r.id === open.room) : undefined;
-  const openTab: Tab | null = open && "tab" in open ? open.tab : openRoom && thePlan ? tabOf(thePlan, openRoom) : null;
+  const openTab: SheetTab | null = open && "tab" in open ? open.tab : openRoom && thePlan ? tabOf(thePlan, openRoom) : null;
   // A sheet over the house covers the Lights panel (#1077): the lamps go back to the 2-minute pace.
   sheetOpen.current = Boolean(open && signedIn);
   const sheetTitle = openTab ? TAB_NAME[openTab] : (openRoom?.name ?? "");
@@ -627,9 +631,11 @@ export function Haven() {
               </div>
             </div>
             <p className="hv-eyb">Haven · {sheetTitle}</p>
-            <h2 className="hv-h2">{sheetTitle}</h2>
+            {openTab !== "doordash" ? <h2 className="hv-h2">{sheetTitle}</h2> : null}
             {openTab === "kitchen" ? (
               <KitchenTab items={items} onTick={tick} onDrop={drop} onReread={reread} />
+            ) : openTab === "doordash" ? (
+              <DoorDashTab />
             ) : openTab === "hall" ? (
               <HallTab devices={devices} connected={vendors.roborock !== "waiting"} room={openRoom} plan={thePlan} />
             ) : openTab === "pets" ? (

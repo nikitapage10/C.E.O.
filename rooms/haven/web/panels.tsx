@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "rea
 import { Private } from "@ceo/engine/web/Private.tsx";
 import { closeClock, useHome, type DeviceReading } from "@ceo/desk/homeDevices.ts";
 import { removeItem, undoRemoveItem, type KitchenItem } from "@ceo/desk/haven.ts";
-import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
+import type { HavenPlan, Lit, PlanRoom, SheetTab } from "./data.ts";
 import { Shopping } from "./Groceries.tsx";
 import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
 import { MealPlanner } from "./MealPlanner.tsx";
@@ -12,16 +12,16 @@ import { chipsBeside, useFlash, VacuumModes, type Suction, type Water } from "./
 import { RoomMap, vacuumName } from "./RoomMap.tsx";
 import { HallLive } from "./LiveRun.tsx";
 
-/** The Kitchen's Order tab (#1195): loaded when it is first opened, so the Kitchen's first load doesn't carry it. */
-const OrderTab = lazy(() => import("./Order.tsx"));
+/** The DoorDash tab (#1195): loaded when it is first opened, so the Haven's first load doesn't carry it. */
+const DoorDashDash = lazy(() => import("./DoorDashTab.tsx"));
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
- * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet says it is waiting, in plain
+ * DoorDash, Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet says it is waiting, in plain
  * type, and invents nothing. The Kitchen is the meal planner (#678, MealPlanner.tsx) with the list and King Soopers beside it.
  */
 
-export const TAB_NAME: Record<Tab, string> = { kitchen: "Kitchen", hall: "Hall", pets: "Pets", gym: "Gym" };
+export const TAB_NAME: Record<SheetTab, string> = { kitchen: "Kitchen", doordash: "DoorDash", hall: "Hall", pets: "Pets", gym: "Gym" };
 
 function ago(iso: string | null | undefined): string {
   if (!iso) return "not yet";
@@ -142,18 +142,25 @@ export function KitchenTab({ items, onTick, onDrop, onReread }: { items: Kitchen
   return (
     <>
       <p className="hv-say">{items === null ? "Reading the Kitchen list…" : open.length ? `${open.length} thing${open.length === 1 ? "" : "s"} on the list.` : "Nothing on the list."}</p>
-      {/* The meal planner (#678) with the list and King Soopers as its rail, and Order (#1195): DoorDash, any night. */}
-      <MealPlanner
-        onListChanged={onReread}
-        rail={rail}
-        items={items}
-        order={
-          <Suspense fallback={<p className="hv-note">Opening Order…</p>}>
-            <OrderTab />
-          </Suspense>
-        }
-      />
+      {/* The meal planner (#678) with the list and King Soopers as its rail. Ordering out is the DoorDash tab (#1195). */}
+      <MealPlanner onListChanged={onReread} rail={rail} items={items} />
     </>
+  );
+}
+
+/* ── DoorDash: ordering out (#1195), its own dashboard in DoorDashTab.tsx ── */
+
+export function DoorDashTab() {
+  return (
+    <Suspense
+      fallback={
+        <p className="hv-note" role="status">
+          Opening DoorDash…
+        </p>
+      }
+    >
+      <DoorDashDash />
+    </Suspense>
   );
 }
 

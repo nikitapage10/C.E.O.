@@ -306,7 +306,7 @@ before King Soopers replaced MealMe.
 ## DoorDash
 
 DoorDash ordering from the Haven (#1195) is built in phases: **phase 0, Connect** (the sign-in) and **phase 1,
-Order** (the Kitchen's Order tab, below) are in. Nikita chose Azure for it: DoorDash's own beta CLI, `dd-cli` v0.2.6, runs inside the
+Order** (now the Haven's own **DoorDash** tab, below) are in. Nikita chose Azure for it: DoorDash's own beta CLI, `dd-cli` v0.2.6, runs inside the
 existing Function App (Linux Flex Consumption, x86_64). No VM and no Mac. Decided for the ordering phases: a cap of
 $1,000 per order and no weekly cap (Nikita, 2026-11-17).
 
@@ -338,11 +338,25 @@ $1,000 per order and no weekly cap (Nikita, 2026-11-17).
   ([`api/_haven/doordash/route.ts`](../api/_haven/doordash/route.ts)). Trust boundary TB13 in
   [THREAT-MODEL.md](THREAT-MODEL.md).
 
-### Order (phase 1)
+### Order: the DoorDash tab (phase 1)
 
-Haven → Kitchen → **Order** sits beside Plan, Customize, Shop and Cook (not a step of the week: it opens any day, and
-before a week exists it is a button under the planner). Signed out or expired, it shows the Sign in to DoorDash card
-in place of everything else. Every call is `POST /api/haven/doordash/order` (passkey session only; a phone key or
+Haven → **DoorDash** (`/haven/doordash`) is ordering out, its own dashboard apart from the Kitchen's meal prep (Nikita,
+2026-11-17; the Kitchen's Order button and step are gone, and Shop's DoorDash grocery tab stays in the Kitchen). It is
+photo first, in DoorDash's orange on the Desk's dark chrome: an **Active order** strip while an order placed from the
+Desk (the last 3 hours) or one in the history (the last 2 hours) is on its way (`order status`, every 15 s while it's
+processing, then every minute, half an hour at most, only on screen); the **Tonight** hero with the search box and
+cuisine chips (each runs a search); **Your usuals** and **Order again** as large photo cards with one-tap **Reorder**
+and **Menu**; **Nearby** as a grid of store cards (`find-nearby-stores --max 16`, kept 20 minutes in the sealed file);
+a store's page with its header picture, logo, deals and the menu with each dish's photo, price and a **+** quick add
+(a dish with a required choice opens its sheet instead); a cart bar with the running subtotal that opens the cart
+drawer; and **Orders**. A store or dish without a picture gets a warm orange stand-in with its letter or cuisine.
+Pictures are DoorDash's own: `parse.ts` looks under several field names (a store's `cover_image_url`, `cover_img_url`,
+`header_image_url`, `image_url` and near ones, its `logo_url`, a dish's `image_url`, `img_url`, `photo_url`, an
+`images` list, or an object with a `url`) and keeps only https on DoorDash's hosts or its `doordash-static` S3 bucket;
+the page loads them lazily with no referrer. `/haven/doordash?store=<id>` opens a store directly. The meal plan's
+order-in meals link here with `?slot=sat-dinner&week=<Monday>` (and `store` when one is remembered for that meal): the
+tab says "Ordering for Saturday dinner", and a store's page offers **Remember for Saturday dinners** (the planner's
+`order-store` edit). Signed out or expired, it shows the Sign in to DoorDash card in place of everything else. Every call is `POST /api/haven/doordash/order` (passkey session only; a phone key or
 bearer is refused; [`api/_haven/doordash/order.ts`](../api/_haven/doordash/order.ts)), and each one runs one or two
 CLI commands with a short `--intent` ("Nikita choosing a meal to order for himself from his home dashboard", and so on).
 
@@ -382,7 +396,7 @@ CLI commands with a short `--intent` ("Nikita choosing a meal to order for himse
   address's id and label and an hour's history cache are sealed in the private store
   (`haven/devices/doordash-order.json`). The browser never gets the token, a card's id, the full address or the CLI's
   raw output: [`api/_haven/doordash/parse.ts`](../api/_haven/doordash/parse.ts) reads every answer as untrusted data
-  (closed sets, capped strings, whole cents, https links and pictures only on DoorDash's hosts, `widget_type` and
+  (closed sets, capped strings, whole cents, https links only on DoorDash's hosts, pictures only on its hosts or its image bucket, `widget_type` and
   `assistant_instructions` ignored) and, when an answer can't be read, shows the CLI's plain-text message instead.
   Logs carry the command's words (never a flag's value) and its exit code. The public status, the Lattice and the
   Desk's Systems say nothing about orders.
@@ -392,7 +406,7 @@ CLI commands with a short `--intent` ("Nikita choosing a meal to order for himse
 
 The Shop step's Shopping card has a third tab, **DoorDash**, beside List and King Soopers: the other store for the
 week's shopping. Signed out or expired, it shows the same Sign in to DoorDash card. It uses the Order route's
-`grocery-*` actions (same passkey-only rules) and ends in the Order tab's own preview and Place, not a copy of them.
+`grocery-*` actions (same passkey-only rules) and ends in the DoorDash tab's own preview and Place, not a copy of them.
 
 - **The store.** **Pick a store** lists nearby grocery stores (`find-nearby-stores --vertical grocery --max 12`). The
   pick is remembered for the week the planner shows (its start date; this week's Monday when no week is shown) and as
@@ -408,9 +422,9 @@ week's shopping. Signed out or expired, it shows the same Sign in to DoorDash ca
 - **Add, then Place.** **Add N to the DoorDash cart** runs `cart add-items --store-id --menu-id --items-json` with the
   kept lines (if the build gave no menu id, `item-details` on the first item supplies it), asking **Use that cart /
   Start fresh** when Nikita already has a cart open at that store, then prices it with `order preview`. The preview is
-  the Order tab's: pick a delivery window under **Schedule** (or keep ASAP), the tip, and **Place order, $NN.NN**, with
+  the DoorDash tab's: pick a delivery window under **Schedule** (or keep ASAP), the tip, and **Place order, $NN.NN**, with
   every Place rule above (5-minute preview, same total, $1,000 cap, lease, one-time key, never retried). Orders,
-  status and receipts stay in the Order tab.
+  status and receipts stay in the DoorDash tab.
 - **Not here.** Pricing the same list at both King Soopers and DoorDash side by side; the King Soopers tab is unchanged.
 
 ### Skippy orders by voice or chat (phase 4)

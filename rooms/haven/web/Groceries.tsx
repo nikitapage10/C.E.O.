@@ -9,7 +9,7 @@ import { adds, costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, listCleare
  * The Kitchen's Shopping card (#737; Send to King Soopers, #664): one card, two tabs. **List** is the Kitchen list by
  * shelf, with Finalize & match, which matches every open item at the home store in one press and turns to the second
  * tab. **DoorDash** (#1195, phase 3) is the other store: the list built into a DoorDash grocery cart, reviewed, and
- * placed with the Order tab's own preview. **King Soopers** is each item's pick with its price and stock, a swap, a rematch and the product's own sheet, the
+ * placed with the DoorDash tab's own preview. **King Soopers** is each item's pick with its price and stock, a swap, a rematch and the product's own sheet, the
  * total, and one tap that adds the shown picks to the King Soopers cart. Kroger's public Cart API can only add (it can't
  * read or empty the cart), so the Desk remembers what it sent and never adds it twice. Checkout, pickup or delivery,
  * happens in the King Soopers app: nothing is bought from the Desk. After matching, each pick's quantity is checked

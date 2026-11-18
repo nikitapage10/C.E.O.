@@ -6,7 +6,7 @@ import { DD_NOTE, doordashAction, expiryWords, loadDoorDash, type DdAction, type
  * The Kitchen's DoorDash card (#1195, phase 0: Connect; api/_haven/doordash/route.ts). DoorDash's own CLI runs on the
  * server; signing in is its remote two-step: **Sign in to DoorDash** opens DoorDash's page in a new tab, the page ends
  * on "localhost refused to connect" (expected), and Nikita pastes that address here and taps **Finish**. The token
- * lasts about 72 hours and can't renew itself, so the card says when it runs out. The Order tab (Order.tsx) shows this
+ * lasts about 72 hours and can't renew itself, so the card says when it runs out. The DoorDash tab and Shop's DoorDash tab (Order.tsx's gate) show this
  * card in place of its actions while signed out or expired, and `onChange` tells it when the sign-in changes.
  */
 

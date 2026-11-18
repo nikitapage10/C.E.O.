@@ -124,6 +124,54 @@ export function ddUrl(v: unknown): string | null {
   }
 }
 
+/** DoorDash's image bucket on S3, where some store and menu pictures still live (an exact host, nothing else there). */
+const DD_IMAGE_HOSTS = ["doordash-static.s3.amazonaws.com"];
+
+/**
+ * A picture (#1195, the DoorDash tab): https on DoorDash's own hosts (or its image bucket), as a string or an object
+ * holding one (`{ url }`, `{ uri }`, `{ src }`). Anything else is null.
+ */
+export function ddImage(v: unknown): string | null {
+  const raw = typeof v === "string" ? v : isObj(v) ? (v.url ?? v.uri ?? v.src ?? v.image_url) : null;
+  const ok = ddUrl(raw);
+  if (ok) return ok;
+  if (typeof raw !== "string" || raw.length > 1024) return null;
+  try {
+    const u = new URL(raw.trim());
+    return u.protocol === "https:" && !u.port && !u.username && !u.password && DD_IMAGE_HOSTS.includes(u.hostname.toLowerCase()) ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The first of `keys` on `o` that holds a picture `ddImage` takes (the CLI's field names vary by command). */
+export function imageOf(o: unknown, ...keys: string[]): string | null {
+  const r = obj(o);
+  for (const k of keys) {
+    const v = r[k];
+    const got = Array.isArray(v) ? ddImage(v[0]) : ddImage(v);
+    if (got) return got;
+  }
+  return null;
+}
+
+/** Where a store's picture may be: its cover or header first, then any plain image field. */
+const STORE_IMAGE = ["cover_image_url", "cover_img_url", "header_image_url", "header_img_url", "hero_image_url", "banner_image_url", "cover_square_img_url", "image_url", "store_image_url", "image", "cover_image", "header_image", "images"];
+/** Where a store's logo may be. */
+const STORE_LOGO = ["logo_url", "logo_image_url", "business_logo_url", "store_logo_url", "logo", "logo_image"];
+/** Where a menu item's photo may be. */
+const ITEM_IMAGE = ["image_url", "img_url", "image", "photo_url", "item_image_url", "thumbnail_url", "images", "photo"];
+
+/** A delivery fee as a few words ("$1.99 delivery", "Free delivery"), from DoorDash's display string or its money. */
+function feeOf(s: O): string | null {
+  const shown = str(pick(s, "delivery_fee_display_string", "display_delivery_fee", "delivery_fee_string", "delivery_fee_text"), 30);
+  if (shown) return shown;
+  const raw = pick(s, "delivery_fee", "delivery_fee_monetary_fields");
+  const cents = typeof raw === "string" ? centsFromText(raw) : isObj(raw) ? centsOfMoney(raw) : centsField(pick(s, "delivery_fee_cents"));
+  if (cents === null) return null;
+  return cents === 0 ? "Free delivery" : `$${(cents / 100).toFixed(2)} delivery`;
+}
+
 /** An ISO time, or epoch seconds or milliseconds, as ISO; null otherwise. */
 export function timeOf(v: unknown): string | null {
   let ms = NaN;
@@ -163,6 +211,12 @@ export interface DdStore {
   /** Miles away, when DoorDash said (find-nearby-stores gives meters). */
   miles: number | null;
   rating: number | null;
+  /** The store's logo, when DoorDash gave one apart from its cover picture. */
+  logo: string | null;
+  /** The delivery fee in a few words, when DoorDash said. */
+  fee: string | null;
+  /** Its cuisine or kind of food, when DoorDash said ("Ramen", "Pizza"). */
+  cuisine: string | null;
 }
 
 function storeOf(raw: unknown): DdStore | null {
@@ -177,10 +231,13 @@ function storeOf(raw: unknown): DdStore | null {
     id,
     name,
     eta: typeof eta === "number" ? `${Math.round(eta)} min` : str(eta, 30),
-    image: ddUrl(pick(s, "image_url", "cover_image_url", "header_image_url", "image")),
+    image: imageOf(s, ...STORE_IMAGE),
     pickup: typeof s.offers_pickup === "boolean" ? s.offers_pickup : null,
     miles: typeof meters === "number" && meters >= 0 && meters < 1e6 ? Math.round((meters / 1609) * 10) / 10 : null,
     rating: typeof rating === "number" && rating >= 0 && rating <= 5 ? Math.round(rating * 10) / 10 : null,
+    logo: imageOf(s, ...STORE_LOGO),
+    fee: feeOf(s),
+    cuisine: str(pick(s, "cuisine", "cuisine_type", "primary_cuisine", "category") ?? arr(pick(s, "cuisines", "tags"), 1)[0], 40),
   };
 }
 
@@ -224,6 +281,9 @@ export interface DdMenu {
   nextOpen: string | null;
   /** Deals this store runs, by their title and code (the code is what Nikita would type). */
   deals: { title: string; code: string | null }[];
+  /** The store's header picture and logo, when the menu carries them (#1195, the DoorDash tab's store page). */
+  image: string | null;
+  logo: string | null;
 }
 
 /** `menu` items[].orderability: a list of "asap" / "schedule_ahead" / "unavailable" (or the old `is_orderable`). */
@@ -251,7 +311,7 @@ function itemOf(raw: unknown): DdItem | null {
     name,
     desc: str(pick(i, "description", "desc"), 240),
     priceCents: centsOfPrice(pick(i, "price", "display_price", "price_monetary_fields", "unit_price")),
-    image: ddUrl(pick(i, "image_url", "img_url", "image")),
+    image: imageOf(i, ...ITEM_IMAGE),
     orderable: orderableOf(i),
   };
 }
@@ -297,6 +357,8 @@ export function menuOf(json: unknown, storeId: string): DdMenu | null {
     sections: [...sections].map(([name, items]) => ({ name, items })),
     nextOpen: timeOf(pick(o, "store_next_open_time") ?? pick(menu, "store_next_open_time")),
     deals,
+    image: imageOf(o, ...STORE_IMAGE) ?? imageOf(menu, ...STORE_IMAGE) ?? imageOf(o.store, ...STORE_IMAGE),
+    logo: imageOf(o, ...STORE_LOGO) ?? imageOf(menu, ...STORE_LOGO) ?? imageOf(o.store, ...STORE_LOGO),
   };
 }
 
@@ -610,6 +672,8 @@ export interface DdPastOrder {
   totalCents: number | null;
   pickup: boolean;
   grocery: boolean;
+  /** The store's picture, when the history carries one (#1195, the DoorDash tab's Usuals). */
+  image: string | null;
 }
 
 /** `order history`: `orders[]`. */
@@ -637,6 +701,7 @@ export function historyOf(json: unknown, max = 50): DdPastOrder[] {
         totalCents: centsOfPrice(pick(o, "total", "grand_total", "total_charged", "order_total")),
         pickup: /PICKUP/i.test(str(o.fulfillment_type, 40) ?? ""),
         grocery: /GROCERY/i.test(str(o.order_target, 40) ?? ""),
+        image: imageOf(o, "store_image_url", "store_cover_image_url", "store_header_image_url", "store_logo_url") ?? imageOf(o.store, ...STORE_IMAGE, ...STORE_LOGO),
       };
     })
     .filter((o): o is DdPastOrder => o !== null)

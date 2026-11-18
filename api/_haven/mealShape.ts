@@ -141,10 +141,13 @@ export interface Lunch {
   backups: string[];
 }
 
-/** Why a meal is skipped (#788): no reason given, eating out, or leftovers from somewhere else. */
-export const SKIP_REASONS = ["skip", "out", "leftovers"] as const;
+/**
+ * Why a meal is skipped (#788): no reason given, eating out, leftovers from somewhere else, or ordered in from DoorDash
+ * (#1195, phase 2: Cook offers Order now for it, and the weekends can default to it, `Profile.orderIn`).
+ */
+export const SKIP_REASONS = ["skip", "out", "leftovers", "order"] as const;
 export type SkipReason = (typeof SKIP_REASONS)[number];
-export const SKIP_NAME: Record<SkipReason, string> = { skip: "Skipped", out: "Eating out", leftovers: "Leftovers" };
+export const SKIP_NAME: Record<SkipReason, string> = { skip: "Skipped", out: "Eating out", leftovers: "Leftovers", order: "Order in" };
 /** A day's skipped meals (#788): a course is skipped when it has a reason. Like a HelloFresh night, nothing to cook or buy. */
 export type Skip = Partial<Record<Course, SkipReason>>;
 
@@ -169,6 +172,31 @@ export const dinnerSkipped = (s: Slot): boolean => !!s.skip?.dinner;
 export const lunchSkipped = (s: Slot): boolean => !!s.skip?.lunch;
 /** Whether a night's dinner is cooked from the plan: not HelloFresh's and not skipped (#788). The cart is separate. */
 export const cooksDinner = (s: Slot): boolean => !s.helloFresh && !dinnerSkipped(s);
+/** Whether a day's meal is ordered in (#1195): skipped with the reason "order", so nothing is cooked or bought for it. */
+export const ordersIn = (s: Slot, course: Course): boolean => s.skip?.[course] === "order";
+
+/** The weekend, for order-in's default (#1195): Saturday and Sunday. */
+export const WEEKEND: readonly Day[] = ["sat", "sun"];
+
+/** A DoorDash store remembered for a day's meal (#1195): its numeric id (the CLI's `--store-id`) and its name. */
+export interface OrderStore {
+  id: string;
+  name: string;
+}
+
+/** A day's meal as a key, "sat-dinner", for the store remembered for it. */
+export type MealKey = `${Day}-${Course}`;
+export const mealKey = (day: Day, course: Course): MealKey => `${day}-${course}`;
+
+/**
+ * Order-in (#1195, phase 2). `weekends`: a week planned from now on has Saturday's and Sunday's dinners ordered in,
+ * and turning it on or off changes the draft weeks' weekend dinners too; on unless Nikita turns it off. `stores`: a
+ * DoorDash store remembered per day and meal, which the Order tab opens on when Order now is tapped for that meal.
+ */
+export interface OrderIn {
+  weekends: boolean;
+  stores: Partial<Record<MealKey, OrderStore>>;
+}
 
 export interface Avoid {
   term: string;
@@ -195,6 +223,8 @@ export interface Profile {
   rules: string[];
   /** The house heat: how hot every night is cooked unless the night says otherwise. Null: as each meal is written. */
   spice: Spice | null;
+  /** Order-in (#1195): the weekend default and the stores remembered per meal. */
+  orderIn: OrderIn;
 }
 
 export interface Week {
@@ -434,7 +464,28 @@ export const DEFAULT_PROFILE: Profile = {
   likes: [],
   rules: [],
   spice: null,
+  orderIn: { weekends: true, stores: {} },
 };
+
+const STORE_ID = /^\d{1,20}$/;
+
+/** A remembered store as read from a file or a request, or null. */
+export function orderStoreOf(v: unknown): OrderStore | null {
+  const x = o(v);
+  const name = plain(x.name, 80);
+  return typeof x.id === "string" && STORE_ID.test(x.id) && name ? { id: x.id, name } : null;
+}
+
+function orderInOf(v: unknown): OrderIn {
+  const x = o(v);
+  const stores: Partial<Record<MealKey, OrderStore>> = {};
+  for (const d of DAYS)
+    for (const c of COURSES) {
+      const st = orderStoreOf(o(x.stores)[mealKey(d, c)]);
+      if (st) stores[mealKey(d, c)] = st;
+    }
+  return { weekends: typeof x.weekends === "boolean" ? x.weekends : DEFAULT_PROFILE.orderIn.weekends, stores };
+}
 
 function profileOf(v: unknown): Profile {
   const x = o(v);
@@ -459,6 +510,7 @@ function profileOf(v: unknown): Profile {
     likes: words(x.likes, 80),
     rules: words(x.rules, 120),
     spice: (SPICES as readonly unknown[]).includes(x.spice) ? (x.spice as Spice) : null,
+    orderIn: orderInOf(x.orderIn),
   };
 }
 
@@ -770,6 +822,8 @@ export function planWeek(f: MealsState, start: string, prev: Week | null = null)
     inCart: true,
     custom: {},
     photo: null,
+    // Order-in on the weekends (#1195): Saturday's and Sunday's dinners stay planned, ordered in instead of cooked.
+    ...(f.profile.orderIn.weekends && WEEKEND.includes(DAYS[i]!) && { skip: { dinner: "order" as const } }),
   }));
   for (const s of slots) {
     s.backups = backupsFor(f, mealNamed(f, s.meal)!, [], used);
@@ -816,7 +870,11 @@ type BaseEdit =
   | { op: "confirm" }
   | { op: "undo" }
   /** The photo library's id, written back by the Desk: a night's own photo (`day`) or a catalog meal's (`meal`). No Undo. */
-  | { op: "photo"; day?: Day; meal?: string; photo: string };
+  | { op: "photo"; day?: Day; meal?: string; photo: string }
+  /** Order-in on the weekends (#1195): the setting, and the draft weeks' Saturday and Sunday dinners with it. */
+  | { op: "order-in"; weekends: boolean }
+  /** The DoorDash store remembered for a day's meal (#1195), or null to forget it. A preference: no Undo of its own. */
+  | { op: "order-store"; day: Day; course: Course; store: OrderStore | null };
 
 export const RECIPE_ACTIONS = ["add-step", "edit-step", "remove-step", "drop", "replace", "add"] as const;
 export type RecipeAction = (typeof RECIPE_ACTIONS)[number];
@@ -851,7 +909,7 @@ export function readEdit(v: unknown): MealEdit | null {
   const e = readBase(x);
   if (!e) return null;
   const week = typeof x.week === "string" && DATE.test(x.week) && Number.isFinite(Date.parse(x.week)) ? x.week : null;
-  return week && e.op !== "undo" && e.op !== "next-week" && e.op !== "plan-ahead" ? { ...e, week } : e;
+  return week && e.op !== "undo" && e.op !== "next-week" && e.op !== "plan-ahead" && e.op !== "order-in" && e.op !== "order-store" ? { ...e, week } : e;
 }
 
 function readBase(x: Record<string, unknown>): BaseEdit | null {
@@ -920,6 +978,13 @@ function readBase(x: Record<string, unknown>): BaseEdit | null {
     case "confirm":
     case "undo":
       return { op: x.op };
+    case "order-in":
+      return typeof x.weekends === "boolean" ? { op: "order-in", weekends: x.weekends } : null;
+    case "order-store": {
+      if (!isDay(x.day) || !(COURSES as readonly unknown[]).includes(x.course)) return null;
+      const store = x.store === null ? null : orderStoreOf(x.store);
+      return store || x.store === null ? { op: "order-store", day: x.day, course: x.course as Course, store } : null;
+    }
     case "photo":
       if (!isId(x.photo) || isDay(x.day) === isId(x.meal)) return null;
       return isDay(x.day) ? { op: "photo", day: x.day, photo: x.photo } : { op: "photo", meal: x.meal as string, photo: x.photo };
@@ -1135,6 +1200,15 @@ function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
     return { ok: true, file: { v: 1, ...f, undo: file.undo }, changes: ["Photo saved."] };
   }
 
+  if (edit.op === "order-store") {
+    // Which DoorDash store a meal orders from (#1195): a preference, not the plan, so the Undo stays as it was.
+    const key = mealKey(edit.day, edit.course);
+    if (edit.store) f.profile.orderIn.stores[key] = edit.store;
+    else delete f.profile.orderIn.stores[key];
+    const meal = `${DAY_NAME[edit.day]} ${edit.course}s`;
+    return { ok: true, file: { v: 1, ...f, undo: file.undo }, changes: [edit.store ? `${edit.store.name} is remembered for ${meal}.` : `No store remembered for ${meal} now.`] };
+  }
+
   switch (edit.op) {
     case "swap": {
       if (!needWeek()) return { ok: false, error: "no-week" };
@@ -1190,7 +1264,8 @@ function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
         else delete skip[course];
         if (Object.keys(skip).length) s.skip = skip;
         else delete s.skip;
-        changes.push(`${DAY_NAME[edit.day]}'s ${course}: ${why ? `skipped${why === "skip" ? "" : ` (${SKIP_NAME[why].toLowerCase()})`}, so nothing to cook or buy for it` : "back on"}.`);
+        const said = why === "order" ? "ordered in" : why ? `skipped${why === "skip" ? "" : ` (${SKIP_NAME[why].toLowerCase()})`}` : "back on";
+        changes.push(`${DAY_NAME[edit.day]}'s ${course}: ${said}${why ? ", so nothing to cook or buy for it" : ""}.`);
       }
       label = `${DAY_NAME[edit.day]} changed`;
       break;
@@ -1282,6 +1357,29 @@ function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
       for (const s of allWeeks(f).flatMap((w) => w.slots)) if (s.custom.spice && s.custom.spice === edit.spice) delete s.custom.spice;
       changes.push(edit.spice ? `Every night is cooked ${edit.spice === "medium" ? "at medium heat" : edit.spice} now, unless a night says otherwise.` : "Every night is back to the heat its recipe says.");
       label = edit.spice ? `Heat: ${edit.spice}` : "Heat as written";
+      break;
+    }
+    case "order-in": {
+      f.profile.orderIn.weekends = edit.weekends;
+      // The draft weeks follow (a finalized week's shopping is done, so it stays as it is): on, each weekend dinner
+      // cooked from the plan is ordered in; off, each weekend dinner ordered in is back on.
+      let n = 0;
+      for (const w of allWeeks(f))
+        for (const s of w.confirmedAt ? [] : w.slots.filter((x) => WEEKEND.includes(x.day))) {
+          if (edit.weekends && cooksDinner(s)) {
+            s.skip = { ...s.skip, dinner: "order" };
+            n++;
+          } else if (!edit.weekends && ordersIn(s, "dinner")) {
+            const rest: Skip = { ...s.skip };
+            delete rest.dinner;
+            if (Object.keys(rest).length) s.skip = rest;
+            else delete s.skip;
+            n++;
+          }
+        }
+      const nights = `${n} weekend dinner${n === 1 ? "" : "s"} in the draft weeks`;
+      changes.push(edit.weekends ? `Weekends order in: Saturday's and Sunday's dinners come from DoorDash${n ? ` (${nights} now)` : ""}.` : `Weekends are cooked again${n ? ` (${nights} back on)` : ""}.`);
+      label = edit.weekends ? "Weekends order in" : "Weekends cooked";
       break;
     }
     case "goal":

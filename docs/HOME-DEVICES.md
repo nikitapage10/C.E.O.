@@ -305,8 +305,9 @@ before King Soopers replaced MealMe.
 
 ## DoorDash
 
-DoorDash ordering from the Haven (#1195) is built in phases: **phase 0, Connect** (the sign-in) and **phase 1,
-Order** (the Kitchen's Order tab, below) are in. Nikita chose Azure for it: DoorDash's own beta CLI, `dd-cli` v0.2.6, runs inside the
+DoorDash ordering from the Haven (#1195) is built in phases: **phase 0, Connect** (the sign-in), **phase 1,
+Order** (the Kitchen's Order tab), **phase 2, order-in in the meal plan** and **phase 3, DoorDash in Shop** (below)
+are in. Nikita chose Azure for it: DoorDash's own beta CLI, `dd-cli` v0.2.6, runs inside the
 existing Function App (Linux Flex Consumption, x86_64). No VM and no Mac. Decided for the ordering phases: a cap of
 $1,000 per order and no weekly cap (Nikita, 2026-11-17).
 
@@ -386,7 +387,43 @@ CLI commands with a short `--intent` ("Nikita choosing a meal to order for himse
   `assistant_instructions` ignored) and, when an answer can't be read, shows the CLI's plain-text message instead.
   Logs carry the command's words (never a flag's value) and its exit code. The public status, the Lattice and the
   Desk's Systems say nothing about orders.
-- **Not here yet.** Ordering by voice or through Skippy, and order-in nights in the meal plan, are later phases.
+- **Not here yet.** Ordering by voice or through Skippy is a later phase.
+
+### Order-in in the plan (phase 2)
+
+"Order out for this meal, on the weekends": any meal in the week can be ordered in from DoorDash instead of cooked.
+It builds on Skip (#788): order-in is a skip reason, **Order in** (`skip.dinner` / `skip.lunch` = `"order"` in the
+planner file, `SKIP_REASONS` in `api/_haven/mealShape.ts`), so like any skipped meal it stays planned underneath, adds
+nothing to the week's shopping (the Kitchen list, King Soopers and Shop's DoorDash tab all build from that list) and
+nothing to cook, and Undo or the switch has it cooked again. No new way to place an order: Order now only opens the
+Haven's DoorDash tab.
+
+- **Plan.** A dinner's or a lunch's switches have **Order in** beside Skip and Skip day, and a skipped meal's reasons
+  are Order in, Eating out and Leftovers. On the week's grid an order-in meal shows a quiet gold mark in its photo's
+  place and the store remembered for it (else "DoorDash"); the header counts "N ordered in" apart from "skipped".
+- **Order in on weekends** (Plan, under the week with no meal open; `orderIn.weekends` in the taste profile). **On by
+  default**: every week planned from now on (Plan next week, + a week) has **Saturday's and Sunday's dinners** ordered
+  in; lunches and weekdays are cooked as before. Turning it on orders in the weekend dinners of the draft weeks that
+  are still cooked (not a HelloFresh night or one skipped for another reason); turning it off cooks the draft weeks'
+  order-in weekend dinners again. A finalized week stays as it was shopped. With it on and the week shown still
+  cooking a weekend dinner, **Order in every draft weekend** does the same without turning it off and on. Undo takes
+  either back. A week planned before this change keeps its weekend as it was.
+- **Cook.** Each order-in meal has a card on its day (today's is marked as before): "Dinner · Order in", the store
+  remembered for it (else "Pick a place when you order") and **Order now** (not on a day gone by). The open meal in
+  Plan has the same Order now.
+- **Order now** is a link to the Haven's DoorDash tab, `/haven/doordash?slot=sat-dinner&week=<Monday>&store=<id>`
+  (`orderInHref` in `rooms/haven/web/orderIn.ts`): `slot` is the day and meal, `week` the week's Monday, and `store`
+  the store remembered for that meal, only when there is one, so the tab can open on its menu. The cart, preview and
+  **Place order** are the DoorDash tab's own, with every rule above (passkey session, 5-minute preview, same total,
+  $1,000 cap, lease, one-time key, never retried).
+- **A store per meal.** The planner keeps one DoorDash store per day and meal (`orderIn.stores["sat-dinner"]`: the
+  store's numeric id and its name, nothing else), set or dropped with the `order-store` edit. It's a preference: it
+  doesn't change the plan or take the Undo. The DoorDash tab is where it gets picked (Remember this store for
+  Saturday dinners); the Kitchen shows it on the meal's tile and card.
+- **The edits** (`POST /api/haven-meals`, passkey only, the planner's closed set): `{ op: "night", day, skipDinner |
+  skipLunch: "order" }`, `{ op: "order-in", weekends }` and `{ op: "order-store", day, course, store: { id, name } |
+  null }`. Skippy's `meals_night` tool doesn't offer the reason yet (it still reads a skipped order-in meal as
+  skipped).
 
 ### DoorDash in Shop (phase 3)
 

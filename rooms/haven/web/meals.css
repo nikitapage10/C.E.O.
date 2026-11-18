@@ -1440,6 +1440,83 @@
   gap: 8px;
   margin-top: 10px;
 }
+/* Order in (#1195, phase 2): a quiet gold mark in the photo's place, the store's name as the meal, Order now in Cook. */
+[data-room="haven"] .mp-orderMark {
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(var(--hv-gold), 0.45);
+  background:
+    radial-gradient(70% 60% at 30% 25%, rgba(var(--hv-gold), 0.16), transparent 70%),
+    var(--hv-glass);
+}
+[data-room="haven"] .mp-orderMark i {
+  position: absolute;
+  width: 34%;
+  max-width: 44px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(var(--hv-gold), 0.5);
+  border-radius: 50%;
+}
+[data-room="haven"] .mp-orderMark i::after {
+  content: "";
+  position: absolute;
+  inset: 30% 30% 30% 30%;
+  border-top: 1.5px solid rgba(var(--hv-gold), 0.75);
+  border-right: 1.5px solid rgba(var(--hv-gold), 0.75);
+}
+[data-room="haven"] .mp-orderMark em {
+  position: relative;
+  margin-top: 56%;
+  font: italic 500 12px var(--hv-disp);
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-rowMeal.is-lunch .mp-orderMark em {
+  display: none;
+}
+[data-room="haven"] .mp-rowMeal.is-order small {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-rowMeal.is-order b {
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-orderIn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  flex-basis: 100%;
+}
+[data-room="haven"] .mp-orderIn .mp-note {
+  flex: 1;
+  min-width: 180px;
+  margin: 0;
+}
+[data-room="haven"] .mp-orderIn .mp-cook,
+[data-room="haven"] .mp-cookRow.is-order .mp-cook {
+  margin-top: 0;
+}
+[data-room="haven"] a.mp-orderNow {
+  text-decoration: none;
+}
+[data-room="haven"] a.mp-orderNow:focus-visible {
+  outline: 2px solid rgba(var(--hv-gold), 0.7);
+  outline-offset: 2px;
+}
+[data-room="haven"] .mp-cookRow.is-order {
+  border-style: dashed;
+  border-color: rgba(var(--hv-gold), 0.4);
+}
+[data-room="haven"] .mp-cookRow.is-order .mp-cookTxt small:first-child {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-weekendIn {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .mp-weekendIn .mp-note {
+  margin: 6px 0 0;
+}
 [data-room="haven"] .mp-detail {
   min-width: 0;
   scroll-margin-top: 80px;

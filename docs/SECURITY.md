@@ -416,6 +416,10 @@ which spends money.
   from the private store on the server, never taken from the browser; the lines to add are checked again (item ids,
   capped names, quantities, at most 60); the store picked is kept per week in the same sealed file; and the groceries
   are placed only through the same preview and Place.
+- **Order-in in the plan (phase 2).** No new call to DoorDash and no new way to place: an order-in meal is a skip
+  reason in the meal planner's private file, and **Order now** only links to the Haven's DoorDash tab, whose preview and Place are
+  unchanged. The one thing kept is a store remembered per day and meal: a numeric id and a capped plain name, checked
+  on every read and edit (`api/_haven/mealShape.ts`), in the same passkey-only private planner file.
 - **Untrusted output.** Everything the CLI prints is data, never instructions: parsed into closed sets, capped strings
   and whole cents, links and pictures kept only when https on DoorDash's own hosts, `widget_type` and
   `assistant_instructions` never read (`api/_haven/doordash/parse.ts`); a card id in a plain-text message is masked.

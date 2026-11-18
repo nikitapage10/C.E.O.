@@ -38,8 +38,13 @@ import {
   type SkipReason,
   viewOf,
   weekStage,
+  mealKey,
+  ordersIn,
+  WEEKEND,
   type Slot,
 } from "./meals.ts";
+import { orderInHref } from "./orderIn.ts";
+import { navigateTo } from "../../../apps/world/src/route.ts";
 import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoState } from "./mealPhotos.ts";
 import { onWrote, touchesList, touchesMeals } from "@ceo/desk/skippy/wrote.ts";
 import { useScreenContext } from "@ceo/engine/web/screen.ts";
@@ -171,6 +176,8 @@ function DayList({ f, pick, onPick, edit }: { f: MealsFile; pick: Pick; onPick: 
         const lunchMeal = l.dish?.meal ?? fromDish?.meal ?? null;
         const sd = s.skip?.dinner;
         const sl = s.skip?.lunch;
+        // An order-in meal (#1195): the store remembered for it, if any, in place of the meal that stays planned.
+        const orderedFrom = (c: Course) => f.profile.orderIn.stores[mealKey(s.day, c)]?.name ?? "DoorDash";
         return (
           <li key={s.day} className={`mp-row${s.helloFresh && !sd ? " is-hf" : ""}${sd && sl ? " is-skipped" : ""}${thisWeek && i === today ? " is-today" : ""}`} style={{ ["--i" as string]: i } as CSSProperties}>
             <div className="mp-rowDay">
@@ -182,34 +189,34 @@ function DayList({ f, pick, onPick, edit }: { f: MealsFile; pick: Pick; onPick: 
             </div>
             <button
               type="button"
-              className={`mp-rowMeal is-dinner${sd ? " is-skipped" : ""}`}
+              className={`mp-rowMeal is-dinner${sd === "order" ? " is-order" : sd ? " is-skipped" : ""}`}
               aria-pressed={on("dinner")}
-              aria-label={`${DAY_NAME[s.day]}'s dinner: ${sd ? `skipped, ${SKIP_NAME[sd].toLowerCase()}` : s.helloFresh ? "HelloFresh" : d.meal.name}`}
+              aria-label={`${DAY_NAME[s.day]}'s dinner: ${sd === "order" ? `order in, ${orderedFrom("dinner")}` : sd ? `skipped, ${SKIP_NAME[sd].toLowerCase()}` : s.helloFresh ? "HelloFresh" : d.meal.name}`}
               onClick={() => onPick(on("dinner") ? null : { i, course: "dinner" })}
             >
-              <Photo meal={d.meal} photo={s.photo} pending={d.customized && !s.photo && cooksDinner(s)} className="is-tile" />
+              {sd === "order" ? <OrderMark className="is-tile" /> : <Photo meal={d.meal} photo={s.photo} pending={d.customized && !s.photo && cooksDinner(s)} className="is-tile" />}
               <span>
                 <small>
                   {sd ? `Dinner · ${SKIP_NAME[sd]}` : "Dinner"}
                   {s.forTwo && !sd ? " · for two" : ""}
                   {d.customized && cooksDinner(s) ? " · custom" : ""}
                 </small>
-                <b>{s.helloFresh && !sd ? "HelloFresh night" : d.meal.name}</b>
-                <em>{sd ? "skipped" : s.helloFresh ? `${p.dinner} g protein` : `${d.macros.protein} g · ${d.meal.minutes} min`}</em>
+                <b>{sd === "order" ? orderedFrom("dinner") : s.helloFresh && !sd ? "HelloFresh night" : d.meal.name}</b>
+                <em>{sd === "order" ? "nothing to cook" : sd ? "skipped" : s.helloFresh ? `${p.dinner} g protein` : `${d.macros.protein} g · ${d.meal.minutes} min`}</em>
               </span>
             </button>
             <button
               type="button"
-              className={`mp-rowMeal is-lunch is-${l.kind}${sl ? " is-skipped" : ""}`}
+              className={`mp-rowMeal is-lunch is-${l.kind}${sl === "order" ? " is-order" : sl ? " is-skipped" : ""}`}
               aria-pressed={on("lunch")}
-              aria-label={`${DAY_NAME[s.day]}'s lunch: ${sl ? `skipped, ${SKIP_NAME[sl].toLowerCase()}` : l.name}`}
+              aria-label={`${DAY_NAME[s.day]}'s lunch: ${sl === "order" ? `order in, ${orderedFrom("lunch")}` : sl ? `skipped, ${SKIP_NAME[sl].toLowerCase()}` : l.name}`}
               onClick={() => onPick(on("lunch") ? null : { i, course: "lunch" })}
             >
-              {lunchMeal ? <Photo meal={lunchMeal} photo={l.kind === "leftovers" ? from?.photo : null} className="is-tile" /> : <span className="mp-lunchDot" aria-hidden="true" />}
+              {sl === "order" ? <OrderMark className="is-tile" /> : lunchMeal ? <Photo meal={lunchMeal} photo={l.kind === "leftovers" ? from?.photo : null} className="is-tile" /> : <span className="mp-lunchDot" aria-hidden="true" />}
               <span>
                 <small>{sl ? `Lunch · ${SKIP_NAME[sl]}` : l.kind === "leftovers" ? "Lunch · leftovers" : "Lunch"}</small>
-                <b>{l.kind === "leftovers" ? (fromDish?.meal.name ?? "Leftovers") : l.name}</b>
-                <em>{sl ? "skipped" : `${l.protein} g protein`}</em>
+                <b>{sl === "order" ? orderedFrom("lunch") : l.kind === "leftovers" ? (fromDish?.meal.name ?? "Leftovers") : l.name}</b>
+                <em>{sl === "order" ? "nothing to make" : sl ? "skipped" : `${l.protein} g protein`}</em>
               </span>
             </button>
             <button type="button" className="mp-rowSkip" aria-label={sd && sl ? `Undo skipping ${DAY_NAME[s.day]}` : `Skip ${DAY_NAME[s.day]}'s meals`} onClick={() => edit(skipDay(s, !(sd && sl)))}>
@@ -235,21 +242,48 @@ function SkipToggles({ s, course, edit }: { s: Slot; course: Course; edit: (e: M
   const all = !!s.skip?.dinner && !!s.skip?.lunch;
   return (
     <>
-      <Toggle on={!!why} label="Skip" onChange={(v) => edit(skipOne(s, course, v ? "skip" : null))} />
+      {/* Order in (#1195): a skip whose reason is DoorDash, so it leaves the shopping like any skip and Cook offers Order now. */}
+      <Toggle on={why === "order"} label="Order in" onChange={(v) => edit(skipOne(s, course, v ? "order" : null))} />
+      <Toggle on={!!why && why !== "order"} label="Skip" onChange={(v) => edit(skipOne(s, course, v ? "skip" : null))} />
       <Toggle on={all} label="Skip day" onChange={(v) => edit(skipDay(s, v))} />
     </>
   );
 }
 
-/** A skipped meal's optional reason (Eating out, Leftovers) and its Undo (#788). */
-function SkipWhy({ s, course, edit }: { s: Slot; course: Course; edit: (e: MealEdit) => void }) {
+/**
+ * Order now on an order-in meal (#1195, phase 2): a link to the Haven's DoorDash tab for that meal (`orderInHref`),
+ * followed in place. Placing is the DoorDash tab's own preview and Place.
+ */
+function OrderNow({ f, s, course }: { f: MealsFile; s: Slot; course: Course }) {
+  const href = orderInHref(s.day, course, f.week?.start ?? null, f.profile.orderIn.stores[mealKey(s.day, course)]);
+  return (
+    <a
+      className="mp-cook is-small mp-orderNow"
+      href={href}
+      onClick={(e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        navigateTo(href);
+      }}
+    >
+      Order now
+    </a>
+  );
+}
+
+/**
+ * A skipped meal's optional reason (Order in, Eating out, Leftovers) and its Undo (#788). Ordered in (#1195), it says
+ * which store is remembered for the meal and has Order now.
+ */
+function SkipWhy({ f, s, course, edit }: { f: MealsFile; s: Slot; course: Course; edit: (e: MealEdit) => void }) {
   const why = s.skip?.[course];
   if (!why) return null;
+  const store = f.profile.orderIn.stores[mealKey(s.day, course)];
   return (
     <div className="mp-skipWhy">
-      <span className="mp-k">Skipped</span>
+      <span className="mp-k">{why === "order" ? "Instead" : "Skipped"}</span>
       <div className="mp-chips" role="group" aria-label="Why it's skipped (optional)">
-        {(["out", "leftovers"] as const).map((r) => (
+        {(["order", "out", "leftovers"] as const).map((r) => (
           <button key={r} type="button" className="mp-chip" aria-pressed={why === r} onClick={() => edit(skipOne(s, course, why === r ? "skip" : r))}>
             {SKIP_NAME[r]}
           </button>
@@ -258,7 +292,51 @@ function SkipWhy({ s, course, edit }: { s: Slot; course: Course; edit: (e: MealE
       <button type="button" className="mp-link" onClick={() => edit(skipOne(s, course, null))}>
         Undo
       </button>
+      {why === "order" ? (
+        <div className="mp-orderIn">
+          <p className="mp-note">{store ? `${store.name} is remembered for ${DAY_NAME[s.day]} ${course}s.` : "Ordered in from DoorDash: Order now opens the DoorDash tab for this meal."}</p>
+          <OrderNow f={f} s={s} course={course} />
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Order in on weekends (#1195, phase 2): the setting, on by default. On, every week planned from now on has Saturday's
+ * and Sunday's dinners ordered in, and turning it on or off changes the draft weeks' weekend dinners with it (a
+ * finalized week stays as it was shopped). When it's on and the week shown still cooks a weekend dinner, one tap
+ * orders in the draft weekends too.
+ */
+function WeekendOrderIn({ f, edit }: { f: MealsFile; edit: (e: MealEdit) => void }) {
+  const on = f.profile.orderIn.weekends;
+  const w = f.week!;
+  const cooked = !w.confirmedAt && w.slots.some((s) => WEEKEND.includes(s.day) && cooksDinner(s));
+  return (
+    <div className="mp-weekendIn">
+      <Toggle on={on} label="Order in on weekends" onChange={(v) => edit({ op: "order-in", weekends: v })} />
+      <p className="mp-note">
+        {on ? "Saturday and Sunday dinners come from DoorDash: off the shopping, with Order now in Cook." : "Weekend dinners are cooked like any night."}
+        {on && cooked ? (
+          <>
+            {" "}
+            <button type="button" className="mp-link" onClick={() => edit({ op: "order-in", weekends: true })}>
+              Order in every draft weekend
+            </button>
+          </>
+        ) : null}
+      </p>
+    </div>
+  );
+}
+
+/** An order-in meal's tile (#1195): a quiet mark in the photo's place, the meal itself staying planned underneath. */
+function OrderMark({ className }: { className?: string }) {
+  return (
+    <span className={`mp-photo mp-orderMark${className ? ` ${className}` : ""}`} aria-hidden="true">
+      <i />
+      <em>Order in</em>
+    </span>
   );
 }
 
@@ -273,7 +351,7 @@ function DinnerHead({ f, s, d }: { f: MealsFile; s: Slot; d: Dish }) {
           {DAY_NAME[s.day]} · {d.meal.cuisine} · {d.meal.minutes} min
         </p>
         <h3 className={s.skip?.dinner ? "is-skipped" : undefined}>{s.helloFresh && !s.skip?.dinner ? "HelloFresh night" : d.meal.name}</h3>
-        <p className="mp-blurb">{s.skip?.dinner ? `${DAY_NAME[s.day]}'s dinner is skipped (${SKIP_NAME[s.skip.dinner].toLowerCase()}): nothing to cook or buy for it. ${d.meal.name} stays here; Undo to have it again.` : s.helloFresh ? `HelloFresh covers ${DAY_NAME[s.day]}: nothing to cook or buy. ${d.meal.name} stays here for a cook-yourself week.` : d.meal.blurb}</p>
+        <p className="mp-blurb">{s.skip?.dinner === "order" ? `${DAY_NAME[s.day]}'s dinner is ordered in from DoorDash: nothing to cook or buy for it. ${d.meal.name} stays here; Undo to cook it again.` : s.skip?.dinner ? `${DAY_NAME[s.day]}'s dinner is skipped (${SKIP_NAME[s.skip.dinner].toLowerCase()}): nothing to cook or buy for it. ${d.meal.name} stays here; Undo to have it again.` : s.helloFresh ? `HelloFresh covers ${DAY_NAME[s.day]}: nothing to cook or buy. ${d.meal.name} stays here for a cook-yourself week.` : d.meal.blurb}</p>
         {d.customized ? <p className="mp-changes">{d.changes.join(" · ")}</p> : null}
         <Macros d={d} />
         <div className="mp-dayLine">
@@ -303,7 +381,7 @@ function DinnerPlan({ f, s, edit, onCustomize }: { f: MealsFile; s: Slot; edit: 
         <Toggle on={s.forTwo} label="For two" disabled={!cooksDinner(s)} onChange={(v) => edit({ op: "night", day, forTwo: v })} />
         <Toggle on={s.inCart} label="In the cart" disabled={!cooksDinner(s)} onChange={(v) => edit({ op: "night", day, inCart: v })} />
       </div>
-      <SkipWhy s={s} course="dinner" edit={edit} />
+      <SkipWhy f={f} s={s} course="dinner" edit={edit} />
       <div className="mp-swap">
         <span className="mp-k">Swap for</span>
         <div className="mp-backs">
@@ -446,7 +524,31 @@ function Recipe({ steps, d }: { steps: string[]; d: Dish }) {
 }
 
 /** Why a night has no dinner to cook from the plan, for its day's card in Cook. */
-const noDinner = (s: Slot): string | null => (s.skip?.dinner ? "No dinner planned" : s.helloFresh ? "HelloFresh night" : !s.inCart ? "Dinner isn't cooked from the plan" : null);
+const noDinner = (s: Slot): string | null => (ordersIn(s, "dinner") ? null : s.skip?.dinner ? "No dinner planned" : s.helloFresh ? "HelloFresh night" : !s.inCart ? "Dinner isn't cooked from the plan" : null);
+
+/**
+ * An order-in meal's card in Cook (#1195, phase 2): the store remembered for it, and Order now, a link to the Haven's
+ * DoorDash tab (/haven/doordash) for that meal and its remembered store. Placing stays the DoorDash tab's own preview
+ * and Place. A day gone by keeps the card without the button.
+ */
+function OrderRow({ f, s, course, past }: { f: MealsFile; s: Slot; course: Course; past: boolean }) {
+  const store = f.profile.orderIn.stores[mealKey(s.day, course)];
+  return (
+    <li className="mp-cookRow is-order">
+      <OrderMark className="is-mini" />
+      <span className="mp-cookTxt">
+        <small>{course === "lunch" ? "Lunch" : "Dinner"} · Order in</small>
+        <b>{store?.name ?? "DoorDash"}</b>
+        <small>{store ? `Remembered for ${DAY_NAME[s.day]} ${course}s` : "Pick a place when you order"}</small>
+      </span>
+      {past ? null : (
+        <span className="mp-cookActs">
+          <OrderNow f={f} s={s} course={course} />
+        </span>
+      )}
+    </li>
+  );
+}
 
 /**
  * Cook (#721): the week's recipes once the food's in, each with cook mode, dinners cooked here and quick lunches. Day by
@@ -463,14 +565,17 @@ function CookList({ f }: { f: MealsFile }) {
   const [now] = useState(() => new Date());
   const dates = weekDays(f.week!.start, now);
   const days = f.week!.slots.map((s, i) => {
-    const rows: Array<{ key: string; d: Dish; lunch: boolean }> = [];
+    // A meal ordered in (#1195) has a card of its own in the cooked meals' place: the store remembered for it and Order now.
+    const rows: Array<{ key: string; d: Dish; lunch: boolean } | { key: string; order: Course }> = [];
     const l = lunchDish(f, s);
-    if (l && !s.skip?.lunch) rows.push({ key: `${s.day}-lunch`, d: l, lunch: true });
+    if (ordersIn(s, "lunch")) rows.push({ key: `${s.day}-lunch`, order: "lunch" });
+    else if (l && !s.skip?.lunch) rows.push({ key: `${s.day}-lunch`, d: l, lunch: true });
     const d = slotDish(f, s);
-    if (d && cooksDinner(s) && s.inCart) rows.push({ key: `${s.day}-dinner`, d, lunch: false });
+    if (ordersIn(s, "dinner")) rows.push({ key: `${s.day}-dinner`, order: "dinner" });
+    else if (d && cooksDinner(s) && s.inCart) rows.push({ key: `${s.day}-dinner`, d, lunch: false });
     return { s, at: dates[i]!, rows, why: noDinner(s) };
   });
-  const any = days.some((x) => x.rows.length);
+  const any = days.some((x) => x.rows.some((r) => "d" in r));
   // The days gone by fold away only while there's a day still to come; a week that's all past shows in full.
   const past = days.filter((x) => x.at.when === "past");
   const fold = past.length > 0 && past.length < days.length;
@@ -492,7 +597,10 @@ function CookList({ f }: { f: MealsFile }) {
       </h4>
       {rows.length ? (
         <ul>
-          {rows.map(({ key, d, lunch }) => (
+          {rows.map((r) => {
+            if ("order" in r) return <OrderRow key={r.key} f={f} s={s} course={r.order} past={at.when === "past"} />;
+            const { key, d, lunch } = r;
+            return (
             <li key={key} className="mp-cookRow">
               <Photo meal={d.meal} photo={lunch ? null : s.photo} className="is-mini" />
               <span className="mp-cookTxt">
@@ -513,7 +621,8 @@ function CookList({ f }: { f: MealsFile }) {
               </span>
               {open === key ? <Recipe steps={d.meal.steps} d={d} /> : null}
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : null}
       {why ? <p className="mp-cookWhy">{rows.length ? `Dinner: ${why === "HelloFresh night" ? "HelloFresh" : why.toLowerCase()}` : why}</p> : null}
@@ -534,7 +643,7 @@ function CookList({ f }: { f: MealsFile }) {
       <ol className="mp-cookDays" aria-label="Days">
         {(fold ? days.filter((x) => x.at.when !== "past") : days).map(dayCard)}
       </ol>
-      {any ? null : <p className="mp-note">Nothing to cook this week: every night is HelloFresh, skipped or left out.</p>}
+      {any ? null : <p className="mp-note">Nothing to cook this week: every night is HelloFresh, ordered in, skipped or left out.</p>}
       {cooking ? <CookMode cook={cooking} onClose={() => setCooking(null)} /> : null}
     </section>
   );
@@ -614,7 +723,7 @@ function LunchPanel({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit)
           <h3 className={s.skip?.lunch ? "is-skipped" : undefined}>{l.name}</h3>
           <p className="mp-blurb">
             {s.skip?.lunch
-              ? `${DAY_NAME[day]}'s lunch is skipped (${SKIP_NAME[s.skip.lunch].toLowerCase()}): nothing to make or buy for it. Undo to have it again.`
+              ? s.skip.lunch === "order" ? `${DAY_NAME[day]}'s lunch is ordered in from DoorDash: nothing to make or buy for it. Undo to have it again.` : `${DAY_NAME[day]}'s lunch is skipped (${SKIP_NAME[s.skip.lunch].toLowerCase()}): nothing to make or buy for it. Undo to have it again.`
               : l.kind === "leftovers"
               ? `${DAY_NAME[l.from!]}'s dinner, cooked one portion bigger so there's lunch. Nothing extra to buy.`
               : l.kind === "quick"
@@ -641,7 +750,7 @@ function LunchPanel({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit)
         />
         <SkipToggles s={s} course="lunch" edit={edit} />
       </div>
-      <SkipWhy s={s} course="lunch" edit={edit} />
+      <SkipWhy f={f} s={s} course="lunch" edit={edit} />
       {shown && shown.parts.some((x) => x.now) ? (
         <div className="mp-swap">
           <span className="mp-k">Parts</span>
@@ -1110,7 +1219,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
       }),
     [onListChanged],
   );
-  const aim = useCallback((e: MealEdit): MealEdit => (at && e.op !== "undo" && e.op !== "next-week" && e.op !== "plan-ahead" ? { ...e, week: at } : e), [at]);
+  const aim = useCallback((e: MealEdit): MealEdit => (at && e.op !== "undo" && e.op !== "next-week" && e.op !== "plan-ahead" && e.op !== "order-in" && e.op !== "order-store" ? { ...e, week: at } : e), [at]);
   const edit = useCallback(
     (e: MealEdit) => {
       if (!file) return;
@@ -1213,7 +1322,8 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
   const met = totals.filter((t) => t >= view.profile.proteinGoal).length;
   const cooking = w.slots.filter((s) => cooksDinner(s)).length;
   const hf = w.slots.filter((s) => s.helloFresh && !s.skip?.dinner).length;
-  const skipped = w.slots.reduce((n, s) => n + (s.skip?.dinner ? 1 : 0) + (s.skip?.lunch ? 1 : 0), 0);
+  const ordered = w.slots.reduce((n, s) => n + (ordersIn(s, "dinner") ? 1 : 0) + (ordersIn(s, "lunch") ? 1 : 0), 0);
+  const skipped = w.slots.reduce((n, s) => n + (s.skip?.dinner ? 1 : 0) + (s.skip?.lunch ? 1 : 0), 0) - ordered;
   const quick = w.slots.filter((s) => s.lunch.meal).length;
   const pending = w.slots.filter((s) => cooksDinner(s) && !s.photo && slotDish(view, s)?.customized).length;
   const slot = pick ? w.slots[pick.i] : undefined;
@@ -1275,6 +1385,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
               <span>
                 <b>{cooking}</b> dinners to cook
                 {hf ? ` · ${hf} HelloFresh` : ""}
+                {ordered ? ` · ${ordered} ordered in` : ""}
                 {skipped ? ` · ${skipped} skipped` : ""}
                 {quick ? ` · ${quick} quick lunch${quick === 1 ? "" : "es"}` : ""}
               </span>
@@ -1368,6 +1479,7 @@ export function MealPlanner({ onListChanged, rail, items = null, order }: { onLi
                         See the shopping
                       </button>
                     </div>
+                    <WeekendOrderIn f={view} edit={edit} />
                   </section>
                 ) : (
                   <section className="mp-drawer mp-overview" aria-label="Customize">

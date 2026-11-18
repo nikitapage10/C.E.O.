@@ -306,6 +306,12 @@ Kernel (#501), signed-in only:
   DoorDash (`claimsDoorDash`, api/_haven/doordash/voice.ts) when no DoorDash tool added, set up or placed anything that
   turn (`doordashDid` over the turn's `wrote`) is never kept: from the quick pass the ask goes deeper with the tools,
   and in the chat's turn (api/skippy.ts) the reply is replaced with the plain truth (`DOORDASH_NOT_DONE`).
+- **A spoken DoorDash add ends with the add run (#1210).** A waiting line about DoorDash ("let me see what your usual
+  spot has in the cart…", `pendsDoorDash`) hands up from the quick pass too. When Nikita's own words plainly ask to
+  add food from DoorDash (`doordashAddAsk`: the usual spot, a re-order, "we had recently"; a doubled transcript reads
+  as one) and no DoorDash tool changed anything that turn, the chat's turn runs `doordash_add_to_cart` itself, through
+  callTool's words check, on every surface but a Talk call; its "Added …" line is the reply, kept in the logs without
+  money or store. A misheard item close to one in his recent orders is asked about, never guessed (docs/HOME-DEVICES.md).
 - **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
   the Builder at once, on every surface, typed or said (#1096, Nikita 2026-11-13: build requests need no tap; sends,
   spends and deletes keep theirs). Fetched web content still can't start it, and the privacy check still stops anything

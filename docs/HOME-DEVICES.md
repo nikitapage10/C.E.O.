@@ -507,6 +507,20 @@ placement ([`order.ts`](../api/_haven/doordash/order.ts) `placeCore`, one path f
   (`claimsDoorDash`), when no DoorDash tool added, set up or placed anything that turn, isn't taken: the ask goes to
   the deeper tier with the tools. Any reply that still claims it is replaced in the chat (api/skippy.ts) with "I didn't
   put anything in your DoorDash cart…".
+- **A spoken add always ends in the cart (#1210).** By the Haven's mic, after #1209, "re-order those empanadas that we
+  had recently" (the transcript doubled) got "let me see what your usual spot has in the cart, and I'll put them in if
+  the order is clear" and nothing went in: a waiting line isn't a claim, so the quick pass's answer stood, and on a
+  spoken surface no next turn comes. Now: a waiting line about DoorDash (`pendsDoorDash`) hands up like a claim; and
+  when Nikita's own words plainly ask for food from DoorDash (`doordashAddAsk`, api/_skippy/agent/words.ts: an add word
+  plus the usual spot, "that one spot", a re-order or "we had recently", never a list, a reminder or "now") and no
+  DoorDash tool changed anything that turn, the chat runs `doordash_add_to_cart` itself through the same words check
+  (`spokenAdd`), on every surface but a Talk call, and its "Added …" line is the reply. A doubled transcript reads as
+  one, "that one spot" is the usual spot, and named items with no store go to the most recent order that had them.
+  When the item is on no menu there and in no order he had, but close to one he did ("bananas" for "empanadas"), it
+  asks ("Did you mean the Beef Empanadas from La Esquina?") and adds nothing. The Haven's list and to-do rules leave
+  such words to Skippy (`doordashWords`, api/_haven/classify.ts). An add's turn is kept in the room log, journal and
+  chats in words with no money or store ("Added Beef Empanada to your DoorDash cart; nothing is ordered."); an
+  order's still isn't. Nothing here prices or places.
 
 ## Lights: SwitchBot and Govee (#931)
 

@@ -60,6 +60,8 @@ export interface TurnWho {
   prepared?: { id: string; readback: string };
   /** Set by confirm: what happened, said as the turn's reply so nothing claims more than the tool did. */
   outcome?: string;
+  /** Set by an add (#1210): what reached the cart, with no money or store, for the turn's logs and journal. */
+  added?: string;
 }
 
 export const newTurn = (): string => randomBytes(8).toString("hex");
@@ -146,9 +148,9 @@ export function confirmWords(said: string): boolean {
 }
 
 /** "My usual spot", "the usual place", "my regular": the store he orders from most, not a store's name. */
-const USUAL_STORE = /^(?:(?:my|the|our)\s+)?(?:usual|regular|normal|go[\s-]?to)(?:\s+(?:spot|place|restaurant|store|joint|one|order))?$/i;
+const USUAL_STORE = /^(?:(?:(?:my|the|our)\s+)?(?:usual|regular|normal|go[\s-]?to)(?:\s+(?:spot|place|restaurant|store|joint|one|order))?|(?:that|this|the)\s+(?:one\s+)?(?:spot|place|restaurant|joint)|there)$/i;
 
-/** Whether a store as said means his usual spot. */
+/** Whether a store as said means his usual spot ("that one spot" too, #1210). */
 export const usualStore = (store: string | undefined): boolean => !store?.trim() || USUAL_STORE.test(store.normalize("NFKC").replace(/[’`]/g, "'").replace(/\s+/g, " ").trim());
 
 /** A sentence that says something was, or will be, added or ordered: first person, done, or "it's in your cart". */
@@ -174,6 +176,27 @@ export function claimsDoorDash(reply: string): boolean {
   return t
     .split(/(?<=[.!?…;:])\s+/)
     .some((s) => !s.trim().endsWith("?") && !NOT_CLAIM.test(s) && CLAIM.some((re) => re.test(s)));
+}
+
+/** A sentence that says what he's about to do instead of doing it: "let me check…", "I'll put them in if…". */
+const PEND = /\b(?:let me|lemme|i'll|i will|i'm going to|i am going to|gonna|going to|one (?:sec|second|moment)|hang on|hold on|give me a (?:sec|second|moment|minute))\b/i;
+const PEND_NOT = /\b(?:nothing|not|never|didn't|won't|can't|couldn't|wasn't)\b|n't\b/i;
+
+/**
+ * Whether a reply is a waiting line (#1210): one of its sentences says what is about to be done, not what was ("Right,
+ * the empanadas. Let me see what your usual spot has in the cart, and I'll put them in if the order is clear."). On a
+ * spoken surface there is no next line, so such a reply is never the end of an ask a tool can do.
+ */
+export function waitingLine(reply: string): boolean {
+  const t = reply.normalize("NFKC").replace(/[’`]/g, "'").replace(/\s+/g, " ").trim();
+  return t.split(/(?<=[.!?…;])\s+/).some((s) => !s.trim().endsWith("?") && PEND.test(s) && !PEND_NOT.test(s));
+}
+
+/** A waiting line about DoorDash or a cart (not King Soopers'): the quick pass hands it up (#1210). */
+export function pendsDoorDash(reply: string): boolean {
+  const t = reply.normalize("NFKC");
+  const dd = /\bdoor\s?dash\b|\busual (?:spot|place)\b/i.test(t) || (/\b(?:cart|basket)\b/i.test(t) && !/\bking soopers\b/i.test(t));
+  return dd && waitingLine(t);
 }
 
 const usd = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -291,6 +314,65 @@ function whyOf(body: Record<string, unknown>): string {
     default:
       return `That didn't go through, and nothing was placed.${msg || (typeof body.text === "string" ? ` ${said(body.text, 160)}.` : "")}`;
   }
+}
+
+/** An item as his history names it, without its count ("3× Beef Empanadas" is "Beef Empanadas"). */
+const bare = (v: string) => v.replace(/^\d+\s*[×x]\s*/i, "").trim();
+/** Whether an order had an item as said ("empanadas" in "3× Beef Empanadas"). */
+const hadItem = (o: DdPastOrder, want: string) => o.items.some((h) => nameMatch(bare(h), itemWant(want)) || nameMatch(singular(bare(h)), singular(itemWant(want))));
+const newestFirst = (past: DdPastOrder[]) => [...past].sort((a, b) => (Date.parse(b.when ?? "") || 0) - (Date.parse(a.when ?? "") || 0));
+
+/**
+ * The most recent order that had every named item (#1210: "something we had recently"), or null. With `newest` false
+ * ("the usual spot"), the usual spot wins when it had them too.
+ */
+function hadAt(past: DdPastOrder[], items: string[], newest: boolean): DdPastOrder | null {
+  const hits = newestFirst(past).filter((o) => items.every((i) => hadItem(o, i)));
+  if (!hits.length) return null;
+  const usual = usualsOf(past, 1)[0];
+  const same = (o: DdPastOrder) => !!usual && (usual.storeId ? o.storeId === usual.storeId : norm(o.store) === norm(usual.store));
+  return (!newest && hits.find(same)) || hits[0]!;
+}
+
+/** Letters apart: how many edits turn one word into the other. */
+function editsApart(a: string, b: string): number {
+  let row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min(row[j]! + 1, next[j - 1]! + 1, row[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length]!;
+}
+/** How alike two names are on paper, 0 to 1. */
+const alike = (a: string, b: string) => {
+  const x = singular(a);
+  const y = singular(b);
+  return x && y ? 1 - editsApart(x, y) / Math.max(x.length, y.length) : 0;
+};
+
+/**
+ * The item from his recent orders closest to what was said (#1210: speech-to-text heard "bananas" for "empanadas"),
+ * when it is close enough to ask about (half its letters or more in place), or null. The newest order wins a tie.
+ */
+export function closestHad(past: DdPastOrder[], items: string[]): { item: string; store: string } | null {
+  let best: { item: string; store: string } | null = null;
+  let score = 0;
+  for (const o of newestFirst(past)) {
+    for (const h of o.items) {
+      const name = bare(h);
+      const last = norm(name).split(" ").at(-1) ?? "";
+      for (const want of items) {
+        const w = itemWant(want);
+        const s = Math.max(alike(name, w), alike(last, w));
+        if (s > score) {
+          score = s;
+          best = { item: name, store: o.store };
+        }
+      }
+    }
+  }
+  return best && score >= 0.5 ? best : null;
 }
 
 /* ── The tools ── */
@@ -538,7 +620,9 @@ export class DoorDashVoice implements DoorDashTools {
     let there: DdPastOrder[];
     if (usualStore(input.store)) {
       if ((hc ?? 200) >= 400) return { ok: false, text: whyOf(hb) };
-      const usual = usualsOf(past, 1)[0];
+      // Named items with no store ("re-order those empanadas we had recently", #1210): the most recent order that had
+      // them settles where; "the usual spot" keeps the place he orders from most when it had them too.
+      const usual = (items.length ? hadAt(past, items, !input.store?.trim()) : null) ?? usualsOf(past, 1)[0];
       if (!usual) return { ok: false, text: "There's no usual spot yet: no past DoorDash orders to go by. Ask which store; nothing was added." };
       there = past.filter((r) => (usual.storeId ? r.storeId === usual.storeId : norm(r.store) === norm(usual.store)));
       if (usual.storeId) at = { id: usual.storeId, name: usual.store };
@@ -566,7 +650,13 @@ export class DoorDashVoice implements DoorDashTools {
     const added: string[] = [];
     if (items.length && at) {
       const got = await this.pickAt(o, at, items, there.flatMap((r) => r.items));
-      if (typeof got === "string") return { ok: false, text: `Nothing was added. ${got}` };
+      if (typeof got === "string") {
+        // Not on the menu and in no order he had, but close to something he did have (a misheard "empanadas", #1210):
+        // ask, never guess.
+        const near = got.startsWith(`${said(at.name, 40)} has nothing called`) ? closestHad(past, items) : null;
+        if (near) return { ok: false, text: `Nothing was added: ${got.replace(/\.$/, "")}, and none of your recent DoorDash orders had it. Did you mean the ${said(near.item, 40)} from ${said(near.store, 40)}?` };
+        return { ok: false, text: `Nothing was added. ${got}` };
+      }
       for (const [n, item] of got.picked.entries()) {
         const [ab, ac] = (await o.handle({ action: "add", storeId: at.id, menuId: got.menuId, storeName: at.name, item: { ...item, options: [] }, ...(n === 0 && open && { open }) })) as [Record<string, unknown>, number?];
         if ((ac ?? 200) >= 400 || ab.ok === false) {
@@ -608,6 +698,8 @@ export class DoorDashVoice implements DoorDashTools {
     const head = added.length ? `Added ${added.join(", ")} from ${said(store, 40)} to your DoorDash cart${sofar}.` : `Nothing new was added: I ${but ?? "added nothing"}${sofar}.`;
     const text = `${head}${added.length && but ? ` But ${but}` : ""} It's in your DoorDash cart in the Kitchen; nothing is ordered until you check out there or ask me to order it.`;
     if (who) who.outcome = text;
+    // What the turn's logs keep (#1210): what went in, with no money and no store.
+    if (who && added.length) who.added = `Added ${added.join(", ")} to your DoorDash cart; nothing is ordered.`;
     return { ok: true, text, ...(added.length && { did: "Added to the DoorDash cart" }) };
   }
 

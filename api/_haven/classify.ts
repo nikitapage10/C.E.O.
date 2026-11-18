@@ -305,6 +305,9 @@ export function workoutAsk(raw: string, text: string): Extract<Capture, { kind: 
 export function classify(raw: string, last: Capture["kind"] | null = null): Capture {
   const text = uncorrected(tidy(raw));
   if (!text) return { kind: "skippy", text };
+  // Food from DoorDash is Skippy's (#1210): "order the empanadas from the usual spot" was kept as a to-do, and "re-order
+  // what we had recently" is never the Kitchen list. "Remind me to order…" stays a to-do.
+  if (!TODO_START.test(text) && doordashWords(text)) return { kind: "skippy", text };
   // A question is never an item (#1131): "what's on my shopping list?" was put on the list as "what's". The list rules
   // below skip it; a device ask or a logged workout still reads as one, and anything else goes to Skippy.
   const asking = isQuestion(text);
@@ -349,6 +352,27 @@ export function classify(raw: string, last: Capture["kind"] | null = null): Capt
   }
   return { kind: "skippy", text };
 }
+
+/** Words that point at DoorDash, not a list (#1210): the usual spot, a re-order, something had before. */
+export const DD_CUE = new RegExp(
+  [
+    String.raw`\bdoor\s?dash\b`,
+    String.raw`\b(?:my|our|the) usual\b`,
+    String.raw`\busual (?:spot|place|restaurant|joint)\b`,
+    String.raw`\bthat (?:one )?(?:spot|place|restaurant|joint)\b`,
+    String.raw`\bre[\s-]?order(?:ed|ing)?\b`,
+    String.raw`\b(?:we|i) (?:had|got|ordered|did)(?: (?:it|them|those|that|there))? (?:recently|last time|before|the other (?:day|night)|last (?:week|night))\b`,
+    String.raw`\bfrom last time\b`,
+    String.raw`\b(?:my|our|the) last order\b`,
+  ].join("|"),
+  "i",
+);
+/** Words that point at a list or another store's cart: "on the list", groceries, King Soopers. */
+export const LIST_CUE = /\b(?:list|lists|groceries|grocery|king soopers|kroger|things to buy|shopping)\b/i;
+const DD_WANT = /\b(?:add|order|re[\s-]?order|get|grab|put|bring|repeat|want|wanna|queue)\b/i;
+
+/** Whether words ask for food from DoorDash (#1210): an add or an order that points at DoorDash, never at a list. */
+export const doordashWords = (text: string): boolean => DD_CUE.test(text) && DD_WANT.test(text) && !LIST_CUE.test(text);
 
 /** A question word first (or a question mark), with no add, remove or reminder verb in it. */
 const QUESTION = /^(?:what(?:'?s)?|which|how|is|are|was|were|do|does|did|have|has|where|when|who|whose|why|any|tell me|read|show|list (?:my|the|what))\b|\?\s*$/i;

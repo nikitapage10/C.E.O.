@@ -363,7 +363,13 @@ function Dash({ onExpired }: { onExpired: () => void }) {
           <Placed placement={screen.placement} message={screen.message} onOrders={() => setScreen({ k: "orders" })} onCart={() => (setScreen({ k: "home" }), setDrawer(true))} />
         </div>
       ) : screen.k === "orders" ? (
-        <Orders call={call} busy={busy} onReorder={(o) => void reorder(o)} onNote={setNote} />
+        <>
+          {/* On a phone (#1210) the Tonight / Orders / Cart bar is gone; this takes the orders back to the feed. */}
+          <button type="button" className="dd-text dd-onPhone dd-toFeed" onClick={() => setScreen({ k: "home" })}>
+            ‹ Tonight
+          </button>
+          <Orders call={call} busy={busy} onReorder={(o) => void reorder(o)} onNote={setNote} />
+        </>
       ) : inStore ? (
         <StorePage
           key={storeId}
@@ -392,6 +398,7 @@ function Dash({ onExpired }: { onExpired: () => void }) {
           onClear={() => setResults(null)}
           onStore={openStore}
           onReorder={(o) => void reorder(o)}
+          onOrders={() => setScreen({ k: "orders" })}
         />
       )}
 
@@ -497,6 +504,7 @@ function Home({
   onClear,
   onStore,
   onReorder,
+  onOrders,
 }: {
   address: string | null;
   usuals: PastOrder[] | null;
@@ -514,6 +522,8 @@ function Home({
   onClear: () => void;
   onStore: (s: Store | { id: string; name: string; image?: string | null }) => void;
   onReorder: (o: PastOrder) => void;
+  /** All past orders (on a phone, where the bar that held Orders is gone, #1210). */
+  onOrders: () => void;
 }) {
   const [q, setQ] = useState("");
   const submit = (e: FormEvent) => {
@@ -586,6 +596,9 @@ function Home({
         <header className="dd-secHead">
           <h4>Your usuals</h4>
           {usuals?.length ? <small>The places you order from most</small> : null}
+          <button type="button" className="dd-text dd-onPhone" onClick={onOrders}>
+            All orders
+          </button>
         </header>
         {usuals === null ? (
           <CardsSkeleton n={3} rail />

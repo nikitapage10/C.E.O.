@@ -24,7 +24,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { deviceAsk } from "../../_haven/classify.js";
+import { DD_CUE, LIST_CUE, deviceAsk } from "../../_haven/classify.js";
 
 /** A tool call the rules settled, with exactly the input the tool's schema takes. */
 export interface DirectAsk {
@@ -252,7 +252,7 @@ export function spokenLights(said: string | undefined, tool: string, input: Reco
 
 /** An ask to put food in the DoorDash cart (#1207): add, order, get, grab, put, want, repeat. */
 const ADD_WORD = /\b(?:add|adding|order|get|grab|put|throw|toss|want|bring|reorder|repeat|queue)\b/i;
-const ASKS_INFO = /^(?:is|are|was|were|what|what's|whats|which|when|where|why|how|did|does|do|has|have|had|any)\b|\b(?:tell me|let me know|do you know|any idea|wondering|i wonder)\b/i;
+const ASKS_INFO = /^(?:is|are|was|were|what(?! if\b)|what's|whats|which|when|where|why|how(?! about\b)|did|does|do|has|have|had|any)\b|\b(?:tell me|let me know|do you know|any idea|wondering|i wonder)\b/i;
 const NO_ADD = /\b(?:don't|dont|do not|never|not|no|stop|cancel|remove|take off|take out)\b/i;
 
 /**
@@ -262,8 +262,69 @@ const NO_ADD = /\b(?:don't|dont|do not|never|not|no|stop|cancel|remove|take off|
  */
 export function spokenAdd(said: string | undefined): boolean {
   if (!said) return false;
-  const t = smooth(said).replace(FILLER, "").trim();
+  const t = smooth(undouble(said)).replace(FILLER, "").trim();
   // A question for information, but not a request put as one ("can you add…", "would you get…", "add what I got last time").
   if (!t || ASKS_INFO.test(t) || NO_ADD.test(t)) return false;
   return ADD_WORD.test(t);
+}
+
+/**
+ * A transcript said twice over (#1210): speech-to-text sometimes hands back the whole phrase repeated ("I want the
+ * empanadas I want the empanadas"). One copy, or the words as they were.
+ */
+export function undouble(text: string): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  const words = t.split(" ");
+  if (words.length < 4 || words.length % 2) return t;
+  const half = words.length / 2;
+  const a = words.slice(0, half).join(" ");
+  const flat = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").trim();
+  return flat(a) === flat(words.slice(half).join(" ")) ? a.replace(/[,.;!?]+$/, "") : t;
+}
+
+/** A reminder to order later is a to-do, never an add. */
+const REMINDER = /^(?:remind me|reminder|set a reminder|to-?do|don'?t let me forget)\b/i;
+/** An order to place now, not an add: doordash_prepare_order's, left to the model. */
+const PLACE_NOW = /\b(?:now|place|placed|check ?out|confirm|asap|deliver(?:ed)?)\b/i;
+/** Where the item's words stop: what follows it ("that we had recently", "from the usual spot", "again"). */
+const ITEM_END = /\s+(?:that|which|we|i|you|from|at|again|on|to|in|into|please|for|tonight|recently|like|same as|off|out of)\b.*$/i;
+/** Words before the item: "some of the usual", "those", "a couple of". */
+const ITEM_LEAD = /^(?:some|of|the|a|an|those|these|that|this|my|our|usual|same|more|few|couple|bunch|order|orders|again)\s+/i;
+/** No item named: the order itself ("my usual", "it", "what we had"). */
+const NO_ITEM = /^(?:usual|what|it|them|that|those|this|these|same|same thing|what we had|what i had|what we got|what i got|last order|everything|all)$/i;
+/** A store said vaguely ("that one spot", "there"): his usual spot, from his history. */
+const VAGUE_STORE = /^(?:(?:that|the|this|our|my)\s+(?:one\s+)?(?:spot|place|restaurant|joint|store)|there)$/i;
+
+/**
+ * A plain ask to put food in the DoorDash cart (#1210), read from Nikita's own words with no model, or null: "re-order
+ * those empanadas that we had recently", "can we order some of the usual empanadas from that one spot", "add the
+ * empanadas from the usual spot", "get my usual from La Esquina". Only when the words say add (spokenAdd) and point at
+ * DoorDash (the usual spot, a re-order, something had before), never at a list, and never an order to place now. The
+ * item is what was named ("empanadas"; none means his last order there), the store only when one was named. This is
+ * the chat's own check that such an ask ends with doordash_add_to_cart run, whatever the model did.
+ */
+export function doordashAddAsk(said: string | undefined): { items?: string[]; store?: string } | null {
+  if (!said) return null;
+  const t = smooth(undouble(said)).replace(FILLER, "").replace(/[.!?]+$/, "").trim();
+  if (!t || t.length > DIRECT_MAX * 2 || REMINDER.test(t) || !spokenAdd(t) || !DD_CUE.test(t) || LIST_CUE.test(t) || PLACE_NOW.test(t)) return null;
+  const verb = /\b(?:re\s?order|add|order|get|grab|bring|repeat|queue|put|throw|toss)\b(?:\s+(?:me|us))?\s+(.+)$/i.exec(t);
+  if (!verb) return null;
+  const rest = verb[1]!;
+  const from = /\bfrom\s+(.+?)(?:\s+(?:again|please|that|which|we|i)\b.*)?$/i.exec(rest);
+  const place = from?.[1]?.trim() ?? "";
+  const store = place && !VAGUE_STORE.test(place) && !/^(?:(?:my|the|our)\s+)?(?:usual|regular|normal|go to)\b/i.test(place) && place.split(" ").length <= 4 ? place : undefined;
+  let phrase = rest.replace(ITEM_END, "").trim();
+  for (let i = 0; i < 6 && ITEM_LEAD.test(phrase); i++) phrase = phrase.replace(ITEM_LEAD, "").trim();
+  const items = [
+    ...new Set(
+      phrase
+        .split(/\s*,\s*|\s+and\s+/i)
+        .map((s) => s.replace(ITEM_LEAD, "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (items.length === 1 && NO_ITEM.test(items[0]!)) items.length = 0;
+  // A long or odd phrase isn't a plain item: the model's to read.
+  if (items.length > 4 || items.some((i) => i.length > 40 || i.split(" ").length > 5 || NO_ITEM.test(i))) return null;
+  return { ...(items.length && { items }), ...(store && { store }) };
 }

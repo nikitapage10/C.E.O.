@@ -90,7 +90,7 @@ import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
 import type { PendingConfirm } from "@ceo/engine/tools";
 import { claudeModel, doordashDid, isDepth, runAgent, type AgentCtx, type Depth } from "./_skippy/agent/loop.js";
-import { claimsDoorDash } from "./_haven/doordash/voice.js";
+import { claimsDoorDash, waitingLine } from "./_haven/doordash/voice.js";
 import { DOC_PATH } from "./_skippy/desk.js";
 import { geminiKey, geminiWorld, type WorldAsk } from "./_skippy/gemini.js";
 import { liveHost, livePending } from "./_skippy/agent/host.js";
@@ -99,7 +99,7 @@ import { BlobMemory, coreBlock, type MemoryStore } from "./_skippy/agent/memory.
 import { BlobChatLog, type ChatLog } from "./_skippy/chatlog.js";
 import type { PendingStore } from "./_skippy/agent/pending.js";
 import { callTool, type CallResult, type TextAction, type ToolHost } from "./_skippy/agent/tools.js";
-import { directAsk } from "./_skippy/agent/words.js";
+import { directAsk, doordashAddAsk } from "./_skippy/agent/words.js";
 import { spokenOf } from "./_haven/classify.js";
 import { dryHost, dryMemory, dryPending, gradeAnswer, isProbe, probeToken, readProbe, type DryRecord, type ProbeTurn } from "./_skippy/probe.js";
 import { meteredFetch, skippyTier, usageAs } from "./_usage/meter.js";
@@ -628,6 +628,18 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   }
   // Every call that answered counts against the month, usable or not.
   if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd, got.parts).catch(() => undefined);
+  // A plain ask to put food in the DoorDash cart ends with the add run (#1210, by the Haven's mic: "re-order those
+  // empanadas that we had recently" was answered "let me see what your usual spot has in the cart…" and nothing went
+  // in). When his own words asked for it (doordashAddAsk) and no DoorDash tool changed anything this turn, the chat runs
+  // doordash_add_to_cart itself, through callTool's words check; its "Added …" line is then the reply. It never prices
+  // or places. Not on a Talk call (the add isn't there yet), and never over a read-back or a confirm's outcome.
+  let ddMiss: string | null = null;
+  const ddAsk = who && deps.host && surface !== "call" && !who.prepared && who.outcome === undefined && !doordashDid(got.wrote) ? doordashAddAsk(said.message) : null;
+  if (who && ddAsk) {
+    const ran = await callTool("doordash_add_to_cart", ddAsk, { ...deps.host!(), ...(attach && { attach }), who }, { pending: null, surface: typed ? "desk" : "spoken", said: said.message });
+    if (ran.ok && !("confirm" in ran) && who.outcome !== undefined) got = { ...got, wrote: [...(got.wrote ?? []), "doordash_add_to_cart"], did: [...(got.did ?? []), ...(ran.did ? [ran.did] : [])] };
+    else if (!ran.ok) ddMiss = ran.text;
+  }
   // What the turn read, changed and left waiting for a tap (#646), and the month so far.
   const extra = {
     ...(got.looked?.length && { looked: got.looked.slice(0, 6) }),
@@ -648,6 +660,9 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const forced = who?.prepared?.readback ?? who?.outcome;
   if (who && forced) {
     if (who.prepared && surface !== "call") await deps.host!().doordash?.heard(who, who.prepared.id).catch(() => undefined);
+    // An add's turn is kept like any other (#1210), in words with no money or store (`added`); a read-back's or a
+    // confirm's still isn't.
+    if (!who.prepared && who.added && opts?.keep !== false) await keepTurn(who.added, room?.log && room.log !== "kernel" ? room.log : "haven");
     return json({ reply: forced, actions: [], room: "haven", ...extra });
   }
   const read0 = readReply(answered, desk);
@@ -655,7 +670,11 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   if (!read0) return opts?.agent?.floor ? json({ deeper: "floor", ...extra }) : json({ error: "model" }, 502);
   // Skippy never claims a DoorDash add or order a tool didn't make this turn (#1207, Nikita: "he said, yeah, we'll do
   // that on DoorDash, but I didn't see anything in my cart"): such a reply is held back and the plain truth said instead.
-  const first = claimsDoorDash(read0.reply) && !doordashDid(got.wrote) ? { ...read0, reply: DOORDASH_NOT_DONE } : read0;
+  // The chat's own add found nothing to add (#1210): a waiting line or a claim gives way to why, and a guess at a
+  // misheard item ("did you mean…") is asked whatever the model said.
+  const miss = ddMiss ? missLine(ddMiss) : null;
+  const bluff = claimsDoorDash(read0.reply) && !doordashDid(got.wrote);
+  const first = miss && (bluff || waitingLine(read0.reply)) ? { ...read0, reply: miss } : miss && /\bDid you mean\b/.test(miss) ? { ...read0, reply: `${read0.reply} ${miss}`.slice(0, 700) } : bluff ? { ...read0, reply: DOORDASH_NOT_DONE } : read0;
   // A room's voice keeps its turns under its own room (#638), real work for the deeper self aside; a hand-off to "the
   // submind" then goes to that room's.
   const read = room?.log && first.room !== "kernel" ? withRoom(first, room.log) : first;
@@ -668,24 +687,36 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   if (asked) return json({ reply: reply.reply, actions: reply.actions, room: "relay", ...extra });
   // Kept under its room for the room's Desk page (#273): the question (already through the privacy check), the answer,
   // the room, the time and the model. A failed write never costs Nikita the answer.
-  const at = new Date(deps.now).toISOString();
-  const id = turnId(at, said.message);
-  let kept = false;
   // A call's deeper run answers a turn already kept (#926): nothing new is kept for it.
   // Which brain answered goes back with it (#1140), so the call's kept answer can say so.
   if (opts?.keep === false) return json({ ...reply, ...extra, ...(got.model && { model: got.model }) });
-  if (deps.log) {
-    kept = await deps.log
-      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }), ...(surface === "phone" && { via: "phone" as const }), ...(surface === "call" && { via: "voice" as const }), ...(surface === "room" && { via: "room" as const, ...(room?.by && { by: room.by }) }) }, deps.now)
-      .then(() => true)
-      .catch(() => false);
-  }
-  // The journal of Skippy's memory (#646): the turn, trimmed; one that trips the memory's rules is left out whole.
-  if (deps.memory) await deps.memory.journal({ at, via: surface === "call" ? "talk" : surface, q: said.message, a: reply.reply }, deps.now).catch(() => false);
-  // The whole turn, for the Magnificent's thread (#1097); a Talk call's turns come from its finished transcript instead.
-  if (deps.chats && surface !== "call") await deps.chats.add([{ at, via: surface, q: said.message, a: reply.reply, ...(surface === "room" && reply.room && { room: reply.room }) }], deps.now).catch(() => 0);
+  const { kept, id } = await keepTurn(reply.reply, reply.room, reply.needs);
   // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
   return json({ ...(reply.needs && kept ? { ...reply, turn: id } : reply), ...extra });
+
+  /**
+   * The turn kept: in the room log under its room, in the journal of his memory (trimmed; one that trips the memory's
+   * rules is left out whole) and in the Desk's chats for the Magnificent's thread (#1097; a Talk call's come from its
+   * finished transcript instead). A failed write never costs Nikita the answer.
+   */
+  async function keepTurn(answer: string, where: LogRoom, needs?: Needs): Promise<{ kept: boolean; id: string }> {
+    const at = new Date(deps.now).toISOString();
+    const id = turnId(at, said.message);
+    const kept = deps.log
+      ? await deps.log
+          .add({ id, at, question: said.message, answer, room: where, model: got.model ?? SKIPPY_MODEL, ...(needs && { needs }), ...(surface === "phone" && { via: "phone" as const }), ...(surface === "call" && { via: "voice" as const }), ...(surface === "room" && { via: "room" as const, ...(room?.by && { by: room.by }) }) }, deps.now)
+          .then(() => true)
+          .catch(() => false)
+      : false;
+    if (deps.memory) await deps.memory.journal({ at, via: surface === "call" ? "talk" : surface, q: said.message, a: answer }, deps.now).catch(() => false);
+    if (deps.chats && surface !== "call") await deps.chats.add([{ at, via: surface, q: said.message, a: answer, ...(surface === "room" && where && { room: where }) }], deps.now).catch(() => 0);
+    return { kept, id };
+  }
+}
+
+/** A failed add (#1210) said to Nikita: the tool's own words, its "Ask which." put as a question. */
+function missLine(text: string): string {
+  return plainLine(text.replace(/\s*Ask which\.?\s*$/i, " Which one?").replace(/\s*Answer what he asked; offer to add it\.?$/i, ""), 700);
 }
 
 /**

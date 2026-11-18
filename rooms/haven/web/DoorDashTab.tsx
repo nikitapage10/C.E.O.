@@ -51,7 +51,7 @@ import {
 import "./ddtab.css";
 
 /**
- * The Haven's DoorDash tab (#1195, /haven/doordash): ordering out, its own dashboard apart from the Kitchen's meal prep
+ * The Kitchen's DoorDash side (#1195, /haven/kitchen/doordash since #1206): ordering out, its own dashboard beside the Kitchen's meal prep
  * (Nikita, 2026-11-17). Tonight's search and cuisine chips, the Usuals and Order again with one-tap Reorder, Nearby, a
  * store's page with its photos, the cart, and the same priced preview and Place as before (Order.tsx; the server's
  * rules in api/_haven/doordash/order.ts are unchanged). `?store=<id>` opens a store directly; the meal plan's order-in

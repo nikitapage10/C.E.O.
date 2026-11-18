@@ -4,7 +4,8 @@ import { startHome, useHome, type Vendor, type VendorState } from "@ceo/desk/hom
 import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "@ceo/desk/haven.ts";
 import { openTodos, useTodos } from "@ceo/desk/todos/todos.ts";
 import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type SheetTab, type Spot } from "./data.ts";
-import { DoorDashTab, HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
+import { DoorDashTab, HallTab, KitchenSwitch, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
+import { doordashMoved, KITCHEN_DOORDASH, kitchenModeOf } from "./orderIn.ts";
 import { GymTab } from "./GymTab.tsx";
 import { HavenLists } from "./HavenLists.tsx";
 import { LightsPanel, type Look } from "./LightsPanel.tsx";
@@ -33,7 +34,7 @@ import "./sheetdeck.css";
  * The Haven (#616): home and health on the Desk. Nikita's round-6 pick: the house in 3D, night-lit behind frosted
  * glass, where only the rooms with something going on light up, with the house-wide readings on the instrument plinth
  * in the dark to its lower right (#680), a thread of nanites from each gauge's lamp to its device. Tap a room and the camera flies in (300 ms), the house blurs behind,
- * and the room's content opens over it (Kitchen, DoorDash, Hall, Pets, Gym, or the room's own sheet). Each tab has its own address
+ * and the room's content opens over it (Kitchen, with DoorDash as its other side, Hall, Pets, Gym, or the room's own sheet). Each tab has its own address
  * (/haven/kitchen and on, `../sections.ts`, #871), which the Desk's bar lists under the Haven.
  *
  * Privacy: the floor plan lives in the private store and is read only by a passkey session (/api/haven-plan); signed
@@ -128,11 +129,24 @@ export function Haven() {
   const setOpen = useCallback((o: Open) => {
     setRoom(o && "room" in o ? o.room : null);
     if (routeOf(window.location.pathname) !== "haven") return;
-    // The DoorDash tab's own parameters (a store, a meal-plan slot) stay with it, not with the other tabs.
+    // DoorDash's own parameters (a store, a meal-plan slot) stay with it, not with the other tabs or meal prep.
     const q = new URLSearchParams(window.location.search);
-    if (!(o && "tab" in o && o.tab === "doordash")) for (const k of ["store", "slot", "week"]) q.delete(k);
+    for (const k of ["store", "slot", "week"]) q.delete(k);
     navigateTo((o && "tab" in o ? `/haven/${o.tab}` : "/haven") + (q.size ? `?${q}` : ""));
   }, []);
+  // The Kitchen's side (#1206): DoorDash at /haven/kitchen/doordash, meal prep at /haven/kitchen.
+  const kitchenMode = kitchenModeOf(pathname);
+  const pickKitchen = useCallback((m: "prep" | "doordash") => {
+    if (m === "doordash") return navigateTo(KITCHEN_DOORDASH);
+    const q = new URLSearchParams(window.location.search);
+    for (const k of ["store", "slot", "week"]) q.delete(k);
+    navigateTo(`/haven/kitchen${q.size ? `?${q}` : ""}`);
+  }, []);
+  // The old DoorDash tab's address (#1195) lands on the Kitchen's DoorDash side, its store, slot and week kept.
+  useEffect(() => {
+    const moved = doordashMoved(pathname, window.location.search);
+    if (moved) navigateTo(moved, true);
+  }, [pathname]);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
   // On a phone (#1045) the controls come first and the house lies behind them, dimmed and still to the touch; "Explore
   // the house" brings it forward to turn, zoom and tap, with the controls set aside until "Back to the controls".
@@ -631,11 +645,12 @@ export function Haven() {
               </div>
             </div>
             <p className="hv-eyb">Haven · {sheetTitle}</p>
-            {openTab !== "doordash" ? <h2 className="hv-h2">{sheetTitle}</h2> : null}
-            {openTab === "kitchen" ? (
-              <KitchenTab items={items} onTick={tick} onDrop={drop} onReread={reread} />
-            ) : openTab === "doordash" ? (
+            <h2 className="hv-h2">{sheetTitle}</h2>
+            {openTab === "kitchen" ? <KitchenSwitch mode={kitchenMode} onPick={pickKitchen} /> : null}
+            {openTab === "kitchen" && kitchenMode === "doordash" ? (
               <DoorDashTab />
+            ) : openTab === "kitchen" ? (
+              <KitchenTab items={items} onTick={tick} onDrop={drop} onReread={reread} />
             ) : openTab === "hall" ? (
               <HallTab devices={devices} connected={vendors.roborock !== "waiting"} room={openRoom} plan={thePlan} />
             ) : openTab === "pets" ? (

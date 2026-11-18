@@ -528,7 +528,7 @@ const noDinner = (s: Slot): string | null => (ordersIn(s, "dinner") ? null : s.s
 
 /**
  * An order-in meal's card in Cook (#1195, phase 2): the store remembered for it, and Order now, a link to the Haven's
- * DoorDash tab (/haven/doordash) for that meal and its remembered store. Placing stays the DoorDash tab's own preview
+ * Kitchen's DoorDash side (/haven/kitchen/doordash) for that meal and its remembered store. Placing stays the DoorDash tab's own preview
  * and Place. A day gone by keeps the card without the button.
  */
 function OrderRow({ f, s, course, past }: { f: MealsFile; s: Slot; course: Course; past: boolean }) {

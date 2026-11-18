@@ -3,8 +3,8 @@ import { readPlan, type HavenPlan, type PlanRoom, type Spot, type Tab } from "..
 
 export type { HavenPlan, PlanRoom, PlanDevice, PlanItem, Spot, Tab, Kind, Floor, Rect, Seg } from "../../../api/_haven/planShape.ts";
 export { readPlan };
-/** A sheet's tab: a room tab the plan's rooms can open, or the DoorDash tab (#1195), which no room opens. */
-export type SheetTab = Tab | "doordash";
+/** A sheet's tab: a room tab the plan's rooms can open. DoorDash (#1195) lives inside the Kitchen (#1206). */
+export type SheetTab = Tab;
 
 /**
  * The Haven's data, browser side (#616). The floor plan comes from the private store through /api/haven-plan, only

@@ -21,7 +21,7 @@ const DoorDashDash = lazy(() => import("./DoorDashTab.tsx"));
  * type, and invents nothing. The Kitchen is the meal planner (#678, MealPlanner.tsx) with the list and King Soopers beside it.
  */
 
-export const TAB_NAME: Record<SheetTab, string> = { kitchen: "Kitchen", doordash: "DoorDash", hall: "Hall", pets: "Pets", gym: "Gym" };
+export const TAB_NAME: Record<SheetTab, string> = { kitchen: "Kitchen", hall: "Hall", pets: "Pets", gym: "Gym" };
 
 function ago(iso: string | null | undefined): string {
   if (!iso) return "not yet";
@@ -142,13 +142,13 @@ export function KitchenTab({ items, onTick, onDrop, onReread }: { items: Kitchen
   return (
     <>
       <p className="hv-say">{items === null ? "Reading the Kitchen list…" : open.length ? `${open.length} thing${open.length === 1 ? "" : "s"} on the list.` : "Nothing on the list."}</p>
-      {/* The meal planner (#678) with the list and King Soopers as its rail. Ordering out is the DoorDash tab (#1195). */}
+      {/* The meal planner (#678) with the list and King Soopers as its rail. Ordering out is the Kitchen's DoorDash side (#1195, #1206). */}
       <MealPlanner onListChanged={onReread} rail={rail} items={items} />
     </>
   );
 }
 
-/* ── DoorDash: ordering out (#1195), its own dashboard in DoorDashTab.tsx ── */
+/* ── DoorDash: ordering out (#1195), the Kitchen's other side (#1206), its dashboard in DoorDashTab.tsx ── */
 
 export function DoorDashTab() {
   return (
@@ -161,6 +161,27 @@ export function DoorDashTab() {
     >
       <DoorDashDash />
     </Suspense>
+  );
+}
+
+/**
+ * The Kitchen's two sides (#1206): meal prep (plan, customize, shop, cook) and DoorDash (ordering out), as one segmented
+ * switch under the Kitchen's title. Each side has its own address, so either can be linked to and reloaded.
+ */
+export function KitchenSwitch({ mode, onPick }: { mode: "prep" | "doordash"; onPick: (m: "prep" | "doordash") => void }) {
+  const list = [
+    { v: "prep", name: "Meal prep" },
+    { v: "doordash", name: "DoorDash" },
+  ] as const;
+  return (
+    <div className="hv-kmode" role="group" aria-label="Kitchen" style={{ ["--n" as string]: list.length, ["--i" as string]: mode === "doordash" ? 1 : 0 }}>
+      <i aria-hidden="true" />
+      {list.map((x) => (
+        <button key={x.v} type="button" aria-pressed={mode === x.v} onClick={() => onPick(x.v)}>
+          {x.name}
+        </button>
+      ))}
+    </div>
   );
 }
 

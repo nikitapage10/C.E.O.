@@ -53,7 +53,7 @@ export function storeFacts(s: Pick<Store, "rating" | "eta" | "fee" | "miles">): 
   return [s.rating !== null ? `★ ${s.rating.toFixed(1)}` : null, s.eta, s.fee, s.miles !== null ? `${s.miles} mi` : null].filter((x): x is string => Boolean(x));
 }
 
-/** The store a deep link opens (`/haven/doordash?store=<id>`): DoorDash's numeric store id, else null. */
+/** The store a deep link opens (`/haven/kitchen/doordash?store=<id>`): DoorDash's numeric store id, else null. */
 export function storeParam(search: string): string | null {
   const v = new URLSearchParams(search).get("store");
   return v && /^\d{1,20}$/.test(v) ? v : null;

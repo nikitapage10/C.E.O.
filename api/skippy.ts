@@ -55,6 +55,7 @@
  * counts inside it).
  */
 
+import { randomBytes } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { pickBlob } from "./_blob.js";
 import { deskKeyFor, keyMatches } from "./_desk/keys.js";
@@ -92,6 +93,7 @@ import { claudeModel, isDepth, runAgent, type AgentCtx, type Depth } from "./_sk
 import { DOC_PATH } from "./_skippy/desk.js";
 import { geminiKey, geminiWorld, type WorldAsk } from "./_skippy/gemini.js";
 import { liveHost, livePending } from "./_skippy/agent/host.js";
+import type { TurnWho } from "./_haven/doordash/voice.js";
 import { BlobMemory, coreBlock, type MemoryStore } from "./_skippy/agent/memory.js";
 import { BlobChatLog, type ChatLog } from "./_skippy/chatlog.js";
 import type { PendingStore } from "./_skippy/agent/pending.js";
@@ -556,6 +558,12 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   }
   await store.saveLimits(countChat(limits, tag, deps.now));
 
+  // Who is talking, where, and which turn this is (#1195): DoorDash's order tools bind their pending confirmation to it.
+  // A new turn drops a waiting order unless these words are the explicit confirm right after its read-back.
+  const who: TurnWho | undefined = deps.host ? { principal: paceId, channel: surface, turn: randomBytes(8).toString("hex"), said: said.message } : undefined;
+  const dd = who ? deps.host!().doordash : null;
+  if (who && dd && surface !== "call") await dd.turnStarted(who).catch(() => undefined);
+
   // The quick tier, by rules (#926, api/_skippy/agent/words.ts): the thermostat and the home devices need no model, so
   // they answer in the time the device takes, on every surface, even with the month's budget spent.
   const direct = deps.host ? directAsk(said.message) : null;
@@ -595,7 +603,7 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const attach = shot || scrubbed ? { ...(shot && { shot: said.shot }), ...(scrubbed && { screen: scrubbed }) } : undefined;
   const look = shot ? { image: { data: Buffer.from(shot.bytes).toString("base64"), type: shot.type } } : { canLook: said.look && (surface === "desk" || surface === "room") };
   const ctx: AgentCtx | undefined = deps.host
-    ? { surface, message: said.message, core, host: attach ? { ...deps.host(), attach } : deps.host(), pending: deps.pending ?? null, ...look, ...(deps.worldAsk && { world: deps.worldAsk, now: deps.now }), ...(surface === "phone" && { via: "phone" as const }), ...opts?.agent }
+    ? { surface, message: said.message, core, host: { ...deps.host(), ...(attach && { attach }), ...(who && { who }) }, pending: deps.pending ?? null, ...look, ...(deps.worldAsk && { world: deps.worldAsk, now: deps.now }), ...(surface === "phone" && { via: "phone" as const }), ...opts?.agent }
     : undefined;
   let got: Awaited<ReturnType<Ask>>;
   try {
@@ -630,6 +638,14 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   };
   // A text the agent had drafted (draft_text) goes through the same checks as the chat's own "text" action.
   const answered = got.textAction && got.answer && typeof got.answer === "object" ? { ...(got.answer as object), actions: [...(Array.isArray((got.answer as { actions?: unknown }).actions) ? ((got.answer as { actions: unknown[] }).actions) : []), got.textAction] } : got.answer;
+  // A DoorDash read-back or a confirm's outcome (#1195) is the reply itself, word for word: the model never words a
+  // total or claims an order it didn't get back. Its read-back has now gone out, so the next turn may confirm it. An
+  // order's turn is kept out of the room log, the journal and the chats (money stays in the sealed DoorDash store).
+  const forced = who?.prepared?.readback ?? who?.outcome;
+  if (who && forced) {
+    if (who.prepared && surface !== "call") await deps.host!().doordash?.heard(who, who.prepared.id).catch(() => undefined);
+    return json({ reply: forced, actions: [], room: "haven", ...extra });
+  }
   const first = readReply(answered, desk);
   // On the Senate's floor an answer that can't be read goes to the members (#952), never the hiccup line.
   if (!first) return opts?.agent?.floor ? json({ deeper: "floor", ...extra }) : json({ error: "model" }, 502);

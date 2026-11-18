@@ -13,6 +13,7 @@ import { HomeVault, homeKey } from "../devices/vault.js";
 import { bundledDir, makeRunner, type DdRunner } from "./cli.js";
 import { doordashOrderPost } from "./order.js";
 import { doordashGet, doordashPost, type DoorDashDeps } from "./route.js";
+import { DoorDashVoice, type DoorDashTools } from "./voice.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -45,3 +46,8 @@ export const doordashRoute = {
 export const doordashOrderRoute = {
   POST: (request: Request) => doordashOrderPost(request, doordashDeps()),
 };
+
+/** Skippy's DoorDash tools (#1195, phase 4, ./voice.ts), with the clock read when each one runs. */
+export function doordashVoice(env: Env = process.env): DoorDashTools {
+  return new DoorDashVoice(doordashDeps(env));
+}

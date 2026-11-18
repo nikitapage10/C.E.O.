@@ -386,7 +386,7 @@ CLI commands with a short `--intent` ("Nikita choosing a meal to order for himse
   `assistant_instructions` ignored) and, when an answer can't be read, shows the CLI's plain-text message instead.
   Logs carry the command's words (never a flag's value) and its exit code. The public status, the Lattice and the
   Desk's Systems say nothing about orders.
-- **Not here yet.** Ordering by voice or through Skippy, and order-in nights in the meal plan, are later phases.
+- **Not here yet.** Order-in nights in the meal plan are a later phase; ordering through Skippy is phase 4, below.
 
 ### DoorDash in Shop (phase 3)
 
@@ -412,6 +412,35 @@ week's shopping. Signed out or expired, it shows the same Sign in to DoorDash ca
   every Place rule above (5-minute preview, same total, $1,000 cap, lease, one-time key, never retried). Orders,
   status and receipts stay in the Order tab.
 - **Not here.** Pricing the same list at both King Soopers and DoorDash side by side; the King Soopers tab is unchanged.
+
+### Skippy orders by voice or chat (phase 4)
+
+Nikita, 2026-11-17: "hey Skippy, order my usual from whatever… Please respond to confirm… I'll confirm." The Desk's
+chat, a room's mic (hold Space) and Hey Skippy on the phone can order; Skippy's tools are in `rooms/haven/tools.ts` and
+run in [`api/_haven/doordash/voice.ts`](../api/_haven/doordash/voice.ts), on the Order tab's own cart, preview and
+placement ([`order.ts`](../api/_haven/doordash/order.ts) `placeCore`, one path for both).
+
+- **Reads.** `doordash_search` (stores near home), `doordash_usuals` (the usuals and recent orders he can repeat),
+  `doordash_status` (the order placed from the Desk, in words) and `doordash_recent` (the last few orders). Words only:
+  no order id, card id or address.
+- **Prepare.** `doordash_prepare_order` builds the cart: `store` alone repeats his newest order there ("order my usual
+  from Ramen Bar"), `store` with `items` adds those menu items (each must match one item with no required choices;
+  anything with choices is picked in the DoorDash tab), `cart` prices the cart already open there. It asks about a
+  cart already open at that store (`open_cart`). Delivery as soon as possible, with DoorDash's suggested tip unless he
+  names one in whole dollars. The fresh preview becomes one pending confirmation, sealed in
+  `haven/devices/doordash-voice.json`, and its read-back is the turn's reply, word for word, in two short sentences:
+  "Ramen Bar, 2 Tonkotsu, Gyoza: $44.40 with fees and a $6.20 tip, on the card ending 4242, here in about 25 to 35
+  minutes. Say confirm to place it." Over $1,000 nothing is set up.
+- **Confirm.** `doordash_confirm_order` places it only when the server's rules all hold: the same principal (passkey,
+  or the phone's key) and channel that prepared it; its read-back went out (the end of that turn) no more than 2
+  minutes ago; this is the very next turn there and Nikita's words are an explicit confirm ("confirm", "yes, place
+  it"; a bare "yes" or a question is not); not the turn that prepared it. Any other words in between drop it. It is
+  taken before the placement and placed with its own one-time key, so a repeat never orders twice. `placeCore` prices
+  the cart again: a changed total or card places nothing and Skippy reads back the new total and asks again; the cap,
+  the lease and never retrying an unclear submit hold as in the Order tab. The reply is the placement's own words:
+  "Placed: …, here in about 25 to 35 minutes; it's tracking in the DoorDash tab", only with an order id.
+- **Not on a Talk call.** A call's quick answer has a few seconds, which a fresh price and a submit don't fit; there it
+  says to use Hey Skippy on the phone or the Desk's chat.
 
 ## Lights: SwitchBot and Govee (#931)
 

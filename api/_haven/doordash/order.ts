@@ -3,8 +3,10 @@
  * cart, prices it and places it through DoorDash's own CLI (./cli.ts), on Nikita's passkey session only. Azure only.
  *
  *   POST /api/haven/doordash/order   passkey session only (a phone key or bearer is refused); { action, … }:
- *     home                      the Usuals (from `order history`), the open cart and the address's label
+ *     home                      the Usuals (from `order history`), the open cart, the address's label and the
+ *                               orders placed from the Desk in the last 3 hours (the DoorDash tab's Active order)
  *     search   { query }        `search` from the default address → stores
+ *     nearby                    `find-nearby-stores` → stores (the DoorDash tab's Nearby; kept 20 minutes)
  *     menu     { storeId }      `menu` → sections and items
  *     item     { storeId, menuId, itemId }   `restaurant-item-details` → choices
  *     add      { storeId, menuId, storeName, item:{id,name,qty,options[]}, open? }   `cart add-items`
@@ -73,6 +75,7 @@ import {
   type DdCart,
   type DdPastOrder,
   type DdPreviewView,
+  type DdStore,
   type Fulfillment,
 } from "./parse.js";
 import { doordashToken, stateOf, type DoorDashDeps, type StoredDoorDash } from "./route.js";
@@ -85,6 +88,10 @@ export const PLACE_LEASE_MS = 2 * 60_000;
 const ADDRESS_MS = 12 * 60 * 60_000;
 /** The history cache (for Reorder's store and its dropped-item check). */
 const HISTORY_MS = 60 * 60_000;
+/** The Nearby cache (the DoorDash tab opens on it). */
+const NEARBY_MS = 20 * 60_000;
+/** An order placed from the Desk counts as active (the DoorDash tab follows it) this long. */
+const ACTIVE_MS = 3 * 60 * 60_000;
 const BODY_MAX = 8 * 1024;
 const TIP_MAX = 50_000;
 
@@ -147,6 +154,8 @@ export interface OrderState {
   history?: { at: number; orders: DdPastOrder[] };
   /** Orders placed from the Desk, newest first, so Orders can follow them. */
   placed?: { id: string; at: number }[];
+  /** The DoorDash tab's Nearby stores, read at most every 20 minutes. */
+  nearby?: { at: number; stores: DdStore[] };
   /** The Shop step's DoorDash store (phase 3): the last one picked, each week's, and the last build's menu id. */
   shop?: { last?: ShopStore | null; byWeek?: Record<string, ShopStore>; menuId?: string | null; menuStore?: string | null };
 }
@@ -333,6 +342,8 @@ export class Orders {
         return this.home();
       case "search":
         return this.search(b.query);
+      case "nearby":
+        return this.nearby();
       case "menu":
         return this.menu(b.storeId);
       case "item":
@@ -407,7 +418,19 @@ export class Orders {
     const [addr, h] = [await this.address(), await this.history()];
     const s = await this.load();
     const orders = "orders" in h ? h.orders : [];
-    return [{ ok: true, address: addr ? { label: addr.label } : null, usuals: usualsOf(orders), recent: orders.slice(0, 5), cart: this.cartView(s.cart), ...("orders" in h ? {} : { historyError: errorOf(h).error }) }];
+    const active = (s.placed ?? []).filter((p) => this.now - p.at < ACTIVE_MS).map((p) => p.id);
+    return [{ ok: true, address: addr ? { label: addr.label } : null, usuals: usualsOf(orders), recent: orders.slice(0, 5), cart: this.cartView(s.cart), active, ...("orders" in h ? {} : { historyError: errorOf(h).error }) }];
+  }
+
+  /** The DoorDash tab's Nearby: `find-nearby-stores`, kept 20 minutes so opening the tab doesn't call DoorDash each time. */
+  private async nearby(): Promise<Out> {
+    const s = await this.load();
+    if (s.nearby && this.now - s.nearby.at < NEARBY_MS && this.now >= s.nearby.at) return [{ ok: true, stores: s.nearby.stores }];
+    const r = await this.run(["find-nearby-stores", "--max", "16"], INTENT.browse);
+    if (r.code !== 0) return this.fail(r);
+    const stores = storesOf(r.json, 16);
+    await this.save({ ...(await this.load()), nearby: { at: this.now, stores } });
+    return [{ ok: true, stores, ...(stores.length ? {} : { text: textOf(r.json) }) }];
   }
 
   private async search(q: unknown): Promise<Out> {

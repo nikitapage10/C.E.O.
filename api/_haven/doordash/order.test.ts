@@ -159,7 +159,7 @@ describe("DoorDash's answers, read as untrusted data (#1195)", () => {
   it("stores: good ids only, DoorDash pictures only, no widget fields, no repeats", () => {
     const stores = storesOf(SEARCH);
     expect(stores.map((s) => s.name)).toEqual(["Ramen Bar", "Evil Image"]);
-    expect(stores[0]).toEqual({ id: "928163", name: "Ramen Bar", eta: "25-35 min", image: "https://img.cdn4dd.com/p/ramen.jpg", pickup: true, miles: null, rating: 4.6 });
+    expect(stores[0]).toEqual({ id: "928163", name: "Ramen Bar", eta: "25-35 min", image: "https://img.cdn4dd.com/p/ramen.jpg", pickup: true, miles: null, rating: 4.6, logo: null, fee: null, cuisine: null });
     expect(stores[1]!.image).toBeNull();
     expect(JSON.stringify(stores)).not.toContain("evil.test");
     expect(storesOf({ stores: [{ store_id: 1, name: "Near", distance_meters: 1609 }] })[0]!.miles).toBe(1);
@@ -658,5 +658,39 @@ describe("Shop's DoorDash tab, the route's grocery actions (#1195, phase 3)", ()
     expect(add).toContain("eeeeeeee-0000-1111-2222-333333333333");
     for (const bad of [[], [{ id: "501", name: "x", qty: 0 }], [{ id: "5;01", name: "x", qty: 1 }], [{ id: "501", name: "x", qty: 1.234 }], Array.from({ length: GROCERY_MAX + 1 }, (_, i) => ({ id: String(600 + i), name: "x", qty: 1 }))])
       expect((await t.send({ action: "grocery-add", lines: bad })).status).toBe(400);
+  });
+});
+
+describe("the DoorDash tab: pictures, Nearby and the Active order (#1195)", () => {
+  it("reads pictures under several names, on DoorDash's hosts (and its image bucket) only", () => {
+    const [s] = storesOf({
+      stores: [{ store_id: 5, name: "Sakura", cover_img_url: "https://img.cdn4dd.com/c/s.jpg", logo: { url: "https://img.cdn4dd.com/l/s.png" }, delivery_fee: { unit_amount: 199 }, cuisine: "Sushi" }],
+    });
+    expect(s).toMatchObject({ image: "https://img.cdn4dd.com/c/s.jpg", logo: "https://img.cdn4dd.com/l/s.png", fee: "$1.99 delivery", cuisine: "Sushi" });
+    expect(storesOf({ stores: [{ store_id: 6, name: "Free", header_image_url: "https://doordash-static.s3.amazonaws.com/x.jpg", delivery_fee_cents: 0 }] })[0]).toMatchObject({ image: "https://doordash-static.s3.amazonaws.com/x.jpg", fee: "Free delivery" });
+    const bad = storesOf({ stores: [{ store_id: 7, name: "Bad", image_url: "http://img.cdn4dd.com/a.jpg", logo_url: "https://evil.s3.amazonaws.com/a.png", cover_image_url: "https://img.cdn4dd.com:8443/a.jpg" }] })[0]!;
+    expect([bad.image, bad.logo]).toEqual([null, null]);
+    const m = menuOf({ menu_id: 1, store: { header_image_url: "https://img.cdn4dd.com/h.jpg", logo_url: "https://img.cdn4dd.com/l.png" }, items: [{ id: "2", name: "Roll", photo_url: "https://img.cdn4dd.com/r.jpg" }, { id: "3", name: "Soup", images: ["https://img.cdn4dd.com/s.jpg"] }] }, "9")!;
+    expect([m.image, m.logo]).toEqual(["https://img.cdn4dd.com/h.jpg", "https://img.cdn4dd.com/l.png"]);
+    expect(m.sections[0]!.items.map((i) => i.image)).toEqual(["https://img.cdn4dd.com/r.jpg", "https://img.cdn4dd.com/s.jpg"]);
+    expect(historyOf({ orders: [{ order_uuid: PAST, store_name: "Ramen Bar", store: { cover_image_url: "https://img.cdn4dd.com/c.jpg" } }] })[0]!.image).toBe("https://img.cdn4dd.com/c.jpg");
+  });
+
+  it("Nearby: find-nearby-stores once, kept 20 minutes", async () => {
+    const t = await setup({ "find-nearby-stores": ok({ stores: [{ store_id: 928163, store_name: "Ramen Bar", cover_image_url: "https://img.cdn4dd.com/c.jpg" }] }) });
+    const r = await t.send({ action: "nearby" });
+    expect(r.body.stores).toEqual([expect.objectContaining({ id: "928163", image: "https://img.cdn4dd.com/c.jpg" })]);
+    expect(t.cli.calls.find((c) => c.cmd[0] === "find-nearby-stores")!.cmd).toEqual(["find-nearby-stores", "--max", "16"]);
+    await t.send({ action: "nearby" }, NOW + 60_000);
+    expect(t.cli.calls.filter((c) => c.cmd[0] === "find-nearby-stores").length).toBe(1);
+    await t.send({ action: "nearby" }, NOW + 21 * 60_000);
+    expect(t.cli.calls.filter((c) => c.cmd[0] === "find-nearby-stores").length).toBe(2);
+  });
+
+  it("home names the orders placed from the Desk in the last 3 hours, for the Active strip", async () => {
+    const t = await setup();
+    await t.vault.write("doordash-order", { placed: [{ id: "ffffffff-0000-1111-2222-333333333333", at: NOW - 3_600_000 }, { id: PAST, at: NOW - 5 * 3_600_000 }] });
+    const home = await t.send({ action: "home" });
+    expect(home.body.active).toEqual(["ffffffff-0000-1111-2222-333333333333"]);
   });
 });

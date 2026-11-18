@@ -392,7 +392,7 @@ Kroger's public API for King Soopers ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest,
 ## DoorDash
 
 Since #1195 DoorDash's own CLI (`dd-cli` v0.2.6) runs inside the Function App ([HOME-DEVICES.md](HOME-DEVICES.md),
-"DoorDash"; TB13 in [THREAT-MODEL.md](THREAT-MODEL.md)). Phase 0 is the sign-in; phase 1 is the Kitchen's Order tab,
+"DoorDash"; TB13 in [THREAT-MODEL.md](THREAT-MODEL.md)). Phase 0 is the sign-in; phase 1 is ordering out, now the Haven's DoorDash tab,
 which spends money.
 
 - **The binary.** Fetched at deploy from DoorDash's GitHub release and refused unless it matches the pinned sha256

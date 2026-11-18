@@ -26,7 +26,7 @@ import { ShopWeek } from "./shopWeek.ts";
  * The Shop step's DoorDash tab (#1195, phase 3; api/_haven/doordash/order.ts, the grocery-* actions): King Soopers or
  * DoorDash for the week's shopping. Pick a DoorDash grocery store once (remembered for the week, and as the last one),
  * build the cart from the open Kitchen list in one go, review what it couldn't find or found out of stock (swap, find
- * or drop), add it to one DoorDash cart, then the same priced preview and Place as the Order tab, with a delivery window.
+ * or drop), add it to one DoorDash cart, then the same priced preview and Place as the DoorDash tab, with a delivery window.
  */
 
 type Phase = { k: "home" } | { k: "stores" } | { k: "review" } | { k: "preview" } | { k: "placed"; placement: Placement; message: string | null };
@@ -194,7 +194,7 @@ function Groceries({ onExpired, listCount }: { onExpired: () => void; listCount:
           cartWord="the review"
           onOrders={() => {
             setPhase({ k: "home" });
-            setNote("Orders, status and receipts are in the Kitchen's Order tab.");
+            setNote("Orders, status and receipts are in the Haven's DoorDash tab.");
           }}
           onCart={() => setPhase(build ? { k: "review" } : { k: "home" })}
         />

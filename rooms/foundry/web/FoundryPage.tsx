@@ -20,6 +20,7 @@ import { SetupAsks } from "@ceo/desk/skippy/SetupAsks.tsx";
 import { RC } from "@ceo/desk/flow/index.ts";
 import { countdown, nextRuns } from "@ceo/desk/crewRuns.ts";
 import { FurnaceStage } from "./FurnaceStage.tsx";
+import { BuildingNow } from "./BuildingNow.tsx";
 import { ConsoleSigils } from "./ConsoleSigils.tsx";
 import { BenchCard, CrewStations, RunsLine, VqaLine } from "./ForgeParts.tsx";
 import { forgeLanes, queueOf } from "../data/forge.ts";
@@ -28,7 +29,8 @@ import { useRoomReady } from "@ceo/engine/web/roomReady.ts";
 import "./foundry.css";
 
 /**
- * The Foundry's own Desk page (#432), on the Desk's flow kit with the Builder's forge orange. The stage leads: the
+ * The Foundry's own Desk page (#432), on the Desk's flow kit with the Builder's forge orange. "Building now" opens it
+ * (#1204, BuildingNow.tsx): every job in hand, what just shipped and the queue, in plain rows. Then the stage: the
  * Deep Furnace (#813, FurnaceStage.tsx), the forge shaft in 3D where every job rises from the crucible through Work,
  * Pictures, the five checks and Ship, with the headline and what needs Nikita over it, filling the screen. Below it,
  * one console with four tabs (#922) instead of a long page: the ideas on the bench as cards with their pictures beside
@@ -144,6 +146,8 @@ export function FoundryPage({ now }: { now: number }) {
           As of {ago(keptAt, now)}, from this device; refreshing.
         </p>
       )}
+      {/* What's being built (#1204): the jobs in hand, what just shipped and the queue, first thing on the page. */}
+      <BuildingNow data={data} progress={progress} now={now} connected={connected} />
       <FurnaceStage data={data} ideas={ideas} progress={progress} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
 
       {/* Under the furnace, one console instead of a long page (#922): the bench, the crew, what shipped and the

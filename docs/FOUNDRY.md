@@ -96,8 +96,8 @@ An issue with no state label is queued: file queued work (chat issues included) 
 to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +
 `foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, a `**Short:**` line, a `**Builder:**`
 line naming the crew member for the model the thread really codes on (Rocky for Opus, Rusty for Sonnet, Rivet for
-Haiku; Rivet also on upkeep, whatever her model), the branch), and labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists
-it under "In flight" with everything else, and in the Foundry room that crew member (or one of Rusty's dock crew,
+Haiku; Rivet also on upkeep, whatever her model), the branch), and labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry page lists
+it under "Building now" with everything else, and in the Foundry room that crew member (or one of Rusty's dock crew,
 when he is already busy) is seen working on it (Nikita, 2026-10-12: "any development-based idea should end up in the Foundry
 somewhere as well"; 2026-10-13: the crew shown must match the model doing the work).
 
@@ -111,6 +111,7 @@ Lattice read them; `readBody` in `apps/world/src/foundry.ts`):
 **Size:** small | medium | large
 **Short:** Speeding up the Lattice
 **Builder:** Rusty (Opus, medium effort)
+**Thread:** Haven
 ```
 
 `**Short:**` says what's being built in two to four words, an -ing phrase in sentence case with no full stop. While
@@ -118,6 +119,12 @@ the job is in someone's hands, the Lattice shows it under their name as "#43 · 
 that line opens a card with the title, pitch, builder and model, and a link to the issue. Desk shaping writes it with
 the rest of the card (`api/foundry.ts`); the Builder writes it on chat, fix and upkeep issues, and adds it when it
 picks up an issue that has none. Without one, the line falls back to a trimmed title.
+
+`**Thread:**` names the thread the job is being built in (see "Dispatching"): a room's name as the Desk's bar spells
+it (Haven, Relay, Exchange, Boiler Room…), `Builder` for infrastructure and cross-room work, or a feature thread's
+name. The Desk's "Building now" board shows it on every job. An issue without one is read from the room its title
+leads with ("Kitchen: …" is the Haven's), else the Builder (`readThread` and `threadOf` in
+`apps/world/src/foundry.ts`).
 
 ### Pings and flagging a blocker
 
@@ -142,6 +149,31 @@ access or a secret only Nikita can give), the Builder:
 A failed rung 3 (`foundry:stuck`) pings the same way. Don't use `foundry:blocked` for anything that can wait for the
 next thread reply, and never for routine status: a ping is a tap on Nikita's shoulder. The ping says only "a job is
 blocked"; what is needed lives on the issue and in the Foundry thread.
+
+## Dispatching
+
+The Builder is a dispatcher for chat work (Nikita, 2026-11-17: "the builder will function as a dispatcher to each
+individual room's thread for where it lives, unless it obviously it is more about like infrastructure… it keeps tabs
+on it"):
+
+- **Room work goes to that room's thread.** Chat work Nikita asks the Builder for is built in the thread of the room
+  it lives in, the room's submind thread (docs/SKIPPY.md): a Kitchen change goes to the Haven's thread, a texting change
+  to Relay's, a trade-floor change to the Exchange's.
+- **Infrastructure stays with the Builder.** Work that is about infrastructure or crosses rooms (CI, deploys, the
+  engine, the Lattice, the Foundry itself) stays in the Builder's thread, or gets its own feature thread, which closes
+  when the work ships.
+- **Same issue, same Trail, same crew.** Whichever thread builds it still opens the `foundry:chat` +
+  `foundry:working` issue first (see "The queue") and posts its Trail comments ("The trail on every issue"), so the
+  crew keeps building it visibly in the Deep Furnace and the Lattice: Rusty, his dock crew (Dusty, Gusty, Musty),
+  Rocky and Rivet pick it up from the labels exactly as before.
+- **The issue says where.** Each issue carries a `**Thread:**` line naming the thread it's built in: a room's name
+  (Haven, Relay, Exchange…), or `Builder` for infrastructure ("The issue body").
+- **Long-term knowledge lives in project memory and the repo's docs**, never in a thread's history. A thread reads them
+  when it needs them; what a thread learns that should outlast it goes into the docs or memory before it closes.
+- **The Builder keeps tabs through the issues.** It doesn't need the thread's history: the labels, the Thread line, the
+  Trail and the pull requests say what is being built, where and how far along. The Desk's Foundry page opens on the
+  same picture, "Building now" (#1204): every job in hand with its Short line, its builder, its thread, where it stands
+  (working, PR open, checks) and for how long, then the last few that shipped and the queue.
 
 ## Decisions go through Skippy
 

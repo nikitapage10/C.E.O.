@@ -105,6 +105,12 @@ export interface Crate {
    * `**Short:**` line; "" when it has none. The Lattice shows it under the builder's name.
    */
   short?: string;
+  /**
+   * The thread it is being built in, from the issue's `**Thread:**` line (docs/FOUNDRY.md, "Dispatching"): a room's
+   * name ("Haven", "Relay") for work dispatched to that room's submind thread, "Builder" for infrastructure, or a
+   * feature thread's name; "" when the issue has none ({@link threadOf} then infers one).
+   */
+  thread?: string;
   /** Date.now() the issue was opened. */
   createdAt?: number;
   /** Small, medium or large, when the issue says. */
@@ -151,6 +157,8 @@ export interface Change {
   by: CrewId | null;
   /** The issue's `**Short:**` line, or "". */
   short: string;
+  /** The issue's `**Thread:**` line (docs/FOUNDRY.md, "Dispatching"), when it has one. */
+  thread?: string;
   /** Whether it waited for Nikita: auto-approved by the Builder, approved by Nikita, or work that needs no approval (`changeSource`). */
   approval: Approval;
   /** Where it came from: Nikita, a Builder idea, upkeep, a fix, or chat (`changeSource`). */
@@ -503,6 +511,7 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
       landed: pr ? { label: `PR #${pr.number}`, url: pr.html_url } : commit ? { label: commit.sha.slice(0, 7), url: commit.html_url } : null,
       by: crewFor({ kind, rung, builder: body.builder }),
       short: body.short,
+      ...(body.thread && { thread: body.thread }),
       ...changeSource(shipped, labels, issue.body ?? ""),
       ...(undo && { undo }),
       ...(revert && { reverted: { label: `PR #${revert.number}`, url: revert.html_url } }),
@@ -592,7 +601,7 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
  * The pitch, size, short line and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small",
  * "**Short:** Speeding up the Lattice", "**Builder:** Rusty (Opus)").
  */
-export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { short: string; images: string[]; model: Model | null; question: string; hand: HandName | null } {
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { short: string; thread: string; images: string[]; model: Model | null; question: string; hand: HandName | null } {
   const question = (/^\*\*Question:\*\*[ \t]*(.*)$/m.exec(body)?.[1] ?? "").trim();
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const short = (/\*\*Short:\*\*[ \t]*([^\n]*)/.exec(body)?.[1] ?? "").replace(/[*_`]+/g, "").trim().replace(/[.!]+$/, "");
@@ -605,7 +614,50 @@ export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"
   const images = ownPictures(body);
   const said = new RegExp(`\\*\\*Builder:\\*\\*\\s*(?:${names})\\s*\\(\\s*(Haiku|Sonnet|Opus)\\b[^)]*\\)`, "i").exec(body)?.[1]?.toLowerCase();
   const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
-  return { pitch, size: size ?? null, short, builder, hand, images, model, question };
+  const thread = readThread(body);
+  return { pitch, size: size ?? null, short, thread, builder, hand, images, model, question };
+}
+
+/** The longest thread name the Desk shows. */
+const THREAD_MAX = 32;
+
+/**
+ * The issue's `**Thread:**` line, plain and short: a room's name as the Desk's bar spells it ("haven" → "Haven",
+ * "boiler" → "Boiler Room"), "Builder", or a feature thread's own name; "" when the issue has none.
+ */
+export function readThread(body: string): string {
+  const raw = /^\*\*Thread:\*\*[ \t]*(.*)$/m.exec(body)?.[1] ?? "";
+  const said = plain(raw, 200).replace(/[.!]+$/, "").trim();
+  if (!said) return "";
+  return threadName(said) ?? plain(said, THREAD_MAX);
+}
+
+/** The Desk's rooms as threads, by the names and nicknames an issue might use; anything else is the Builder's. */
+const THREAD_ROOMS: Record<string, string> = {
+  today: "Today", senate: "Today", haven: "Haven", kitchen: "Haven", doordash: "Haven", hall: "Haven", pets: "Haven", gym: "Haven",
+  relay: "Relay", green: "Green", exchange: "Exchange", archive: "Archive", annex: "Annex", spire: "Spire", workshop: "Workshop",
+  studio: "Studio", foundry: "Foundry", boiler: "Boiler Room", "boiler room": "Boiler Room", tokenomics: "Boiler Room", builder: "Builder",
+};
+
+/** A room or the Builder by any of its names ("haven", "Boiler Room"), or null. */
+function threadName(words: string): string | null {
+  const w = words.toLowerCase().replace(/\s+/g, " ").trim();
+  return THREAD_ROOMS[w] ?? THREAD_ROOMS[w.replace(/\s*(?:room|thread)$/, "")] ?? null;
+}
+
+/**
+ * Where a job is being built: its `**Thread:**` line, else the room its title leads with ("Kitchen: order-in meals"
+ * → Haven), else the Builder, who keeps the infrastructure and cross-room work (docs/FOUNDRY.md, "Dispatching").
+ */
+export function threadOf(crate: Pick<Crate, "title"> & Pick<Partial<Crate>, "thread">): string {
+  if (crate.thread) return crate.thread;
+  // The title's leading parts ("Visual QA: Spire: …", "Haven Kitchen: …"), each whole and by its first word.
+  const parts = crate.title.split(/\s[·—-]\s|:\s/).slice(0, -1).slice(0, 2);
+  for (const part of parts) {
+    const room = threadName(part) ?? threadName(part.trim().split(/\s+/)[0] ?? "");
+    if (room) return room;
+  }
+  return "Builder";
 }
 
 /** A crew member's last few shipped jobs, newest first: each with the issue's Short line (else its title). */

@@ -126,6 +126,8 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
       recent: async () => (await doordashOf(env)).recent(),
       prepare: async (input, who) => (await doordashOf(env)).prepare(input, who),
       confirm: async (who) => (await doordashOf(env)).confirm(who),
+      addToCart: async (input, who) => (await doordashOf(env)).addToCart(input, who),
+      cart: async () => (await doordashOf(env)).cart(),
       turnStarted: async (who) => (await doordashOf(env)).turnStarted(who),
       heard: async (who, id) => (await doordashOf(env)).heard(who, id),
     },

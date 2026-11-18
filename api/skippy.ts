@@ -89,7 +89,8 @@ import { skipTermsFrom } from "./_email/filter.js";
 import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
 import type { PendingConfirm } from "@ceo/engine/tools";
-import { claudeModel, isDepth, runAgent, type AgentCtx, type Depth } from "./_skippy/agent/loop.js";
+import { claudeModel, doordashDid, isDepth, runAgent, type AgentCtx, type Depth } from "./_skippy/agent/loop.js";
+import { claimsDoorDash } from "./_haven/doordash/voice.js";
 import { DOC_PATH } from "./_skippy/desk.js";
 import { geminiKey, geminiWorld, type WorldAsk } from "./_skippy/gemini.js";
 import { liveHost, livePending } from "./_skippy/agent/host.js";
@@ -519,6 +520,9 @@ async function floorTurn(body: unknown, deps: ChatDeps, store: AuthStore, passke
  */
 export type Surface = "desk" | "phone" | "room" | "call";
 
+/** Said instead of a reply that claimed a DoorDash add or order no tool made (#1207). */
+export const DOORDASH_NOT_DONE = "I didn't put anything in your DoorDash cart: nothing ran for it this time. Tell me the store (or say your usual spot) and what to add, and I'll add it.";
+
 /** A room's voice (#638, api/_skippy/roomvoice.ts): the extra rules, the room its turns are kept under, who answers. */
 export interface RoomTurn {
   rules: string;
@@ -646,9 +650,12 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
     if (who.prepared && surface !== "call") await deps.host!().doordash?.heard(who, who.prepared.id).catch(() => undefined);
     return json({ reply: forced, actions: [], room: "haven", ...extra });
   }
-  const first = readReply(answered, desk);
+  const read0 = readReply(answered, desk);
   // On the Senate's floor an answer that can't be read goes to the members (#952), never the hiccup line.
-  if (!first) return opts?.agent?.floor ? json({ deeper: "floor", ...extra }) : json({ error: "model" }, 502);
+  if (!read0) return opts?.agent?.floor ? json({ deeper: "floor", ...extra }) : json({ error: "model" }, 502);
+  // Skippy never claims a DoorDash add or order a tool didn't make this turn (#1207, Nikita: "he said, yeah, we'll do
+  // that on DoorDash, but I didn't see anything in my cart"): such a reply is held back and the plain truth said instead.
+  const first = claimsDoorDash(read0.reply) && !doordashDid(got.wrote) ? { ...read0, reply: DOORDASH_NOT_DONE } : read0;
   // A room's voice keeps its turns under its own room (#638), real work for the deeper self aside; a hand-off to "the
   // submind" then goes to that room's.
   const read = room?.log && first.room !== "kernel" ? withRoom(first, room.log) : first;

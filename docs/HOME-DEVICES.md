@@ -491,6 +491,22 @@ placement ([`order.ts`](../api/_haven/doordash/order.ts) `placeCore`, one path f
   "Placed: …, here in about 25 to 35 minutes; it's tracking in the DoorDash tab", only with an order id.
 - **Not on a Talk call.** A call's quick answer has a few seconds, which a fresh price and a submit don't fit; there it
   says to use Hey Skippy on the phone or the Desk's chat.
+- **Add to the cart, no order (#1207).** Nikita, 2026-11-18: "add the empanadas from the usual spot" got "yeah, we'll
+  do that on DoorDash" and an empty cart. `doordash_add_to_cart` puts named items (`items`) or his newest order there
+  (no `items`; `order reorder` with no preview) in the same server-side cart the DoorDash tab shows. No `store`, or
+  "my usual spot", is the place he orders from most in his history (`usualsOf`), and when several menu items fit a
+  word ("the empanadas"), the one he ordered there before settles it. It never prices or places and keeps no pending
+  confirmation; like the lights it runs on Nikita's own words to add ("add", "get", "order", "put"; a question or a
+  "don't" never counts, `spokenAdd`): typed, words that didn't ask get the Yes tap; said, nothing runs. An item with
+  required choices (a size, a flavour) adds nothing and says so. Its reply is the turn's reply word for word: "Added
+  2 Beef Empanada from La Esquina to your DoorDash cart: $9.00 so far before fees (2 items). It's in your DoorDash
+  cart in the Kitchen; nothing is ordered…". `doordash_cart` reads the cart back. The DoorDash tab's opening read
+  (`home`) now carries the cart's lines (`cart show`), so what Skippy added shows at once.
+- **No claimed add without a tool (#1207).** Skippy's quick pass names DoorDash as Desk work, never the world or his
+  memory. A quick-pass answer that says something was or will be added or ordered on DoorDash
+  (`claimsDoorDash`), when no DoorDash tool added, set up or placed anything that turn, isn't taken: the ask goes to
+  the deeper tier with the tools. Any reply that still claims it is replaced in the chat (api/skippy.ts) with "I didn't
+  put anything in your DoorDash cart…".
 
 ## Lights: SwitchBot and Govee (#931)
 

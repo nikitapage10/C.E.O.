@@ -315,12 +315,42 @@ export const TOOLS: readonly RoomTool[] = [
     input: { type: "object", properties: {}, required: [], additionalProperties: false },
     effect: "read",
   },
+  // Add to the cart without ordering (#1207): Nikita, 2026-11-18, "add the empanadas from the usual spot" got "we'll do
+  // that on DoorDash" and an empty cart. It changes his DoorDash cart, so like the lights it runs on his own words to
+  // add, typed or said; a question never runs it. Nothing is priced or placed.
+  {
+    name: "doordash_add_to_cart",
+    room: "haven",
+    title: "Add to the DoorDash cart",
+    description:
+      "Put food in Nikita's DoorDash cart (the one in the Kitchen) without ordering: \"add the empanadas from the usual spot\", \"put 2 Tonkotsu from Ramen Bar in my cart\", \"add my usual from La Esquina\". items are menu items as he said them, a count first when more than one; leave items out to add his last order there again. Leave store out (or say \"my usual spot\") for the place he orders from most: this tool finds it from his history itself, no doordash_usuals first. It never prices or places anything, and its reply (what went in and the cart's total so far) is said word for word. An item that needs choices picked (a size, a flavour) isn't added and it says so. When it asks about an open cart, ask him and call again with open_cart.",
+    input: {
+      type: "object",
+      properties: {
+        store: { type: "string", maxLength: 60, description: "The restaurant or store, as he said it; leave out for his usual spot." },
+        items: { type: "array", items: { type: "string", maxLength: 80 }, maxItems: 8, description: "Menu items, a count first when more than one (\"2 Beef Empanadas\"). Leave out to repeat his last order there." },
+        open_cart: { type: "string", enum: ["use", "fresh"], description: "Only after it asked: add to the cart already open at that store, or start fresh." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    effect: "write",
+    confirm: true,
+  },
+  {
+    name: "doordash_cart",
+    room: "haven",
+    title: "Read the DoorDash cart",
+    description: "What's in Nikita's DoorDash cart in the Kitchen right now: the store, the items and the total before fees. For \"what's in my cart\" or \"did the empanadas go in\". A read only.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
+    effect: "read",
+  },
   {
     name: "doordash_prepare_order",
     room: "haven",
     title: "Set up a DoorDash order",
     description:
-      "Set up a DoorDash order and price it fresh, without placing it: store alone repeats his newest order there (\"order my usual from Ramen Bar\"); store with items adds those menu items (\"2 Tonkotsu\"); cart true prices the DoorDash tab's open cart. Delivery as soon as possible, DoorDash's suggested tip unless he names one in whole dollars. It returns a read-back: say it word for word and stop. Nothing is placed until he says \"confirm\" in his next message. When it asks about an open cart, ask him and call again with open_cart.",
+      "Set up a DoorDash order to place now and price it fresh, without placing it (to only add to his cart, use doordash_add_to_cart): store alone repeats his newest order there (\"order my usual from Ramen Bar\"); store with items adds those menu items (\"2 Tonkotsu\"); cart true prices the DoorDash tab's open cart. Delivery as soon as possible, DoorDash's suggested tip unless he names one in whole dollars. It returns a read-back: say it word for word and stop. Nothing is placed until he says \"confirm\" in his next message. When it asks about an open cart, ask him and call again with open_cart.",
     input: {
       type: "object",
       properties: {

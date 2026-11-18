@@ -249,3 +249,21 @@ export function spokenLights(said: string | undefined, tool: string, input: Reco
   const way = input.on === true ? ON_WORD.test(t) && !OFF_WORD.test(t) && !KILL_WORD.test(t) : (OFF_WORD.test(t) || KILL_WORD.test(t)) && !ON_WORD.test(t);
   return way && (LIGHT_THING.test(t) || (!allLightsName(name) && nameSaid(t, name)));
 }
+
+/** An ask to put food in the DoorDash cart (#1207): add, order, get, grab, put, want, repeat. */
+const ADD_WORD = /\b(?:add|adding|order|get|grab|put|throw|toss|want|bring|reorder|repeat|queue)\b/i;
+const ASKS_INFO = /^(?:is|are|was|were|what|what's|whats|which|when|where|why|how|did|does|do|has|have|had|any)\b|\b(?:tell me|let me know|do you know|any idea|wondering|i wonder)\b/i;
+const NO_ADD = /\b(?:don't|dont|do not|never|not|no|stop|cancel|remove|take off|take out)\b/i;
+
+/**
+ * Whether Nikita's own words asked to add something to the DoorDash cart (#1207), doordash_add_to_cart's `spokenAsked`:
+ * "add the empanadas from the usual spot", "get me my usual from La Esquina", "can you add…". A question for
+ * information ("what's in my cart?", "what did I get last time?") or a "don't" never counts.
+ */
+export function spokenAdd(said: string | undefined): boolean {
+  if (!said) return false;
+  const t = smooth(said).replace(FILLER, "").trim();
+  // A question for information, but not a request put as one ("can you add…", "would you get…", "add what I got last time").
+  if (!t || ASKS_INFO.test(t) || NO_ADD.test(t)) return false;
+  return ADD_WORD.test(t);
+}

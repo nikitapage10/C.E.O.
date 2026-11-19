@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { logoOf, appliedBefore, appliedOf, tidy, yearsAskedIn, changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, isEngineeringRole, searchUrl, type JobsDeps } from "./jobs.ts";
+import { logoOf, appliedBefore, appliedOf, tidy, yearsAskedIn, changeJobs, cleanProfile, MemoryJobsStore, nextRunAt, normaliseJob, parsePay, runJobs, scoreJob, isEngineeringRole, splitFor, readJobs, BlobJobsStore, storesOf, searchUrl, type JobsDeps } from "./jobs.ts";
 
 const NOW = Date.parse("2026-11-10T22:00:00Z");
 
@@ -228,5 +228,40 @@ describe("isEngineeringRole", () => {
   it("hides an engineering manager posting when scored", () => {
     const job = normaliseJob({ title: "Engineering Manager", company_name: "Acme", location: "Denver, CO", description: "" }, "q", "2026-11-12T00:00:00.000Z");
     expect(job && scoreJob(job, cleanProfile({})).hidden).toBe("engineering role");
+  });
+});
+
+describe("two people (#1214)", () => {
+  const none = { searches: 0, used: 0, usd: 0 };
+  it("gives the whole month to a person alone, and 60/40 once both have searches", () => {
+    expect(splitFor("main", 240, [none])).toEqual({ budget: 240, perRun: 7, fitCap: 15 });
+    expect(splitFor("main", 240, [{ searches: 5, used: 10, usd: 2 }])).toEqual({ budget: 144, perRun: 4, fitCap: 13 });
+    expect(splitFor("second", 240, [{ searches: 16, used: 100, usd: 14.5 }])).toEqual({ budget: 96, perRun: 3, fitCap: 0.5 });
+  });
+  it("never lets the month's total pass the budget", () => {
+    expect(splitFor("second", 240, [{ searches: 16, used: 200, usd: 0 }]).budget).toBe(40);
+    expect(splitFor("second", 240, [{ searches: 16, used: 260, usd: 20 }])).toMatchObject({ budget: 0, fitCap: 0 });
+  });
+  it("keeps the main search's no-engineering rule, and starts a new search without it", () => {
+    expect(readJobs({ profile: { searches: [] }, jobs: [] }).profile.noEngineering).toBe(true);
+    expect(readJobs(null).profile.noEngineering).toBe(false);
+    expect(cleanProfile({ noEngineering: false, name: "  Sam  " })).toMatchObject({ noEngineering: false, name: "Sam" });
+    const job = normaliseJob({ title: "Software Engineer", company_name: "Acme", location: "Anywhere", description: "" }, "q", "2026-11-12T00:00:00.000Z")!;
+    expect(scoreJob(job, readJobs(null).profile).hidden).toBeNull();
+  });
+  it("keeps each person's record and resume at their own private paths", async () => {
+    const files = new Map<string, string>();
+    const blob = {
+      get: async (p: string) => (files.has(p) ? { stream: new Response(files.get(p)).body! } : null),
+      put: async (p: string, body: string) => void files.set(p, body),
+      del: async (p: string) => void files.delete(p),
+    } as unknown as ConstructorParameters<typeof BlobJobsStore>[0];
+    const second = new BlobJobsStore(blob, "second");
+    await second.write({ ...readJobs(null), used: 3 });
+    await second.writeResume("resume two");
+    expect([...files.keys()].sort()).toEqual([storesOf("second").jobs, storesOf("second").resume].sort());
+    expect(storesOf("main").jobs).toBe("desk/annex/jobs.json");
+    expect((await new BlobJobsStore(blob).read()).used).toBe(0);
+    expect((await second.read()).used).toBe(3);
   });
 });

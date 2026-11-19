@@ -26,7 +26,17 @@ export interface JobsProfile {
   near: string[];
   big: string[];
   rising: string[];
+  /** Whose search, as the switcher shows it; absent from a server that predates #1214. */
+  name?: string;
+  /** Hide engineering roles (security engineering stays). */
+  noEngineering?: boolean;
 }
+
+/** Whose job search (#1214): the main one, or the second. */
+export type Person = "main" | "second";
+export const PEOPLE: Person[] = ["main", "second"];
+/** The switcher's word for a person whose profile has no name yet. */
+export const personWord = (id: Person, name?: string) => name?.trim() || (id === "main" ? "Main search" : "Second search");
 
 export type Fit = "strong" | "possible" | "weak";
 export type FitLevel = "up" | "level" | "down";
@@ -109,6 +119,9 @@ export interface JobsView {
   nextRun: string | null;
   /** Absent from a server that predates #1025. */
   fitCheck?: FitCheckView;
+  /** Whose search this is and who has one (#1214); absent from a server that predates it. */
+  person?: Person;
+  people?: { id: Person; name: string }[];
 }
 
 export const RUN_WORD: Record<string, string> = {
@@ -130,34 +143,64 @@ interface JobsStore {
   busy: boolean;
   /** The last run or save's outcome, in words. */
   said: string | null;
+  /** Whose search is shown (#1214). */
+  who: Person;
+  pick: (who: Person) => void;
   refresh: () => Promise<void>;
   send: (body: Record<string, unknown>) => Promise<boolean>;
 }
 
 const isView = (v: unknown): v is JobsView => !!v && typeof v === "object" && Array.isArray((v as JobsView).jobs) && !!(v as JobsView).profile;
 
+const WHO_KEY = "ceo.annex.jobs.who";
+const keptWho = (): Person => {
+  try {
+    return localStorage.getItem(WHO_KEY) === "second" ? "second" : "main";
+  } catch {
+    return "main";
+  }
+};
+const url = (who: Person) => (who === "main" ? "/api/annex-jobs" : `/api/annex-jobs?who=${who}`);
+/** A view for someone other than whoever is picked now (a slow answer after a switch) is dropped. */
+const forWho = (v: JobsView, who: Person) => (v.person ?? "main") === who;
+
 export const useJobs = create<JobsStore>((set, get) => ({
   load: "idle",
   view: null,
   busy: false,
   said: null,
+  who: keptWho(),
+  pick: (who) => {
+    if (who === get().who) return;
+    try {
+      localStorage.setItem(WHO_KEY, who);
+    } catch {
+      /* a private window keeps no choice */
+    }
+    set({ who, view: null, load: "loading", said: null });
+    void get().refresh();
+  },
   refresh: async () => {
     if (get().load === "idle") set({ load: "loading" });
+    const who = get().who;
     try {
-      const res = await fetch("/api/annex-jobs", { headers: { Accept: "application/json" }, credentials: "same-origin" });
+      const res = await fetch(url(who), { headers: { Accept: "application/json" }, credentials: "same-origin" });
       if (res.status === 401 || res.status === 403) return set({ load: "signed-out", view: null });
       const body = res.ok ? await res.json().catch(() => null) : null;
-      set(isView(body) ? { load: "ready", view: body } : { load: get().view ? "ready" : "failed" });
+      if (get().who !== who) return;
+      set(isView(body) && forWho(body, who) ? { load: "ready", view: body } : { load: get().view ? "ready" : "failed" });
     } catch {
       set({ load: get().view ? "ready" : "failed" });
     }
   },
   send: async (body) => {
     set({ busy: true, said: null });
+    const who = get().who;
     try {
-      const res = await fetch("/api/annex-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) });
+      const res = await fetch(url(who), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) });
       const back = (await res.json().catch(() => null)) as (JobsView & { result?: string; error?: string }) | null;
       if (res.status === 401) return (set({ load: "signed-out", view: null, busy: false }), false);
+      if (get().who !== who) return (set({ busy: false }), res.ok);
       if (isView(back)) set({ view: back, load: "ready" });
       const word = back?.result ?? back?.error;
       set({ busy: false, said: word ? (RUN_WORD[word] ?? (res.ok ? null : "Couldn't save that")) : res.ok ? "Saved" : "Couldn't save that" });

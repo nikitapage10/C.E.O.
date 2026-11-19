@@ -15,6 +15,9 @@ import {
   sortJobs,
   SORTS,
   useJobs,
+  PEOPLE,
+  personWord,
+  type Person,
   type FitCheckView,
   type Job,
   type JobFilters,
@@ -604,6 +607,8 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
   const [years, setYears] = useState(profile.years ? String(profile.years) : "");
   const [applied, setApplied] = useState(profile.applied.map((a) => `${a.company}: ${a.title}`).join("\n"));
   const [resume, setResume] = useState("");
+  const [name, setName] = useState(profile.name ?? "");
+  const [noEng, setNoEng] = useState(!!profile.noEngineering);
   const edit = (i: number, patch: Partial<(typeof searches)[number]>) => setSearches((s) => s.map((x, n) => (n === i ? { ...x, ...patch } : x)));
   const save = () =>
     onSave({
@@ -616,6 +621,8 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
       big: splitWords(big),
       rising: splitWords(rising),
       daily,
+      name: name.trim(),
+      noEngineering: noEng,
       years: Number(years) || null,
       applied: applied.split("\n").flatMap((l) => {
         const at = l.indexOf(":");
@@ -666,6 +673,18 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
         )}
       </section>
       <section className="jb-card jb-grid2">
+        <label className="jb-field">
+          <span>Whose search</span>
+          <input className="jb-in" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="A first name, shown on the switcher" />
+          <small>Kept in the private store with the rest of this search.</small>
+        </label>
+        <label className="jb-field">
+          <span>Engineering roles</span>
+          <span className="jb-check">
+            <input type="checkbox" checked={noEng} onChange={(e) => setNoEng(e.target.checked)} /> Hide engineering roles
+          </span>
+          <small>Security engineering, and program or product roles that only name engineering, still show.</small>
+        </label>
         <label className="jb-field">
           <span>Pay floor, a year</span>
           <input className="jb-in" inputMode="numeric" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="e.g. 180000" />
@@ -748,8 +767,26 @@ function Setup({ profile, hasResume, busy, onSave, onResume }: { profile: JobsPr
   );
 }
 
+/** Whose search is shown (#1214): each person has their own searches, resume, matches and runs. */
+function Switcher({ who, people, onPick }: { who: Person; people: { id: Person; name: string }[] | undefined; onPick: (p: Person) => void }) {
+  return (
+    <div className="jb-who" role="tablist" aria-label="Whose job search">
+      {PEOPLE.map((id) => (
+        <button key={id} type="button" role="tab" aria-selected={who === id} className="jb-who-b" onClick={() => onPick(id)}>
+          {personWord(id, people?.find((p) => p.id === id)?.name)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function JobSearch() {
-  const { load, view, busy, said, refresh, send } = useJobs();
+  const { load, view, busy, said, refresh, send, who, pick } = useJobs();
+  // The names, kept from the last view so the switcher doesn't blank while the other search loads.
+  const [people, setPeople] = useState<{ id: Person; name: string }[] | undefined>(undefined);
+  useEffect(() => {
+    if (view?.people) setPeople(view.people);
+  }, [view]);
   const now = useNow(30_000);
   const setGrowth = useAnnex((s) => s.setGrowth);
   const [tab, setTab] = useState<Tab>("matches");
@@ -774,6 +811,8 @@ export function JobSearch() {
     const g = jobsGrowth(view);
     if (g) setGrowth("jobs", g);
   }, [view, setGrowth]);
+  // A switch starts on the matches (or the setup, below, for a search with nothing saved yet).
+  useEffect(() => setTab("matches"), [who]);
   // A first visit with nothing saved opens on the setup.
   useEffect(() => {
     if (view && !view.profile.searches.length) setTab("setup");
@@ -816,7 +855,14 @@ export function JobSearch() {
       : null,
   );
 
-  if (load === "idle" || load === "loading") return <div className="desk__loading" role="status" aria-label="Loading" />;
+  const switcher = <Switcher who={who} people={people} onPick={pick} />;
+  if (load === "idle" || load === "loading")
+    return (
+      <section className="jb" aria-label="Job search">
+        {people && switcher}
+        <div className="desk__loading" role="status" aria-label="Loading" />
+      </section>
+    );
   if (load === "signed-out")
     return (
       <section className="jb" aria-label="Job search">
@@ -826,6 +872,7 @@ export function JobSearch() {
   if (load === "failed" || !view)
     return (
       <section className="jb" aria-label="Job search">
+        {switcher}
         <p className="jb-empty">
           The Job search isn't reachable right now.{" "}
           <button type="button" className="jb-link" onClick={() => void refresh()}>
@@ -844,6 +891,7 @@ export function JobSearch() {
 
   return (
     <section className="jb" aria-label="Job search">
+      {switcher}
       <header className="jb-head">
         <div>
           <p className="jb-k">Google Jobs · SerpApi · filtered by place and pay · scored by an AI read of your resume</p>
@@ -889,7 +937,7 @@ export function JobSearch() {
 
       {tab === "setup" ? (
         <Setup
-          key={JSON.stringify(view.profile)}
+          key={`${view.person ?? "main"}:${JSON.stringify(view.profile)}`}
           profile={view.profile}
           hasResume={view.hasResume}
           busy={busy}

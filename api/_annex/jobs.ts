@@ -17,6 +17,11 @@
  * stay visible. They also give a provisional score, shown as "not checked yet". The match score itself is the AI fit
  * check's (fit.ts: Claude Sonnet reading the resume against the posting's requirements), under its own $15 a month cap.
  *
+ * Two people (#1214, Nikita 2026-11-19): the main search and a second one, each with its own private record, resume,
+ * runs and fit check (desk/annex/jobs.json and desk/annex/jobs-2.json). The person is `?who=main|second` on every
+ * call; names live in each private profile, never here. They share SerpApi's month and the fit check's cap (route.ts
+ * `splitFor`): the main search keeps the whole budget until the second has searches, then 60/40.
+ *
  * GET  /api/annex-jobs                      → JobsView (Desk session)
  * POST /api/annex-jobs { action: "run" }    run the saved searches now
  *                      { action: "mark", id, state }        new, saved, applied or dismissed
@@ -56,6 +61,12 @@ import {
 export const JOBS_PATH = "/api/annex-jobs";
 export const JOBS_STORE = "desk/annex/jobs.json";
 export const RESUME_STORE = "desk/annex/jobs-resume.json";
+/** The people with a job search (#1214): the main one, and a second with its own private record. */
+export const PEOPLE = ["main", "second"] as const;
+export type Person = (typeof PEOPLE)[number];
+export const isPerson = (v: unknown): v is Person => (PEOPLE as readonly unknown[]).includes(v);
+/** Where a person's record and resume live in the private store. */
+export const storesOf = (who: Person) => (who === "main" ? { jobs: JOBS_STORE, resume: RESUME_STORE } : { jobs: "desk/annex/jobs-2.json", resume: "desk/annex/jobs-2-resume.json" });
 export const SERP_URL = "https://serpapi.com/search.json";
 export const SERP_ACCOUNT_URL = "https://serpapi.com/account.json";
 
@@ -108,6 +119,10 @@ export interface JobsProfile {
   /** Company tiers (whole words in the company's name): big companies rank first, then rising ones, then the rest. */
   big: string[];
   rising: string[];
+  /** Whose search this is, as shown on the switcher (private, typed on the Desk). */
+  name: string;
+  /** Hide engineering roles (security engineering and program roles that name engineering stay). */
+  noEngineering: boolean;
 }
 
 export interface Job {
@@ -203,7 +218,7 @@ export interface JobsView extends Omit<JobsState, "fit"> {
   shelved?: boolean;
 }
 
-export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [], near: [], big: [], rising: [] });
+export const defaultProfile = (): JobsProfile => ({ searches: [], minSalary: null, prefer: [], avoid: [], companies: [], daily: true, years: null, applied: [], near: [], big: [], rising: [], name: "", noEngineering: false });
 export const defaultJobs = (): JobsState => ({ profile: defaultProfile(), jobs: [], runs: [], month: "", used: 0, cursor: 0, account: null, fit: defaultBook() });
 
 /* ── Reading things defensively ── */
@@ -294,7 +309,8 @@ export function appliedBefore(job: Pick<Job, "company" | "title">, applied: { co
   });
 }
 
-export function cleanProfile(raw: unknown): JobsProfile {
+/** `legacy`: what a profile saved before a field existed gets (the main search's no-engineering rule, 2026-11-12). */
+export function cleanProfile(raw: unknown, legacy = true): JobsProfile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof JobsProfile, unknown>>;
   const searches = (Array.isArray(r.searches) ? r.searches : [])
     .map((s) => {
@@ -304,7 +320,7 @@ export function cleanProfile(raw: unknown): JobsProfile {
     .filter((s) => s.q)
     .slice(0, MAX_SEARCHES);
   const n = typeof r.minSalary === "number" ? r.minSalary : typeof r.minSalary === "string" ? Number(r.minSalary.replace(/[^\d.]/g, "")) : NaN;
-  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: names(r.companies).slice(0, 40), daily: r.daily !== false, years: yearsOf(r.years), applied: appliedOf(r.applied), near: words(r.near), big: names(r.big).slice(0, 400), rising: names(r.rising).slice(0, 400) };
+  return { searches, minSalary: Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 5_000_000) : null, prefer: words(r.prefer), avoid: words(r.avoid), companies: names(r.companies).slice(0, 40), daily: r.daily !== false, years: yearsOf(r.years), applied: appliedOf(r.applied), near: words(r.near), big: names(r.big).slice(0, 400), rising: names(r.rising).slice(0, 400), name: str(r.name, 40), noEngineering: typeof r.noEngineering === "boolean" ? r.noEngineering : legacy };
 }
 
 const isState = (v: unknown): v is JobState => (JOB_STATES as readonly unknown[]).includes(v);
@@ -503,7 +519,7 @@ export function scoreJob(job: Job, profile: JobsProfile): Job {
   else if (work === "hybrid") lift(profile.near.length ? 22 : 3, profile.near.length ? "near you, hybrid" : "hybrid");
   else if (work === "remote") lift(profile.near.length ? 1 : 6, "remote");
   // Nikita isn't moving (2026-11-11): a job elsewhere that isn't fully remote is never a result.
-  let hidden: string | null = avoid ? `has "${avoid}"` : isEngineeringRole(job.title) ? "engineering role" : profile.near.length && work === "elsewhere" ? "not near you or remote" : null;
+  let hidden: string | null = avoid ? `has "${avoid}"` : profile.noEngineering && isEngineeringRole(job.title) ? "engineering role" : profile.near.length && work === "elsewhere" ? "not near you or remote" : null;
   if (profile.minSalary && job.payMax !== null) {
     if (job.payMax < profile.minSalary) hidden ??= "pay under your floor";
     else lift(10, "pay clears your floor");
@@ -527,24 +543,30 @@ export interface JobsStore {
 const JSON_PUT = { contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 0 } as const;
 
 export class BlobJobsStore implements JobsStore {
-  constructor(private readonly blob: BlobBackend) {}
+  private readonly paths: { jobs: string; resume: string };
+  constructor(
+    private readonly blob: BlobBackend,
+    who: Person = "main",
+  ) {
+    this.paths = storesOf(who);
+  }
   private async json(path: string): Promise<unknown> {
     const found = await this.blob.get(path);
     return found ? await new Response(found.stream).json().catch(() => null) : null;
   }
   async read() {
-    return readJobs(await this.json(JOBS_STORE));
+    return readJobs(await this.json(this.paths.jobs));
   }
   async write(state: JobsState) {
-    await this.blob.put(JOBS_STORE, JSON.stringify(state), JSON_PUT);
+    await this.blob.put(this.paths.jobs, JSON.stringify(state), JSON_PUT);
   }
   async readResume() {
-    const r = (await this.json(RESUME_STORE)) as { text?: unknown } | null;
+    const r = (await this.json(this.paths.resume)) as { text?: unknown } | null;
     return typeof r?.text === "string" ? r.text : "";
   }
   async writeResume(text: string) {
-    if (text) await this.blob.put(RESUME_STORE, JSON.stringify({ text }), JSON_PUT);
-    else await this.blob.del(RESUME_STORE).catch(() => undefined);
+    if (text) await this.blob.put(this.paths.resume, JSON.stringify({ text }), JSON_PUT);
+    else await this.blob.del(this.paths.resume).catch(() => undefined);
   }
 }
 
@@ -565,10 +587,10 @@ export class MemoryJobsStore implements JobsStore {
   }
 }
 
-const memory = new MemoryJobsStore();
-export function pickJobsStore(env: Record<string, string | undefined> = process.env): JobsStore {
+const memory: Record<Person, MemoryJobsStore> = { main: new MemoryJobsStore(), second: new MemoryJobsStore() };
+export function pickJobsStore(env: Record<string, string | undefined> = process.env, who: Person = "main"): JobsStore {
   const blob = pickBlob(env);
-  return blob ? new BlobJobsStore(blob) : memory;
+  return blob ? new BlobJobsStore(blob, who) : memory[who];
 }
 
 /* ── Running the searches ── */
@@ -587,6 +609,8 @@ export interface JobsDeps {
   ai?: FitAI | null;
   /** The fit check's month cap, FIT_CAP_USD unless a test says otherwise. */
   fitCap?: number;
+  /** Searches in one run, PER_RUN unless the budget is split between people (#1214). */
+  perRun?: number;
 }
 
 export function budgetOf(env: Record<string, string | undefined>): number {
@@ -612,6 +636,33 @@ function rollMonth(state: JobsState, now: number): void {
   }
 }
 
+/** What one person's search has spent this month, for splitting the shared budget and cap (#1214). */
+export interface Spend {
+  searches: number;
+  used: number;
+  usd: number;
+}
+
+export function spendOf(state: JobsState, now: number): Spend {
+  return { searches: state.profile.searches.length, used: state.month === monthOf(now) ? state.used : 0, usd: rollBook(state.fit, now).usd };
+}
+
+/** Each person's share of SerpApi's month once both have searches (Nikita's main search first). */
+export const SHARES: Record<Person, number> = { main: 0.6, second: 0.4 };
+
+/**
+ * One person's budget, searches per run and fit-check cap, with the others' spend (#1214). Alone (no one else has
+ * searches) a person keeps the whole month; together each keeps to their share. Either way the month's total never
+ * passes the budget, and the fit check's one cap is shared.
+ */
+export function splitFor(who: Person, total: number, others: Spend[], fitCap = FIT_CAP_USD): { budget: number; perRun: number; fitCap: number } {
+  const share = others.some((o) => o.searches > 0) ? SHARES[who] : 1;
+  const used = others.reduce((n, o) => n + o.used, 0);
+  const usd = others.reduce((n, o) => n + o.usd, 0);
+  const mine = Math.floor(total * share);
+  return { budget: Math.max(0, Math.min(mine, total - used)), perRun: Math.max(1, Math.min(PER_RUN, Math.floor(mine / 30))), fitCap: Math.max(0, Math.round((fitCap - usd) * 100) / 100) };
+}
+
 /** Every job filtered and scored again against the profile, best match first, the stale ones dropped, and capped. */
 export function tidy(jobs: Job[], profile: JobsProfile, now: number): Job[] {
   // A role already applied to elsewhere goes straight to Applied, so it never comes up as new.
@@ -625,10 +676,10 @@ export function tidy(jobs: Job[], profile: JobsProfile, now: number): Job[] {
 }
 
 /** The next run's searches: PER_RUN of them from the cursor, wrapping round the list. */
-export function batchOf<T>(searches: T[], cursor: number): T[] {
+export function batchOf<T>(searches: T[], cursor: number, per = PER_RUN): T[] {
   const n = searches.length;
-  if (n <= PER_RUN) return searches;
-  return Array.from({ length: PER_RUN }, (_, i) => searches[(cursor + i) % n]!);
+  if (n <= per) return searches;
+  return Array.from({ length: per }, (_, i) => searches[(cursor + i) % n]!);
 }
 
 export type RunResult = "ran" | "no-key" | "no-searches" | "budget" | "not-due" | "off" | "failed";
@@ -644,7 +695,7 @@ export async function runJobs(deps: JobsDeps, by: JobRun["by"]): Promise<{ resul
   const last = state.runs.find((r) => by === "hand" || r.by === "schedule");
   const gap = by === "schedule" ? SCHEDULE_GAP_MS : MANUAL_GAP_MS;
   if (last && deps.now - Date.parse(last.at) < gap) return { result: "not-due", state };
-  const batch = batchOf(searches, state.cursor);
+  const batch = batchOf(searches, state.cursor, deps.perRun);
   if (state.used + batch.length > deps.budget) return { result: "budget", state };
 
   const nowIso = new Date(deps.now).toISOString();

@@ -938,3 +938,32 @@ textarea.jb-in {
     min-height: 40px;
   }
 }
+
+/* Whose search (#1214): a quiet two-way switch above the header. */
+.jb-who {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0 0 14px;
+  padding: 3px;
+  border: 1px solid var(--jb-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(8px);
+}
+.jb-who-b {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--jb-sub);
+  font: 500 13px/1 var(--sans);
+  cursor: pointer;
+}
+.jb-who-b[aria-selected="true"] {
+  background: linear-gradient(180deg, var(--jb-gold-hi), var(--jb-gold));
+  color: #1a1408;
+}
+.jb-who-b:focus-visible {
+  outline: 2px solid var(--jb-gold);
+  outline-offset: 2px;
+}

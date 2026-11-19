@@ -17,6 +17,7 @@
  * GET  /api/annex-jobs           → the Job search (#1000, api/_annex/jobs.ts): Desk session only, read and changed
  * POST /api/annex-jobs              there; runs the saved searches on SerpApi on demand (a daily timer runs them too),
  *                                   and checks a job's fit with Claude Sonnet on a tap (api/_annex/fit.ts, #1025).
+ *                                   `?who=main|second` picks whose search (#1214); main when left out.
  *
  * Shelving stops a pop-up whole (#1079). Every timer and every route that runs a pop-up's scheduled work or calls its
  * outside services asks `gateOf` first (state.ts `schedulesOn` and `connectionsOn`), so a shelved one runs nothing and
@@ -34,7 +35,7 @@ import { BlobRoomLog, type RoomLog } from "../_skippy/log.js";
 import { electionBoard, freshness, seedElections, type ElectionBoard, type ElectionDeps } from "./elections.js";
 import { claudeKey } from "../_world/claude.js";
 import { liveFitAI } from "./fit.js";
-import { budgetOf, changeJobs, fitTick, JOBS_PATH, pausedJobs, pickJobsStore, runJobs, viewOf, type FitTick, type JobsDeps } from "./jobs.js";
+import { budgetOf, changeJobs, fitTick, isPerson, JOBS_PATH, pausedJobs, PEOPLE, pickJobsStore, runJobs, spendOf, splitFor, viewOf, type FitTick, type JobsDeps, type Person } from "./jobs.js";
 import { cleanFollows, connectionsOn, isPopup, isShelved, isStatus, pickAnnexStore, schedulesOn, type AnnexState, type AnnexStore, type PopupId, type PopupStatus } from "./state.js";
 
 export const ANNEX_PATH = "/api/annex";
@@ -176,29 +177,53 @@ export async function getElections(request: Request, deps: AnnexDeps = liveAnnex
   return json(board, 200, "public, max-age=15");
 }
 
-export function liveJobsDeps(): JobsDeps {
-  const env = process.env;
-  // The fit check (#1025) reads the Claude key the Desk chat already reads; without it the check is paused.
-  return { store: pickJobsStore(env), fetcher: (url, init) => fetch(url, init), key: (env.SERPAPI_KEY ?? "").trim(), budget: budgetOf(env), now: Date.now(), ai: liveFitAI(claudeKey(env)) };
+/** Whose search a request is for (#1214): `?who=`, else the main one. */
+export function personOf(request: Request): Person {
+  const who = new URL(request.url).searchParams.get("who");
+  return isPerson(who) ? who : "main";
 }
+
+/** Each person's name as their private profile has it, for the switcher. */
+export type People = { id: Person; name: string }[];
+
+/** One person's live deps, with SerpApi's month and the fit check's cap split against the others' spend (#1214). */
+export async function liveJobsDeps(who: Person = "main"): Promise<{ jobs: JobsDeps; people: People }> {
+  const env = process.env;
+  const now = Date.now();
+  const states = await Promise.all(PEOPLE.map(async (p) => ({ p, state: await pickJobsStore(env, p).read().catch(() => null) })));
+  const others = states.filter((s) => s.p !== who && s.state).map((s) => spendOf(s.state!, now));
+  const split = splitFor(who, budgetOf(env), others);
+  // The fit check (#1025) reads the Claude key the Desk chat already reads; without it the check is paused.
+  const jobs: JobsDeps = { store: pickJobsStore(env, who), fetcher: (url, init) => fetch(url, init), key: (env.SERPAPI_KEY ?? "").trim(), budget: split.budget, perRun: split.perRun, fitCap: split.fitCap, now, ai: liveFitAI(claudeKey(env)) };
+  return { jobs, people: states.map((s) => ({ id: s.p, name: s.state?.profile.name ?? "" })) };
+}
+
+/** The deps a call runs on: the test's own, or the live ones for whoever it names. */
+async function depsFor(who: Person, injected?: JobsDeps): Promise<{ jobs: JobsDeps; people: People }> {
+  return injected ? { jobs: injected, people: [{ id: who, name: "" }] } : liveJobsDeps(who);
+}
+
+/** The view, marked shelved with no next run while it is on the Shelf, with whose search it is and who else has one. */
+const jobsView = (view: ReturnType<typeof viewOf>, gate: Gate, who: Person, people: People) => ({ ...view, person: who, people, ...(gate.shelved && { shelved: true, nextRun: null }) });
 
 /** The Job search's record (#1000): a Desk session only, since a job search is private. */
-export async function getJobs(request: Request, deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<Response> {
+export async function getJobs(request: Request, deps: AnnexDeps = liveAnnexDeps(), injected?: JobsDeps): Promise<Response> {
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
+  const who = personOf(request);
+  const { jobs, people } = await depsFor(who, injected);
   const [state, resume, gate] = await Promise.all([jobs.store.read(), jobs.store.readResume().catch(() => ""), gateOf("jobs", deps)]);
-  return withCookie(json(jobsView(viewOf(state, jobs, !!resume), gate)), signed);
+  return withCookie(json(jobsView(viewOf(state, jobs, !!resume), gate, who, people)), signed);
 }
 
-/** The view, marked shelved with no next run while it is on the Shelf. */
-const jobsView = (view: ReturnType<typeof viewOf>, gate: Gate) => (gate.shelved ? { ...view, shelved: true, nextRun: null } : view);
-
-export async function postJobs(request: Request, deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<Response> {
+export async function postJobs(request: Request, deps: AnnexDeps = liveAnnexDeps(), injected?: JobsDeps): Promise<Response> {
   if (!sameOrigin(request)) return json({ error: "cross-site" }, 403);
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body !== "object") return withCookie(json({ error: "bad-request" }, 400), signed);
+  const who = personOf(request);
+  const { jobs, people } = await depsFor(who, injected);
   const gate = await gateOf("jobs", deps);
   // Shelved: no search and no fit check; marks, the profile and the resume are still kept, with every outside call off.
   if ((body.action === "run" || body.action === "fit") && !gate.connections) return withCookie(json({ error: "shelved" }, 409), signed);
@@ -206,27 +231,47 @@ export async function postJobs(request: Request, deps: AnnexDeps = liveAnnexDeps
   if (body.action === "run") {
     const { result, state } = await runJobs(live, "hand");
     const resume = await jobs.store.readResume().catch(() => "");
-    return withCookie(json({ ...jobsView(viewOf(state, jobs, !!resume), gate), result }), signed);
+    return withCookie(json({ ...jobsView(viewOf(state, jobs, !!resume), gate, who, people), result }), signed);
   }
   const done = await changeJobs(live, body);
   if ("error" in done) return withCookie(json(done, 400), signed);
-  return withCookie(json(jobsView(viewOf(done.state, jobs, done.hasResume), gate)), signed);
+  // A new name shows on the switcher straight away.
+  const named = people.map((p) => (p.id === who ? { ...p, name: done.state.profile.name } : p));
+  return withCookie(json(jobsView(viewOf(done.state, jobs, done.hasResume), gate, who, named)), signed);
 }
 
-/** The daily run (azure/src/index.ts, `annex_jobs_daily`): nothing while the pop-up is on the Shelf. The new jobs'
- * fit check goes out as a batch straight after. */
-export async function runJobsDaily(deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<string> {
+/** The daily run (azure/src/index.ts, `annex_jobs_daily`), for each person in turn (#1214): nothing while the pop-up is
+ * on the Shelf. The new jobs' fit check goes out as a batch straight after. */
+export async function runJobsDaily(deps: AnnexDeps = liveAnnexDeps(), injected?: JobsDeps): Promise<string> {
   return whenScheduled("jobs", deps, async () => {
-    const { result } = await runJobs(jobs, "schedule");
-    if (result === "ran") await fitTick(jobs).catch(() => null);
-    return result;
+    const one = async (jobs: JobsDeps) => {
+      const { result } = await runJobs(jobs, "schedule");
+      if (result === "ran") await fitTick(jobs).catch(() => null);
+      return result;
+    };
+    if (injected) return one(injected);
+    const said: string[] = [];
+    for (const who of PEOPLE) said.push(`${who} ${await one((await liveJobsDeps(who)).jobs).catch(() => "failed")}`);
+    return said.join(", ");
   });
 }
 
 /** The fit check's timer (azure/src/index.ts, `annex_jobs_fit`): reads back a finished batch and sends the jobs still
- * due a check (the first tick after #1025 shipped is the backfill). Nothing while the pop-up is on the Shelf. */
-export async function runJobsFit(deps: AnnexDeps = liveAnnexDeps(), jobs: JobsDeps = liveJobsDeps()): Promise<FitTick | "shelved"> {
-  return whenScheduled("jobs", deps, () => fitTick(jobs));
+ * due a check, for each person (#1214). Nothing while the pop-up is on the Shelf. */
+export async function runJobsFit(deps: AnnexDeps = liveAnnexDeps(), injected?: JobsDeps): Promise<FitTick | "shelved"> {
+  return whenScheduled("jobs", deps, async () => {
+    if (injected) return fitTick(injected);
+    const sum: FitTick = { checked: 0, sent: 0, waiting: false, paused: null };
+    for (const who of PEOPLE) {
+      const t = await fitTick((await liveJobsDeps(who)).jobs).catch(() => null);
+      if (!t) continue;
+      sum.checked += t.checked;
+      sum.sent += t.sent;
+      sum.waiting ||= t.waiting;
+      sum.paused ??= t.paused;
+    }
+    return sum;
+  });
 }
 
 /** The endpoints, by path (azure/src/index.ts registers each on this module). */

@@ -3,7 +3,7 @@
  * for the Director's thread to put under a test episode. Azure only, like every ElevenLabs call: the key lives only in
  * this Function App's Key Vault (`elevenlabs`), and the thread never sees it.
  *
- *   POST /api/studio-audio { mode: "tts", text, voice? }               → { id, status: "working" } (202)
+ *   POST /api/studio-audio { mode: "tts", text, voice?, speed?, stability?, style? } → { id, status: "working" } (202)
  *   POST /api/studio-audio { mode: "music", prompt, length_ms }        → the same; length 10 s to 3 minutes
  *   POST /api/studio-audio { mode: "sfx", text, duration_seconds? }    → the same; 0.5 to 30 seconds
  *   POST /api/studio-audio { fetch: "<id>" }                           → { status: "working" } (202),
@@ -14,8 +14,8 @@
  * first call answers at once and the work carries on (waitUntil); the thread asks again until it is done.
  *
  * Who: the feed key only (SUBMIND_FEED_TOKEN, a POST with no query, api/_site/roomkeys.ts), checked by the gate and
- * again here. What it can do: spend ElevenLabs plan credits on audio made from the words in the request, no more than
- * DAY_CAP jobs a UTC day. What it reads back: only the audio it made for that request. Nothing private goes in or comes
+ * again here. What it can do: spend ElevenLabs plan credits on audio made from the words in the request, with no cap of
+ * its own (Nikita, 2026-11-13 and 2026-11-24: no internal ElevenLabs limits; his plan's credits are the limit). What it reads back: only the audio it made for that request. Nothing private goes in or comes
  * out, and nothing is public: each result sits in the private blob store (`studio/audio/<id>.json`) for KEEP_MS,
  * then is deleted by a later job.
  *
@@ -31,8 +31,6 @@ import { ELEVEN_MODEL, elevenFromEnv, type ElevenConfig } from "../_world/story.
 import { readJson, updateJson } from "../_haven/json.js";
 
 export { STUDIO_AUDIO_PATH } from "../_site/roomkeys.js";
-/** Jobs a UTC day, all three kinds together. */
-export const DAY_CAP = 60;
 /** How long a finished result can still be fetched. */
 export const KEEP_MS = 24 * 60 * 60_000;
 export const TEXT_MAX = 5_000;
@@ -46,9 +44,11 @@ const FORMAT = "mp3_44100_128";
 const ID = /^[A-Za-z0-9_-]{16}$/;
 const VOICE = /^[A-Za-z0-9]{10,40}$/;
 const BODY_MAX = 16_000;
+/** ElevenLabs' own ranges for the voice settings a tts job may set; a value outside is clamped into them. */
+export const TTS_RANGES = { speed: [0.7, 1.2], stability: [0, 1], style: [0, 1] } as const;
 
 export type AudioJob =
-  | { mode: "tts"; text: string; voice?: string }
+  | { mode: "tts"; text: string; voice?: string; speed?: number; stability?: number; style?: number }
   | { mode: "music"; prompt: string; length_ms: number }
   | { mode: "sfx"; text: string; duration_seconds?: number };
 
@@ -74,7 +74,6 @@ export interface StudioAudioDeps {
 }
 
 const jobPath = (id: string) => `studio/audio/${id}.json`;
-const DAY_FILE = "studio/audio/days.json";
 const INDEX_FILE = "studio/audio/index.json";
 
 function json(body: unknown, status = 200): Response {
@@ -89,9 +88,19 @@ export function parseJob(body: unknown): AudioJob | null {
   const b = body as Record<string, unknown>;
   const keys = Object.keys(b);
   const only = (...allowed: string[]) => keys.every((k) => allowed.includes(k));
-  if (b.mode === "tts" && only("mode", "text", "voice") && isText(b.text, TEXT_MAX)) {
-    if (b.voice === undefined) return { mode: "tts", text: b.text };
-    return typeof b.voice === "string" && VOICE.test(b.voice) ? { mode: "tts", text: b.text, voice: b.voice } : null;
+  if (b.mode === "tts" && only("mode", "text", "voice", "speed", "stability", "style") && isText(b.text, TEXT_MAX)) {
+    const job: AudioJob & { mode: "tts" } = { mode: "tts", text: b.text };
+    if (b.voice !== undefined) {
+      if (typeof b.voice !== "string" || !VOICE.test(b.voice)) return null;
+      job.voice = b.voice;
+    }
+    for (const [k, [lo, hi]] of Object.entries(TTS_RANGES) as [keyof typeof TTS_RANGES, [number, number]][]) {
+      const v = b[k];
+      if (v === undefined) continue;
+      if (typeof v !== "number" || !Number.isFinite(v)) return null;
+      job[k] = Math.min(hi, Math.max(lo, v));
+    }
+    return job;
   }
   if (b.mode === "music" && only("mode", "prompt", "length_ms") && isText(b.prompt, PROMPT_MAX)) {
     const ms = b.length_ms;
@@ -116,7 +125,7 @@ export async function makeAudio(job: AudioJob, eleven: ElevenConfig, fetcher: ty
     res = await fetcher(`${API}/text-to-speech/${encodeURIComponent(job.voice ?? eleven.voice)}/with-timestamps?output_format=${FORMAT}`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ text: job.text, model_id: ELEVEN_MODEL, voice_settings: { stability: 0.4, similarity_boost: 0.75, style: 0.35, use_speaker_boost: true } }),
+      body: JSON.stringify({ text: job.text, model_id: ELEVEN_MODEL, voice_settings: { stability: job.stability ?? 0.4, similarity_boost: 0.75, style: job.style ?? 0.35, use_speaker_boost: true, ...(job.speed !== undefined ? { speed: job.speed } : {}) } }),
       signal,
     });
     if (!res.ok) return { status: "failed", at: 0, error: `elevenlabs-${res.status}` };
@@ -138,18 +147,6 @@ export async function makeAudio(job: AudioJob, eleven: ElevenConfig, fetcher: ty
   const buf = await res.arrayBuffer();
   if (buf.byteLength === 0) return { status: "failed", at: 0, error: "no-audio" };
   return { status: "done", at: 0, mime: "audio/mpeg", audio_base64: base64(buf) };
-}
-
-const dayOf = (now: number) => new Date(now).toISOString().slice(0, 10);
-
-/** Takes one of the day's jobs; false when the day's cap is reached. */
-async function takeSlot(blob: BlobBackend, now: number): Promise<boolean> {
-  const day = dayOf(now);
-  return updateJson(blob, DAY_FILE, {} as Record<string, number>, (cur) => {
-    const used = typeof cur?.[day] === "number" ? cur[day]! : 0;
-    if (used >= DAY_CAP) return { next: null, result: false };
-    return { next: { [day]: used + 1 }, result: true };
-  });
 }
 
 /** Records a new job and deletes results older than KEEP_MS. */
@@ -192,7 +189,6 @@ export async function studioAudio(request: Request, deps: StudioAudioDeps): Prom
 
   const job = parseJob(body);
   if (!job) return json({ error: "bad-request" }, 400);
-  if (!(await takeSlot(blob, deps.now))) return json({ error: "day-cap", cap: DAY_CAP }, 429);
   const id = randomBytes(12).toString("base64url");
   const at = deps.now;
   await save(blob, id, { status: "working", at });

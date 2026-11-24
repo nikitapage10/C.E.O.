@@ -45,6 +45,7 @@ import * as roomfeed from "../../api/_room/feed.js";
 import * as setupasks from "../../api/_room/setup.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as studioaudio from "../../api/_studio/audio.js";
+import * as studioimage from "../../api/_studio/image.js";
 import * as senaterecord from "../../api/senate-record.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -199,6 +200,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // The Studio's audio line (#311, api/_studio/audio.ts): Skippy's voice, music and sound effects from ElevenLabs for the
   // Director's thread. SUBMIND_FEED_TOKEN only, a daily cap; a long piece carries on after the answer and is fetched.
   ["studio-audio", studioaudio, { settleMs: 30_000 }],
+  // The Studio's Gemini pictures (#311, api/_studio/image.ts): the same feed-key job and fetch, Gemini's key only here.
+  ["studio-image", studioimage, { settleMs: 30_000 }],
   ["site-password", sitepassword],
   // A new hand-off to Skippy starts the always-on responder (#501) through a request the chat doesn't wait for, so
   // its answer is held for a moment at most.

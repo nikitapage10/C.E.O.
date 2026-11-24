@@ -20,7 +20,8 @@
  *                        a core card, fact or page into Skippy's memory (#1124: the handler refuses forget, GET stays
  *                        passkey-only), and POST /api/studio-audio, Skippy's voice, music or a sound effect from
  *                        ElevenLabs for the Studio's render line (#311, api/_studio/audio.ts: a daily cap, and it
- *                        hands back only the audio it made from that request's words). Otherwise it reads nothing: each answer
+ *                        hands back only the audio it made from that request's words), and POST
+ *                        /api/studio-image, Gemini pictures for the same line (api/_studio/image.ts, the same rule). Otherwise it reads nothing: each answer
  *                        says only that the write was kept (the plan's, counts).
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
@@ -73,9 +74,11 @@ export const SKIPPY_MEMORY_PATH = "/api/skippy-memory";
 
 /** The Studio's audio line (#311, api/_studio/audio.ts): the feed key may ask ElevenLabs for audio and fetch what it made. */
 export const STUDIO_AUDIO_PATH = "/api/studio-audio";
+/** The Studio's Gemini pictures (#311, api/_studio/image.ts): the same shape, a prompt and reference pictures in. */
+export const STUDIO_IMAGE_PATH = "/api/studio-image";
 
 /** The paths the feed key may POST to, with no query. */
-export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH, STUDIO_AUDIO_PATH];
+export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH, STUDIO_AUDIO_PATH, STUDIO_IMAGE_PATH];
 
 /** A query rule: which keys a read may carry, and what each must look like. Absent keys are fine unless required. */
 type QueryRule = { [key: string]: { required?: boolean; ok: (v: string) => boolean } };

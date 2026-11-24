@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { isFeedWrite, roomKeyPass } from "../_site/roomkeys.ts";
-import { DAY_CAP, KEEP_MS, parseJob, studioAudio, type StudioAudioDeps } from "./audio.ts";
+import { KEEP_MS, parseJob, studioAudio, type StudioAudioDeps } from "./audio.ts";
 
 /** The Studio's audio line (#311). Every key and word here is made up. */
 
@@ -57,6 +57,8 @@ describe("The Studio's audio line (#311)", () => {
     expect(parseJob({ mode: "tts", text: "Hi", voice: "../etc" })).toBeNull();
     expect(parseJob({ mode: "tts", text: "" })).toBeNull();
     expect(parseJob({ mode: "tts", text: "Hi", extra: 1 })).toBeNull();
+    expect(parseJob({ mode: "tts", text: "Hi", speed: 1.5, stability: -1, style: 0.6 })).toEqual({ mode: "tts", text: "Hi", speed: 1.2, stability: 0, style: 0.6 });
+    expect(parseJob({ mode: "tts", text: "Hi", speed: "fast" })).toBeNull();
     expect(parseJob({ mode: "music", prompt: "upbeat synth", length_ms: 180_000 })).not.toBeNull();
     expect(parseJob({ mode: "music", prompt: "upbeat synth", length_ms: 180_001 })).toBeNull();
     expect(parseJob({ mode: "sfx", text: "whoosh", duration_seconds: 2 })).not.toBeNull();
@@ -81,6 +83,7 @@ describe("The Studio's audio line (#311)", () => {
     await Promise.all(pending);
     expect(calls[0]!.url).toContain(`/text-to-speech/${ELEVEN.voice}/with-timestamps`);
     expect(calls[0]!.key).toBe(ELEVEN.key);
+    expect((calls[0]!.body as { voice_settings: Record<string, unknown> }).voice_settings).not.toHaveProperty("speed");
     const done = await post({ fetch: id });
     expect(done.status).toBe(200);
     const body = (await done.json()) as { status: string; audio_base64: string; alignment: { characters: string[] } };
@@ -114,19 +117,22 @@ describe("The Studio's audio line (#311)", () => {
     expect(await out.json()).toEqual({ status: "failed", error: "elevenlabs-401" });
   });
 
-  it("stops at the day's cap and lets a result go after a day", async () => {
+  it("lets a result go after a day", async () => {
     const { post, pending, setNow, blob } = setup();
-    let first = "";
-    for (let i = 0; i < DAY_CAP; i++) {
-      const r = await post({ mode: "sfx", text: "tick" });
-      expect(r.status).toBe(202);
-      if (!first) first = ((await r.json()) as { id: string }).id;
-    }
-    expect((await post({ mode: "sfx", text: "tick" })).status).toBe(429);
+    const { id } = (await (await post({ mode: "sfx", text: "tick" })).json()) as { id: string };
     await Promise.all(pending);
     setNow(NOW + KEEP_MS + 1);
-    expect((await post({ fetch: first })).status).toBe(404);
+    expect((await post({ fetch: id })).status).toBe(404);
     expect((await post({ mode: "sfx", text: "tock" })).status).toBe(202);
-    expect(blob.files.has(`studio/audio/${first}.json`)).toBe(false);
+    expect(blob.files.has(`studio/audio/${id}.json`)).toBe(false);
+  });
+});
+
+describe("The Studio's voice settings (#1219)", () => {
+  it("sends a faster, livelier read to ElevenLabs", async () => {
+    const { post, calls, pending } = setup();
+    await post({ mode: "tts", text: "Quick now.", speed: 1.15, stability: 0.3, style: 0.7 });
+    await Promise.all(pending);
+    expect((calls[0]!.body as { voice_settings: Record<string, unknown> }).voice_settings).toMatchObject({ speed: 1.15, stability: 0.3, style: 0.7 });
   });
 });

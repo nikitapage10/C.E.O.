@@ -76,11 +76,25 @@ describe("The Studio's Gemini pictures (#311)", () => {
   });
 
   it("says when Gemini refused", async () => {
-    const { post, pending } = setup(async () => new Response("quota", { status: 429 }));
+    const refusal = { error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "Quota exceeded for metric", details: [{ violations: [{ quotaId: "GenerateContentInputTokensPerModelPerMinute-FreeTier" }] }] } };
+    const { post, pending } = setup(async () => new Response(JSON.stringify(refusal), { status: 429 }));
     const { id } = (await (await post({ prompt: "x" })).json()) as { id: string };
     await Promise.all(pending);
     const out = await post({ fetch: id });
     expect(out.status).toBe(502);
-    expect(await out.json()).toEqual({ status: "failed", error: "gemini-429" });
+    expect(await out.json()).toEqual({ status: "failed", error: "gemini-429", detail: "RESOURCE_EXHAUSTED | Quota exceeded for metric | quota: GenerateContentInputTokensPerModelPerMinute-FreeTier" });
+  });
+
+  it("asks Imagen when named", async () => {
+    const urls: string[] = [];
+    const { post, pending } = setup(async (input, init) => {
+      urls.push(String(input));
+      expect(JSON.parse(String(init?.body))).toEqual({ instances: [{ prompt: "a sheet" }], parameters: { sampleCount: 2, aspectRatio: "3:2" } });
+      return new Response(JSON.stringify({ predictions: [{ bytesBase64Encoded: PNG, mimeType: "image/png" }, { bytesBase64Encoded: PNG }] }));
+    });
+    const { id } = (await (await post({ prompt: "a sheet", aspect: "3:2", n: 2, model: "imagen-4.0-generate-001" })).json()) as { id: string };
+    await Promise.all(pending);
+    expect(urls[0]).toContain("imagen-4.0-generate-001:predict");
+    expect(await (await post({ fetch: id })).json()).toMatchObject({ status: "done", model: "imagen-4.0-generate-001", images: [PNG, PNG] });
   });
 });

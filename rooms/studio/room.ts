@@ -1,7 +1,7 @@
 import { defineRoom } from "@ceo/engine/manifest";
 import { nav } from "./nav.ts";
 
-/** The Studio: "So, they're eating your neighbors.", the zombie guide to adulting (#311), its page an edit suite on a sound stage in 3D (#828), live as the series' desk (#1227). Data only (docs/ROOMS.md). */
+/** The Studio: "So, they're eating your neighbors.", the zombie guide to adulting (#311), its page an edit suite on a sound stage in 3D (#828), live as the series' desk (#1227), its desk on the suite's monitors as a review suite (#1229). Data only (docs/ROOMS.md). */
 export default defineRoom({
   id: "studio",
   ...nav,

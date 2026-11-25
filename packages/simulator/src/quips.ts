@@ -123,6 +123,8 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Forty-five seconds. One analogy. No 'basically'.",
     "Shoot it tall. Everyone holds their phone the long way.",
     "Everyone off the green floor unless you want to be a floating head.",
+    "Mind the cardboard horde. They're on sticks, but they still lean in for the good part.",
+    "Notes come in one batch. Nobody touches the cut until the C.E.O. says that's all of them.",
   ],
   breakroom: [
     "Coffee machine said 'no' again.",

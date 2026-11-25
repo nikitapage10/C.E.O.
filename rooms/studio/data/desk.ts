@@ -1,4 +1,4 @@
-import type { Approval, Episode, Idea, Note, Social, Stage, StageState, Status } from "../../../api/_studio/desk.ts";
+import type { Approval, Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version } from "../../../api/_studio/desk.ts";
 import type { Step } from "../web/line.ts";
 
 /**
@@ -7,7 +7,7 @@ import type { Step } from "../web/line.ts";
  * and stage is on screen, so a note said with Space held lands on it. Pure but for the two fetches.
  */
 
-export type { Episode, Idea, Note, Social, Stage, StageState, Status };
+export type { Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version };
 
 export interface DeskView {
   ideas: Idea[];
@@ -68,9 +68,10 @@ export function isQuestion(text: string): boolean {
 
 /* ── What's on screen, for the room mic ── */
 
-let focus: { episode?: string; stage?: Stage } = {};
+let focus: { episode?: string; stage?: Stage; at?: () => { version?: number; t?: number } } = {};
 const heard = new Set<() => void>();
-export const setFocus = (f: { episode?: string; stage?: Stage }) => void (focus = f);
+/** What's on screen; `at` gives the version and moment under the playhead, so a said note lands on it (#1229). */
+export const setFocus = (f: typeof focus) => void (focus = f);
 export const focusNow = () => focus;
 /** The page reloads the desk when a note is kept from the mic. */
 export function onNoteKept(fn: () => void): () => void {
@@ -93,7 +94,9 @@ export async function loadDesk(): Promise<DeskLoad> {
 
 export type DeskAction =
   | { action: "pitch"; text: string }
-  | { action: "note"; text: string; episode?: string; stage?: Stage; via?: "said" | "typed" }
+  | { action: "note"; text: string; episode?: string; stage?: Stage; via?: "said" | "typed"; version?: number; t?: number; t2?: number }
+  | { action: "unnote"; id: string }
+  | { action: "send"; episode?: string; stage?: Stage }
   | { action: "approve"; episode: string; stage: Stage }
   | { action: "publish"; episode: string };
 
@@ -102,6 +105,7 @@ const ERRORS: Record<string, string> = {
   "not-set-up": "Zernio isn't set up on the server yet.",
   "not-ours": "That draft wasn't made by the Studio, so it won't publish it.",
   "not-a-draft": "That post already went out.",
+  "no-drafts": "There are no draft notes to send.",
 };
 
 /** One desk action; null when it was kept, else a line saying why not. */
@@ -110,6 +114,7 @@ export async function act(body: DeskAction): Promise<string | null> {
     const res = await fetch("/api/studio-desk", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "same-origin", cache: "no-store", body: JSON.stringify(body) });
     if (res.ok) {
       if (body.action === "note" && body.via === "said") heard.forEach((fn) => fn());
+      if (body.action === "unnote" || body.action === "send") heard.forEach((fn) => fn());
       return null;
     }
     if (res.status === 401) return "Sign in again to do that.";
@@ -126,3 +131,17 @@ export function short(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, "")}K`;
   return String(n);
 }
+
+/** The versions a stage has: its list, or its one cut as v1 when the thread sent no list. */
+export function versionsOf(st?: StageState): Version[] {
+  if (st?.versions?.length) return st.versions;
+  return st?.media ? [{ v: 1, media: st.media }] : [];
+}
+
+/** 93.4 → "1:33". */
+export function clock(t: number): string {
+  const s = Math.max(0, Math.floor(t));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+export const NOTE_STATE_TEXT: Record<NoteState, string> = { draft: "Draft", sent: "Sent", fixed: "Fixed", open: "Still open", wontfix: "Won't fix" };

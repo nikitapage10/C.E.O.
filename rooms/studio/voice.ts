@@ -9,7 +9,8 @@ import { act, focusNow, isQuestion } from "./data/desk.ts";
  */
 export const intent: RoomIntent = async (u) => {
   if (u.room !== "studio" || isQuestion(u.text)) return null;
-  const { episode, stage } = focusNow();
-  const why = await act({ action: "note", text: u.text, via: "said", ...(episode ? { episode } : {}), ...(stage ? { stage } : {}) });
-  return { say: why ?? "Noted. The Director has it." };
+  const { episode, stage, at } = focusNow();
+  const here = at?.() ?? {};
+  const why = await act({ action: "note", text: u.text, via: "said", ...(episode ? { episode } : {}), ...(stage ? { stage } : {}), ...here });
+  return { say: why ?? (here.t !== undefined ? "Noted at that spot. It's in your drafts until you send your notes." : "Noted. It's in your drafts until you send your notes.") };
 };

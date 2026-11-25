@@ -12,6 +12,7 @@ import {
   CylinderGeometry,
   DirectionalLight,
   DoubleSide,
+  Euler,
   EdgesGeometry,
   FogExp2,
   Group,
@@ -29,6 +30,7 @@ import {
   PointLight,
   Points,
   Quaternion,
+  Raycaster,
   RepeatWrapping,
   SRGBColorSpace,
   Scene,
@@ -38,12 +40,15 @@ import {
   Sprite,
   SpriteMaterial,
   TorusGeometry,
+  TextureLoader,
   TubeGeometry,
   Vector2,
   Vector3,
+  VideoTexture,
   WebGLRenderer,
   type Material,
 } from "three";
+import { CSS3DObject, CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import { yieldNow } from "@ceo/engine/web/roomReady.ts";
 import { edgeFactor, wasdPan } from "@ceo/engine/web/wasdPan.ts";
 import type { Step } from "./line.ts";
@@ -60,6 +65,11 @@ import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
  * The monitors show the page's own desk and nothing else (#1227): the episode's four stages as a timeline (the
  * selected one under the playhead), that stage in the tall preview, and the series' episodes in the bin. The
  * monitor's tally reads ROLLING while a stage is being made.
+ *
+ * The review (#1229): the cut Nikita is watching plays inside the tall frame on the riser, and on the desk's tall
+ * monitor, with his notes marked along the frame's foot. Around it stand cutouts from the show on their rods: the hero
+ * on his mark, the guidebook on the stool, a zombie hand coming up through the riser, two of the horde peeking round the
+ * frame to watch, and one more behind the bin monitor. They sway a little, waiting for their call.
  *
  * Phones get fewer particles, no shadows, a lower pixel ratio and 30 frames a second; reduced motion holds the scene
  * nearly still. Lazy loaded with three.js (StudioStage.tsx), never in the Desk's first load.
@@ -81,11 +91,31 @@ export interface StudioOpts {
   view: StudioView;
   /** Where each label's anchor is on screen (host CSS pixels), whenever it moves: suite, stage, camera. */
   onPlace: (id: string, x: number, y: number, on: boolean) => void;
+  /** The tall frame on the riser was clicked (the cut playing there). */
+  onFrame?: () => void;
 }
+
+/** The desk's three working screens (#1229): the edit suite in the middle, pitches at the left, numbers at the right. */
+export type ScreenId = "edit" | "pitch" | "stats";
+/** Each screen's page, in CSS pixels; the screen's world size is this scaled down. */
+export const SCREEN_CSS: Record<ScreenId, { w: number; h: number }> = { edit: { w: 1280, h: 660 }, pitch: { w: 900, h: 610 }, stats: { w: 900, h: 610 } };
 
 export interface Soundstage {
   set: (view: StudioView) => void;
+  /** The cut on the page's player, shown in the tall frame and on the desk's tall monitor; null puts the plan back. */
+  setVideo: (video: HTMLVideoElement | null, marks?: Mark[]) => void;
+  /** The element each working screen's page renders into, laid on the monitor in 3D. */
+  screens: Record<ScreenId, HTMLElement>;
+  /** Dolly in until that screen fills the view (shifted right by `shift`, a share of the width), or back out with null. */
+  focus: (id: ScreenId | null, shift?: number) => void;
   dispose: () => void;
+}
+
+/** A note on the cut: a moment (t) or a range (t to t2), in seconds; `sent` once it's gone to the Director. */
+export interface Mark {
+  t: number;
+  t2?: number;
+  sent?: boolean;
 }
 
 const GLYPHS = [..."ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ{}<>/=;∴λΣ#*+:[]()&|$%!?~^"];
@@ -131,6 +161,13 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   renderer.toneMappingExposure = 1.08;
   renderer.shadowMap.enabled = !PH;
   renderer.shadowMap.type = PCFSoftShadowMap;
+  // The working screens' pages ride a CSS3D layer over the canvas (#1229); only the pages themselves take the pointer.
+  const css3d = new CSS3DRenderer();
+  css3d.domElement.className = "st-css3d";
+  css3d.domElement.style.position = "absolute";
+  css3d.domElement.style.inset = "0";
+  css3d.domElement.style.pointerEvents = "none";
+  host.appendChild(css3d.domElement);
   const scene = new Scene();
   scene.background = new Color(0x060608);
   scene.fog = new FogExp2(0x07070a, 0.03);
@@ -378,6 +415,76 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     ring.position.y = 0.3;
     st.add(ring);
     scene.add(st);
+  }
+
+  // ---- the review: the cut in the tall frame, and the show's cutouts standing by (#1229) ---------------------------
+  const vidMat = keep(new MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
+  const vidPlane = mesh(new PlaneGeometry(FRAME_W, FRAME_H), vidMat);
+  vidPlane.position.set(0, FRAME_H / 2 + 0.04, 0.03);
+  vidPlane.visible = false;
+  tallFrame.add(vidPlane);
+  // The frame's foot: where the cut is up to, and the notes on it.
+  const footC = document.createElement("canvas");
+  footC.width = 1024;
+  footC.height = 40;
+  const footTex = keep(new CanvasTexture(footC));
+  footTex.colorSpace = SRGBColorSpace;
+  const foot = mesh(new PlaneGeometry(FRAME_W + 0.16, ((FRAME_W + 0.16) * 40) / 1024), keep(new MeshBasicMaterial({ map: footTex, toneMapped: false, transparent: true })));
+  foot.position.set(0, 0.04, 0.085);
+  foot.visible = false;
+  tallFrame.add(foot);
+  const swayers: { o: Group; ph: number; amp: number; rate: number }[] = [];
+  {
+    const loader = new TextureLoader();
+    // The show's own art on cardboard (Nikita, 2026-11-25: never remake the puppets in 3D): the real cut-out on the
+    // front, plain cardboard on the back, and a wooden stick; only the board and stick are 3D.
+    const stickMat = keep(new MeshStandardMaterial({ color: 0x8a6239, roughness: 0.8 }));
+    const prop = (file: string, h: number, x: number, y: number, z: number, yaw = 0, onRod = true, amp = 0.025) => {
+      const g = new Group();
+      g.position.set(x, y, z);
+      g.rotation.y = yaw;
+      scene.add(g);
+      const board = new Group();
+      g.add(board);
+      const face = (name: string, back: boolean) => {
+        const tex = keep(loader.load(new URL(`./props/${name}.webp`, import.meta.url).href, (t) => {
+          const img = t.image as { width: number; height: number };
+          board.scale.x = img.width / img.height;
+        }));
+        tex.colorSpace = SRGBColorSpace;
+        const m = mesh(new PlaneGeometry(h, h), keep(new MeshStandardMaterial({ map: tex, alphaTest: 0.5, roughness: 0.92 })));
+        m.position.set(0, h / 2, back ? -0.012 : 0);
+        if (back) m.rotation.y = Math.PI;
+        m.castShadow = true;
+        board.add(m);
+      };
+      face(file, false);
+      face(`${file}-back`, true);
+      board.scale.x = 0.6;
+      if (onRod) g.add(rod(new Vector3(0, -y + 0.27, -0.03), new Vector3(0, h * 0.18, -0.03), 0.014, stickMat));
+      swayers.push({ o: g, ph: Math.random() * 6, amp, rate: 0.6 + Math.random() * 0.5 });
+    };
+    prop("hero", 1.05, -1.18, 0.38, -3.05, 0.25);
+    prop("guide", 0.46, 1.15, 1.07, -3.08, -0.3, false, 0.006);
+    prop("hand", 0.55, 0.62, 0.05, -2.32, -0.15, false, 0.05);
+    prop("horde-a", 0.78, -FRAME_W / 2 - 0.22, 1.25, -4.1, 0.2, false, 0.02);
+    prop("horde-b", 0.82, FRAME_W / 2 + 0.24, 0.85, -4.1, -0.2, false, 0.02);
+    prop("horde-c", 0.6, 2.62, 1.22, 4.85, -0.4, false, 0.03); // behind the bin monitor (DESK_Z - 0.5)
+    // The show's profile photo, a framed print on the edit desk.
+    {
+      const tex = keep(loader.load(new URL("./props/profile.webp", import.meta.url).href));
+      tex.colorSpace = SRGBColorSpace;
+      const fr = new Group();
+      fr.position.set(-1.25, 0.82, 5.62);
+      fr.rotation.set(-0.18, 0.35, 0);
+      scene.add(fr);
+      const body = solid(mesh(new BoxGeometry(0.34, 0.34, 0.025), keep(new MeshStandardMaterial({ color: 0x2a1c12, roughness: 0.5 }))));
+      body.position.y = 0.17;
+      fr.add(body);
+      const pic = mesh(new PlaneGeometry(0.28, 0.28), keep(new MeshStandardMaterial({ map: tex, roughness: 0.6 })));
+      pic.position.set(0, 0.17, 0.0135);
+      fr.add(pic);
+    }
   }
 
   // ---- the rigging: truss, fresnels, their beams -----------------------------------------------------------------
@@ -644,8 +751,10 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   }
   // The monitors: a wide timeline in the middle, the tall preview at its left, the bin at its right.
   const SCREEN_PX = 1024;
-  const screens: { canvas: HTMLCanvasElement; tex: CanvasTexture; w: number; h: number }[] = [];
-  const monitor = (w: number, h: number, x: number, y: number, z: number, yaw: number, tilt = -0.06) => {
+  const screens: { canvas: HTMLCanvasElement; tex: CanvasTexture; mat: MeshBasicMaterial; w: number; h: number }[] = [];
+  const cssScreens = {} as Record<ScreenId, HTMLElement>;
+  const screenPose = {} as Record<ScreenId, { at: Vector3; normal: Vector3; w: number; h: number }>;
+  const monitor = (w: number, h: number, x: number, y: number, z: number, yaw: number, tilt = -0.06, id?: ScreenId) => {
     const g = new Group();
     g.position.set(x, 0, z);
     g.rotation.y = yaw;
@@ -664,7 +773,8 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     const tex = keep(new CanvasTexture(c));
     tex.colorSpace = SRGBColorSpace;
     tex.anisotropy = 4;
-    const scr = mesh(new PlaneGeometry(w, h), keep(new MeshBasicMaterial({ map: tex, toneMapped: false })));
+    const mat = keep(new MeshBasicMaterial({ map: tex, toneMapped: false }));
+    const scr = mesh(new PlaneGeometry(w, h), mat);
     scr.position.set(0, y, 0.027);
     scr.rotation.x = tilt;
     // Off the plane's tilt: keep it flush with the bezel's face.
@@ -677,12 +787,32 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     const gl = glow(0x9fb4ff, Math.max(w, h) * 1.6, 0.06);
     gl.position.set(0, y, 0.3);
     g.add(gl);
-    screens.push({ canvas: c, tex, w, h });
+    screens.push({ canvas: c, tex, mat, w, h });
+    if (id) {
+      // The screen's real page, laid on the glass (CSS3DRenderer), so it works like any page.
+      const css = SCREEN_CSS[id];
+      const el = document.createElement("div");
+      el.className = "st-screen";
+      el.dataset.screen = id;
+      el.style.width = `${css.w}px`;
+      el.style.height = `${css.h}px`;
+      const obj = new CSS3DObject(el);
+      obj.position.set(0, y, 0.03);
+      obj.rotation.x = tilt;
+      obj.scale.setScalar(w / css.w);
+      g.add(obj);
+      cssScreens[id] = el;
+      g.updateMatrixWorld(true);
+      const at = new Vector3(0, y, 0.03).applyMatrix4(g.matrixWorld);
+      const normal = new Vector3(0, 0, 1).applyEuler(new Euler(tilt, yaw, 0, "YXZ"));
+      screenPose[id] = { at, normal, w, h: (w * css.h) / css.w };
+    }
     return g;
   };
-  monitor(2.5, 1.06, 0, 1.62, DESK_Z - 0.32, 0);
-  monitor(0.66, 1.17, -1.86, 1.66, DESK_Z - 0.18, 0.34, -0.04);
-  monitor(1.36, 0.8, 1.98, 1.52, DESK_Z - 0.16, -0.34);
+  // Bigger since the desk moved onto them (#1229): the edit suite in the middle, pitches left, numbers right.
+  monitor(2.9, 1.5, 0, 1.72, DESK_Z - 0.32, 0, -0.04, "edit");
+  monitor(1.55, 1.05, -2.3, 1.52, DESK_Z - 0.06, 0.42, -0.04, "pitch");
+  monitor(1.55, 1.05, 2.3, 1.52, DESK_Z - 0.06, -0.42, -0.04, "stats");
   // On the desk: keyboard, a jog-and-shuttle controller, a mouse, two speakers.
   {
     const kb = solid(mesh(new BoxGeometry(0.95, 0.03, 0.3), keep(new MeshStandardMaterial({ color: 0x1e1e22, roughness: 0.6 }))));
@@ -707,23 +837,6 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     mouse.scale.set(0.8, 0.45, 1.2);
     mouse.position.set(0.42, DESK_Y + 0.06, DESK_Z + 0.25);
     scene.add(mouse);
-    for (const x of [-2.75, 2.75]) {
-      const sp = solid(mesh(new BoxGeometry(0.34, 0.52, 0.36), keep(new MeshStandardMaterial({ color: 0x141416, roughness: 0.5, metalness: 0.2 }))));
-      sp.position.set(x, DESK_Y + 0.3, DESK_Z - 0.2);
-      sp.rotation.y = x < 0 ? 0.3 : -0.3;
-      scene.add(skin(sp, 0.3));
-      for (const [y, r] of [
-        [0.1, 0.12],
-        [-0.1 + 0.24, 0.04],
-      ] as const) {
-        const cone = mesh(new CircleGeometry(r, 24), keep(new MeshStandardMaterial({ color: 0x0a0a0b, roughness: 0.9 })));
-        cone.position.set(0, y - 0.05, 0.181);
-        sp.add(cone);
-        const rim2 = mesh(new TorusGeometry(r, 0.008, 6, 32), brass);
-        rim2.position.set(0, y - 0.05, 0.182);
-        sp.add(rim2);
-      }
-    }
   }
   // Cables: from the camera back to the suite, and up into the rig.
   {
@@ -1150,6 +1263,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     const w = Math.max(1, host.clientWidth);
     const h = Math.max(1, host.clientHeight);
     renderer.setSize(w, h, false);
+    css3d.setSize(w, h);
     cam.aspect = w / h;
     cam.fov = w < PHONE_W ? 52 : 38;
     cam.updateProjectionMatrix();
@@ -1205,6 +1319,20 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   const onDown = (e: PointerEvent) => {
     downAt = e.clientX;
   };
+  const ray = new Raycaster();
+  const ndc = new Vector2();
+  let pressAt: [number, number] | null = null;
+  const onPress = (e: PointerEvent) => void (pressAt = [e.clientX, e.clientY]);
+  const onClick = (e: PointerEvent) => {
+    if (!pressAt || Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 6 || !opts.onFrame) return;
+    pressAt = null;
+    const r = canvas.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, cam);
+    if (ray.intersectObject(tallFrame, true).length) opts.onFrame();
+  };
+  canvas.addEventListener("pointerdown", onPress);
+  canvas.addEventListener("pointerup", onClick);
   const onUp = () => {
     downAt = null;
   };
@@ -1234,6 +1362,50 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     }
   };
 
+  // ---- the cut under review (#1229) -------------------------------------------------------------------------------
+  let video: HTMLVideoElement | null = null;
+  let vtex: VideoTexture | null = null;
+  let marks: Mark[] = [];
+  const drawFoot = () => {
+    const g = footC.getContext("2d")!;
+    const W = footC.width;
+    const H = footC.height;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = "rgba(10,10,14,.85)";
+    g.fillRect(0, 0, W, H);
+    const d = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+    if (d) {
+      for (const m of marks) {
+        const a = (m.t / d) * W;
+        g.fillStyle = m.sent ? "rgba(227,201,141,.9)" : "rgba(255,120,110,.95)";
+        if (m.t2 !== undefined) g.fillRect(a, 8, Math.max(4, ((m.t2 - m.t) / d) * W), H - 16);
+        else g.fillRect(a - 3, 2, 6, H - 4);
+      }
+      g.fillStyle = "#fff3dc";
+      g.fillRect(0, H - 6, (video!.currentTime / d) * W, 6);
+    }
+    footTex.needsUpdate = true;
+  };
+  const setVideo = (el: HTMLVideoElement | null, m: Mark[] = []) => {
+    marks = m;
+    if (el === video) {
+      if (video) drawFoot();
+      return;
+    }
+    vtex?.dispose();
+    vtex = null;
+    video = el;
+    if (el) {
+      vtex = new VideoTexture(el);
+      vtex.colorSpace = SRGBColorSpace;
+      vidMat.map = vtex;
+    } else vidMat.map = null;
+    vidMat.needsUpdate = true;
+    vidPlane.visible = !!el;
+    foot.visible = !!el;
+    if (el) drawFoot();
+  };
+
   // ---- the loop ---------------------------------------------------------------------------------------------------
   let visible = true;
   const io =
@@ -1245,16 +1417,29 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   io?.observe(host);
   let last = performance.now();
   let TT = 0;
+  let footAt = 0;
   let raf = 0;
   const minStep = PH ? 1000 / 30 - 2 : 0;
-  const look = new Vector3();
   const pivot = new Vector3(0, 0, 0.8);
+  const wantPos = new Vector3();
+  const wantLook = new Vector3();
+  const camPos = new Vector3();
+  const camLook = new Vector3();
+  const camOff = new Vector2();
+  let camSet = false;
+  let focused: ScreenId | null = null;
+  let focusShift = 0;
   const draw = (dt: number) => {
     TT += dt * (reduce ? 0.12 : 1);
     edgeU.t.value = reduce ? 0 : TT;
     nanU.t.value = TT;
     beamMat.uniforms.t!.value = TT;
     renderer.getDrawingBufferSize(edgeU.res.value);
+    if (!reduce) for (const p of swayers) p.o.rotation.z = Math.sin(TT * p.rate + p.ph) * p.amp;
+    if (video && (footAt += dt) > 0.12) {
+      footAt = 0;
+      drawFoot();
+    }
     const ph = phone();
     pan.step(dt);
     held = Math.max(0, held - dt);
@@ -1274,15 +1459,40 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     const th = yaw + (reduce ? 0 : Math.sin(TT * 0.06) * 0.06);
     // Over the editor's shoulder, across the suite to the stage; a phone stands further back and higher.
     const D = (ph ? (cam.aspect < 0.7 ? 15.5 : 13) : 11.4) * zoom;
-    const camY = (ph ? 4.2 : 3.4) * (0.8 + zoom * 0.2);
-    cam.position.set(pivot.x + Math.sin(th) * D, camY, pivot.z + Math.cos(th) * D);
-    look.set(0, ph ? 2.1 : 1.95, -2.2);
-    cam.lookAt(look);
+    const camY = (ph ? 4.2 : 4.5) * (0.8 + zoom * 0.2);
+    wantPos.set(pivot.x + Math.sin(th) * D, camY, pivot.z + Math.cos(th) * D);
+    wantLook.set(0, ph ? 2.1 : 1.75, -2.2);
     const w = host.clientWidth;
     const h = host.clientHeight;
-    if (ph) cam.setViewOffset(w, h, 0, -h * 0.14, w, h);
-    else cam.setViewOffset(w, h, -w * 0.1, -h * 0.03, w, h);
+    let offX = ph ? 0 : -w * 0.1;
+    let offY = ph ? -h * 0.14 : -h * 0.03;
+    if (focused) {
+      // Square on to the screen, near enough that it fills the view with a little margin.
+      const p = screenPose[focused];
+      const fov = (cam.fov * Math.PI) / 180;
+      const room = 1 - focusShift;
+      const dist = Math.max((p.h * 1.08) / 2 / Math.tan(fov / 2), (p.w * 1.06) / 2 / Math.tan(fov / 2) / (cam.aspect * room));
+      wantPos.copy(p.at).addScaledVector(p.normal, dist);
+      wantLook.copy(p.at);
+      offX = -w * focusShift * 0.5;
+      offY = 0;
+    }
+    const ck = reduce ? 1 : 1 - Math.exp(-dt * 5);
+    if (!camSet) {
+      camPos.copy(wantPos);
+      camLook.copy(wantLook);
+      camOff.set(offX, offY);
+      camSet = true;
+    }
+    camPos.lerp(wantPos, ck);
+    camLook.lerp(wantLook, ck);
+    camOff.x += (offX - camOff.x) * ck;
+    camOff.y += (offY - camOff.y) * ck;
+    cam.position.copy(camPos);
+    cam.lookAt(camLook);
+    cam.setViewOffset(w, h, camOff.x, camOff.y, w, h);
     renderer.render(scene, cam);
+    css3d.render(scene, cam);
     place();
   };
   const frame = (now: number) => {
@@ -1309,14 +1519,24 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       view = next;
       drawScreens();
     },
+    setVideo,
+    screens: cssScreens,
+    focus: (id, shift = 0) => {
+      focused = id;
+      focusShift = id ? Math.max(0, Math.min(0.5, shift)) : 0;
+    },
     dispose: () => {
       cancelAnimationFrame(raf);
       ro?.disconnect();
       io?.disconnect();
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointerdown", onPress);
+      canvas.removeEventListener("pointerup", onClick);
+      css3d.domElement.remove();
       window.removeEventListener("pointerup", onUp);
       pan.dispose();
+      vtex?.dispose();
       for (const d of disposables) d.dispose();
       renderer.dispose();
       renderer.forceContextLoss();

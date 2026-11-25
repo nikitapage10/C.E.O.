@@ -317,9 +317,9 @@ export function TodayNow(p: NowInput) {
           : "Nothing needs you right now.";
   const busy = p.pulses.filter((x) => x.state === "busy").map((x) => x.name);
 
-  // A held Space on a row (#622): listening while it is held, the words go when it is let go. A quick tap is a tap.
+  // A held L on a row (#622; L since #1233): listening while it is held, the words go when it is let go. A quick tap does nothing.
   const spaceDown = (r: Row, e: ReactKeyboardEvent<HTMLElement>) => {
-    if (e.key !== " " || !talkOn || !r.talk) return;
+    if (e.key.toLowerCase() !== "l" || e.metaKey || e.ctrlKey || e.altKey || !talkOn || !r.talk) return;
     e.preventDefault();
     if (e.repeat || hold.current) return;
     const key = r.key;
@@ -334,14 +334,12 @@ export function TodayNow(p: NowInput) {
     };
   };
   const spaceUp = (r: Row, e: ReactKeyboardEvent<HTMLElement>) => {
-    if (e.key !== " " || !hold.current || hold.current.key !== r.key) return;
+    if (e.key.toLowerCase() !== "l" || !hold.current || hold.current.key !== r.key) return;
     e.preventDefault();
     const h = hold.current;
     hold.current = null;
     window.clearTimeout(h.timer);
     if (h.held) setTalk((t) => (t && t.key === r.key ? { ...t, holding: false } : t));
-    else if (r.card) setOpen(open === r.key ? null : r.key);
-    else (e.currentTarget as HTMLElement).click();
   };
 
   const row = (r: Row, i: number, numeral: string) => {
@@ -394,7 +392,7 @@ export function TodayNow(p: NowInput) {
               type="button"
               className={`td-ni-talk${talk?.key === r.key ? " is-on" : ""}`}
               aria-label="Talk back to this: snooze, remind, note, done or to-do"
-              title="Talk back: snooze, remind, note, done (or hold Space on the row)"
+              title="Talk back: snooze, remind, note, done (or hold L on the row)"
               aria-expanded={talk?.key === r.key}
               onClick={() => setTalk(talk?.key === r.key ? null : { key: r.key, listen: true })}
             >
@@ -522,7 +520,7 @@ export function TodayNow(p: NowInput) {
                 type="button"
                 className={`td-ni-talk${talk?.key === r.key ? " is-on" : ""}`}
                 aria-label="Talk back to this: go ahead, ask Skippy, snooze, remind, note or done"
-                title="Talk back: “go ahead” hands it to Skippy; or ask, snooze, note, done (or hold Space on the card)"
+                title="Talk back: “go ahead” hands it to Skippy; or ask, snooze, note, done (or hold L on the card)"
                 aria-expanded={talk?.key === r.key}
                 onClick={() => setTalk(talk?.key === r.key ? null : { key: r.key, listen: true })}
               >

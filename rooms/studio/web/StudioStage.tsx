@@ -16,7 +16,7 @@ export type StageApi = Pick<Soundstage, "screens" | "focus" | "setVideo">;
 
 type GL = "idle" | "loading" | "on" | "off";
 const isPhone = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches;
-export function StudioStage({ view, children, onReady, onFrame }: { view: StudioView; children: ReactNode; onReady?: (api: StageApi | null) => void; onFrame?: () => void }) {
+export function StudioStage({ view, children, onReady, onFrame, onAway }: { view: StudioView; children: ReactNode; onReady?: (api: StageApi | null) => void; onFrame?: () => void; onAway?: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const scene = useRef<Soundstage | null>(null);
@@ -25,8 +25,8 @@ export function StudioStage({ view, children, onReady, onFrame }: { view: Studio
   useSceneReady(gl === "on" || gl === "off");
   const viewRef = useRef(view);
   viewRef.current = view;
-  const cb = useRef({ onReady, onFrame });
-  cb.current = { onReady, onFrame };
+  const cb = useRef({ onReady, onFrame, onAway });
+  cb.current = { onReady, onFrame, onAway };
   const labelList: [string, string][] = [
     ["suite", "The edit suite"],
     ["stage", "The stage · 9:16"],
@@ -49,6 +49,7 @@ export function StudioStage({ view, children, onReady, onFrame }: { view: Studio
             reduce: reducedMotion(),
             view: viewRef.current,
             onFrame: () => cb.current.onFrame?.(),
+            onAway: () => cb.current.onAway?.(),
             onPlace: (id, x, y, on) => {
               const t = labels.current.get(id);
               if (!t) return;

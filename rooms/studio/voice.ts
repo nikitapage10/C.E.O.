@@ -3,7 +3,7 @@ import { act, focusNow, isQuestion } from "./data/desk.ts";
 
 /**
  * The Studio's voice intent (#1227), the room's `voice` hook (@ceo/engine/voice, docs/ROOMS.md): what Nikita says on
- * /studio with Space held ("the poster's too small", "cut the second joke") is kept as a note for the Director on the
+ * /studio with L held ("the poster's too small", "cut the second joke") is kept as a note for the Director on the
  * episode and stage on screen, and the Director's thread picks it up. A question goes on to the Director, the room's
  * submind, which answers as usual.
  */

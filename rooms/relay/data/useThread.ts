@@ -448,7 +448,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
         case "no":
         case "change":
           setDeclined((d) => ({ ...d, [ex.key]: ex.draft ?? "" }));
-          setNotice({ kind: "info", text: cmd === "no" ? "Not sending that. Hold Space and say what to write instead, or skip." : "Hold Space and say what to change.", at });
+          setNotice({ kind: "info", text: cmd === "no" ? "Not sending that. Hold L and say what to write instead, or skip." : "Hold L and say what to change.", at });
           return true;
         case "done":
         case "skip": {

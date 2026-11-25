@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { clock, isDone, NOTE_STATE_TEXT, short, STAGE_LINE, STATUS_TEXT, versionsOf, type DeskAction, type DeskView, type Episode, type Note, type Stage } from "../data/desk.ts";
 import type { PostStat, Social } from "../../../api/_studio/stats.ts";
 
@@ -27,6 +27,16 @@ export interface Player {
 type Run = (body: DeskAction, done: string, after?: () => void) => Promise<void>;
 
 const PLATFORM: Record<string, string> = { instagram: "Instagram", tiktok: "TikTok" };
+
+/** The platform's own player for a post (#1233): TikTok's embed by video id, Instagram's by its post or reel code. */
+export function embedOf(url: string | undefined): string | null {
+  if (!url) return null;
+  const tt = /tiktok\.com\/.*\/video\/(\d{6,30})/.exec(url);
+  if (tt) return `https://www.tiktok.com/embed/v2/${tt[1]}`;
+  const ig = /instagram\.com\/(?:[^/]+\/)?(p|reel|reels|tv)\/([A-Za-z0-9_-]{5,40})/.exec(url);
+  if (ig) return `https://www.instagram.com/${ig[1] === "reels" ? "reel" : ig[1]}/${ig[2]}/embed`;
+  return null;
+}
 const PROFILE = new URL("./props/profile.webp", import.meta.url).href;
 
 /* ───────────────────────────── Edit ───────────────────────────── */
@@ -57,6 +67,26 @@ export function EditScreen(p: {
   const notes = useMemo(() => desk.notes.filter((n) => ep && n.episode === ep.id && n.stage === stage.id), [desk.notes, ep, stage.id]);
   const here = notes.filter((n) => !timed || n.version === undefined || n.version === p.version).sort((a, b) => (a.t ?? -1) - (b.t ?? -1));
   const drafts = notes.filter((n) => n.state === "draft");
+  // A render under way (#1233): sound notes just go (the mix is fixed and laid on the cut, no restart); notes on the
+  // picture ask whether to interrupt it or wait for the next version.
+  const rendering = ep?.stages.render?.status === "working";
+  const asks = rendering && stage.id !== "mix";
+  const [asking, setAsking] = useState(false);
+  const sendNow = (hold: boolean) => {
+    if (!ep) return;
+    setAsking(false);
+    const k = `${drafts.length} note${drafts.length === 1 ? "" : "s"}`;
+    void run({ action: "send", episode: ep.id, stage: stage.id, ...(hold ? { hold: true } : {}) }, hold ? `Holding ${k} for the next version. They go to the Director when it lands.` : `Sent ${k} to the Director.`);
+  };
+  const [titling, setTitling] = useState(false);
+  const [titleText, setTitleText] = useState("");
+  const reroll = () => {
+    if (!ep) return;
+    const alts = (ep.titles ?? []).filter((x) => x !== ep.title);
+    if (!alts.length) return;
+    const pick = alts[Math.floor(Math.random() * alts.length)]!;
+    void run({ action: "title", episode: ep.id, title: pick }, `Retitled: ${pick}`);
+  };
   const range = mark.a !== undefined && mark.b !== undefined && mark.b > mark.a ? { t: mark.a, t2: mark.b } : null;
   const at = range ? `${clock(range.t)}–${clock(range.t2)}` : timed ? clock(player.t) : "";
 
@@ -73,7 +103,46 @@ export function EditScreen(p: {
     <div className="sx sx-edit">
       <header className="sx-bar">
         <b className="sx-k">Edit</b>
-        <span className="sx-title">{ep ? `Ep ${ep.n} · ${ep.title}` : "Nothing in production"}</span>
+        {ep && titling ? (
+          <form
+            className="sx-title sx-retitle"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const t = titleText.trim();
+              if (t && t !== ep.title) void run({ action: "title", episode: ep.id, title: t }, "Retitled.");
+              setTitling(false);
+            }}
+          >
+            <input value={titleText} onChange={(e) => setTitleText(e.target.value)} maxLength={200} aria-label="Episode title" autoFocus onKeyDown={(e) => e.key === "Escape" && setTitling(false)} />
+            <button type="submit">Save</button>
+          </form>
+        ) : (
+          <span className="sx-title">
+            {ep ? (
+              <>
+                Ep {ep.n} ·{" "}
+                <button
+                  type="button"
+                  className="sx-titlebtn"
+                  title="Click to retitle"
+                  onClick={() => {
+                    setTitleText(ep.title);
+                    setTitling(true);
+                  }}
+                >
+                  {ep.title}
+                </button>
+                {(ep.titles ?? []).some((x) => x !== ep.title) && (
+                  <button type="button" className="sx-reroll" disabled={busy} onClick={reroll} aria-label="Re-roll the title" title="Re-roll the title">
+                    ⟳
+                  </button>
+                )}
+              </>
+            ) : (
+              "Nothing in production"
+            )}
+          </span>
+        )}
         <nav className="sx-eps" aria-label="In production">
           <span>In production</span>
           {p.inProduction.map((e) => (
@@ -170,7 +239,7 @@ export function EditScreen(p: {
                     Add note
                   </button>
                 </form>
-                <p className="sx-hint">Pause anywhere and type, or hold Space and say it. Mark in and out to note a whole stretch.</p>
+                <p className="sx-hint">Pause anywhere and type, or hold L and say it. Mark in and out to note a whole stretch.</p>
               </>
             ) : (
               <div className="sx-read">
@@ -215,9 +284,24 @@ export function EditScreen(p: {
               {here.length === 0 && <li className="sx-empty">No notes yet.</li>}
             </ul>
             <div className="sx-acts">
-              <button type="button" className="sx-send" disabled={busy || drafts.length === 0} onClick={() => void run({ action: "send", episode: ep.id, stage: stage.id }, `Sent ${drafts.length} note${drafts.length === 1 ? "" : "s"} to the Director.`)}>
-                Send notes{drafts.length ? ` (${drafts.length})` : ""}
-              </button>
+              {asking ? (
+                <span className="sx-ask" role="group" aria-label="A render is under way">
+                  <em>A render is under way.</em>
+                  <button type="button" className="sx-send" disabled={busy} onClick={() => sendNow(false)}>
+                    Send now, interrupt it
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => sendNow(true)}>
+                    Hold for the next version
+                  </button>
+                  <button type="button" onClick={() => setAsking(false)} aria-label="Cancel">
+                    ×
+                  </button>
+                </span>
+              ) : (
+                <button type="button" className="sx-send" disabled={busy || drafts.length === 0} onClick={() => (asks ? setAsking(true) : sendNow(false))}>
+                  Send notes{drafts.length ? ` (${drafts.length})` : ""}
+                </button>
+              )}
               {stage.id === "post" ? (
                 <button type="button" className="sx-go" disabled={busy || st?.status !== "ready" || !st?.draft} onClick={() => void run({ action: "publish", episode: ep.id }, "Publishing in a minute, to Instagram and TikTok.")}>
                   Publish
@@ -385,31 +469,56 @@ export function PitchScreen({ desk, episodes, openEp, run, busy }: { desk: DeskV
 const pctOrDash = (v: number | null) => (v === null ? "—" : `${Math.round(v)}%`);
 
 export function FeedScreen({ social }: { social: Social | null }) {
-  const posts = useMemo(() => [...(social?.posts ?? [])].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)), [social]);
+  // One feed per platform, and on each, the posts apart from the stories (Nikita, 2026-11-25).
+  const [plat, setPlat] = useState<"tiktok" | "instagram">("tiktok");
+  const [kind, setKind] = useState<"post" | "story">("post");
+  const all = useMemo(() => [...(social?.posts ?? [])].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)), [social]);
+  const posts = useMemo(() => all.filter((x) => x.platform === plat && (x.kind ?? "post") === kind), [all, plat, kind]);
+  const count = (pl: string, k: string) => all.filter((x) => x.platform === pl && (x.kind ?? "post") === k).length;
   const [at, setAt] = useState(0);
+  useEffect(() => setAt(0), [plat, kind]);
   const post: PostStat | undefined = posts[at];
   const comments = (social?.comments ?? []).filter((c) => post && c.platform === post.platform && (c.post === post.text || post.text.startsWith(c.post) || c.post.startsWith(post.text.slice(0, 40))));
+  const prof = social?.profiles.find((pr) => pr.platform === plat);
   return (
     <div className="sx sx-feed">
       <header className="sx-feedhead">
-        <img src={PROFILE} alt="The show's profile photo" />
+        <img src={prof?.avatar ?? PROFILE} alt="The show's profile photo" />
         <div>
-          <b>@eatingyourneighbors</b>
+          <b>@{prof?.username || "eatingyourneighbors"}</b>
           <span>So, they're eating your neighbors.</span>
         </div>
         <dl>
-          {(social?.profiles ?? []).map((pr) => (
-            <div key={pr.platform}>
-              <dt>{PLATFORM[pr.platform] ?? pr.platform}</dt>
-              <dd>{short(pr.followers)}</dd>
-            </div>
-          ))}
+          <div>
+            <dt>Followers</dt>
+            <dd>{prof ? short(prof.followers) : "—"}</dd>
+          </div>
+          <div>
+            <dt>Posts</dt>
+            <dd>{prof ? short(prof.posts) : "—"}</dd>
+          </div>
         </dl>
       </header>
+      <nav className="sx-feedtabs" aria-label="Feed">
+        <span role="tablist" aria-label="Platform">
+          {(["tiktok", "instagram"] as const).map((pl) => (
+            <button key={pl} type="button" role="tab" aria-selected={pl === plat} onClick={() => setPlat(pl)}>
+              {PLATFORM[pl] ?? pl}
+            </button>
+          ))}
+        </span>
+        <span role="tablist" aria-label="Kind" className="sx-feedkind">
+          {(["post", "story"] as const).map((k) => (
+            <button key={k} type="button" role="tab" aria-selected={k === kind} onClick={() => setKind(k)}>
+              {k === "post" ? "Posts" : "Stories"} <small>{count(plat, k)}</small>
+            </button>
+          ))}
+        </span>
+      </nav>
       {!social ? (
         <p className="sx-empty">The numbers aren't in yet. Zernio answers within a few minutes.</p>
       ) : posts.length === 0 ? (
-        <p className="sx-empty">Nothing posted yet.</p>
+        <p className="sx-empty">{kind === "story" ? `No ${PLATFORM[plat] ?? plat} stories yet.` : `Nothing posted on ${PLATFORM[plat] ?? plat} yet.`}</p>
       ) : (
         <div className="sx-feed-grid">
           <ol className="sx-posts" aria-label="Posted videos">
@@ -427,6 +536,11 @@ export function FeedScreen({ social }: { social: Social | null }) {
           </ol>
           {post && (
             <article className="sx-post">
+              {embedOf(post.url) ? (
+                <iframe key={post.url} className="sx-embed" data-p={post.platform} src={embedOf(post.url)!} title={`The ${PLATFORM[post.platform] ?? post.platform} post`} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen loading="lazy" />
+              ) : post.thumb ? (
+                <img className="sx-embed" src={post.thumb} alt="" />
+              ) : null}
               <p className="sx-post-t">{post.text || "Untitled"}</p>
               <p className="sx-post-m">
                 {PLATFORM[post.platform]} · {new Date(post.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}

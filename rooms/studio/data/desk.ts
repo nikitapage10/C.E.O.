@@ -96,7 +96,8 @@ export type DeskAction =
   | { action: "pitch"; text: string }
   | { action: "note"; text: string; episode?: string; stage?: Stage; via?: "said" | "typed"; version?: number; t?: number; t2?: number }
   | { action: "unnote"; id: string }
-  | { action: "send"; episode?: string; stage?: Stage }
+  | { action: "send"; episode?: string; stage?: Stage; hold?: boolean }
+  | { action: "title"; episode: string; title: string }
   | { action: "approve"; episode: string; stage: Stage }
   | { action: "publish"; episode: string };
 
@@ -144,4 +145,4 @@ export function clock(t: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export const NOTE_STATE_TEXT: Record<NoteState, string> = { draft: "Draft", sent: "Sent", fixed: "Fixed", open: "Still open", wontfix: "Won't fix" };
+export const NOTE_STATE_TEXT: Record<NoteState, string> = { draft: "Draft", held: "Held for the next version", sent: "Sent", fixed: "Fixed", open: "Still open", wontfix: "Won't fix" };

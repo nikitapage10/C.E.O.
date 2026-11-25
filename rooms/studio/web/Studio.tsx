@@ -19,7 +19,7 @@ import "./studio.css";
  * Publish), Pitch on the left, the Feed on the right (every posted video, its numbers and its comments). A click on a
  * monitor dollies in to it; Esc or Back steps out. The cut under review plays on the stage's tall frame; a click on the
  * frame docks it beside the edit screen as a reference monitor. On a phone, or without WebGL, the screens lay flat
- * under the stage. Held Space keeps what's said as a note at the moment on screen (../voice.ts). Everything is real
+ * under the stage. A held L keeps what's said as a note at the moment on screen (../voice.ts). Everything is real
  * (GET /api/studio-desk); nothing posts without Nikita's tap, and he can't change a cut here, only note it.
  */
 
@@ -108,7 +108,7 @@ export function Studio() {
   // The newest version opens whenever the stage or episode changes.
   useEffect(() => setVersion(versions[versions.length - 1]?.v ?? 0), [ep?.id, stage.id, versions.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Held Space pins a note to this version, at this moment.
+  // A held L pins a note to this version, at this moment.
   useEffect(() => {
     setFocus(ep ? { episode: ep.id, stage: stage.id, at: () => (cur ? { version: cur.v, t: Math.round((video.current?.currentTime ?? 0) * 10) / 10 } : {}) } : {});
   }, [ep, stage.id, cur]);
@@ -191,8 +191,14 @@ export function Studio() {
     toggle: () => {
       const v = video.current;
       if (!v || !media) return;
-      if (v.paused) void v.play().catch(() => undefined);
-      else v.pause();
+      if (v.paused) {
+        void v.play().catch(() => undefined);
+        // Play brings the reference monitor up beside the edit screen by itself (Nikita, 2026-11-25).
+        if (!flat) {
+          setRefOn(true);
+          setFocused("edit");
+        }
+      } else v.pause();
     },
     seek: (t) => {
       const v = video.current;
@@ -207,6 +213,38 @@ export function Studio() {
     setFocused("edit");
     setRefOn(true);
   }, []);
+  // A click on the room, off the monitors: back to the stage (Nikita, 2026-11-25).
+  const onAway = useCallback(() => {
+    setFocused(null);
+    setRefOn(false);
+  }, []);
+
+  // Space plays and pauses the cut (#1233: talking moved to a held L), wherever focus is, except in a field. Taken on
+  // the way down so a focused button is never pressed by it as well.
+  const toggleRef = useRef(player.toggle);
+  toggleRef.current = player.toggle;
+  useEffect(() => {
+    if (!media) return;
+    const typing = (t: EventTarget | null) => !!(t as Element | null)?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+    const isSpace = (e: KeyboardEvent) => (e.code === "Space" || e.key === " ") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !typing(e.target);
+    const down = (e: KeyboardEvent) => {
+      if (!isSpace(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!e.repeat) toggleRef.current();
+    };
+    const up = (e: KeyboardEvent) => {
+      if (!isSpace(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("keydown", down, true);
+    window.addEventListener("keyup", up, true);
+    return () => {
+      window.removeEventListener("keydown", down, true);
+      window.removeEventListener("keyup", up, true);
+    };
+  }, [media]);
 
   const social = desk?.social ?? null;
   const followers = social?.profiles.reduce((n, p) => n + p.followers, 0) ?? 0;
@@ -242,7 +280,7 @@ export function Studio() {
 
   return (
     <div className="wv-page rm rm-studio st-page" data-room="studio" data-focus={focused ?? undefined} data-ref={refOn && !flat ? "on" : undefined}>
-      <StudioStage view={view} onReady={setApi} onFrame={onFrame}>
+      <StudioStage view={view} onReady={setApi} onFrame={onFrame} onAway={onAway}>
         <header className="st-head">
           <p className="st-eyb">
             The Studio <i /> edit suite and sound stage
@@ -250,7 +288,7 @@ export function Studio() {
           <h1 className="st-h1 desk__title">
             So, they're eating <em>your neighbors.</em>
           </h1>
-          <p className="st-sub">Adulting at the end of the world, for TikTok and Reels. Click a monitor to work on it, or the stage to watch the cut beside your notes. Hold Space to leave a note at that moment.</p>
+          <p className="st-sub">Adulting at the end of the world, for TikTok and Reels. Click a monitor to work on it, or the stage to watch the cut beside your notes. Hold L to leave a note at that moment. Space plays and pauses.</p>
           <p className={`st-tally${rolling ? " is-on" : ""}`} aria-label={rolling ? "Rolling" : "Not rolling"}>
             <i aria-hidden="true" />
             {rolling ? "Rolling" : "Not rolling"}

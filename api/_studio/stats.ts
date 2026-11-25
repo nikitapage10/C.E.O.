@@ -23,6 +23,8 @@ export interface Profile {
 
 export interface PostStat {
   platform: string;
+  /** A story (24-hour) or a feed post (Reel, video); Zernio marks stories in the post's content type. */
+  kind: "post" | "story";
   text: string;
   at: string;
   url?: string;
@@ -61,6 +63,13 @@ export interface Social {
   comments: CommentLine[];
 }
 
+/** Whether Zernio's post is a story: its content or media type says so, at the top or in the platform data. */
+export function postKind(p: Record<string, unknown>): "post" | "story" {
+  const psd = (p.platformSpecificData ?? {}) as Record<string, unknown>;
+  const said = [p.contentType, p.postType, p.mediaType, p.type, psd.contentType, psd.postType, psd.mediaType].filter((v) => typeof v === "string").join(" ");
+  return /stor(y|ies)/i.test(said) ? "story" : "post";
+}
+
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const s = (v: unknown, max = 300) => (typeof v === "string" ? v.slice(0, max) : "");
 
@@ -89,6 +98,7 @@ export async function readSocial(z: ZernioDeps): Promise<Omit<Social, "at"> | nu
         const a = (p.analytics ?? {}) as Record<string, unknown>;
         return {
           platform: s(p.platform),
+          kind: postKind(p),
           text: s(p.content, 160),
           at: s(p.publishedAt, 40),
           ...(isMediaUrl(p.platformPostUrl) ? { url: p.platformPostUrl } : {}),

@@ -1,7 +1,8 @@
 import { create } from "zustand";
 
 /**
- * Hold Space to talk, on every Desk page (#905). Nikita, 2026-11-05: "At any point while the skippies are talking in the
+ * Hold L ("listen") to talk, on every Desk page (Nikita, 2026-11-25, #1233: Space kept pressing the Studio's player, so
+ * the talk key moved to L and Space is the browser's again). Before that, Space (#905). Nikita, 2026-11-05: "At any point while the skippies are talking in the
  * Senate, I should be able to hold space to engage them directly … holding space or pressing space on any of the other
  * pages … just scrolls the page down. Can we change that?"
  *
@@ -99,21 +100,22 @@ export const holdHeard = (heard: string) => useHoldToTalk.setState({ heard });
 
 /* ── Which keys are ours ── */
 
-/** Elements where Space types, picks or presses: native Space is left to them. */
-const NATIVE_SPACE =
-  "input, textarea, select, option, button, summary, a[href], [contenteditable]:not([contenteditable='false']), [role='button'], [role='link'], [role='checkbox'], [role='radio'], [role='switch'], [role='menuitem'], [role='option'], [role='tab'], [role='textbox'], [role='combobox'], [role='slider'], [role='spinbutton']";
+/** Elements where L types or picks: there the key is left to them. A button or a link doesn't take a letter. */
+const NATIVE_TYPING = "input, textarea, select, option, [contenteditable]:not([contenteditable='false']), [role='textbox'], [role='combobox'], [role='spinbutton']";
 
-/** Whether Space on this target belongs to the element itself (a field, a button, a link). */
+/** Whether the talk key on this target belongs to the element itself (a field, a select). */
 export function nativeSpaceTarget(target: EventTarget | null): boolean {
   const el = target as (Element & { isContentEditable?: boolean }) | null;
   if (!el || typeof el.closest !== "function") return false;
   if (el.isContentEditable) return true;
-  return !!el.closest(NATIVE_SPACE);
+  return !!el.closest(NATIVE_TYPING);
 }
 
 type KeyLike = Pick<KeyboardEvent, "code" | "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey" | "target" | "defaultPrevented">;
 
-const isSpace = (e: Pick<KeyboardEvent, "code" | "key">) => e.code === "Space" || e.key === " " || e.key === "Spacebar";
+/** The talk key: L, for listen (whatever the layout says, the key in L's place counts too). */
+export const TALK_KEY = "L";
+const isSpace = (e: Pick<KeyboardEvent, "code" | "key">) => e.code === "KeyL" || e.key === "l" || e.key === "L";
 
 /** Whether this Space key event is the Desk's to handle: no modifier, not already taken, not on a field or a control. */
 export function isTalkSpace(e: KeyLike): boolean {

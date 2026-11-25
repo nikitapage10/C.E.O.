@@ -19,8 +19,8 @@ describe("focus after a change of page (#934)", () => {
     const link = node(["a[href]"]);
     const main = node([]);
     const doc = { activeElement: link, querySelector: (s: string) => (s === SHOWN_MAIN ? main : null) };
-    const space = { code: "Space", key: " ", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, defaultPrevented: false };
-    expect(isTalkSpace({ ...space, target: link as unknown as EventTarget })).toBe(false);
+    const space = { code: "KeyL", key: "l", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, defaultPrevented: false };
+    expect(isTalkSpace({ ...space, target: link as unknown as EventTarget })).toBe(true); // L on a link talks (#1233)
     expect(focusPage(doc)).toBe(true);
     expect(main.focus).toHaveBeenCalledWith({ preventScroll: true });
     expect(isTalkSpace({ ...space, target: main as unknown as EventTarget })).toBe(true);

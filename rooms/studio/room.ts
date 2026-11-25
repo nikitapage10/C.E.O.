@@ -15,7 +15,7 @@ export default defineRoom({
   usesClaude: false,
   threat: ["TB2"],
   budgetKb: 64,
-  // Held Space on /studio (#1227): a note is kept for the Director on the stage on screen (./voice.ts); a question goes to the Director.
+  // A held L on /studio (#1227, L since #1233): a note is kept for the Director on the stage on screen (./voice.ts); a question goes to the Director.
   voice: () => import("./voice.ts"),
   purpose: {
     goal: "Makes the zombie-guide series, one short tall episode a day, through Nikita's four gates (pitch, voice and mix, render, post), and posts each to Instagram and TikTok on his tap.",

@@ -807,8 +807,16 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       el.style.width = `${css.w}px`;
       el.style.height = `${css.h}px`;
       // Rasterised at twice its size, then scaled down: the page stays crisp when the camera dollies in close.
-      el.style.zoom = String(PAGE_ZOOM);
-      const obj = new CSS3DObject(el);
+      // A plain transform, not CSS zoom: zoom inside the CSS3D layer threw off its size and its pointer hits.
+      el.style.transform = `scale(${PAGE_ZOOM})`;
+      el.style.transformOrigin = "0 0";
+      const holder = document.createElement("div");
+      holder.className = "st-screen-holder";
+      holder.style.pointerEvents = "none";
+      holder.style.width = `${css.w * PAGE_ZOOM}px`;
+      holder.style.height = `${css.h * PAGE_ZOOM}px`;
+      holder.appendChild(el);
+      const obj = new CSS3DObject(holder);
       obj.position.set(0, y, 0.03);
       obj.rotation.x = tilt;
       obj.scale.setScalar(w / (css.w * PAGE_ZOOM));

@@ -7,14 +7,23 @@
  *                                                 the Director's thread to pick up pitches, approvals and notes.
  *   POST /api/studio-desk { action: "pitch", text }                     passkey session: a new idea.
  *   POST /api/studio-desk { action: "approve", episode, stage }         passkey session: that stage is approved.
- *   POST /api/studio-desk { action: "note", episode?, stage?, text }    passkey session: a note for the Director (typed,
- *                                                                       or said with Space held on the Studio page).
+ *   POST /api/studio-desk { action: "note", episode?, stage?, text,     passkey session: a note for the Director (typed,
+ *                           version?, t?, t2? }                         or said with Space held on the Studio page),
+ *                                                                       pinned to a version and a moment (t) or a range
+ *                                                                       (t to t2, seconds). It stays a draft (#1229).
+ *   POST /api/studio-desk { action: "unnote", id }                      passkey session: drops one of his drafts.
+ *   POST /api/studio-desk { action: "send", episode?, stage? }          passkey session: "these are all my notes": his
+ *                                                                       drafts there go to the Director as one batch.
  *   POST /api/studio-desk { action: "publish", episode }                passkey session: publishes the episode's own
  *                                                                       Zernio draft (api/_studio/social.ts, its own
  *                                                                       drafts only), a minute out.
  *   PUT  /api/studio-desk { action: "episode", episode }                the feed key: the Director's thread saves an
  *                                                                       episode's state (stages, links, captions).
  *   PUT  /api/studio-desk { action: "idea", id, status }                the feed key: an idea taken up or set aside.
+ *   PUT  /api/studio-desk { action: "note-state", id, state, reply? }   the feed key: a sent note fixed, still open or
+ *                                                                       won't fix, with a line on what was done.
+ *
+ * Drafts are his alone: the read key never sees a note until Send notes, so the Director waits for the whole batch.
  *
  * What's kept: the series' working state in the private blob store (`studio/desk.json`), never personal data. Links
  * are https only (the review cut, stills and mix sit in Zernio's media store under unguessable names, the same place
@@ -61,8 +70,22 @@ export interface StageState {
   draft?: string;
   /** Where it went live. */
   links?: string[];
+  /** Every cut or mix so far, oldest first; `media` is the newest (#1229). */
+  versions?: Version[];
   at?: number;
 }
+
+export interface Version {
+  v: number;
+  media: string;
+  /** What changed in it, in a few words. */
+  label?: string;
+  at?: number;
+}
+
+export const NOTE_STATES = ["draft", "sent", "fixed", "open", "wontfix"] as const;
+export type NoteState = (typeof NOTE_STATES)[number];
+const T_MAX = 3_600;
 
 export interface Episode {
   id: string;
@@ -79,7 +102,17 @@ export interface Note {
   stage?: Stage;
   /** "said" when it came from the room mic, "typed" from the box. */
   via: "said" | "typed";
+  /** The version it's about, and the moment (t) or range (t to t2), in seconds. */
+  version?: number;
+  t?: number;
+  t2?: number;
+  /** A draft until Send notes; then the Director marks it. Older notes without one were sent. */
+  state?: NoteState;
+  reply?: string;
 }
+
+/** Whether a note has left the draft pile. */
+export const isSent = (n: Note) => (n.state ?? "sent") !== "draft";
 
 export interface Idea {
   id: string;
@@ -122,7 +155,7 @@ const newId = (now: number) => `${now.toString(36)}-${Math.floor(Math.random() *
 export function readStage(v: unknown): StageState | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const s = v as Record<string, unknown>;
-  const allowed = ["status", "text", "media", "stills", "captions", "draft", "links", "at"];
+  const allowed = ["status", "text", "media", "stills", "captions", "draft", "links", "versions", "at"];
   if (!Object.keys(s).every((k) => allowed.includes(k))) return null;
   if (typeof s.status !== "string" || !(STATUSES as readonly string[]).includes(s.status)) return null;
   const out: StageState = { status: s.status as Status };
@@ -148,12 +181,34 @@ export function readStage(v: unknown): StageState | null {
     if (typeof s.draft !== "string" || !/^[A-Za-z0-9_-]{6,64}$/.test(s.draft)) return null;
     out.draft = s.draft;
   }
+  if (s.versions !== undefined) {
+    const vs = readVersions(s.versions);
+    if (!vs) return null;
+    out.versions = vs;
+  }
   if (s.at !== undefined) {
     if (typeof s.at !== "number" || !Number.isFinite(s.at)) return null;
     out.at = s.at;
   }
   return out;
 }
+
+function readVersions(v: unknown): Version[] | null {
+  if (!Array.isArray(v) || v.length > 30) return null;
+  const out: Version[] = [];
+  for (const x of v) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+    const r = x as Record<string, unknown>;
+    if (!Object.keys(r).every((k) => ["v", "media", "label", "at"].includes(k))) return null;
+    if (typeof r.v !== "number" || !Number.isInteger(r.v) || r.v < 1 || r.v > 99 || !isMediaUrl(r.media)) return null;
+    if (r.label !== undefined && !isText(r.label, 120)) return null;
+    if (r.at !== undefined && (typeof r.at !== "number" || !Number.isFinite(r.at))) return null;
+    out.push({ v: r.v, media: r.media, ...(r.label ? { label: r.label as string } : {}), ...(typeof r.at === "number" ? { at: r.at } : {}) });
+  }
+  return new Set(out.map((x) => x.v)).size === out.length ? out : null;
+}
+
+const isT = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= T_MAX;
 
 /** An episode as the thread sends it, or null. */
 export function readEpisode(v: unknown): Episode | null {
@@ -203,12 +258,12 @@ export async function deskGet(request: Request, deps: StudioDeskDeps): Promise<R
   if (!deps.blob) return json({ error: "not-set-up" }, 503);
   if (roomKeyOf(request, deps.env) === "log") {
     const st = await readState(deps.blob);
-    return json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.slice(-60), approvals: st.approvals.slice(-60) });
+    return json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.filter(isSent).slice(-120), approvals: st.approvals.slice(-60) });
   }
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   const [st, social] = await Promise.all([readState(deps.blob), socialFor(deps)]);
-  return withCookie(json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.slice(-60), approvals: st.approvals.slice(-60), social }), signed);
+  return withCookie(json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.slice(-200), approvals: st.approvals.slice(-60), social }), signed);
 }
 
 /** POST /api/studio-desk: the signed-in Desk. */
@@ -241,10 +296,43 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
     if (!isText(b.text, TEXT_MAX)) return reply({ error: "bad-request" }, 400);
     if (b.episode !== undefined && (typeof b.episode !== "string" || !ID.test(b.episode))) return reply({ error: "bad-request" }, 400);
     if (b.stage !== undefined && !isStage(b.stage)) return reply({ error: "bad-request" }, 400);
-    const note: Note = { id: newId(now), at: now, text: b.text.trim(), via: b.via === "said" ? "said" : "typed", ...(b.episode ? { episode: b.episode as string } : {}), ...(b.stage ? { stage: b.stage as Stage } : {}) };
-    await change(blob, (st) => ({ ...st, notes: [...st.notes, note].slice(-200) }));
-    console.log("studio: a note was left for the Director");
+    if (b.version !== undefined && (typeof b.version !== "number" || !Number.isInteger(b.version) || b.version < 1 || b.version > 99)) return reply({ error: "bad-request" }, 400);
+    if ((b.t !== undefined && !isT(b.t)) || (b.t2 !== undefined && (!isT(b.t2) || !isT(b.t) || b.t2 <= b.t))) return reply({ error: "bad-request" }, 400);
+    const round = (x: number) => Math.round(x * 10) / 10;
+    const note: Note = {
+      id: newId(now),
+      at: now,
+      text: b.text.trim(),
+      via: b.via === "said" ? "said" : "typed",
+      state: "draft",
+      ...(b.episode ? { episode: b.episode as string } : {}),
+      ...(b.stage ? { stage: b.stage as Stage } : {}),
+      ...(typeof b.version === "number" ? { version: b.version } : {}),
+      ...(isT(b.t) ? { t: round(b.t) } : {}),
+      ...(isT(b.t2) ? { t2: round(b.t2) } : {}),
+    };
+    await change(blob, (st) => ({ ...st, notes: [...st.notes, note].slice(-400) }));
+    console.log("studio: a draft note was left for the Director");
     return reply({ ok: true, note });
+  }
+  if (b.action === "unnote") {
+    const id = b.id;
+    if (typeof id !== "string" || id.length > 40) return reply({ error: "bad-request" }, 400);
+    const next = await change(blob, (st) => (st.notes.some((n) => n.id === id && n.state === "draft") ? { ...st, notes: st.notes.filter((n) => n.id !== id) } : null));
+    return next ? reply({ ok: true }) : reply({ error: "gone" }, 404);
+  }
+  if (b.action === "send") {
+    if (b.episode !== undefined && (typeof b.episode !== "string" || !ID.test(b.episode))) return reply({ error: "bad-request" }, 400);
+    if (b.stage !== undefined && !isStage(b.stage)) return reply({ error: "bad-request" }, 400);
+    const mine = (n: Note) => n.state === "draft" && (b.episode === undefined || n.episode === b.episode) && (b.stage === undefined || n.stage === b.stage);
+    let sent = 0;
+    await change(blob, (st) => {
+      sent = st.notes.filter(mine).length;
+      return sent ? { ...st, notes: st.notes.map((n) => (mine(n) ? { ...n, state: "sent" as NoteState } : n)) } : null;
+    });
+    if (!sent) return reply({ error: "no-drafts" }, 409);
+    console.log(`studio: ${sent} note(s) sent to the Director`);
+    return reply({ ok: true, sent });
   }
   if (b.action === "approve") {
     if (typeof b.episode !== "string" || !ID.test(b.episode) || !isStage(b.stage)) return reply({ error: "bad-request" }, 400);
@@ -302,6 +390,16 @@ export async function deskPut(request: Request, deps: StudioDeskDeps): Promise<R
     const status = b.status;
     if (typeof id !== "string" || id.length > 40 || (status !== "taken" && status !== "set-aside" && status !== "new")) return json({ error: "bad-request" }, 400);
     const next = await change(deps.blob, (st) => (st.ideas.some((i) => i.id === id) ? { ...st, ideas: st.ideas.map((i) => (i.id === id ? { ...i, status } : i)) } : null));
+    return next ? json({ ok: true }) : json({ error: "gone" }, 404);
+  }
+  if (b.action === "note-state") {
+    const id = b.id;
+    const state = b.state;
+    if (typeof id !== "string" || id.length > 40 || (state !== "fixed" && state !== "open" && state !== "wontfix")) return json({ error: "bad-request" }, 400);
+    if (b.reply !== undefined && !isText(b.reply, 600)) return json({ error: "bad-request" }, 400);
+    const next = await change(deps.blob, (st) =>
+      st.notes.some((n) => n.id === id && isSent(n)) ? { ...st, notes: st.notes.map((n) => (n.id === id ? { ...n, state, ...(b.reply ? { reply: (b.reply as string).trim() } : {}) } : n)) } : null,
+    );
     return next ? json({ ok: true }) : json({ error: "gone" }, 404);
   }
   return json({ error: "bad-request" }, 400);

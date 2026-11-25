@@ -3,16 +3,20 @@ import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
 import type { Soundstage, StudioView } from "./soundstage.ts";
 
+/** What the page drives on the stage once the 3D is up (#1229). */
+export type StageApi = Pick<Soundstage, "screens" | "focus" | "setVideo">;
+
 /**
  * The Studio's stage (#828): the edit suite and the sound stage behind it in 3D (soundstage.ts, lazy loaded with
  * three.js), with the page's head laid over it and three small labels riding their places. Until the 3D is up, and on a
  * device without WebGL, a flat stage drawn in CSS stands in, so the page is whole at once. The scene's monitors show
- * the desk as the page has it (`view`: the episode's stages, the one selected, the bin; #1227).
+ * the desk as the page has it (`view`; #1227), and once the 3D is up the page renders its working screens onto them and
+ * drives the camera and the cut on the stage through `onReady` (#1229).
  */
 
 type GL = "idle" | "loading" | "on" | "off";
 const isPhone = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches;
-export function StudioStage({ view, children }: { view: StudioView; children: ReactNode }) {
+export function StudioStage({ view, children, onReady, onFrame }: { view: StudioView; children: ReactNode; onReady?: (api: StageApi | null) => void; onFrame?: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const scene = useRef<Soundstage | null>(null);
@@ -21,6 +25,8 @@ export function StudioStage({ view, children }: { view: StudioView; children: Re
   useSceneReady(gl === "on" || gl === "off");
   const viewRef = useRef(view);
   viewRef.current = view;
+  const cb = useRef({ onReady, onFrame });
+  cb.current = { onReady, onFrame };
   const labelList: [string, string][] = [
     ["suite", "The edit suite"],
     ["stage", "The stage · 9:16"],
@@ -42,6 +48,7 @@ export function StudioStage({ view, children }: { view: StudioView; children: Re
             phone: isPhone(),
             reduce: reducedMotion(),
             view: viewRef.current,
+            onFrame: () => cb.current.onFrame?.(),
             onPlace: (id, x, y, on) => {
               const t = labels.current.get(id);
               if (!t) return;
@@ -55,6 +62,7 @@ export function StudioStage({ view, children }: { view: StudioView; children: Re
           if (dead) return s.dispose();
           scene.current = s;
           setGl("on");
+          cb.current.onReady?.({ screens: s.screens, focus: s.focus, setVideo: s.setVideo });
         })
         .catch(() => !dead && setGl("off"));
     };
@@ -65,6 +73,7 @@ export function StudioStage({ view, children }: { view: StudioView; children: Re
       dead = true;
       if (viaIdle) w.cancelIdleCallback?.(idle);
       else window.clearTimeout(idle);
+      cb.current.onReady?.(null);
       scene.current?.dispose();
       scene.current = null;
     };

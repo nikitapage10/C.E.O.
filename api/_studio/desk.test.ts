@@ -115,6 +115,7 @@ describe("studio-desk", () => {
     // A stage that isn't ready can't be approved again.
     expect((await deskPost(req("POST", { action: "approve", episode: "ep3", stage: "render" }, cookie), d)).status).toBe(409);
     expect((await deskPost(req("POST", { action: "pitch", text: "" }, cookie), d)).status).toBe(400);
+    expect((await deskPost(req("POST", { action: "send", episode: "ep3" }, cookie), d)).status).toBe(200);
     const got = await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json();
     expect(got.ideas[0]).toMatchObject({ text: "Taxes, but the IRS is a lich.", status: "new" });
     expect(got.notes[0]).toMatchObject({ text: "Make the poster bigger.", episode: "ep3", stage: "render", via: "said" });
@@ -170,6 +171,35 @@ describe("studio-desk", () => {
     const { d, store } = deps({}, "");
     const got = await (await deskGet(req("GET", undefined, { Cookie: await signedInCookie(DESK, NOW, store) }), d)).json();
     expect(got.social).toBeNull();
+  });
+
+  it("keeps timed notes as his drafts until Send notes, then the Director marks them (#1229)", async () => {
+    const { d, store } = deps({ "GET /accounts": { accounts: [] } });
+    const cookie = { Cookie: await signedInCookie(DESK, NOW, store) };
+    const v = [{ v: 2, media: "https://media.zernio.test/u/ep3-v2.mp4", label: "first cut" }, { v: 3, media: "https://media.zernio.test/u/ep3-v3.mp4" }];
+    expect((await deskPut(req("PUT", { action: "episode", episode: { ...EP3, stages: { ...EP3.stages, render: { ...EP3.stages.render, versions: v } } } }, bearer(FEED)), d)).status).toBe(200);
+    expect(readEpisode({ ...EP3, stages: { render: { status: "ready", versions: [{ v: 1, media: "https://a.test/1.mp4" }, { v: 1, media: "https://a.test/2.mp4" }] } } })).toBeNull();
+    const point = await (await deskPost(req("POST", { action: "note", text: "The doctor shows up twice.", episode: "ep3", stage: "render", version: 3, t: 93.08 }, cookie), d)).json();
+    expect(point.note).toMatchObject({ version: 3, t: 93.1, state: "draft" });
+    expect((await deskPost(req("POST", { action: "note", text: "Music too loud here.", episode: "ep3", stage: "render", version: 3, t: 120, t2: 131.5 }, cookie), d)).status).toBe(200);
+    const gone = await (await deskPost(req("POST", { action: "note", text: "Never mind.", episode: "ep3", stage: "render", version: 3, t: 5 }, cookie), d)).json();
+    expect((await deskPost(req("POST", { action: "note", text: "x", episode: "ep3", t: 10, t2: 4 }, cookie), d)).status).toBe(400);
+    expect((await deskPost(req("POST", { action: "note", text: "x", episode: "ep3", t2: 4 }, cookie), d)).status).toBe(400);
+    expect((await deskPost(req("POST", { action: "unnote", id: gone.note.id }, cookie), d)).status).toBe(200);
+    // The Director sees nothing until the batch is sent, and can't mark a draft.
+    expect((await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json()).notes).toEqual([]);
+    expect((await deskPut(req("PUT", { action: "note-state", id: point.note.id, state: "fixed" }, bearer(FEED)), d)).status).toBe(404);
+    const sent = await (await deskPost(req("POST", { action: "send", episode: "ep3", stage: "render" }, cookie), d)).json();
+    expect(sent).toEqual({ ok: true, sent: 2 });
+    expect((await deskPost(req("POST", { action: "send", episode: "ep3" }, cookie), d)).status).toBe(409);
+    expect((await deskPost(req("POST", { action: "unnote", id: point.note.id }, cookie), d)).status).toBe(404);
+    const read = await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json();
+    expect(read.notes.map((n: { t2?: number; state: string }) => [n.t2, n.state])).toEqual([[undefined, "sent"], [131.5, "sent"]]);
+    expect(read.episodes[0].stages.render.versions).toEqual(v);
+    expect((await deskPut(req("PUT", { action: "note-state", id: point.note.id, state: "fixed", reply: "Camera breaks at hard cuts now." }, bearer(FEED)), d)).status).toBe(200);
+    expect((await deskPut(req("PUT", { action: "note-state", id: point.note.id, state: "done" }, bearer(FEED)), d)).status).toBe(400);
+    const after = await (await deskGet(req("GET", undefined, cookie), d)).json();
+    expect(after.notes[0]).toMatchObject({ state: "fixed", reply: "Camera breaks at hard cuts now." });
   });
 
   it("sets an idea taken with the feed key", async () => {

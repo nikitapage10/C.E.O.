@@ -48,6 +48,7 @@ import * as studioaudio from "../../api/_studio/audio.js";
 import * as studioimage from "../../api/_studio/image.js";
 import * as studiodesk from "../../api/_studio/desk.js";
 import * as studiosocial from "../../api/_studio/social.js";
+import * as studiokit from "../../api/_studio/kit.js";
 import * as senaterecord from "../../api/senate-record.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -209,6 +210,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["studio-desk", studiodesk],
   // The Studio's posting line (#1225, api/_studio/social.ts): Zernio drafts and comments, feed key only, Zernio's key only here.
   ["studio-social", studiosocial],
+  // The Studio's render kit (#1235, api/_studio/kit.ts): the engine and art for a render on Nikita's PC, signed links only there.
+  ["studio-kit", studiokit, { settleMs: 120_000 }],
   ["site-password", sitepassword],
   // A new hand-off to Skippy starts the always-on responder (#501) through a request the chat doesn't wait for, so
   // its answer is held for a moment at most.

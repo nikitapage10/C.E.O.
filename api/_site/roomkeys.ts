@@ -85,9 +85,11 @@ export const STUDIO_IMAGE_PATH = "/api/studio-image";
 export const STUDIO_SOCIAL_PATH = "/api/studio-social";
 /** The Studio desk (#1227, api/_studio/desk.ts): the read key sees the pitches, stages and notes (never the profiles); the feed key PUTs a stage. */
 export const STUDIO_DESK_PATH = "/api/studio-desk";
+/** The Studio's render kit (#1235, api/_studio/kit.ts): the feed key PUTs a file (no query) and POSTs for signed links. */
+export const STUDIO_KIT_PATH = "/api/studio-kit";
 
 /** The paths the feed key may POST to, with no query. */
-export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH, STUDIO_AUDIO_PATH, STUDIO_IMAGE_PATH, STUDIO_SOCIAL_PATH];
+export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH, STUDIO_AUDIO_PATH, STUDIO_IMAGE_PATH, STUDIO_SOCIAL_PATH, STUDIO_KIT_PATH];
 
 /** A query rule: which keys a read may carry, and what each must look like. Absent keys are fine unless required. */
 type QueryRule = { [key: string]: { required?: boolean; ok: (v: string) => boolean } };
@@ -219,7 +221,7 @@ export const HAVEN_PHOTOS_PATH = "/api/haven-photos";
 /** The Kitchen's meal planner (#678, api/_haven/meals.ts): the feed key may PUT a seed; only a passkey session reads it. */
 export const HAVEN_MEALS_PATH = "/api/haven-meals";
 /** The paths the feed key may PUT to, with no query. */
-const FEED_PUTS: readonly string[] = [KERNEL_BRIEF_PATH, HAVEN_PLAN_PATH, HAVEN_PHOTOS_PATH, HAVEN_MEALS_PATH, STUDIO_DESK_PATH];
+const FEED_PUTS: readonly string[] = [KERNEL_BRIEF_PATH, HAVEN_PLAN_PATH, HAVEN_PHOTOS_PATH, HAVEN_MEALS_PATH, STUDIO_DESK_PATH, STUDIO_KIT_PATH];
 
 /**
  * Whether a request is one of the writes the feed key opens: POST /api/room-feed, /api/setup-asks or /api/skippy-memory, PUT

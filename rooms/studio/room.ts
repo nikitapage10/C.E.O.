@@ -10,7 +10,7 @@ export default defineRoom({
   accent: "--room-studio",
   submind: "tally",
   live: true,
-  auth: { "studio-audio": ["token"], "studio-image": ["token"], "studio-social": ["token"], "studio-desk": ["passkey", "token"] },
+  auth: { "studio-audio": ["token"], "studio-image": ["token"], "studio-social": ["token"], "studio-desk": ["passkey", "token"], "studio-kit": ["token"] },
   keys: ["OPENAI_STUDIO_KEY", "ZERNIO_API_KEY"],
   usesClaude: false,
   threat: ["TB2"],

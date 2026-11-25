@@ -270,3 +270,6 @@
   .desk .st-gl,.desk .st-flat,.desk .st-head,.desk .st-stats,.desk .st-ref{transition:none}
   .desk .st-tally.is-on i{animation:none}
 }
+.desk .sx-coverimg{margin:0 0 12px;display:grid;gap:6px;justify-items:start}
+.desk .sx-coverimg img{width:min(220px,40vw);aspect-ratio:9/16;object-fit:cover;border-radius:6px;border:1px solid rgba(201,168,92,.35)}
+.desk .sx-coverimg figcaption{font-size:12px;opacity:.75}

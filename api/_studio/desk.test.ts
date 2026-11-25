@@ -99,6 +99,8 @@ describe("studio-desk", () => {
     expect(await ok.json()).toEqual({ ok: true, stages: 4 });
     expect(readEpisode({ ...EP3, stages: { render: { status: "ready", media: "http://plain.test/v.mp4" } } })).toBeNull();
     expect(readEpisode({ ...EP3, stages: { trailer: { status: "ready" } } })).toBeNull();
+    expect(readEpisode({ ...EP3, stages: { post: { status: "ready", draft: "post_mine1", cover: "https://media.zernio.test/u/ep3-cover.jpg" } } })?.stages.post?.cover).toBe("https://media.zernio.test/u/ep3-cover.jpg");
+    expect(readEpisode({ ...EP3, stages: { post: { status: "ready", cover: "http://plain.test/c.jpg" } } })).toBeNull();
     expect(readEpisode({ ...EP3, stages: { pitch: { status: "ready", secret: 1 } } })).toBeNull();
     expect(readEpisode({ ...EP3, extra: 1 })).toBeNull();
     const read = await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json();

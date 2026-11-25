@@ -68,6 +68,8 @@ export interface StageState {
   captions?: string[];
   /** The Zernio draft the post stage publishes. */
   draft?: string;
+  /** The cover photo posted with the video (the draft carries it too) (#1231). */
+  cover?: string;
   /** Where it went live. */
   links?: string[];
   /** Every cut or mix so far, oldest first; `media` is the newest (#1229). */
@@ -155,7 +157,7 @@ const newId = (now: number) => `${now.toString(36)}-${Math.floor(Math.random() *
 export function readStage(v: unknown): StageState | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const s = v as Record<string, unknown>;
-  const allowed = ["status", "text", "media", "stills", "captions", "draft", "links", "versions", "at"];
+  const allowed = ["status", "text", "media", "cover", "stills", "captions", "draft", "links", "versions", "at"];
   if (!Object.keys(s).every((k) => allowed.includes(k))) return null;
   if (typeof s.status !== "string" || !(STATUSES as readonly string[]).includes(s.status)) return null;
   const out: StageState = { status: s.status as Status };
@@ -166,6 +168,10 @@ export function readStage(v: unknown): StageState | null {
   if (s.media !== undefined) {
     if (!isMediaUrl(s.media)) return null;
     out.media = s.media;
+  }
+  if (s.cover !== undefined) {
+    if (!isMediaUrl(s.cover)) return null;
+    out.cover = s.cover;
   }
   for (const k of ["stills", "links"] as const) {
     const list = s[k];

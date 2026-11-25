@@ -174,7 +174,13 @@ export function EditScreen(p: {
               </>
             ) : (
               <div className="sx-read">
-                {st?.text ? <pre>{st.text}</pre> : !st?.captions?.length && <p className="sx-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
+                {st?.cover && (
+                  <figure className="sx-coverimg">
+                    <img src={st.cover} alt={`Cover for ${ep.title}`} loading="lazy" />
+                    <figcaption>{stage.id === "post" ? "Posted as the cover" : "Cover"}</figcaption>
+                  </figure>
+                )}
+                {st?.text ? <pre>{st.text}</pre> : !st?.captions?.length && !st?.cover && <p className="sx-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
                 {!!st?.captions?.length && (
                   <ol className="sx-caps" aria-label="Caption options">
                     {st.captions.map((c) => (

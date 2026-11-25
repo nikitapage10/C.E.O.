@@ -45,6 +45,19 @@ export interface BlobBackend {
   /** Write a file; returns the name it was stored under. Throws BlobPreconditionError when a condition fails. */
   put(path: string, body: string | ArrayBuffer | Uint8Array, opts: PutOptions): Promise<{ pathname: string }>;
   del(path: string): Promise<void>;
+  /** Azure only (#1243): bytes `start` to `end` (inclusive; to the end when left out) and the file's full size, for video seeking. */
+  range?(path: string, start: number, end?: number): Promise<BlobRange | null>;
+  /** Azure only (#1243): one file made of others, in order, on the server (each source becomes one block of a block blob). */
+  join?(path: string, sources: readonly string[], contentType: string): Promise<{ bytes: number }>;
+}
+
+/** Part of a file, with the whole file's size. */
+export interface BlobRange {
+  stream: ReadableStream<Uint8Array>;
+  size: number;
+  start: number;
+  end: number;
+  contentType: string;
 }
 
 /** A conditional write lost: the file changed (ifMatch) or was already there (no overwrite). */

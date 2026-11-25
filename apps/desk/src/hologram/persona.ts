@@ -120,6 +120,14 @@ export const PERSONAS: Partial<Record<RoomId, Persona>> = {
     poses: { listening: "hands", thinking: "hands", smug: "hands", laughing: "laugh", annoyed: "annoyed" },
     motion: { ...still, tempo: 1.1, bob: 0.008, beat: 0.12, head: [0.14, 0, 0], busy: 1 },
   },
+  // Tally: the Director. Squints at the shot, frames it with both hands, and leans in to check the take.
+  studio: {
+    key: "studio",
+    manner: "squint",
+    faces: { listening: "squint", thinking: "squint", smug: "poised", laughing: "laughing", annoyed: "annoyed" },
+    poses: { listening: "frame", thinking: "frame", smug: "present", laughing: "laugh", annoyed: "annoyed" },
+    motion: { ...still, tempo: 0.9, bob: 0.007, beat: 0.2, head: [0.06, 0.08, 0], glance: 0.08, glanceRate: 0.3 },
+  },
 };
 
 /** The persona of whoever has the mic: a submind's own, Skippy's for him (or a submind not on air yet). */

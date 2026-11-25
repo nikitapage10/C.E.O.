@@ -37,6 +37,8 @@ export const SECRET_SETTINGS = [
   // The Studio (#311): voice and pictures, each capped at $10 a month.
   "ELEVENLABS_API_KEY",
   "OPENAI_STUDIO_KEY",
+  // The Studio desk and posting (#1225, #1227): Zernio, free for two accounts.
+  "ZERNIO_API_KEY",
   // Optional (#253): the Exchange's positions wait for them.
   "POLYMARKET_US_KEY_ID",
   "POLYMARKET_US_SECRET_KEY",

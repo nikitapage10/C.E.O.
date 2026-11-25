@@ -114,6 +114,7 @@ describe("the allowlist (#330)", () => {
       "paypal-client-secret",
       "elevenlabs",
       "openai",
+      "zernio-api-key",
       "email-skip-terms",
       "email-priority",
       "switchbot-token",

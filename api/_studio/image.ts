@@ -4,9 +4,10 @@
  * the Function App's GEMINI_API_KEY (Key Vault `gemini-api-key`), sent only in the `x-goog-api-key` header.
  *
  *   POST /api/studio-image { prompt, refs?: [base64 PNG/JPEG, ≤4], aspect?: "3:2"|"2:3"|"1:1", n?: 1–4, model? }
+ *        (model: a gemini-… image model, or an imagen-… one, prompt only)
  *        → { id, status: "working" } (202)
  *   POST /api/studio-image { fetch: "<id>" } → { status: "working" } (202), { status: "done", model, images: [base64],
- *        mimes: [...] } (200), { status: "failed", error } (502), or { error: "gone" } (404)
+ *        mimes: [...] } (200), { status: "failed", error, detail? } (502; detail is Google's own reason), or { error: "gone" } (404)
  *
  * The same shape as the audio line (api/_studio/audio.ts): a job carries on past the Static Web App's ~45-second cut
  * and is fetched by id. Who: the feed key only, no query (api/_site/roomkeys.ts). No cap of its own (Nikita: no
@@ -36,7 +37,9 @@ export const REF_MAX = 8_000_000;
 const BODY_MAX = 34_000_000;
 const API = "https://generativelanguage.googleapis.com/v1beta/models";
 const ID = /^[A-Za-z0-9_-]{16}$/;
-const MODEL = /^gemini-[a-z0-9.-]{1,60}$/;
+const MODEL = /^(gemini|imagen)-[a-z0-9.-]{1,60}$/;
+/** Google's own reason for a refusal, kept short (its message and quota names; never the key, which only travels in a header). */
+const DETAIL_MAX = 400;
 const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 export interface ImageJob {
@@ -50,7 +53,7 @@ export interface ImageJob {
 type Stored =
   | { status: "working"; at: number }
   | { status: "done"; at: number; model: string; images: string[]; mimes: string[] }
-  | { status: "failed"; at: number; error: string };
+  | { status: "failed"; at: number; error: string; detail?: string };
 
 export interface StudioImageDeps {
   blob: BlobBackend | null;
@@ -93,7 +96,31 @@ export function parseImageJob(body: unknown): ImageJob | null {
 }
 
 /** One picture from one model: the image, or the HTTP status when it refused. */
-async function oneImage(job: ImageJob, model: string, key: string, fetcher: typeof fetch): Promise<{ data: string; mime: string } | { status: number }> {
+type Refused = { status: number; detail?: string };
+
+/** Google's error body, boiled down to its status, message and any quota it names. */
+async function detailOf(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as { error?: { status?: string; message?: string; details?: { violations?: { quotaId?: string; quotaMetric?: string }[] }[] } } | null;
+  const e = body?.error;
+  if (!e) return "";
+  const quotas = (e.details ?? []).flatMap((d) => d.violations ?? []).map((v) => v.quotaId || v.quotaMetric).filter(Boolean);
+  return [e.status, e.message, quotas.length ? `quota: ${quotas.join(", ")}` : ""].filter(Boolean).join(" | ").slice(0, DETAIL_MAX);
+}
+
+/** One Imagen call (`:predict`): prompt only, Imagen takes no reference pictures. */
+async function imagenImages(job: ImageJob, model: string, key: string, fetcher: typeof fetch): Promise<{ data: string; mime: string }[] | Refused> {
+  const res = await fetcher(`${API}/${encodeURIComponent(model)}:predict`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({ instances: [{ prompt: job.prompt }], parameters: { sampleCount: job.n, aspectRatio: job.aspect } }),
+    signal: AbortSignal.timeout(240_000),
+  });
+  if (!res.ok) return { status: res.status, detail: await detailOf(res) };
+  const out = (await res.json().catch(() => null)) as { predictions?: { bytesBase64Encoded?: string; mimeType?: string }[] } | null;
+  return (out?.predictions ?? []).filter((p) => p.bytesBase64Encoded).map((p) => ({ data: p.bytesBase64Encoded!, mime: p.mimeType || "image/png" }));
+}
+
+async function oneImage(job: ImageJob, model: string, key: string, fetcher: typeof fetch): Promise<{ data: string; mime: string } | Refused> {
   const parts = [{ text: job.prompt }, ...job.refs.map((r) => ({ inlineData: { mimeType: refType(r)!, data: r } }))];
   const res = await fetcher(`${API}/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
@@ -101,7 +128,7 @@ async function oneImage(job: ImageJob, model: string, key: string, fetcher: type
     body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: job.aspect } } }),
     signal: AbortSignal.timeout(240_000),
   });
-  if (!res.ok) return { status: res.status };
+  if (!res.ok) return { status: res.status, detail: await detailOf(res) };
   const out = (await res.json().catch(() => null)) as { candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[] } | null;
   const found = out?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
   return found?.inlineData?.data ? { data: found.inlineData.data, mime: found.inlineData.mimeType || "image/png" } : { status: 200 };
@@ -110,16 +137,28 @@ async function oneImage(job: ImageJob, model: string, key: string, fetcher: type
 /** The job's pictures, from the asked-for model or the first offered one. */
 export async function makeImages(job: ImageJob, key: string, fetcher: typeof fetch): Promise<Stored> {
   const models = job.model ? [job.model] : [...IMAGE_MODELS];
-  let last = 0;
+  let last: Refused = { status: 0 };
   for (const model of models) {
-    const got = await Promise.all(Array.from({ length: job.n }, () => oneImage(job, model, key, fetcher).catch(() => ({ status: 0 }))));
-    const images = got.filter((g): g is { data: string; mime: string } => "data" in g);
+    let images: { data: string; mime: string }[];
+    if (model.startsWith("imagen-")) {
+      const got = await imagenImages(job, model, key, fetcher).catch(() => ({ status: 0 }) as Refused);
+      if (!Array.isArray(got)) {
+        last = got;
+        images = [];
+      } else {
+        images = got;
+        if (!images.length) last = { status: 200 };
+      }
+    } else {
+      const got = await Promise.all(Array.from({ length: job.n }, () => oneImage(job, model, key, fetcher).catch(() => ({ status: 0 }) as Refused)));
+      images = got.filter((g): g is { data: string; mime: string } => "data" in g);
+      if (!images.length) last = got[0] as Refused;
+    }
     if (images.length) return { status: "done", at: 0, model, images: images.map((i) => i.data), mimes: images.map((i) => i.mime) };
-    last = (got[0] as { status: number }).status;
     // Only a model this key isn't offered moves on to the next one.
-    if (last !== 404 && last !== 400) break;
+    if (last.status !== 404 && last.status !== 400) break;
   }
-  return { status: "failed", at: 0, error: last === 200 ? "no-image" : `gemini-${last}` };
+  return { status: "failed", at: 0, error: last.status === 200 ? "no-image" : `gemini-${last.status}`, ...(last.detail ? { detail: last.detail } : {}) };
 }
 
 async function track(blob: BlobBackend, id: string, now: number): Promise<void> {
@@ -155,7 +194,7 @@ export async function studioImage(request: Request, deps: StudioImageDeps): Prom
     const found = await readJson<Stored | null>(blob, jobPath(id), null);
     if (!found || deps.now - found.at >= KEEP_MS) return json({ error: "gone" }, 404);
     if (found.status === "working") return json({ status: "working" }, 202);
-    if (found.status === "failed") return json({ status: "failed", error: found.error }, 502);
+    if (found.status === "failed") return json({ status: "failed", error: found.error, ...(found.detail ? { detail: found.detail } : {}) }, 502);
     return json({ status: "done", model: found.model, images: found.images, mimes: found.mimes });
   }
 

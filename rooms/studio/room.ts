@@ -11,7 +11,7 @@ export default defineRoom({
   submind: "tally",
   live: false,
   auth: { "studio-audio": ["token"], "studio-image": ["token"], "studio-social": ["token"] },
-  keys: ["OPENAI_STUDIO_KEY"],
+  keys: ["OPENAI_STUDIO_KEY", "ZERNIO_API_KEY"],
   usesClaude: false,
   threat: ["TB2"],
   budgetKb: 64,

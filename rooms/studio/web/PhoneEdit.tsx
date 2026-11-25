@@ -81,11 +81,16 @@ export function PhoneEdit(p: EditProps & { video: ReactNode }) {
         <>
           <div className="px-player" data-playing={player.playing || undefined}>
             {p.video}
-            {!player.playing && (
-              <button type="button" className="px-bigplay" onClick={player.toggle} aria-label="Play">
+            <span className="px-what">
+              {stage.id === "mix" ? "Sound mix · the picture is a still" : `${stage.t} · v${p.version}`}
+            </span>
+            {/* One tap layer over the picture, always mounted, so a tap plays or pauses exactly once (no second tap
+                landing on the video as the play button leaves). */}
+            <button type="button" className="px-tap" onClick={player.toggle} aria-label={player.playing ? "Pause" : "Play"}>
+              <span className="px-bigplay" data-hide={player.playing || undefined} aria-hidden="true">
                 ▶
-              </button>
-            )}
+              </span>
+            </button>
             <span className="px-tc">
               {clock(player.t)} <small>/ {clock(player.dur)}</small>
             </span>

@@ -93,11 +93,15 @@ export interface StudioOpts {
   onPlace: (id: string, x: number, y: number, on: boolean) => void;
   /** The tall frame on the riser was clicked (the cut playing there). */
   onFrame?: () => void;
+  /** A click on the room, off the monitors and the frame: back to the stage. */
+  onAway?: () => void;
 }
 
 /** The desk's three working screens (#1229): the edit suite in the middle, pitches at the left, numbers at the right. */
 export type ScreenId = "edit" | "pitch" | "stats";
 /** Each screen's page, in CSS pixels; the screen's world size is this scaled down. */
+/** How much sharper than its CSS size each screen's page is drawn (see `monitor`). */
+const PAGE_ZOOM = 2;
 export const SCREEN_CSS: Record<ScreenId, { w: number; h: number }> = { edit: { w: 1280, h: 660 }, pitch: { w: 900, h: 610 }, stats: { w: 900, h: 610 } };
 
 export interface Soundstage {
@@ -464,12 +468,17 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       if (onRod) g.add(rod(new Vector3(0, -y + 0.27, -0.03), new Vector3(0, h * 0.18, -0.03), 0.014, stickMat));
       swayers.push({ o: g, ph: Math.random() * 6, amp, rate: 0.6 + Math.random() * 0.5 });
     };
-    prop("hero", 1.05, -1.18, 0.38, -3.05, 0.25);
-    prop("guide", 0.46, 1.15, 1.07, -3.08, -0.3, false, 0.006);
-    prop("hand", 0.55, 0.62, 0.05, -2.32, -0.15, false, 0.05);
-    prop("horde-a", 0.78, -FRAME_W / 2 - 0.22, 1.25, -4.1, 0.2, false, 0.02);
-    prop("horde-b", 0.82, FRAME_W / 2 + 0.24, 0.85, -4.1, -0.2, false, 0.02);
-    prop("horde-c", 0.6, 2.62, 1.22, 4.85, -0.4, false, 0.03); // behind the bin monitor (DESK_Z - 0.5)
+    // Around the room, off the stage and the green (Nikita, 2026-11-25): life-size standees on the studio floor, each
+    // turned to face the suite. Clear of the cyc (x within CYC_W / 2 from z 0.6 back) and of the desk's monitors.
+    const floorProp = (file: string, h: number, x: number, z: number, amp = 0.012) => prop(file, h, x, 0, z, Math.atan2(-x, 16 - z), false, amp);
+    floorProp("hero", 1.9, -4.4, 3.0);
+    floorProp("horde-c", 1.75, 4.7, 3.2);
+    floorProp("horde-a", 2.1, -7.3, -1.2);
+    floorProp("horde-b", 2.2, 7.4, -1.8);
+    floorProp("horde-a", 2.3, -7.9, -5.2);
+    floorProp("horde-c", 2.2, 8.0, -5.4);
+    floorProp("guide", 1.0, 6.9, 1.6, 0.006);
+    floorProp("hand", 1.1, -6.6, 1.9, 0.02);
     // The show's profile photo, a framed print on the edit desk.
     {
       const tex = keep(loader.load(new URL("./props/profile.webp", import.meta.url).href));
@@ -754,6 +763,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   const screens: { canvas: HTMLCanvasElement; tex: CanvasTexture; mat: MeshBasicMaterial; w: number; h: number }[] = [];
   const cssScreens = {} as Record<ScreenId, HTMLElement>;
   const screenPose = {} as Record<ScreenId, { at: Vector3; normal: Vector3; w: number; h: number }>;
+  const monitors: Group[] = [];
   const monitor = (w: number, h: number, x: number, y: number, z: number, yaw: number, tilt = -0.06, id?: ScreenId) => {
     const g = new Group();
     g.position.set(x, 0, z);
@@ -796,10 +806,12 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       el.dataset.screen = id;
       el.style.width = `${css.w}px`;
       el.style.height = `${css.h}px`;
+      // Rasterised at twice its size, then scaled down: the page stays crisp when the camera dollies in close.
+      el.style.zoom = String(PAGE_ZOOM);
       const obj = new CSS3DObject(el);
       obj.position.set(0, y, 0.03);
       obj.rotation.x = tilt;
-      obj.scale.setScalar(w / css.w);
+      obj.scale.setScalar(w / (css.w * PAGE_ZOOM));
       g.add(obj);
       cssScreens[id] = el;
       g.updateMatrixWorld(true);
@@ -807,6 +819,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       const normal = new Vector3(0, 0, 1).applyEuler(new Euler(tilt, yaw, 0, "YXZ"));
       screenPose[id] = { at, normal, w, h: (w * css.h) / css.w };
     }
+    monitors.push(g);
     return g;
   };
   // Bigger since the desk moved onto them (#1229): the edit suite in the middle, pitches left, numbers right.
@@ -1324,12 +1337,13 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   let pressAt: [number, number] | null = null;
   const onPress = (e: PointerEvent) => void (pressAt = [e.clientX, e.clientY]);
   const onClick = (e: PointerEvent) => {
-    if (!pressAt || Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 6 || !opts.onFrame) return;
+    if (!pressAt || Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 6) return;
     pressAt = null;
     const r = canvas.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, cam);
-    if (ray.intersectObject(tallFrame, true).length) opts.onFrame();
+    if (ray.intersectObject(tallFrame, true).length) opts.onFrame?.();
+    else if (focused && !ray.intersectObjects(monitors, true).length) opts.onAway?.();
   };
   canvas.addEventListener("pointerdown", onPress);
   canvas.addEventListener("pointerup", onClick);

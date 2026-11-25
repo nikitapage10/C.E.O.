@@ -273,3 +273,21 @@
 .desk .sx-coverimg{margin:0 0 12px;display:grid;gap:6px;justify-items:start}
 .desk .sx-coverimg img{width:min(220px,40vw);aspect-ratio:9/16;object-fit:cover;border-radius:6px;border:1px solid rgba(201,168,92,.35)}
 .desk .sx-coverimg figcaption{font-size:12px;opacity:.75}
+/* The feed: one tab per platform, and posts apart from stories (#1233) */
+.desk .sx-feedtabs{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0 8px}
+.desk .sx-feedtabs>span{display:flex;gap:6px}
+.desk .sx-feedtabs button{padding:6px 14px;border:1px solid rgba(201,168,92,.25);border-radius:4px;background:#121318;font-family:var(--wv-mono);font-size:12px}
+.desk .sx-feedtabs button[aria-selected=true]{border-color:var(--st-gold);background:rgba(201,168,92,.16);color:#fff0c8}
+.desk .sx-feedtabs small{opacity:.6;margin-left:4px}
+.desk .sx-feedkind button{font-size:11px;padding:4px 11px}
+.desk .sx-embed{display:block;width:100%;aspect-ratio:9/16;max-height:420px;border:1px solid rgba(201,168,92,.25);border-radius:6px;background:#000;object-fit:contain;margin-bottom:10px}
+/* Retitle and re-roll (#1233) */
+.desk .sx-titlebtn{all:unset;cursor:text;border-bottom:1px dashed rgba(201,168,92,.35)}
+.desk .sx-titlebtn:hover{border-bottom-color:var(--st-gold)}
+.desk .sx-reroll{margin-left:8px;padding:2px 8px;border:1px solid rgba(201,168,92,.3);border-radius:4px;background:#121318;font-size:15px;vertical-align:middle}
+.desk .sx-retitle{display:flex;gap:8px;align-items:center}
+.desk .sx-retitle input{flex:1;min-width:0;font:inherit;font-size:19px;background:#0e0f13;color:#fff3dc;border:1px solid var(--st-gold);border-radius:4px;padding:3px 8px}
+.desk .sx-retitle button{padding:5px 11px;border:1px solid var(--st-gold);border-radius:4px;background:rgba(201,168,92,.16);font-family:var(--wv-mono);font-size:12px}
+/* Notes while a render is under way (#1233) */
+.desk .sx-ask{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.desk .sx-ask em{font-style:normal;font-size:12px;color:var(--wv-faint);flex-basis:100%}

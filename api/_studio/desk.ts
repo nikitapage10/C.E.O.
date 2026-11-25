@@ -85,7 +85,7 @@ export interface Version {
   at?: number;
 }
 
-export const NOTE_STATES = ["draft", "sent", "fixed", "open", "wontfix"] as const;
+export const NOTE_STATES = ["draft", "held", "sent", "fixed", "open", "wontfix"] as const;
 export type NoteState = (typeof NOTE_STATES)[number];
 const T_MAX = 3_600;
 
@@ -93,6 +93,8 @@ export interface Episode {
   id: string;
   n: number;
   title: string;
+  /** Other titles the Director offers for it; the desk's re-roll steps through them (#1233). */
+  titles?: string[];
   stages: Partial<Record<Stage, StageState>>;
 }
 
@@ -108,13 +110,14 @@ export interface Note {
   version?: number;
   t?: number;
   t2?: number;
-  /** A draft until Send notes; then the Director marks it. Older notes without one were sent. */
+  /** A draft until Send notes; then the Director marks it. Older notes without one were sent. "held": sent during a
+   *  render with "Hold for the next version", and it goes to the Director when that version lands (#1233). */
   state?: NoteState;
   reply?: string;
 }
 
 /** Whether a note has left the draft pile. */
-export const isSent = (n: Note) => (n.state ?? "sent") !== "draft";
+export const isSent = (n: Note) => (n.state ?? "sent") !== "draft" && n.state !== "held";
 
 export interface Idea {
   id: string;
@@ -214,13 +217,25 @@ function readVersions(v: unknown): Version[] | null {
   return new Set(out.map((x) => x.v)).size === out.length ? out : null;
 }
 
+/** Whether a save brings a new version of any stage, or a stage that was working is done (held notes go then, #1233). */
+export function landedNew(old: Episode, next: Episode): boolean {
+  return STAGES.some((k) => {
+    const a = old.stages[k];
+    const b = next.stages[k];
+    if (!b) return false;
+    if ((b.versions?.length ?? 0) > (a?.versions?.length ?? 0)) return true;
+    return a?.status === "working" && b.status !== "working";
+  });
+}
+
 const isT = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= T_MAX;
 
 /** An episode as the thread sends it, or null. */
 export function readEpisode(v: unknown): Episode | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const e = v as Record<string, unknown>;
-  if (!Object.keys(e).every((k) => ["id", "n", "title", "stages"].includes(k))) return null;
+  if (!Object.keys(e).every((k) => ["id", "n", "title", "titles", "stages"].includes(k))) return null;
+  if (e.titles !== undefined && (!Array.isArray(e.titles) || e.titles.length > 12 || !e.titles.every((t) => isText(t, 200)))) return null;
   if (typeof e.id !== "string" || !ID.test(e.id) || typeof e.n !== "number" || !Number.isInteger(e.n) || e.n < 0 || e.n > 999 || !isText(e.title, 200)) return null;
   if (!e.stages || typeof e.stages !== "object" || Array.isArray(e.stages)) return null;
   const stages: Partial<Record<Stage, StageState>> = {};
@@ -230,7 +245,7 @@ export function readEpisode(v: unknown): Episode | null {
     if (!got) return null;
     stages[k] = got;
   }
-  return { id: e.id, n: e.n, title: e.title, stages };
+  return { id: e.id, n: e.n, title: e.title, ...(Array.isArray(e.titles) ? { titles: e.titles as string[] } : {}), stages };
 }
 
 async function readState(blob: BlobBackend): Promise<DeskState> {
@@ -330,15 +345,28 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
   if (b.action === "send") {
     if (b.episode !== undefined && (typeof b.episode !== "string" || !ID.test(b.episode))) return reply({ error: "bad-request" }, 400);
     if (b.stage !== undefined && !isStage(b.stage)) return reply({ error: "bad-request" }, 400);
+    if (b.hold !== undefined && typeof b.hold !== "boolean") return reply({ error: "bad-request" }, 400);
     const mine = (n: Note) => n.state === "draft" && (b.episode === undefined || n.episode === b.episode) && (b.stage === undefined || n.stage === b.stage);
+    // Held for the next version (#1233): they wait, and go to the Director when the cut being rendered lands.
+    const to: NoteState = b.hold === true ? "held" : "sent";
     let sent = 0;
     await change(blob, (st) => {
       sent = st.notes.filter(mine).length;
-      return sent ? { ...st, notes: st.notes.map((n) => (mine(n) ? { ...n, state: "sent" as NoteState } : n)) } : null;
+      return sent ? { ...st, notes: st.notes.map((n) => (mine(n) ? { ...n, state: to } : n)) } : null;
     });
     if (!sent) return reply({ error: "no-drafts" }, 409);
-    console.log(`studio: ${sent} note(s) sent to the Director`);
-    return reply({ ok: true, sent });
+    console.log(`studio: ${sent} note(s) ${to === "held" ? "held for the next version" : "sent to the Director"}`);
+    return reply({ ok: true, sent, ...(to === "held" ? { held: true } : {}) });
+  }
+  if (b.action === "title") {
+    // His own title for an episode, typed or re-rolled from the Director's alternatives (#1233).
+    if (typeof b.episode !== "string" || !ID.test(b.episode) || !isText(b.title, 200)) return reply({ error: "bad-request" }, 400);
+    const ep = b.episode;
+    const title = (b.title as string).trim();
+    const next = await change(blob, (st) => (st.episodes.some((x) => x.id === ep) ? { ...st, episodes: st.episodes.map((x) => (x.id === ep ? { ...x, title } : x)) } : null));
+    if (!next) return reply({ error: "gone" }, 404);
+    console.log("studio: an episode was retitled");
+    return reply({ ok: true });
   }
   if (b.action === "approve") {
     if (typeof b.episode !== "string" || !ID.test(b.episode) || !isStage(b.stage)) return reply({ error: "bad-request" }, 400);
@@ -388,8 +416,14 @@ export async function deskPut(request: Request, deps: StudioDeskDeps): Promise<R
   if (b.action === "episode") {
     const e = readEpisode(b.episode);
     if (!e) return json({ error: "bad-episode" }, 400);
-    await change(deps.blob, (st) => ({ ...st, episodes: [...st.episodes.filter((x) => x.id !== e.id), e].sort((x, y) => x.n - y.n).slice(-60) }));
-    return json({ ok: true, stages: Object.keys(e.stages).length });
+    let released = 0;
+    await change(deps.blob, (st) => {
+      const old = st.episodes.find((x) => x.id === e.id);
+      const landed = !!old && landedNew(old, e);
+      const notes = landed ? st.notes.map((n) => (n.state === "held" && n.episode === e.id ? (released++, { ...n, state: "sent" as NoteState }) : n)) : st.notes;
+      return { ...st, notes, episodes: [...st.episodes.filter((x) => x.id !== e.id), e].sort((x, y) => x.n - y.n).slice(-60) };
+    });
+    return json({ ok: true, stages: Object.keys(e.stages).length, ...(released ? { released } : {}) });
   }
   if (b.action === "idea") {
     const id = b.id;

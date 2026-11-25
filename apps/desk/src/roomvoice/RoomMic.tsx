@@ -136,7 +136,7 @@ export function HoldPill() {
       ) : (
         <>
           <i aria-hidden="true" />
-          {heard ? <Private>{heard}</Private> : "Listening… let go of Space to send"}
+          {heard ? <Private>{heard}</Private> : "Listening… let go of L to send"}
         </>
       )}
     </div>
@@ -205,7 +205,7 @@ function MicButton({ room, name }: { room: string; name: string }) {
   }, [room]);
 
 
-  const label = phase === "listening" ? `Listening for ${name}: release or tap to send` : `Talk to ${name} (hold Space)`;
+  const label = phase === "listening" ? `Listening for ${name}: release or tap to send` : `Talk to ${name} (hold L)`;
   return (
     <button
       type="button"
@@ -222,7 +222,7 @@ function MicButton({ room, name }: { room: string; name: string }) {
       onPointerUp={micRelease}
       onPointerCancel={micRelease}
       onKeyDown={(e) => {
-        // Enter works like a tap; Space is the page's own hold-to-talk.
+        // Enter works like a tap; a held L is the page's own hold-to-talk.
         if (e.key !== "Enter") return;
         e.preventDefault();
         if (e.repeat) return;

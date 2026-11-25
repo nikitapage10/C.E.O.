@@ -355,7 +355,7 @@ function FloorCaption() {
     <div className="rt-ask" role="status" aria-live="polite">
       <div className="rt-ask-q">
         <span className="rt-ask-who">Nikita has the floor</span>
-        <p>{question ? <Private>{question}</Private> : "Listening… let go of Space to ask."}</p>
+        <p>{question ? <Private>{question}</Private> : "Listening… let go of L to ask."}</p>
       </div>
     </div>
   );

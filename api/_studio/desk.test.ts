@@ -204,6 +204,28 @@ describe("studio-desk", () => {
     expect(after.notes[0]).toMatchObject({ state: "fixed", reply: "Camera breaks at hard cuts now." });
   });
 
+  it("holds notes sent during a render until the next version lands, and takes his own title (#1233)", async () => {
+    const { d, store } = deps({ "GET /accounts": { accounts: [] } });
+    const cookie = { Cookie: await signedInCookie(DESK, NOW, store) };
+    const working = { ...EP3, titles: ["Paper Promises", "Assured, Not Insured"], stages: { ...EP3.stages, render: { status: "working" } } };
+    expect((await deskPut(req("PUT", { action: "episode", episode: working }, bearer(FEED)), d)).status).toBe(200);
+    await deskPost(req("POST", { action: "note", text: "The tank is too small.", episode: "ep3", stage: "render", version: 1, t: 40 }, cookie), d);
+    expect(await (await deskPost(req("POST", { action: "send", episode: "ep3", stage: "render", hold: true }, cookie), d)).json()).toEqual({ ok: true, sent: 1, held: true });
+    expect((await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json()).notes).toEqual([]);
+    // The same render saved again, still working: still held. Then it lands: they go.
+    expect(await (await deskPut(req("PUT", { action: "episode", episode: working }, bearer(FEED)), d)).json()).not.toHaveProperty("released");
+    const landed = { ...working, stages: { ...working.stages, render: { status: "ready", media: "https://media.zernio.test/u/ep3-v2.mp4" } } };
+    expect(await (await deskPut(req("PUT", { action: "episode", episode: landed }, bearer(FEED)), d)).json()).toMatchObject({ ok: true, released: 1 });
+    expect((await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json()).notes.map((n: { state: string }) => n.state)).toEqual(["sent"]);
+    // His title, typed or re-rolled.
+    expect((await deskPost(req("POST", { action: "title", episode: "ep3", title: "  Assured, Not Insured " }, cookie), d)).status).toBe(200);
+    expect((await deskPost(req("POST", { action: "title", episode: "nope", title: "x" }, cookie), d)).status).toBe(404);
+    expect((await deskPost(req("POST", { action: "title", episode: "ep3", title: "" }, cookie), d)).status).toBe(400);
+    const ep = (await (await deskGet(req("GET", undefined, cookie), d)).json()).episodes[0];
+    expect(ep).toMatchObject({ title: "Assured, Not Insured", titles: ["Paper Promises", "Assured, Not Insured"] });
+    expect(readEpisode({ ...EP3, titles: ["ok", 5] })).toBeNull();
+  });
+
   it("sets an idea taken with the feed key", async () => {
     const { d, store } = deps({ "GET /accounts": { accounts: [] } });
     const cookie = { Cookie: await signedInCookie(DESK, NOW, store) };

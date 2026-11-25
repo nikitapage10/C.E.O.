@@ -395,7 +395,7 @@ function Own({ x, t, focus, start = "", launch, reply = null, clearReply, childr
         />
         {hearing && (
           <span className="cx-listen" role="status">
-            <i aria-hidden="true" /> Listening · let go of Space to stop
+            <i aria-hidden="true" /> Listening · let go of L to stop
           </span>
         )}
       </div>
@@ -1202,7 +1202,7 @@ export function RelayThread({ now }: { now: number }) {
             <UndoLine n={t.notice} now={now} sg={engine} />
             {hints && (
               <p className="cx-keys" id="cx-keys">
-                <b>W S</b> move · <b>A</b> later · <b>D</b> done · <b>Enter</b> reply, send · <b>Esc</b> leave the box · <b>Tab</b> take the draft · hold <b>Space</b> to talk · <b>Z</b> undo · <b>?</b> these keys
+                <b>W S</b> move · <b>A</b> later · <b>D</b> done · <b>Enter</b> reply, send · <b>Esc</b> leave the box · <b>Tab</b> take the draft · hold <b>L</b> to talk · <b>Z</b> undo · <b>?</b> these keys
               </p>
             )}
           </div>

@@ -110,12 +110,12 @@ and no greeting. Three pieces, one listener (shared chrome, `apps/desk/src/roomv
 
 - **Ask Skippy**, the large button at the bottom right of every page (02:05Z: "more prominent… in the bottom right"):
   his chat, and Talk from there.
-- **The room mic**, beside it on every room's page but Today, in the submind's colour: press it (or hold Space) and it
+- **The room mic**, beside it on every room's page but Today, in the submind's colour: press it (or hold L) and it
   listens at once; release, or tap and pause, and the words go.
-- **Hold Space, on any page (#905, `apps/desk/src/holdToTalk.ts`).** Held for a quarter of a second, Space listens for
-  the page's lead (Skippy himself where a page has none); let go and the words go, the same path as the mic. A quick tap
-  does nothing, and Space never scrolls a Desk page. Native Space is left alone in a field, a select, on a focused
-  button or link, with a modifier, or where a page's own handler took it first (Today's rows). Signed out, or in a
+- **Hold L ("listen"), on any page (#905; L since #1233, when Space kept pressing the Studio's player).** Held for a
+  quarter of a second, L listens for the page's lead (Skippy himself where a page has none); let go and the words go,
+  the same path as the mic. A quick tap does nothing. L is left alone in a field or a select, with a modifier, or where
+  a page's own handler took it first (Today's rows). Space is the browser's again. Signed out, or in a
   browser that can't hear, a short hint says so. One window listener; handlers stack by priority (page, room, Senate),
   so a room with its own hold-to-talk (Relay) registers it and only that one fires.
 - **The Senate's floor (#905, `apps/desk/src/rotunda/senateFloor.ts`).** In the Senate a held Space interrupts: the

@@ -25,8 +25,8 @@ const body = el("body");
 
 function key(type: "down" | "up", over: Partial<KeyboardEvent> = {}) {
   const e = {
-    code: "Space",
-    key: " ",
+    code: "KeyL",
+    key: "l",
     metaKey: false,
     ctrlKey: false,
     altKey: false,
@@ -55,25 +55,27 @@ afterEach(() => {
 
 describe("which Space is the Desk's (#905)", () => {
   it("takes a plain Space on the page", () => {
-    expect(isTalkSpace({ code: "Space", key: " ", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, defaultPrevented: false, target: body as unknown as EventTarget })).toBe(true);
+    expect(isTalkSpace({ code: "KeyL", key: "l", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, defaultPrevented: false, target: body as unknown as EventTarget })).toBe(true);
   });
 
-  it("leaves fields, controls and links to native Space", () => {
-    for (const tag of ["input", "textarea", "select", "button", "a", "summary"]) expect(nativeSpaceTarget(el(tag) as unknown as EventTarget), tag).toBe(true);
+  it("leaves fields to typing, and takes L on a button or a link (it doesn't press them)", () => {
+    for (const tag of ["input", "textarea", "select"]) expect(nativeSpaceTarget(el(tag) as unknown as EventTarget), tag).toBe(true);
+    for (const tag of ["button", "a", "summary"]) expect(nativeSpaceTarget(el(tag) as unknown as EventTarget), tag).toBe(false);
     expect(nativeSpaceTarget(el("div", { isContentEditable: true }) as unknown as EventTarget)).toBe(true);
-    expect(nativeSpaceTarget(el("[role='button']") as unknown as EventTarget)).toBe(true);
+    expect(nativeSpaceTarget(el("[role='textbox']") as unknown as EventTarget)).toBe(true);
     expect(nativeSpaceTarget(body as unknown as EventTarget)).toBe(false);
     expect(nativeSpaceTarget(null)).toBe(false);
   });
 
   it("leaves a Space with a modifier, one already taken, and other keys alone", () => {
-    const base = { code: "Space", key: " ", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, defaultPrevented: false, target: body as unknown as EventTarget };
+    const base = { code: "KeyL", key: "l", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, defaultPrevented: false, target: body as unknown as EventTarget };
     expect(isTalkSpace({ ...base, metaKey: true })).toBe(false);
     expect(isTalkSpace({ ...base, ctrlKey: true })).toBe(false);
     expect(isTalkSpace({ ...base, altKey: true })).toBe(false);
     expect(isTalkSpace({ ...base, shiftKey: true })).toBe(false);
     expect(isTalkSpace({ ...base, defaultPrevented: true })).toBe(false);
     expect(isTalkSpace({ ...base, code: "Enter", key: "Enter" })).toBe(false);
+    expect(isTalkSpace({ ...base, code: "Space", key: " " })).toBe(false);
   });
 });
 

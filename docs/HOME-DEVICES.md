@@ -56,7 +56,7 @@ or tap and sends it once, with Cancel and Send now while it waits.
   while the Hall is open and the vacuum is out (every 4 s), never stored or logged. The Hall draws it
   ([`LiveRun.tsx`](../rooms/haven/web/LiveRun.tsx)) and shows nothing when there is no run.
 - Every surface reaches the devices through Skippy's one brain (#926, [SKIPPY.md](SKIPPY.md), "One brain on every
-  surface"): the phone, hold Space or the mic on any Desk page, the Senate's floor and a Talk call. Plain words ("vacuum
+  surface"): the phone, hold L or the mic on any Desk page, the Senate's floor and a Talk call. Plain words ("vacuum
   the kitchen", "vacuum, go home", "pause the vacuum", "feed the cat 2 portions", "dispense one portion of dry food",
   "give the cat wet food", "next bowl", "switch the wet feeder to tray 2", "what's in the wet feeder", "open the
   wet-food feeder", "close the wet feeder", "clean the kitchen on max, vacuum only", "run a litter clean cycle") run
@@ -466,7 +466,7 @@ week's shopping. Signed out or expired, it shows the same Sign in to DoorDash ca
 ### Skippy orders by voice or chat (phase 4)
 
 Nikita, 2026-11-17: "hey Skippy, order my usual from whatever… Please respond to confirm… I'll confirm." The Desk's
-chat, a room's mic (hold Space) and Hey Skippy on the phone can order; Skippy's tools are in `rooms/haven/tools.ts` and
+chat, a room's mic (hold L) and Hey Skippy on the phone can order; Skippy's tools are in `rooms/haven/tools.ts` and
 run in [`api/_haven/doordash/voice.ts`](../api/_haven/doordash/voice.ts), on the Order tab's own cart, preview and
 placement ([`order.ts`](../api/_haven/doordash/order.ts) `placeCore`, one path for both).
 

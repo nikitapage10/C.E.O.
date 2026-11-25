@@ -46,6 +46,7 @@ import * as setupasks from "../../api/_room/setup.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as studioaudio from "../../api/_studio/audio.js";
 import * as studioimage from "../../api/_studio/image.js";
+import * as studiosocial from "../../api/_studio/social.js";
 import * as senaterecord from "../../api/senate-record.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -202,6 +203,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["studio-audio", studioaudio, { settleMs: 30_000 }],
   // The Studio's Gemini pictures (#311, api/_studio/image.ts): the same feed-key job and fetch, Gemini's key only here.
   ["studio-image", studioimage, { settleMs: 30_000 }],
+  // The Studio's posting line (#1225, api/_studio/social.ts): Zernio drafts and comments, feed key only, Zernio's key only here.
+  ["studio-social", studiosocial],
   ["site-password", sitepassword],
   // A new hand-off to Skippy starts the always-on responder (#501) through a request the chat doesn't wait for, so
   // its answer is held for a moment at most.

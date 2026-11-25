@@ -10,7 +10,7 @@ export default defineRoom({
   accent: "--room-studio",
   submind: "tally",
   live: false,
-  auth: { "studio-audio": ["token"], "studio-image": ["token"] },
+  auth: { "studio-audio": ["token"], "studio-image": ["token"], "studio-social": ["token"] },
   keys: ["OPENAI_STUDIO_KEY"],
   usesClaude: false,
   threat: ["TB2"],

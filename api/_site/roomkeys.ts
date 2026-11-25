@@ -21,12 +21,15 @@
  *                        passkey-only), and POST /api/studio-audio, Skippy's voice, music or a sound effect from
  *                        ElevenLabs for the Studio's render line (#311, api/_studio/audio.ts: a daily cap, and it
  *                        hands back only the audio it made from that request's words), and POST
- *                        /api/studio-image, Gemini pictures for the same line (api/_studio/image.ts, the same rule). Otherwise it reads nothing: each answer
+ *                        /api/studio-image, Gemini pictures for the same line (api/_studio/image.ts, the same rule), and POST
+ *                        /api/studio-social, Zernio drafts of finished episodes and the comments on the show's posts
+ *                        (#1225, api/_studio/social.ts: it publishes only its own drafts, after Nikita says "go" in the thread). Otherwise it reads nothing: each answer
  *                        says only that the write was kept (the plan's, counts).
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
  * (positions are read through the allow-listed GETs in api/_exchange/positions.ts), send anything (no email, invoice
- * or ping route takes them), or reach an upstream secret (no route returns one). Both live only in the Azure Key
+ * or ping route takes them; the one exception is /api/studio-social publishing its own Zernio draft after Nikita
+ * says "go" in the Director thread, #1225), or reach an upstream secret (no route returns one). Both live only in the Azure Key
  * Vault (`submind-log-token`, `submind-feed-token`; infra/resources.bicep). Each must be at least 32 characters and
  * different from the other and from the site's own secrets, or it counts as unset; both are compared in constant
  * time (secretMatches, hashed first so their lengths don't show).
@@ -76,9 +79,11 @@ export const SKIPPY_MEMORY_PATH = "/api/skippy-memory";
 export const STUDIO_AUDIO_PATH = "/api/studio-audio";
 /** The Studio's Gemini pictures (#311, api/_studio/image.ts): the same shape, a prompt and reference pictures in. */
 export const STUDIO_IMAGE_PATH = "/api/studio-image";
+/** The Studio's posting line (#1225, api/_studio/social.ts): Zernio drafts of finished episodes, publishing its own drafts on Nikita's go, and the comments they get. */
+export const STUDIO_SOCIAL_PATH = "/api/studio-social";
 
 /** The paths the feed key may POST to, with no query. */
-export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH, STUDIO_AUDIO_PATH, STUDIO_IMAGE_PATH];
+export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH, STUDIO_AUDIO_PATH, STUDIO_IMAGE_PATH, STUDIO_SOCIAL_PATH];
 
 /** A query rule: which keys a read may carry, and what each must look like. Absent keys are fine unless required. */
 type QueryRule = { [key: string]: { required?: boolean; ok: (v: string) => boolean } };

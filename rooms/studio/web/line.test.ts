@@ -25,6 +25,7 @@ describe("the Studio desk on the page", () => {
   it("puts an episode on its first stage not approved", () => {
     expect(stageOn(ep(3, { pitch: { status: "approved" }, mix: { status: "ready" } }))).toBe(1);
     expect(stageOn(ep(3, {}))).toBe(0);
+    expect(stageOn(ep(2, { pitch: { status: "approved" }, mix: { status: "ready" }, render: { status: "ready" } }))).toBe(2);
     expect(stageOn(ep(1, { pitch: { status: "done" }, mix: { status: "done" }, render: { status: "done" }, post: { status: "done" } }))).toBe(3);
   });
   it("opens on the newest episode still on the line", () => {

@@ -41,6 +41,12 @@ export const isDone = (s?: StageState) => !!s && DONE.includes(s.status);
 
 /** The stage an episode is on: the first one not approved yet (the last when all are). */
 export function stageOn(ep: Episode): number {
+  // The newest work first: the furthest stage that's in the works or waiting on him, so an episode whose mix was never
+  // approved but already has a render opens on the render, not on the mix's still picture (Nikita, 2026-11-25).
+  for (let i = STAGE_LINE.length - 1; i >= 0; i--) {
+    const st = ep.stages[STAGE_LINE[i]!.id]?.status;
+    if (st === "ready" || st === "working" || st === "changes") return i;
+  }
   const i = STAGE_LINE.findIndex((s) => !isDone(ep.stages[s.id]));
   return i < 0 ? STAGE_LINE.length - 1 : i;
 }

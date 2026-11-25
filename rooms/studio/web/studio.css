@@ -339,9 +339,14 @@
   .desk .px-stages [data-status=approved] i,.desk .px-stages [data-status=done] i{background:#7fc98b}
   .desk .px-stages b{font-size:12.5px;font-weight:600}
   .desk .px-stages em{font-style:normal;font-size:10px;line-height:1.2;color:var(--wv-soft)}
-  .desk .px-player{position:relative;display:flex;justify-content:center;scroll-margin-top:calc(var(--ph-top) + 64px);height:min(600px,max(260px,calc(100svh - var(--ph-top) - var(--ph-bot) - 250px)));border-radius:12px;background:radial-gradient(60% 50% at 50% 50%,rgba(201,168,92,.08),transparent),#000;overflow:hidden}
+  .desk .px-player{position:relative;display:flex;justify-content:center;scroll-margin-top:calc(var(--ph-top) + 64px);height:min(600px,max(240px,calc(100svh - var(--ph-top) - var(--ph-bot) - 320px)));border-radius:12px;background:radial-gradient(60% 50% at 50% 50%,rgba(201,168,92,.08),transparent),#000;overflow:hidden}
   .desk .px-video{height:100%;width:auto;max-width:100%;aspect-ratio:9/16;object-fit:contain;background:#000}
-  .desk .px-bigplay{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border:1px solid rgba(255,240,200,.6);border-radius:50%;background:rgba(8,8,10,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff0c8;font-size:26px;padding-left:5px}
+  .desk .px-tap{position:absolute;inset:0;z-index:1;padding:0;border:0;background:none;-webkit-tap-highlight-color:transparent}
+  .desk .px-bigplay[data-hide]{opacity:0}
+  .desk .px-what,.desk .px-tc,.desk .px-full{z-index:2}
+  .desk .px-bigplay{transition:opacity .2s;display:flex;align-items:center;justify-content:center;position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border:1px solid rgba(255,240,200,.6);border-radius:50%;background:rgba(8,8,10,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff0c8;font-size:26px;padding-left:5px}
+  .desk .px-what{position:absolute;left:10px;top:10px;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,.6);font-family:var(--wv-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#fff0c8;pointer-events:none}
+  .desk .px-stages{scroll-margin-top:calc(var(--ph-top) + 64px)}
   .desk .px-tc{position:absolute;left:10px;bottom:10px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.6);font-family:var(--wv-mono);font-size:12px;color:#fff}
   .desk .px-tc small{color:var(--wv-soft)}
   .desk .px-full{position:absolute;right:8px;bottom:6px;width:40px;height:40px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px}

@@ -199,7 +199,7 @@ export function Studio() {
     if (!flat) setFocused("edit");
     else setFlatTab("edit");
     // On a phone the chosen episode's cut comes up under the tab row.
-    if (phone) window.setTimeout(() => document.querySelector(".px-player")?.scrollIntoView({ block: "start", behavior: "smooth" }), 60);
+    if (phone) window.setTimeout(() => document.querySelector(".px-stages")?.scrollIntoView({ block: "start", behavior: "smooth" }), 60);
   };
   const player: Player = {
     ...clockT,
@@ -438,7 +438,7 @@ export function Studio() {
             {!desk ? (
               <p className="sx-gate">{down ? "The desk is out of reach right now. It'll try again in a minute." : "Opening the desk…"}</p>
             ) : flatTab === "edit" ? (
-              <PhoneEdit {...editProps(desk)} video={<video ref={videoRef} className="px-video" src={media} crossOrigin="anonymous" playsInline preload="metadata" onClick={player.toggle} />} />
+              <PhoneEdit {...editProps(desk)} video={<video ref={videoRef} className="px-video" src={media} crossOrigin="anonymous" playsInline preload="metadata" />} />
             ) : (
               <div className="st-screen is-flat" data-screen={flatTab}>
                 {screenOf(flatTab)}

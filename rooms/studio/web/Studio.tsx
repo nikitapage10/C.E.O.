@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { Keeper } from "@ceo/desk/rooms/parts.tsx";
 import "@ceo/desk/rooms/rooms.css";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { act, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
+import { act, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, STATUS_TEXT, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
+import { PhoneEdit } from "./PhoneEdit.tsx";
 import { EditScreen, FeedScreen, PitchScreen, type Player } from "./screens.tsx";
 import { StudioStage, type StageApi } from "./StudioStage.tsx";
 import type { Mark, ScreenId, StudioView } from "./soundstage.ts";
@@ -19,13 +20,19 @@ import "./studio.css";
  * Publish), Pitch on the left, the Feed on the right (every posted video, its numbers and its comments). A click on a
  * monitor dollies in to it; Esc or Back steps out. The cut under review plays on the stage's tall frame; a click on the
  * frame docks it beside the edit screen as a reference monitor. On a phone, or without WebGL, the screens lay flat
- * under the stage. A held L keeps what's said as a note at the moment on screen (../voice.ts). Everything is real
+ * under the stage; on a phone (PhoneEdit.tsx) the desk is its own app: the episodes as cards, Edit, Pitch and Feed
+ * behind a tab row, the cut playing at the top of Edit, and a dock with the note box, a hold-to-say mic and the actions. A held L keeps what's said as a note at the moment on screen (../voice.ts). Everything is real
  * (GET /api/studio-desk); nothing posts without Nikita's tap, and he can't change a cut here, only note it.
  */
 
 const SCREENS: { id: ScreenId; t: string }[] = [
   { id: "pitch", t: "Pitch" },
   { id: "edit", t: "Edit" },
+  { id: "stats", t: "Feed" },
+];
+const PHONE_TABS: { id: ScreenId; t: string }[] = [
+  { id: "edit", t: "Edit" },
+  { id: "pitch", t: "Pitch" },
   { id: "stats", t: "Feed" },
 ];
 const isVideo = (url: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
@@ -48,7 +55,13 @@ export function Studio() {
   const [flatTab, setFlatTab] = useState<ScreenId>("edit");
   const [phone, setPhone] = useState(isPhone);
   const [clockT, setClockT] = useState({ t: 0, dur: 0, playing: false });
-  const video = useRef<HTMLVideoElement>(null);
+  const video = useRef<HTMLVideoElement | null>(null);
+  // The player can move (the stage's dock on a big screen, the top of Edit on a phone), so its clock follows the element.
+  const [vEl, setVEl] = useState<HTMLVideoElement | null>(null);
+  const videoRef = useCallback((el: HTMLVideoElement | null) => {
+    video.current = el;
+    setVEl(el);
+  }, []);
   const dock = useRef<HTMLDivElement>(null);
   const chose = useRef(false);
 
@@ -115,7 +128,7 @@ export function Studio() {
 
   // The player's clock, for the transport and scrub bar.
   useEffect(() => {
-    const v = video.current;
+    const v = vEl;
     if (!v) return;
     let raf = 0;
     const tick = () => {
@@ -134,7 +147,7 @@ export function Studio() {
       for (const e of evs) v.removeEventListener(e, tick);
       v.removeEventListener("play", onPlay);
     };
-  }, []);
+  }, [vEl]);
 
   const notes = useMemo(() => (desk?.notes ?? []).filter((n) => ep && n.episode === ep.id && n.stage === stage.id && n.t !== undefined && (n.version === undefined || n.version === cur?.v)), [desk, ep, stage.id, cur]);
   const marks = useMemo<Mark[]>(() => notes.map((n) => ({ t: n.t!, ...(n.t2 !== undefined ? { t2: n.t2 } : {}), sent: n.state !== "draft" })), [notes]);
@@ -142,8 +155,8 @@ export function Studio() {
   // The cut plays on the stage's tall frame.
   useEffect(() => {
     if (!api) return;
-    api.setVideo(media && isVideo(media) ? video.current : null, marks);
-  }, [api, media, marks]);
+    api.setVideo(media && isVideo(media) ? vEl : null, marks);
+  }, [api, media, marks, vEl]);
 
   useEffect(() => {
     if (!api || phone) return;
@@ -185,6 +198,8 @@ export function Studio() {
     setSel(stageOn(e));
     if (!flat) setFocused("edit");
     else setFlatTab("edit");
+    // On a phone the chosen episode's cut comes up under the tab row.
+    if (phone) window.setTimeout(() => document.querySelector(".px-player")?.scrollIntoView({ block: "start", behavior: "smooth" }), 60);
   };
   const player: Player = {
     ...clockT,
@@ -206,6 +221,13 @@ export function Studio() {
     },
   };
   const fullscreen = () => {
+    // A phone's own player goes full screen (iOS only lets a video do that itself).
+    const v = video.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (phone && v) {
+      if (v.requestFullscreen) void v.requestFullscreen().catch(() => v.webkitEnterFullscreen?.());
+      else v.webkitEnterFullscreen?.();
+      return;
+    }
     const d = dock.current;
     if (d && !document.fullscreenElement) void d.requestFullscreen?.().catch(() => undefined);
   };
@@ -255,31 +277,30 @@ export function Studio() {
     if (!desk) return <p className="sx-gate">{down ? "The desk is out of reach right now. It'll try again in a minute." : "Opening the desk…"}</p>;
     if (id === "pitch") return <PitchScreen desk={desk} episodes={episodes} openEp={openEp} run={run} busy={busy} />;
     if (id === "stats") return <FeedScreen social={social} />;
-    return (
-      <EditScreen
-        desk={desk}
-        ep={ep}
-        inProduction={inProduction}
-        openEp={openEp}
-        sel={sel}
-        setSel={setSel}
-        version={cur?.v ?? 0}
-        setVersion={setVersion}
-        player={player}
-        refOn={refOn}
-        toggleRef={() => {
-          setRefOn((r) => !r);
-          if (!flat) setFocused("edit");
-        }}
-        fullscreen={fullscreen}
-        run={run}
-        busy={busy}
-      />
-    );
+    return <EditScreen {...editProps(desk)} />;
   };
+  const editProps = (d: DeskView) => ({
+    desk: d,
+    ep,
+    inProduction,
+    openEp,
+    sel,
+    setSel,
+    version: cur?.v ?? 0,
+    setVersion,
+    player,
+    refOn,
+    toggleRef: () => {
+      setRefOn((r) => !r);
+      if (!flat) setFocused("edit");
+    },
+    fullscreen,
+    run,
+    busy,
+  });
 
   return (
-    <div className="wv-page rm rm-studio st-page" data-room="studio" data-focus={focused ?? undefined} data-ref={refOn && !flat ? "on" : undefined}>
+    <div className="wv-page rm rm-studio st-page" data-room="studio" data-phone={phone || undefined} data-focus={focused ?? undefined} data-ref={refOn && !flat ? "on" : undefined}>
       <StudioStage view={view} onReady={setApi} onFrame={onFrame} onAway={onAway}>
         <header className="st-head">
           <p className="st-eyb">
@@ -288,7 +309,11 @@ export function Studio() {
           <h1 className="st-h1 desk__title">
             So, they're eating <em>your neighbors.</em>
           </h1>
-          <p className="st-sub">Adulting at the end of the world, for TikTok and Reels. Click a monitor to work on it, or the stage to watch the cut beside your notes. Hold L to leave a note at that moment. Space plays and pauses.</p>
+          <p className="st-sub">
+            {phone
+              ? "Adulting at the end of the world, for TikTok and Reels. Watch a cut, pin notes to a moment, send them when you're done."
+              : "Adulting at the end of the world, for TikTok and Reels. Click a monitor to work on it, or the stage to watch the cut beside your notes. Hold L to leave a note at that moment. Space plays and pauses."}
+          </p>
           <p className={`st-tally${rolling ? " is-on" : ""}`} aria-label={rolling ? "Rolling" : "Not rolling"}>
             <i aria-hidden="true" />
             {rolling ? "Rolling" : "Not rolling"}
@@ -340,7 +365,7 @@ export function Studio() {
         )}
 
         <div ref={dock} className="st-ref" data-on={(refOn && !flat) || undefined} aria-hidden={!refOn || undefined}>
-          <video ref={video} className="st-ref-v" src={media} crossOrigin="anonymous" playsInline preload="metadata" onClick={player.toggle} />
+          {!phone && <video ref={videoRef} className="st-ref-v" src={media} crossOrigin="anonymous" playsInline preload="metadata" onClick={player.toggle} />}
           {refOn && !flat && <p className="st-ref-k">Reference · v{cur?.v ?? "–"}</p>}
         </div>
 
@@ -371,7 +396,59 @@ export function Studio() {
           ),
         )}
 
-      {flat && (
+      {phone && (
+        <section className="px" aria-label="The Studio desk">
+          <div className="px-tabs" role="tablist" aria-label="Screens">
+            {PHONE_TABS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={flatTab === s.id}
+                onClick={(ev) => {
+                  setFlatTab(s.id);
+                  // A new tab opens at its top, under the tab row.
+                  const px = (ev.currentTarget as HTMLElement).closest(".px");
+                  if (px && px.getBoundingClientRect().top < 0) px.scrollIntoView({ block: "start" });
+                }}
+              >
+                {s.t}
+                {s.id === "edit" && rolling && <i className="px-live" aria-label="Rolling" />}
+              </button>
+            ))}
+          </div>
+          {flatTab === "edit" && episodes.length > 0 && (
+            <div className="px-eps" aria-label="Episodes">
+              {[...episodes]
+                .sort((a, b) => Number(isPosted(a)) - Number(isPosted(b)) || a.n - b.n)
+                .map((e) => {
+                  const on = STAGE_LINE[stageOn(e)]!;
+                  const status = e.stages[on.id]?.status ?? "waiting";
+                  return (
+                    <button key={e.id} type="button" aria-pressed={e.id === ep?.id} data-status={isPosted(e) ? "posted" : status} onClick={() => openEp(e.id)}>
+                      <small>{e.n}</small>
+                      <b>{e.title}</b>
+                      <em>{isPosted(e) ? "Posted" : `${on.t} · ${STATUS_TEXT[status]}`}</em>
+                    </button>
+                  );
+                })}
+            </div>
+          )}
+          <div className="px-body" data-screen={flatTab}>
+            {!desk ? (
+              <p className="sx-gate">{down ? "The desk is out of reach right now. It'll try again in a minute." : "Opening the desk…"}</p>
+            ) : flatTab === "edit" ? (
+              <PhoneEdit {...editProps(desk)} video={<video ref={videoRef} className="px-video" src={media} crossOrigin="anonymous" playsInline preload="metadata" onClick={player.toggle} />} />
+            ) : (
+              <div className="st-screen is-flat" data-screen={flatTab}>
+                {screenOf(flatTab)}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {flat && !phone && (
         <section className="st-flatdesk" aria-label="The edit suite">
           <div className="st-flattabs" role="tablist" aria-label="Screens">
             {SCREENS.map((s) => (

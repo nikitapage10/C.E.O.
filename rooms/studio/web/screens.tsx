@@ -41,7 +41,7 @@ const PROFILE = new URL("./props/profile.webp", import.meta.url).href;
 
 /* ───────────────────────────── Edit ───────────────────────────── */
 
-export function EditScreen(p: {
+export interface EditProps {
   desk: DeskView;
   ep: Episode | undefined;
   inProduction: Episode[];
@@ -56,8 +56,15 @@ export function EditScreen(p: {
   fullscreen: () => void;
   run: Run;
   busy: boolean;
-}) {
-  const { desk, ep, sel, player, run, busy } = p;
+}
+
+/**
+ * The Edit screen's state and actions, shared by the monitor's layout (EditScreen) and the phone's (PhoneEdit.tsx), so
+ * the two never drift apart in what they can do: the notes here, marks in and out, the note box, Send notes (and its
+ * ask while a render runs), Approve or Publish, and the title's edit and re-roll.
+ */
+export function useEdit(p: EditProps) {
+  const { desk, ep, sel, player, run } = p;
   const stage = STAGE_LINE[sel]!;
   const st = ep?.stages[stage.id];
   const versions = versionsOf(st);
@@ -99,6 +106,24 @@ export function EditScreen(p: {
     });
   };
 
+  const approve = () => {
+    if (!ep) return;
+    if (stage.id === "post") void run({ action: "publish", episode: ep.id }, "Publishing in a minute, to Instagram and TikTok.");
+    else void run({ action: "approve", episode: ep.id, stage: stage.id as Stage }, `${stage.t} approved. The Director moves on.`);
+  };
+  const canApprove = stage.id === "post" ? st?.status === "ready" && !!st?.draft : st?.status === "ready";
+  const saveTitle = (t: string) => {
+    const x = t.trim();
+    if (ep && x && x !== ep.title) void run({ action: "title", episode: ep.id, title: x }, "Retitled.");
+    setTitling(false);
+  };
+  const canReroll = !!ep && (ep.titles ?? []).some((x) => x !== ep.title);
+  return { stage, st, versions, timed, mark, setMark, text, setText, here, drafts, asks, asking, setAsking, sendNow, titling, setTitling, titleText, setTitleText, reroll, canReroll, saveTitle, range, at, add, approve, canApprove };
+}
+
+export function EditScreen(p: EditProps) {
+  const { ep, sel, player, run, busy } = p;
+  const { stage, st, versions, timed, mark, setMark, text, setText, here, drafts, asks, asking, setAsking, sendNow, titling, setTitling, titleText, setTitleText, reroll, range, at, add } = useEdit(p);
   return (
     <div className="sx sx-edit">
       <header className="sx-bar">
@@ -319,7 +344,7 @@ export function EditScreen(p: {
   );
 }
 
-function NoteRow({ n, seek, drop }: { n: Note; seek?: (t: number) => void; drop?: () => void }) {
+export function NoteRow({ n, seek, drop }: { n: Note; seek?: (t: number) => void; drop?: () => void }) {
   const state = n.state ?? "sent";
   return (
     <li className="sx-note" data-state={state}>
@@ -343,7 +368,7 @@ function NoteRow({ n, seek, drop }: { n: Note; seek?: (t: number) => void; drop?
   );
 }
 
-function Scrub({ player, notes, mark, setMark }: { player: Player; notes: Note[]; mark: { a?: number; b?: number }; setMark: (m: { a?: number; b?: number }) => void }) {
+export function Scrub({ player, notes, mark, setMark }: { player: Player; notes: Note[]; mark: { a?: number; b?: number }; setMark: (m: { a?: number; b?: number }) => void }) {
   const bar = useRef<HTMLDivElement>(null);
   const drag = useRef<number | null>(null);
   const d = player.dur || 1;

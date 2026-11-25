@@ -279,6 +279,7 @@ export function defaultCast(): Cast {
       { a: "putty", b: "daub", kind: "best-friend", note: "The Artiste has the idea, Daub paints it, the Artiste has a better idea. Daub paints that one too, happily, with its tail." },
       { a: "putty", b: "chisel", kind: "rival", note: "Two artistes, one mould. Chisel wants it finished, darling; the Artiste wants it to suffer properly first. The hands are better for it." },
       { a: "tally", b: "gilt", kind: "partner", note: "The Executive runs the series' business: topics, schedule, what sells. The Director makes the videos, and calls the Executive's notes 'the suits'." },
+      { a: "tally", b: "folio", kind: "partner", note: "Folio writes the end-of-the-world episodes; the Director cuts all but the best joke. Folio keeps the rest in a drawer marked 'season two'." },
       { a: "tally", b: "dot", kind: "friend", note: "The Director's favourite star. Dot hits its mark every time; the Director asks for one more take every time. Dot is happy to." },
       { a: "tally", b: "arc", kind: "rival", note: "The Director wants one more take. Arc has already rendered the last one. Arc keeps both copies." },
       { a: "folio", b: "arc", kind: "rival", note: "Folio writes four minutes; Arc cuts it to fifty seconds. Folio says the cut is better, and is furious about it." },

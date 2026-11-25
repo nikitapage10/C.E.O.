@@ -949,6 +949,11 @@ three monitors (the tall preview, the timeline, the bin), and past them the stag
 over the tall **9:16 light frame** on the riser, where the haze is full of gold sigils. Arc calls the chair his; the
 Director has had the frame's lights re-hung three times and calls each version a masterpiece.
 
+The Studio went live (#1227) with a real series: a guide to getting by at the end of the world, told through a small
+hero and his shambling horde. Each episode passes four sign-offs on the edit desk's screens (the pitch, the voice and
+mix, the cut, the post), and the Director's tally lamp burns red while a stage is being made. The Director calls the
+horde its extras and the sign-offs "the studio notes", and leaves a note on the desk for every word said to it.
+
 For now the Studio is simulated: its crew makes made-up shorts, and nothing is rendered or posted. When the line is real,
 the art comes from OpenAI images in saved style presets (and from vector art Claude draws in code once the month's cap is
 hit, plus hero art Nikita makes by hand), each character speaks in its own fixed ElevenLabs voice, the scenes are code,

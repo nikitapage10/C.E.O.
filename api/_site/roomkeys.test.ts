@@ -142,8 +142,8 @@ describe("which room key a request carries", () => {
 
 describe("the read key (SUBMIND_LOG_TOKEN)", () => {
   it("lists exactly the room data Nikita approved", () => {
-    expect(Object.keys(LOG_READS).sort()).toEqual(["/api/exchange-markets", "/api/exchange-positions", "/api/foundry-feed", "/api/green-league", "/api/room-feed", "/api/setup-asks", "/api/skippy-journal", "/api/skippy-log", "/api/world"]);
-    expect([...KEY_LOG_ROOMS]).toEqual(["green", "exchange", "boiler", "foundry"]);
+    expect(Object.keys(LOG_READS).sort()).toEqual(["/api/exchange-markets", "/api/exchange-positions", "/api/foundry-feed", "/api/green-league", "/api/room-feed", "/api/setup-asks", "/api/skippy-journal", "/api/skippy-log", "/api/studio-desk", "/api/world"]);
+    expect([...KEY_LOG_ROOMS]).toEqual(["green", "exchange", "boiler", "foundry", "studio"]);
   });
 
   it("covers the rooms whose submind is active, and no other, except Relay's asks, which stay Desk-only", () => {

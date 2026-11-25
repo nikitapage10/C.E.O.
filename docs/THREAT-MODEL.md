@@ -272,6 +272,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | Kernel responder (Haiku, #501) | Answers Skippy's hand-offs on its own: facts and look-ups, with web search and a read-only Sleeper look-up, and files a `foundry:chat` issue for a build request | Nothing: its answer is data that passes the privacy and money checks again, the issue text is Nikita's own words, and it cannot write code or start a build |
 | World step model (Haiku) | Proposes an hour | Nothing: its answer is data, re-checked in code |
 | ElevenLabs speech | Reads the day's script aloud (the only voice since #472) | Nothing: it gets only public, scrubbed text, and its audio is only stored and played |
+| Zernio (#1225, #1227) | Holds the Studio's drafts for Instagram and TikTok, publishes one when told, and reads back both profiles' numbers and comments | Nothing beyond the show: its key (`zernio-api-key`) stays on the Function App; the code makes drafts only, publishes only its own drafts (`ceo-studio-…`) on Nikita's go or tap, and reads what it sends back as data, closed and length-capped (`api/_studio/social.ts`, `api/_studio/desk.ts`); comments go only to the signed-in Desk and the Director's thread |
 | Visual QA reviewer (Gemini) | Proposes findings about the Lattice's look | Nothing: its answer is data, re-checked in code; only CI writes the issue, in its own format |
 | CI bots | Post check results | Machine output, read as data |
 | Anyone on GitHub | Open issues, comment | Nothing |

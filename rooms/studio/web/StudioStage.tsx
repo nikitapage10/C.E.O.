@@ -1,34 +1,31 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { reducedMotion } from "@ceo/engine/sigils/wvCanvas.ts";
 import { useSceneReady } from "@ceo/engine/web/roomReady.ts";
-import { EPISODES, LINE } from "./line.ts";
 import type { Soundstage, StudioView } from "./soundstage.ts";
 
 /**
  * The Studio's stage (#828): the edit suite and the sound stage behind it in 3D (soundstage.ts, lazy loaded with
  * three.js), with the page's head laid over it and three small labels riding their places. Until the 3D is up, and on a
  * device without WebGL, a flat stage drawn in CSS stands in, so the page is whole at once. The scene's monitors show
- * the step the page has selected (`sel`).
+ * the desk as the page has it (`view`: the episode's stages, the one selected, the bin; #1227).
  */
 
 type GL = "idle" | "loading" | "on" | "off";
 const isPhone = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches;
-const LABELS: [string, string][] = [
-  ["suite", "The edit suite"],
-  ["stage", "The stage · 9:16"],
-  ["camera", "Camera · not rolling"],
-];
-
-export function StudioStage({ sel, children }: { sel: number; children: ReactNode }) {
+export function StudioStage({ view, children }: { view: StudioView; children: ReactNode }) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const scene = useRef<Soundstage | null>(null);
   const labels = useRef(new Map<string, HTMLElement>());
   const [gl, setGl] = useState<GL>("idle");
   useSceneReady(gl === "on" || gl === "off");
-  const view = (s: number): StudioView => ({ steps: LINE, sel: s, episodes: EPISODES.map((e) => e.t) });
-  const selRef = useRef(sel);
-  selRef.current = sel;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const labelList: [string, string][] = [
+    ["suite", "The edit suite"],
+    ["stage", "The stage · 9:16"],
+    ["camera", view.rolling ? "Camera · rolling" : "Camera · not rolling"],
+  ];
 
   useEffect(() => {
     const cv = canvas.current;
@@ -44,7 +41,7 @@ export function StudioStage({ sel, children }: { sel: number; children: ReactNod
           return m.createSoundstage(el, cv, {
             phone: isPhone(),
             reduce: reducedMotion(),
-            view: view(selRef.current),
+            view: viewRef.current,
             onPlace: (id, x, y, on) => {
               const t = labels.current.get(id);
               if (!t) return;
@@ -74,8 +71,8 @@ export function StudioStage({ sel, children }: { sel: number; children: ReactNod
   }, []);
 
   useEffect(() => {
-    scene.current?.set(view(sel));
-  }, [sel, gl]);
+    scene.current?.set(view);
+  }, [view, gl]);
 
   return (
     <section className="st-stage" data-gl={gl} aria-label="The Studio: the edit suite, and the sound stage behind it">
@@ -93,7 +90,7 @@ export function StudioStage({ sel, children }: { sel: number; children: ReactNod
       </div>
       <div className="st-vig" aria-hidden="true" />
       <div className="st-labels" aria-hidden="true">
-        {LABELS.map(([id, t]) => (
+        {labelList.map(([id, t]) => (
           <span
             key={id}
             className="st-label"

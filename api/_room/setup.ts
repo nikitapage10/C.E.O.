@@ -232,7 +232,7 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
 }
 
 /** The Desk page each room's asks sit on, for the ping to open. */
-const ROOM_PAGE: Record<SetupRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry" };
+const ROOM_PAGE: Record<SetupRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", studio: "/studio" };
 
 /** A new ask's ping: that there is one, never what it says. Safe on a lock screen. */
 export const askPing = (room: SetupRoom): PingText => ({ title: "C.E.O. Desk", body: "A setup ask on the Desk is waiting for your OK.", url: ROOM_PAGE[room] });

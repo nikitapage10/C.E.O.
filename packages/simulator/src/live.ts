@@ -20,6 +20,6 @@ import type { RoomId } from "@ceo/core";
  *
  * When a room goes live, add it here in the same change that wires it up (CLAUDE.md, "Real agents").
  */
-export const LIVE_ROOMS: ReadonlySet<RoomId> = new Set<RoomId>(["foundry", "relay", "exchange", "green", "boiler"]);
+export const LIVE_ROOMS: ReadonlySet<RoomId> = new Set<RoomId>(["foundry", "relay", "exchange", "green", "boiler", "studio"]);
 
 export const isLiveRoom = (room: RoomId): boolean => LIVE_ROOMS.has(room);

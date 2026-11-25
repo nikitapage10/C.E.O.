@@ -7,7 +7,8 @@
  *                        four active rooms, the Green's league board, the Exchange's board and Nikita's positions, the
  *                        world feed (and one day of it), the Foundry feed, the room feed itself, the setup asks
  *                        (#324, whether Nikita approved one), and the Desk chats kept whole (#1097, GET
- *                        /api/skippy-journal?since=, for Skippy, the Magnificent's thread).
+ *                        /api/skippy-journal?since=, for Skippy, the Magnificent's thread), and the Studio desk (#1227, GET
+ *                        /api/studio-desk: pitches, stages, notes and approvals, never the profiles or comments).
  *   SUBMIND_FEED_TOKEN   write-only. PUT /api/kernel-brief, the always-on responder's private brief (#501), POST
  *                        /api/room-feed, a short room event (api/_room/feed.ts), POST /api/setup-asks,
  *                        a setup ask or its Trail line (#324, api/_room/setup.ts), and POST
@@ -24,7 +25,8 @@
  *                        /api/studio-image, Gemini pictures for the same line (api/_studio/image.ts, the same rule), and POST
  *                        /api/studio-social, Zernio drafts of finished episodes and the comments on the show's posts
  *                        (#1225, api/_studio/social.ts: it publishes only its own drafts, after Nikita says "go" in the thread). Otherwise it reads nothing: each answer
- *                        says only that the write was kept (the plan's, counts).
+ *                        says only that the write was kept (the plan's, counts). PUT /api/studio-desk sets an
+ *                        episode's stages on the Studio desk (#1227, api/_studio/desk.ts) and answers only that it was kept.
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
  * (positions are read through the allow-listed GETs in api/_exchange/positions.ts), send anything (no email, invoice
@@ -56,10 +58,10 @@ const OTHER_SECRETS = ["FOUNDRY_DESK_KEY", "SITE_BYPASS_TOKEN", "SITE_SESSION_SE
 export type RoomKey = "log" | "feed";
 
 /**
- * The rooms whose Asked Skippy log the read key may see: the four with an active submind. Never Relay's (its asks can
+ * The rooms whose Asked Skippy log the read key may see: the five with an active submind (the Studio since #1227). Never Relay's (its asks can
  * touch messages; the Messenger is active since #322 but its asks stay Desk-only) or "none".
  */
-export const KEY_LOG_ROOMS = ["green", "exchange", "boiler", "foundry"] as const;
+export const KEY_LOG_ROOMS = ["green", "exchange", "boiler", "foundry", "studio"] as const;
 
 /**
  * The Asked Skippy logs the read key may see: those four and "kernel" (#480), Skippy, the Magnificent's own thread,
@@ -81,6 +83,8 @@ export const STUDIO_AUDIO_PATH = "/api/studio-audio";
 export const STUDIO_IMAGE_PATH = "/api/studio-image";
 /** The Studio's posting line (#1225, api/_studio/social.ts): Zernio drafts of finished episodes, publishing its own drafts on Nikita's go, and the comments they get. */
 export const STUDIO_SOCIAL_PATH = "/api/studio-social";
+/** The Studio desk (#1227, api/_studio/desk.ts): the read key sees the pitches, stages and notes (never the profiles); the feed key PUTs a stage. */
+export const STUDIO_DESK_PATH = "/api/studio-desk";
 
 /** The paths the feed key may POST to, with no query. */
 export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH, SKIPPY_MEMORY_PATH, STUDIO_AUDIO_PATH, STUDIO_IMAGE_PATH, STUDIO_SOCIAL_PATH];
@@ -100,6 +104,8 @@ export const LOG_READS: Readonly<Record<string, QueryRule>> = {
   "/api/world": { day: { ok: (v) => DAY.test(v) } },
   "/api/foundry-feed": {},
   [ROOM_FEED_PATH]: {},
+  // The Studio desk (#1227): Nikita's pitches, notes and approvals, so the Director's thread knows what to make next.
+  [STUDIO_DESK_PATH]: {},
   // Desk chats kept whole (#1097, api/_skippy/chatlog.ts), for Skippy, the Magnificent's thread: since a time.
   "/api/skippy-journal": { since: { ok: (v) => v.length <= 40 && !Number.isNaN(Date.parse(v)) } },
   // The setup asks (#324): whether Nikita approved one, so the thread knows when to go on.
@@ -213,11 +219,11 @@ export const HAVEN_PHOTOS_PATH = "/api/haven-photos";
 /** The Kitchen's meal planner (#678, api/_haven/meals.ts): the feed key may PUT a seed; only a passkey session reads it. */
 export const HAVEN_MEALS_PATH = "/api/haven-meals";
 /** The paths the feed key may PUT to, with no query. */
-const FEED_PUTS: readonly string[] = [KERNEL_BRIEF_PATH, HAVEN_PLAN_PATH, HAVEN_PHOTOS_PATH, HAVEN_MEALS_PATH];
+const FEED_PUTS: readonly string[] = [KERNEL_BRIEF_PATH, HAVEN_PLAN_PATH, HAVEN_PHOTOS_PATH, HAVEN_MEALS_PATH, STUDIO_DESK_PATH];
 
 /**
  * Whether a request is one of the writes the feed key opens: POST /api/room-feed, /api/setup-asks or /api/skippy-memory, PUT
- * /api/kernel-brief, /api/haven-plan, /api/haven-photos (#687) or /api/haven-meals (#678), or POST /api/kernel-agent (#501), with no query.
+ * /api/kernel-brief, /api/haven-plan, /api/haven-photos (#687), /api/haven-meals (#678) or /api/studio-desk (#1227), or POST /api/kernel-agent (#501), with no query.
  */
 export function isFeedWrite(request: Request): boolean {
   const url = new URL(request.url);

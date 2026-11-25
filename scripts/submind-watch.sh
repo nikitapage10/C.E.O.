@@ -30,7 +30,7 @@ shift || true
 for a in "$@"; do
   case "$a" in
     --all) all=1 ;;
-    ''|*[!0-9]*) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry|kernel> [seconds] [--all]" >&2; exit 2 ;;
+    ''|*[!0-9]*) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry|studio|kernel> [seconds] [--all]" >&2; exit 2 ;;
     *) every="$a" ;;
   esac
 done
@@ -42,8 +42,9 @@ case "$room" in
   exchange) mind=ticker ;;
   boiler) mind=soot ;;
   foundry) mind=ember ;;
+  studio) mind=tally ;;
   kernel) mind=skippy ;;
-  *) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry|kernel> [seconds] [--all]" >&2; exit 2 ;;
+  *) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry|studio|kernel> [seconds] [--all]" >&2; exit 2 ;;
 esac
 
 site="${CEO_SITE:-https://ceo.nikita.page}"

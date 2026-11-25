@@ -133,6 +133,18 @@ describe("studio-social", () => {
     expect(thread.comments[0]).toEqual({ id: "c1", message: "do taxes next", from: "fan", at: "2026-11-25T05:00:00Z", likes: 2, replies: 0, canReply: true });
   });
 
+  it("hands the thread both profiles' numbers for the growth log, never the comments", async () => {
+    const { fetcher } = fakeZernio({
+      "GET /accounts": { accounts: [{ _id: "acc_tt_0001", platform: "tiktok", username: "show", metadata: { profileData: { followersCount: 900, extraData: { videoCount: 2 } } } }] },
+      "GET /analytics": { posts: [{ platform: "tiktok", content: "Ep 1", publishedAt: "2026-11-24T01:00:00Z", analytics: { views: 8000, likes: 400, comments: 12, shares: 9, saves: 3, follows: 40 } }] },
+      "GET /inbox/comments": { data: [] },
+    });
+    const got = await (await post({ mode: "stats" }, fetcher)).json();
+    expect(got.profiles[0]).toMatchObject({ platform: "tiktok", followers: 900 });
+    expect(got.posts[0]).toMatchObject({ views: 8000, follows: 40 });
+    expect(got.comments).toBeUndefined();
+  });
+
   it("hides Zernio's failures behind a short code", async () => {
     const { fetcher } = fakeZernio({ "GET /accounts": 401 });
     const res = await post({ mode: "accounts" }, fetcher);

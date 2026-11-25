@@ -33,7 +33,7 @@ import { BlobPreconditionError, type BlobBackend } from "../_blob.js";
  * the Magnificent's own thread: builds, look-ups across rooms and anything that needs real work, always handed to
  * "skippy", whose thread answers it (scripts/submind-watch.sh kernel).
  */
-export const LOG_ROOMS = ["green", "exchange", "boiler", "foundry", "relay", "haven", "kernel", "none"] as const;
+export const LOG_ROOMS = ["green", "exchange", "boiler", "foundry", "relay", "haven", "studio", "kernel", "none"] as const;
 export type LogRoom = (typeof LOG_ROOMS)[number];
 
 /** Kept per room: the last 200 turns, none older than 30 days. */
@@ -60,6 +60,7 @@ export const ROOM_SUBMINDS = {
   foundry: { id: "ember", name: "The Builder", active: true },
   relay: { id: "static", name: "The Messenger", active: true },
   haven: { id: "hearth", name: "The Steward", active: true },
+  studio: { id: "tally", name: "The Director", active: true },
 } as const satisfies Record<Exclude<LogRoom, "none" | "kernel">, { id: string; name: string; active: boolean }>;
 
 /** Who a turn can be handed to: Skippy's own thread, or a room's submind by its id. */

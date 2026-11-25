@@ -57,9 +57,9 @@ import { dprGuard, sceneDpr } from "@ceo/engine/web/phone.ts";
  * camera on its tripod), each with a wire skin, gold sigil nanites drifting in the light, and the frame's edges coming
  * undone into gold wire and code as the Senate's do.
  *
- * The monitors show the page's own plan and nothing else: the episode line as a timeline (the selected step under the
- * playhead), that step in the tall preview, and the first episodes in the bin. Nothing is connected, so the camera's
- * tally lamp stays dark and nothing renders.
+ * The monitors show the page's own desk and nothing else (#1227): the episode's four stages as a timeline (the
+ * selected one under the playhead), that stage in the tall preview, and the series' episodes in the bin. The
+ * monitor's tally reads ROLLING while a stage is being made.
  *
  * Phones get fewer particles, no shadows, a lower pixel ratio and 30 frames a second; reduced motion holds the scene
  * nearly still. Lazy loaded with three.js (StudioStage.tsx), never in the Desk's first load.
@@ -69,8 +69,10 @@ export interface StudioView {
   steps: Step[];
   /** The step under the playhead (the page's selection). */
   sel: number;
-  /** The first episodes, planned. */
+  /** The series' episodes, newest last. */
   episodes: string[];
+  /** A stage is being made right now. */
+  rolling?: boolean;
 }
 
 export interface StudioOpts {
@@ -739,7 +741,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
 
   // ---- the monitors' pictures: the page's own plan ----------------------------------------------------------------
   const drawScreens = () => {
-    const { steps, sel, episodes } = view;
+    const { steps, sel, episodes, rolling } = view;
     // The timeline.
     {
       const s = screens[0]!;
@@ -758,10 +760,10 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       g.textAlign = "center";
       g.fillText("00:00:00:00", W / 2, 27);
       g.textAlign = "right";
-      g.fillStyle = "#9c6a69";
-      g.fillText("NOT ROLLING", W - 24, 27);
+      g.fillStyle = rolling ? "#ff5a5a" : "#9c6a69";
+      g.fillText(rolling ? "ROLLING" : "NOT ROLLING", W - 24, 27);
       g.beginPath();
-      g.fillStyle = "#4a1c1c";
+      g.fillStyle = rolling ? "#ff3b3b" : "#4a1c1c";
       g.arc(W - 186, 27, 7, 0, Math.PI * 2);
       g.fill();
       g.textAlign = "left";
@@ -877,7 +879,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       g.fillText("9:16 · PREVIEW", 96, H - 96);
       s.tex.needsUpdate = true;
     }
-    // The bin: the first episodes, planned.
+    // The bin: the series' episodes.
     {
       const s = screens[2]!;
       const g = s.canvas.getContext("2d")!;
@@ -890,10 +892,10 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       g.textBaseline = "middle";
       g.font = `600 26px ${MONO}`;
       g.fillStyle = "#e3c98d";
-      g.fillText("BIN · FIRST EPISODES", 28, 33);
+      g.fillText("BIN · EPISODES", 28, 33);
       g.textAlign = "right";
       g.fillStyle = "#6d7180";
-      g.fillText("PLANNED", W - 28, 33);
+      g.fillText(String(episodes.length), W - 28, 33);
       g.textAlign = "left";
       const rowH = (H - 84) / Math.max(1, episodes.length);
       episodes.forEach((t, i) => {

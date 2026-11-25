@@ -11,6 +11,7 @@
  *   POST /api/studio-social { mode: "comments" }                                  → { posts: [{ id, accountId, platform, permalink, comments, text }] }
  *   POST /api/studio-social { mode: "reply", postId, accountId, commentId, message } → { id }  (a reply Nikita OKed, as the show)
  *   POST /api/studio-social { mode: "thread", postId, accountId }                 → { comments: [{ id, message, from, at, likes, replies, canReply }] }
+ *   POST /api/studio-social { mode: "stats" }                                     → { at, profiles, posts }  (numbers for the daily growth log, #1227)
  *
  * Who: the feed key only (SUBMIND_FEED_TOKEN, a POST with no query, api/_site/roomkeys.ts), checked by the gate and
  * again here. What it can do: make drafts, and publish a draft this route made (its externalId starts `ceo-studio-`)
@@ -48,6 +49,7 @@ const FILENAME = /^[A-Za-z0-9._-]{1,120}\.(mp4|jpe?g|png)$/;
 export type SocialJob =
   | { mode: "accounts" }
   | { mode: "comments" }
+  | { mode: "stats" }
   | { mode: "presign"; filename: string; contentType: (typeof UPLOAD_TYPES)[number]; size: number }
   | { mode: "draft"; caption: string; video: string; cover?: string; platforms: Platform[] }
   | { mode: "status"; id: string }
@@ -84,7 +86,7 @@ export function parseSocialJob(body: unknown): SocialJob | null {
   const b = body as Record<string, unknown>;
   const keys = Object.keys(b);
   const only = (...allowed: string[]) => keys.every((k) => allowed.includes(k));
-  if ((b.mode === "accounts" || b.mode === "comments") && only("mode")) return { mode: b.mode };
+  if ((b.mode === "accounts" || b.mode === "comments" || b.mode === "stats") && only("mode")) return { mode: b.mode };
   if (b.mode === "presign" && only("mode", "filename", "contentType", "size")) {
     const ct = b.contentType;
     if (typeof b.filename !== "string" || !FILENAME.test(b.filename)) return null;
@@ -113,8 +115,11 @@ export function parseSocialJob(body: unknown): SocialJob | null {
 
 type Account = { _id?: unknown; platform?: unknown; username?: unknown; isActive?: unknown };
 
+/** What a Zernio call needs: the key, the clock, and a fetch to fake in tests. */
+export type ZernioDeps = { key: string; now: number; fetcher?: typeof fetch };
+
 /** One Zernio call. The key goes only in the header, never in a URL, a log or an error. */
-async function call(deps: StudioSocialDeps, method: "GET" | "POST" | "PUT", path: string, body?: unknown): Promise<{ ok: true; data: unknown } | { ok: false; status: number }> {
+export async function zernio(deps: ZernioDeps, method: "GET" | "POST" | "PUT", path: string, body?: unknown): Promise<{ ok: true; data: unknown } | { ok: false; status: number }> {
   const res = await (deps.fetcher ?? fetch)(`${API}${path}`, {
     method,
     headers: { Authorization: `Bearer ${deps.key}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
@@ -128,8 +133,8 @@ async function call(deps: StudioSocialDeps, method: "GET" | "POST" | "PUT", path
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
-async function accounts(deps: StudioSocialDeps) {
-  const r = await call(deps, "GET", "/accounts");
+async function accounts(deps: ZernioDeps) {
+  const r = await zernio(deps, "GET", "/accounts");
   if (!r.ok) return r;
   const list = ((r.data as { accounts?: Account[] } | null)?.accounts ?? []).filter((a) => a && typeof a === "object");
   return { ok: true as const, data: list.map((a) => ({ id: str(a._id) ?? "", platform: str(a.platform) ?? "", username: str(a.username) ?? "", active: a.isActive !== false })) };
@@ -162,6 +167,22 @@ export function draftBody(job: SocialJob & { mode: "draft" }, accountIds: Record
   };
 }
 
+/** Publish one of this route's own drafts, a minute out. Refuses anything else in the account. */
+export async function publishDraft(deps: ZernioDeps, id: string): Promise<{ ok: true; at: string } | { ok: false; error: string; status: number }> {
+  if (!ID.test(id)) return { ok: false, error: "bad-request", status: 400 };
+  const r = await zernio(deps, "GET", `/posts/${encodeURIComponent(id)}`);
+  if (!r.ok) return { ok: false, error: `zernio-${r.status}`, status: r.status === 401 || r.status === 403 ? 503 : 502 };
+  const d = r.data as { post?: Record<string, unknown> } & Record<string, unknown>;
+  const post = (d?.post ?? d ?? {}) as { status?: unknown; externalId?: unknown };
+  if (typeof post.externalId !== "string" || !post.externalId.startsWith(MINE)) return { ok: false, error: "not-ours", status: 403 };
+  if (post.status !== "draft") return { ok: false, error: "not-a-draft", status: 409 };
+  const at = new Date(deps.now + PUBLISH_LEAD_MS).toISOString();
+  const put = await zernio(deps, "PUT", `/posts/${encodeURIComponent(id)}`, { isDraft: false, scheduledFor: at });
+  if (!put.ok) return { ok: false, error: `zernio-${put.status}`, status: put.status === 401 || put.status === 403 ? 503 : 502 };
+  console.log(JSON.stringify({ at: new Date(deps.now).toISOString(), event: "studio.social.publish", id, scheduledFor: at }));
+  return { ok: true, at };
+}
+
 const fail = (status: number) => json({ error: `zernio-${status}` }, status === 401 || status === 403 ? 503 : 502);
 
 /** POST /api/studio-social: the feed key only. */
@@ -186,8 +207,14 @@ export async function studioSocial(request: Request, deps: StudioSocialDeps): Pr
       const r = await accounts(deps);
       return r.ok ? json({ accounts: r.data }) : fail(r.status);
     }
+    if (job.mode === "stats") {
+      const { readSocial } = await import("./stats.js");
+      const got = await readSocial(deps);
+      if (!got) return json({ error: "zernio-down" }, 502);
+      return json({ at: new Date(deps.now).toISOString(), profiles: got.profiles, posts: got.posts });
+    }
     if (job.mode === "presign") {
-      const r = await call(deps, "POST", "/media/presign", { filename: job.filename, contentType: job.contentType, size: job.size });
+      const r = await zernio(deps, "POST", "/media/presign", { filename: job.filename, contentType: job.contentType, size: job.size });
       if (!r.ok) return fail(r.status);
       const d = r.data as { uploadUrl?: unknown; publicUrl?: unknown } | null;
       if (!isMediaUrl(d?.uploadUrl) || !isMediaUrl(d?.publicUrl)) return json({ error: "zernio-shape" }, 502);
@@ -202,36 +229,27 @@ export async function studioSocial(request: Request, deps: StudioSocialDeps): Pr
         if (!found) return json({ error: `no-${p}-account` }, 409);
         ids[p] = found.id;
       }
-      const made = await call(deps, "POST", "/posts", draftBody(job, ids, deps.now));
+      const made = await zernio(deps, "POST", "/posts", draftBody(job, ids, deps.now));
       if (!made.ok) return fail(made.status);
       const post = (made.data as { post?: { _id?: unknown; status?: unknown } } | null)?.post;
       return json({ id: str(post?._id) ?? "", status: str(post?.status) ?? "draft" }, 201);
     }
     if (job.mode === "publish") {
-      const r = await call(deps, "GET", `/posts/${encodeURIComponent(job.id)}`);
-      if (!r.ok) return fail(r.status);
-      const d = r.data as { post?: Record<string, unknown> } & Record<string, unknown>;
-      const post = (d?.post ?? d ?? {}) as { status?: unknown; externalId?: unknown };
-      if (typeof post.externalId !== "string" || !post.externalId.startsWith(MINE)) return json({ error: "not-ours" }, 403);
-      if (post.status !== "draft") return json({ error: "not-a-draft", status: str(post.status) ?? "" }, 409);
-      const at = new Date(deps.now + PUBLISH_LEAD_MS).toISOString();
-      const put = await call(deps, "PUT", `/posts/${encodeURIComponent(job.id)}`, { isDraft: false, scheduledFor: at });
-      if (!put.ok) return fail(put.status);
-      console.log(JSON.stringify({ at: new Date(deps.now).toISOString(), event: "studio.social.publish", id: job.id, scheduledFor: at }));
-      return json({ id: job.id, status: "scheduled", at });
+      const r = await publishDraft(deps, job.id);
+      return r.ok ? json({ id: job.id, status: "scheduled", at: r.at }) : json({ error: r.error }, r.status);
     }
     if (job.mode === "reply") {
       const r = await accounts(deps);
       if (!r.ok) return fail(r.status);
       const acct = r.data.find((a) => a.id === job.accountId && a.active);
       if (!acct || !(PLATFORMS as readonly string[]).includes(acct.platform)) return json({ error: "not-ours" }, 403);
-      const sent = await call(deps, "POST", `/inbox/comments/${encodeURIComponent(job.postId)}`, { accountId: job.accountId, commentId: job.commentId, message: job.message });
+      const sent = await zernio(deps, "POST", `/inbox/comments/${encodeURIComponent(job.postId)}`, { accountId: job.accountId, commentId: job.commentId, message: job.message });
       if (!sent.ok) return fail(sent.status);
       console.log(JSON.stringify({ at: new Date(deps.now).toISOString(), event: "studio.social.reply", platform: acct.platform, postId: job.postId }));
       return json({ id: str((sent.data as { data?: { commentId?: unknown } } | null)?.data?.commentId) ?? "" }, 201);
     }
     if (job.mode === "status") {
-      const r = await call(deps, "GET", `/posts/${encodeURIComponent(job.id)}`);
+      const r = await zernio(deps, "GET", `/posts/${encodeURIComponent(job.id)}`);
       if (!r.ok) return fail(r.status);
       const d = r.data as { post?: Record<string, unknown> } & Record<string, unknown>;
       const post = (d?.post ?? d ?? {}) as { _id?: unknown; status?: unknown; platforms?: { platform?: unknown; status?: unknown; platformPostUrl?: unknown }[] };
@@ -239,14 +257,14 @@ export async function studioSocial(request: Request, deps: StudioSocialDeps): Pr
       return json({ id: job.id, status: str(post.status) ?? "", platforms });
     }
     if (job.mode === "comments") {
-      const r = await call(deps, "GET", "/inbox/comments?limit=50&sortBy=date&sortOrder=desc");
+      const r = await zernio(deps, "GET", "/inbox/comments?limit=50&sortBy=date&sortOrder=desc");
       if (!r.ok) return fail(r.status);
       const list = ((r.data as { data?: Record<string, unknown>[] } | null)?.data ?? []).filter((p) => p && (p.platform === "instagram" || p.platform === "tiktok"));
       return json({
         posts: list.map((p) => ({ id: str(p.id) ?? "", accountId: str(p.accountId) ?? "", platform: str(p.platform) ?? "", permalink: isMediaUrl(p.permalink) ? p.permalink : undefined, comments: num(p.commentCount), text: (str(p.content) ?? "").slice(0, 200) })),
       });
     }
-    const r = await call(deps, "GET", `/inbox/comments/${encodeURIComponent(job.postId)}?accountId=${encodeURIComponent(job.accountId)}&limit=100`);
+    const r = await zernio(deps, "GET", `/inbox/comments/${encodeURIComponent(job.postId)}?accountId=${encodeURIComponent(job.accountId)}&limit=100`);
     if (!r.ok) return fail(r.status);
     const list = ((r.data as { comments?: Record<string, unknown>[] } | null)?.comments ?? []).filter((c) => c && typeof c === "object");
     return json({

@@ -551,6 +551,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The Executive wants it shorter. Art doesn't do shorter. ...Fine. Forty-five.",
     "Arc, the render can wait. The vision cannot.",
     "That's a wrap! ...After one more.",
+    "The horde are extras, not stars. Extras, hit your marks. And stop eating the boom mic.",
+    "Pitch approved. Mix approved. Now we wait for the tap. I hate the tap. I love the tap.",
   ],
   punt: [
     "Hop hop hop! Is it game day? It's game day somewhere!",

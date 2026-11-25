@@ -379,7 +379,7 @@ export async function POST(request: Request): Promise<Response> {
 /** The shortest SUBMIND_FEED_TOKEN that counts, as for the site's bypass token. */
 export const MIN_TOKEN = 32;
 /** The Desk page each room's asks live on, for the ping to open. */
-const ROOM_PAGE: Record<LogRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", relay: "/relay", haven: "/haven", kernel: "/", none: "/" };
+const ROOM_PAGE: Record<LogRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", relay: "/relay", haven: "/haven", studio: "/studio", kernel: "/", none: "/" };
 
 export interface AnswerDeps {
   /** SUBMIND_FEED_TOKEN, or "" (then the return leg is off). */

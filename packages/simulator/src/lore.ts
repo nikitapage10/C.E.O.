@@ -740,6 +740,7 @@ export const LORE: Record<string, Lore> = {
       "Called the Studio's first test take a masterpiece, then asked for seven more. Kept the first.",
       "Took the series' business notes from the Executive, nodded through every one, and changed nothing.",
       "Asked Skippy for a cameo. Skippy asked for top billing. Talks continue.",
+      "Went live with a real series: getting by at the end of the world, a small hero and his horde. Calls the horde 'my extras' and waits, megaphone down, for each tap.",
     ],
   },
 };

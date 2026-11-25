@@ -31,7 +31,7 @@ export const SUBMINDS: readonly Submind[] = [
   { id: "fizz", name: "The Life of the Party", room: "breakroom", colour: "#ff6fae", job: "Life of the Party", active: false },
   { id: "soot", name: "The Pessimist", room: "boiler", colour: "#c9d3d8", job: "Pessimist", active: true },
   { id: "putty", name: "The Artiste", room: "workshop", colour: "#3fd6c8", job: "Artiste", active: false },
-  { id: "tally", name: "The Director", room: "studio", colour: "#ff3b3b", job: "Director", active: false },
+  { id: "tally", name: "The Director", room: "studio", colour: "#ff3b3b", job: "Director", active: true },
 ];
 
 /**

@@ -36,7 +36,7 @@ describe("room pulses", () => {
 
   it("marks the subminds of rooms with a real API active, from the one list in the simulator (docs/SKIPPY.md)", () => {
     const active = roomPulses(input()).filter((p) => p.submind.active).map((p) => p.submind.title).sort();
-    expect(active).toEqual(["The Bookie", "The Builder", "The Commentator", "The Messenger", "The Pessimist"]);
+    expect(active).toEqual(["The Bookie", "The Builder", "The Commentator", "The Director", "The Messenger", "The Pessimist"]);
     for (const m of SUBMINDS) expect(ROOM_META[m.room].submind.active, m.room).toBe(m.active);
   });
 

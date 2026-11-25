@@ -73,11 +73,12 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { readCookie } from "../_desk/session.js";
 import { LOGIN_CSP, loginPage } from "./page.js";
 import { SITE_COOKIE, renewedSite, sessionFits, siteCookie, siteSessionOf } from "./session.js";
-import { roomKeyPass } from "./roomkeys.js";
+import { roomKeyPass, STUDIO_KIT_PATH } from "./roomkeys.js";
 import { builderReads } from "./builderkey.js";
 import { TOOL_HEADER, toolTokenSigned } from "../_skippy/voicetoken.js";
 import { hubTokenPair } from "../_relay/tokens.js";
 import { audioIdOf, KEY_SHAPE, phoneKeyOf } from "../_haven/links.js";
+import { kitSigned } from "../_studio/kit.js";
 import { PROBE_PATH, probeToken } from "../_skippy/probekey.js";
 import { currentState, siteKeys, type SiteKeys, type SiteState, type SiteStore } from "./state.js";
 
@@ -95,7 +96,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "probe-token" | "bypass" | "builder-read" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "phone-key" | "phone-audio" | "greeting" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "probe-token" | "bypass" | "builder-read" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "phone-key" | "phone-audio" | "kit-link" | "greeting" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -256,6 +257,8 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if ((request.method === "GET" || request.method === "HEAD") && pathname === "/api/annex-elections") return { allow: true, why: "annex-results" };
   if (request.method === "POST" && pathname === "/api/capture" && url.search === "" && isPhoneKey(request)) return { allow: true, why: "phone-key" };
   if (request.method === "GET" && pathname === "/api/capture" && isPhoneAudio(url, env, ctx.now)) return { allow: true, why: "phone-audio" };
+  // The Studio's render kit (#1235): a link the Director's thread signed, for one file, unexpired.
+  if (pathname === STUDIO_KIT_PATH && kitSigned(request, env, ctx.now)) return { allow: true, why: "kit-link" };
   // The home devices (#632) take the same phone key: GET the readings, POST one action. The handler checks the key.
   if (url.search === "" && isPhoneKey(request) && ((request.method === "GET" && pathname === "/api/haven/devices") || (request.method === "POST" && pathname === "/api/haven/devices/action"))) return { allow: true, why: "phone-key" };
   if ((request.method === "GET" || request.method === "HEAD") && (pathname === "/api/hey-skippy" || pathname === "/hey-skippy/hello.mp3") && url.search === "") return { allow: true, why: "greeting" };

@@ -291,3 +291,103 @@
 /* Notes while a render is under way (#1233) */
 .desk .sx-ask{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .desk .sx-ask em{font-style:normal;font-size:12px;color:var(--wv-faint);flex-basis:100%}
+
+/* ── The phone desk (PhoneEdit.tsx; Nikita 2026-11-25 21:12Z): its own app, not the monitors laid flat. The stage stays
+   as a short hero; under it a sticky tab row, the episodes as cards, then Edit with the cut at the top and a dock over
+   the Desk's bottom bar. ── */
+@media (max-width:760px){
+  [data-room="studio"][data-phone] .st-stage{height:max(300px,40svh)}
+  [data-room="studio"][data-phone] .st-labels,[data-room="studio"][data-phone] .st-sub{display:none}
+  [data-room="studio"][data-phone] .st-head{top:16px}
+  [data-room="studio"][data-phone] .st-h1.desk__title{font-size:30px}
+  [data-room="studio"][data-phone] .st-stats{padding:18px 16px 14px}
+  .desk .px{position:relative;scroll-margin-top:var(--ph-top);z-index:2;margin-top:-1px;padding:0 0 calc(var(--ph-bot) + 150px);background:#08080a;border-top:1px solid rgba(201,168,92,.3);color:var(--wv-ink,#eee)}
+  .desk .px-tabs{position:sticky;top:var(--ph-top);z-index:8;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:0;padding:10px 16px;background:rgba(8,8,10,.9);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.06)}
+  .desk .px-tabs button{position:relative;min-height:40px;border:1px solid rgba(201,168,92,.2);border-radius:999px;background:#101116;color:var(--wv-soft);font-family:var(--wv-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+  .desk .px-tabs button[aria-selected=true]{border-color:var(--st-gold);background:rgba(201,168,92,.16);color:#fff0c8}
+  .desk .px-live{position:absolute;top:8px;right:12px;width:7px;height:7px;border-radius:50%;background:#ff5a5a;box-shadow:0 0 8px #ff5a5a;animation:px-blink 1.4s ease-in-out infinite}
+  @keyframes px-blink{50%{opacity:.35}}
+  .desk .px-eps{display:flex;gap:10px;overflow-x:auto;padding:14px 16px 4px;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .desk .px-eps::-webkit-scrollbar{display:none}
+  .desk .px-eps button{flex:0 0 min(68vw,240px);scroll-snap-align:start;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;padding:12px 14px;text-align:left;border:1px solid rgba(255,255,255,.08);border-left:3px solid rgba(255,255,255,.15);border-radius:10px;background:#101116;color:inherit}
+  .desk .px-eps button[aria-pressed=true]{border-color:rgba(201,168,92,.6);border-left-color:var(--st-gold);background:linear-gradient(180deg,rgba(201,168,92,.14),#101116)}
+  .desk .px-eps button[data-status=ready]{border-left-color:var(--st-gold)}
+  .desk .px-eps button[data-status=working]{border-left-color:#ff5a5a}
+  .desk .px-eps button[data-status=changes]{border-left-color:#e89a5c}
+  .desk .px-eps button[data-status=posted],.desk .px-eps button[data-status=approved],.desk .px-eps button[data-status=done]{border-left-color:#7fc98b}
+  .desk .px-eps small{grid-row:span 2;font-family:var(--wv-mono);font-size:20px;color:var(--st-gold)}
+  .desk .px-eps b{font-size:14px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .desk .px-eps em{font-style:normal;font-family:var(--wv-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--wv-soft)}
+  .desk .px-body{padding:12px 16px 0}
+  .desk .px-body .st-screen.is-flat{padding:0;background:none;border:0}
+  .desk .px-empty{margin:18px 0;color:var(--wv-soft);font-size:14px;line-height:1.5}
+  .desk .px-edit{display:flex;flex-direction:column;gap:12px}
+  .desk .px-title{display:flex;align-items:center;gap:8px}
+  .desk .px-title form{display:flex;gap:6px;flex:1}
+  .desk .px-title input{flex:1;min-width:0;min-height:42px;padding:0 12px;border:1px solid var(--st-gold);border-radius:8px;background:#0c0d11;color:inherit;font-size:16px}
+  .desk .px-title form button{min-width:44px;border:1px solid rgba(201,168,92,.4);border-radius:8px;background:#101116;color:#fff0c8}
+  .desk .px-titlebtn{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:0;border:0;background:none;color:#fff;text-align:left;font-size:19px;font-weight:700;line-height:1.2}
+  .desk .px-titlebtn small{font-family:var(--wv-mono);font-size:10px;font-weight:400;letter-spacing:.18em;text-transform:uppercase;color:var(--st-gold)}
+  .desk .px-reroll{flex:0 0 44px;height:44px;border:1px solid rgba(201,168,92,.35);border-radius:50%;background:#101116;color:var(--st-gold);font-size:18px}
+  .desk .px-stages{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .desk .px-stages button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-height:58px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#101116;color:inherit;text-align:left}
+  .desk .px-stages button[aria-selected=true]{border-color:var(--st-gold);background:rgba(201,168,92,.12)}
+  .desk .px-stages i{width:8px;height:8px;border-radius:50%;background:#3a3b42}
+  .desk .px-stages [data-status=ready] i{background:var(--st-gold);box-shadow:0 0 8px var(--st-gold)}
+  .desk .px-stages [data-status=working] i{background:#ff5a5a;box-shadow:0 0 8px #ff5a5a}
+  .desk .px-stages [data-status=changes] i{background:#e89a5c}
+  .desk .px-stages [data-status=approved] i,.desk .px-stages [data-status=done] i{background:#7fc98b}
+  .desk .px-stages b{font-size:12.5px;font-weight:600}
+  .desk .px-stages em{font-style:normal;font-size:10px;line-height:1.2;color:var(--wv-soft)}
+  .desk .px-player{position:relative;display:flex;justify-content:center;scroll-margin-top:calc(var(--ph-top) + 64px);height:min(600px,max(260px,calc(100svh - var(--ph-top) - var(--ph-bot) - 250px)));border-radius:12px;background:radial-gradient(60% 50% at 50% 50%,rgba(201,168,92,.08),transparent),#000;overflow:hidden}
+  .desk .px-video{height:100%;width:auto;max-width:100%;aspect-ratio:9/16;object-fit:contain;background:#000}
+  .desk .px-bigplay{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border:1px solid rgba(255,240,200,.6);border-radius:50%;background:rgba(8,8,10,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff0c8;font-size:26px;padding-left:5px}
+  .desk .px-tc{position:absolute;left:10px;bottom:10px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.6);font-family:var(--wv-mono);font-size:12px;color:#fff}
+  .desk .px-tc small{color:var(--wv-soft)}
+  .desk .px-full{position:absolute;right:8px;bottom:6px;width:40px;height:40px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px}
+  .desk .px-scrub .sx-scrub{height:56px;border-radius:8px}
+  .desk .px-transport{display:flex;align-items:center;gap:6px}
+  .desk .px-transport button{min-width:44px;min-height:44px;padding:0 10px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:#101116;color:inherit;font-family:var(--wv-mono);font-size:13px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1}
+  .desk .px-transport small{font-size:9.5px;color:var(--st-gold)}
+  .desk .px-transport .px-play{min-width:54px;border-color:var(--st-gold);background:rgba(201,168,92,.14);color:#fff0c8;font-size:16px}
+  .desk .px-transport .px-mark[aria-pressed=true]{border-color:var(--tally);color:#ffd9d8}
+  .desk .px-transport button:disabled{opacity:.4}
+  .desk .px-sp{flex:1}
+  .desk .px-versions{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  .desk .px-versions::-webkit-scrollbar{display:none}
+  .desk .px-versions button{flex:0 0 auto;display:inline-flex;align-items:baseline;gap:6px;min-height:36px;padding:0 14px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:#101116;color:inherit;font-family:var(--wv-mono);font-size:12px}
+  .desk .px-versions button[aria-pressed=true]{border-color:var(--st-gold);background:rgba(201,168,92,.14);color:#fff0c8}
+  .desk .px-versions small{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--wv-soft)}
+  .desk .px-vlabel{margin:-4px 0 0;font-size:12.5px;line-height:1.4;color:var(--wv-soft)}
+  .desk .px-read pre{margin:0;white-space:pre-wrap;font:14px/1.55 var(--wv-sans,system-ui);color:#e9e6de;max-height:56svh;overflow:auto;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:#0c0d11}
+  .desk .px-cover{display:block;width:100%;max-width:340px;margin:0 auto 10px;border-radius:10px}
+  .desk .px-caps{margin:10px 0 0;padding-left:20px;font-size:14px;line-height:1.45}
+  .desk .px-caps li{margin:0 0 8px}
+  .desk .px-notes h4{margin:6px 0 8px;font-family:var(--wv-mono);font-size:11px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:var(--st-gold)}
+  .desk .px-notes h4 small{color:var(--wv-soft)}
+  .desk .px-notes ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .desk .px-notes .sx-tchip{min-height:32px}
+  .desk .px-notes .sx-x{width:36px;height:36px}
+  .desk .px-dock{position:fixed;left:0;right:0;bottom:var(--ph-bot);z-index:30;display:flex;flex-direction:column;gap:8px;padding:10px max(12px,env(safe-area-inset-right,0px)) 10px max(12px,env(safe-area-inset-left,0px));background:rgba(8,8,10,.92);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top:1px solid rgba(201,168,92,.28)}
+  .desk .px-compose{display:flex;align-items:center;gap:8px}
+  .desk .px-at{flex:0 0 auto;padding:4px 8px;border-radius:999px;background:rgba(201,168,92,.14);font-family:var(--wv-mono);font-size:11px;color:var(--st-gold)}
+  .desk .px-at[data-range]{background:rgba(232,112,111,.16);color:#ffd9d8}
+  .desk .px-compose input{flex:1;min-width:0;height:44px;padding:0 14px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:#0c0d11;color:inherit;font-size:16px}
+  .desk .px-compose input:focus{outline:none;border-color:var(--st-gold)}
+  .desk .px-add{flex:0 0 auto;height:44px;padding:0 18px;border:0;border-radius:999px;background:var(--st-gold);color:#1a1408;font-weight:700}
+  .desk .px-mic{flex:0 0 44px;height:44px;border:1px solid var(--st-gold);border-radius:50%;background:rgba(201,168,92,.14);color:#fff0c8;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .desk .px-mic svg{width:20px;height:20px}
+  .desk .px-mic:active{background:var(--tally);border-color:var(--tally);color:#fff}
+  .desk .px-acts{display:flex;gap:8px}
+  .desk .px-acts>button{flex:1;min-height:44px;border-radius:10px;font-weight:700;font-size:14px}
+  .desk .px-send{border:1px solid var(--tally);background:rgba(232,112,111,.14);color:#ffd9d8}
+  .desk .px-go{border:1px solid #7fc98b;background:rgba(127,201,139,.14);color:#d6f5db}
+  .desk .px-acts button:disabled{opacity:.4}
+  .desk .px-ask{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:6px}
+  .desk .px-ask em{flex:1 0 100%;font-size:12px;color:var(--wv-soft)}
+  .desk .px-ask button{flex:1;min-height:40px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:#101116;color:inherit}
+  .desk .px-ask button:last-child{flex:0 0 40px}
+  /* The room mic would sit on the dock: on the phone Studio the dock's own mic does its job. */
+  .desk:has([data-room="studio"][data-phone] .px-dock) .vdock__mic{display:none}
+  .desk [data-room="studio"][data-phone] .st-said{bottom:calc(var(--ph-bot) + 132px)}
+}

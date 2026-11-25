@@ -154,6 +154,9 @@ var secrets = [
   // under Skippy's month. Typed by Nikita into the vault in Cloud Shell, like SerpApi's; not on the Keys form until the
   // role paste covers it. Without it, world questions go to Claude's own web search as before.
   { setting: 'GEMINI_API_KEY', secret: 'gemini-api-key' }
+  // The Studio's posting line (#1225, api/_studio/social.ts): Zernio's API key, typed by Nikita into the vault in the
+  // portal. Optional: without it /api/studio-social answers not-set-up.
+  { setting: 'ZERNIO_API_KEY', secret: 'zernio-api-key' }
   // The Tokenomics tab (#1142, api/_usage/admin.ts): Anthropic's Admin API key and OpenAI's admin key, used only by the
   // nightly usage pull for GETs of each provider's own cost and usage reports. Either key could do more than read (an
   // Anthropic admin key manages the organization), so both are typed by Nikita into the vault in Cloud Shell and are

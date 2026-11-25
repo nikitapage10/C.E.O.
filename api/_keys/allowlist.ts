@@ -37,6 +37,7 @@ export const SETTABLE_KEYS: readonly SettableKey[] = [
   { secret: "paypal-client-secret", setting: "PAYPAL_CLIENT_SECRET", label: "PayPal client secret", from: "developer.paypal.com, REST app" },
   { secret: "elevenlabs", setting: "ELEVENLABS_API_KEY", label: "ElevenLabs", from: "elevenlabs.io, API keys" },
   { secret: "openai", setting: "OPENAI_STUDIO_KEY", label: "OpenAI (the Studio)", from: "platform.openai.com, API keys" },
+  { secret: "zernio-api-key", setting: "ZERNIO_API_KEY", label: "Zernio (the Studio's posting)", from: "zernio.com, Settings, API keys" },
   { secret: "email-skip-terms", setting: "EMAIL_SKIP_TERMS", label: "Email skip terms", from: "your own list, comma-separated" },
   { secret: "email-priority", setting: "EMAIL_PRIORITY", label: "Email priorities", from: "your own priority list, one per line", multiline: true },
   // The Haven's lights (#931): cloud API keys for lights and switches, asked for by Nikita (#931 thread).

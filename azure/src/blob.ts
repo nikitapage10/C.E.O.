@@ -117,6 +117,37 @@ export function azureBlob(container: ContainerClient): BlobBackend {
     async del(path) {
       await container.getBlockBlobClient(path).deleteIfExists();
     },
+    async range(path, start, end) {
+      const blob = container.getBlockBlobClient(path);
+      try {
+        const props = await blob.getProperties();
+        const size = props.contentLength ?? 0;
+        if (start >= size) return { stream: new Response(new Uint8Array(0)).body!, size, start, end: start - 1, contentType: props.contentType ?? "" };
+        const last = Math.min(end ?? size - 1, size - 1);
+        const res = await blob.download(start, last - start + 1);
+        const body = res.readableStreamBody;
+        if (!body) return null;
+        return { stream: Readable.toWeb(body as Readable) as unknown as ReadableStream<Uint8Array>, size, start, end: last, contentType: props.contentType ?? "" };
+      } catch (e) {
+        if (statusOf(e) === 404) return null;
+        throw e;
+      }
+    },
+    async join(path, sources, contentType) {
+      // One block per source, read and staged one at a time (a part is ~24 MB), then committed in order.
+      const target = container.getBlockBlobClient(path);
+      const ids: string[] = [];
+      let bytes = 0;
+      for (const [i, src] of sources.entries()) {
+        const buf = await container.getBlockBlobClient(src).downloadToBuffer();
+        const id = Buffer.from(`part-${String(i).padStart(6, "0")}`).toString("base64");
+        await target.stageBlock(id, buf, buf.byteLength);
+        ids.push(id);
+        bytes += buf.byteLength;
+      }
+      await target.commitBlockList(ids, { blobHTTPHeaders: { blobContentType: contentType, blobCacheControl: "private, max-age=3600" } });
+      return { bytes };
+    },
   };
 }
 

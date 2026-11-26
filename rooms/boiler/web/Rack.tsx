@@ -41,6 +41,7 @@ function ConnFacts({ c }: { c: Connection }) {
           <i key={k}>{k}</i>
         ))}
         {c.status === "planned" && <i className="is-planned">Planned</i>}
+        {c.status === "off" && <i className="is-planned">Turned off</i>}
       </p>
       {c.id === "elevenlabs-agents" && <PlanWatch className="plan-watch--bx" />}
       <dl className="bx-facts">
@@ -104,7 +105,7 @@ function Inspector({ r, f, onClose, onOpen }: { r: PipeRow; f: Fitting; onClose:
 
 const stateOfConn = (c: Connection, fits: Fitting[], room: string): GState => {
   const f = fits.find((x) => connectionFor(x.id, room)?.id === c.id);
-  return f ? f.state : c.status === "planned" ? "wait" : "ok";
+  return c.status === "off" ? "wait" : f ? f.state : c.status === "planned" ? "wait" : "ok";
 };
 
 /** The detail for a room with no whole flow drawn yet: every connection it owns, each in its real state. */

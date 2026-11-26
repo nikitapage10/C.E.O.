@@ -1,4 +1,5 @@
 import type { LinkState } from "../../../apps/world/src/systems.ts";
+import { TEXTS_TURNED_OFF } from "@ceo/core";
 import type { VisualQaRun } from "@ceo/desk/visualqa/feed.ts";
 import { LATE_MIN, type JobRow } from "@ceo/desk/jobs.ts";
 import { problemSay, type Vendor, type VendorProblem } from "@ceo/desk/homeDevices.ts";
@@ -285,7 +286,7 @@ export function readPipes(input: PipeInput): PipeMap {
       return c.state === "dry" ? ok("set up") : c;
     })(),
     gmail: linkCause("gmail", "Gmail", L("gmail"), { fix: { kind: "gmail", label: "Reconnect Gmail" }, down: { steps: ["Reconnect opens Google's sign-in, read-only", "Dialtone sorts the inbox again", "The pipe seals and this fault closes"] } }),
-    texts: linkCause("texts", "The hub", L("hub"), { down: { title: "The hub on the MacBook is down.", body: "The texts hub stopped answering, so the Relay's texts pipe is cracked. Messages stay on the Mac and wait.", steps: ["Wake the MacBook and keep it on power", "The hub starts on its own and calls out", "The pipe seals on its first answer"] } }),
+    texts: TEXTS_TURNED_OFF ? dry("turned off for now") : linkCause("texts", "The hub", L("hub"), { down: { title: "The hub on the MacBook is down.", body: "The texts hub stopped answering, so the Relay's texts pipe is cracked. Messages stay on the Mac and wait.", steps: ["Wake the MacBook and keep it on power", "The hub starts on its own and calls out", "The pipe seals on its first answer"] } }),
     claude: node("claude") === "dry" ? dry("no key yet") : ok("Haiku, through the site"),
     clock: (() => {
       const s = L_TO[clock.state];

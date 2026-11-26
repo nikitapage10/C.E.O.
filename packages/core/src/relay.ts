@@ -16,6 +16,13 @@ import { z } from "zod";
  * value or an unknown key's name, since either could be the private thing itself.
  */
 
+/**
+ * Relay's texts line is turned off for now (Nikita, 2026-11-26: "we're decommissioning blue bubbles", #1245): the
+ * Boiler Room shows BlueBubbles, the hub and Claude for texts as turned off, not broken or waiting, and nothing on the
+ * site raises a fault when the hub goes quiet. Set it back to false to turn the line on again.
+ */
+export const TEXTS_TURNED_OFF = true;
+
 /** The shape's version. A new field means a new version, a spec change and a test. */
 export const RELAY_STATUS_VERSION = 1;
 

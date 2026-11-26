@@ -1,4 +1,5 @@
 import type { DeskRoom } from "@ceo/desk/deskData.ts";
+import { TEXTS_TURNED_OFF } from "@ceo/core";
 
 /**
  * How C.E.O.'s notable connections work: what kind each one is (a REST API, an MCP server, a CLI, a scheduled job…),
@@ -32,7 +33,8 @@ export interface Connection {
   /** What it serves, in a couple of words. */
   serves: string;
   kinds: ConnectionKind[];
-  status: "live" | "planned";
+  /** "off": laid but turned off for now (Relay's texts, #1245), shown as off, never as a fault or as waiting. */
+  status: "live" | "planned" | "off";
   /** Who calls whom, and what over. */
   how: string;
   /** How it signs in, in plain words. */
@@ -422,7 +424,7 @@ export const CONNECTIONS: Connection[] = [
     at: [{ system: "relay", part: "bluebubbles" }],
     serves: "iMessage and SMS, on the MacBook",
     kinds: ["REST API"],
-    status: "live",
+    status: TEXTS_TURNED_OFF ? "off" : "live",
     how: "The hub polls BlueBubbles Server's local REST API on the MacBook (127.0.0.1) every 5 seconds for new messages, and calls it to read a thread's last few messages into memory for one sort or draft, and to send a reply. It sends only when your signed Send request from the Desk checks out on the Mac.",
     auth: "BlueBubbles' own server password, kept in the Mac's login Keychain. It stays on the Mac.",
     when: "On every message in, and every reply you send.",
@@ -434,7 +436,7 @@ export const CONNECTIONS: Connection[] = [
     at: [{ system: "relay", part: "openai" }],
     serves: "Dialtone's sorts and Blasto's drafts for texts",
     kinds: ["REST API", "SDK"],
-    status: "live",
+    status: TEXTS_TURNED_OFF ? "off" : "live",
     how: "The hub swaps names and numbers for placeholders and trims each snippet on the Mac, then sends it to an Azure function (relay-hub), which asks Claude Haiku whether a reply is owed and Claude Sonnet for a draft in your voice. No tools, nothing stored but the sealed list and drafts; the hub puts names back into the draft on the Mac.",
     auth: "The site's Claude key (CLAUDE_API_KEY, a Key Vault secret); the hub signs in with its paired token. No key on the Mac.",
     when: "A sort for each owed thread, a draft only for replies you owe, under the texts line's own cap (RELAY_BUDGET_USD, $10 a month).",
@@ -446,7 +448,7 @@ export const CONNECTIONS: Connection[] = [
     at: [{ system: "relay", part: "hub" }],
     serves: "Relay's counts, the who's-waiting list and your send requests",
     kinds: ["REST API", "Polling"],
-    status: "live",
+    status: TEXTS_TURNED_OFF ? "off" : "live",
     how: "The hub on the MacBook calls out only, over HTTPS: it pushes the counts (public) and the who's-waiting list (sealed, behind your passkey) to /api/relay-hub, and polls every 15 seconds for the requests you make on the Desk. A send request is single-use, signed, bound to one draft and good for 10 minutes; the hub checks all of it before BlueBubbles sends.",
     auth: "A hub token from a one-time pair code on the Desk, kept in the Mac's Keychain; the site keeps only its hash. Unpair ends it at once.",
     when: "Every 15 seconds for requests; the counts and list when they change.",

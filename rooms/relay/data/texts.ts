@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { readRelayStatus, type RelayStatus } from "@ceo/core";
+import { readRelayStatus, TEXTS_TURNED_OFF, type RelayStatus } from "@ceo/core";
 import { readAsideItem, readOlder, readReason, readTextCard, readTextItem, REQUEST_STATES, type AsideItem, type OlderItem, type Reason, type RequestState, type TextCard, type TextItem } from "../../../api/_relay/texts.ts";
 import { readVoice, type Voice } from "../../../api/_relay/voice.ts";
 import { useSystems, type LinkState } from "../../../apps/world/src/systems.ts";
@@ -117,6 +117,7 @@ const linkOf = (l: RelayStatus["messages"]): LinkState => (l === "up" ? "ok" : l
 
 /** The texts line in a few words, for the Lattice, Today and Systems. Never a name. */
 export function textsLine(load: TextsLoad, status: RelayStatus | null, now: number): string {
+  if (TEXTS_TURNED_OFF) return "Texts: turned off for now";
   if (load === "off") return "Texts: on the Azure copy";
   if (!status) return load === "failed" ? "Texts: not answering" : "Texts: reading…";
   if (status.hub === "off") return "Texts: waiting on the MacBook";
@@ -129,6 +130,11 @@ export function textsLine(load: TextsLoad, status: RelayStatus | null, now: numb
 
 function setLinks(status: RelayStatus | null, now: number) {
   const { setLink } = useSystems.getState();
+  // The texts line is turned off (#1245): every link it drives stays cold and quiet, whatever the hub last said.
+  if (TEXTS_TURNED_OFF) {
+    for (const id of ["hub", "mac", "bluebubbles", "messages", "openai", "dialtone", "postmaster"]) setLink(id, { state: "off", load: 0, note: "TURNED OFF" });
+    return;
+  }
   const hub = hubLink(status, now);
   const lastSeen = status && status.hub !== "off" ? status.at : null;
   const on = hub === "ok" || hub === "slow";

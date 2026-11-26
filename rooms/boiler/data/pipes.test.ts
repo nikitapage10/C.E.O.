@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TEXTS_TURNED_OFF } from "@ceo/core";
 import type { JobRow } from "@ceo/desk/jobs.ts";
 import type { GNode } from "./systemsGraph.ts";
 import { gaugeOf, jobCause, jobState, MAP_LINES, pipeHeadline, readPipes, STATIONS, type PipeInput } from "./pipes.ts";
@@ -31,7 +32,8 @@ describe("the pipe map", () => {
   it("holds when every feed is healthy", () => {
     const m = readPipes(input());
     expect(m.faults).toEqual([]);
-    expect(m.counts.ok).toBe(STATIONS.length);
+    // Relay's texts line is turned off for now (#1245): its station stays cold, and isn't a fault.
+    expect(m.counts.ok).toBe(STATIONS.length - (TEXTS_TURNED_OFF ? 1 : 0));
     expect(pipeHeadline(m.faults)).toEqual({ text: "everything is holding", ok: true });
   });
 
@@ -94,5 +96,15 @@ describe("the pipe map", () => {
     expect(gaugeOf("a", "shut")).toBeLessThan(0.1);
     expect(gaugeOf("gmail", "ok")).toBeGreaterThanOrEqual(0.42);
     expect(gaugeOf("gmail", "ok")).toBeLessThan(0.6);
+  });
+});
+
+describe("Relay's texts turned off (#1245)", () => {
+  it("keeps the texts station cold and quiet even when the hub stops answering", () => {
+    if (!TEXTS_TURNED_OFF) return;
+    const m = readPipes(input({ links: { ...input().links, hub: "down" } }));
+    expect(m.stations.texts!.state).toBe("dry");
+    expect(m.stations.texts!.note).toBe("turned off for now");
+    expect(m.faults.some((f) => f.station === "texts")).toBe(false);
   });
 });

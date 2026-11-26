@@ -6,7 +6,7 @@
  *   POST /api/studio-social { mode: "accounts" }                                  → { accounts: [{ id, platform, username, active }] }
  *   POST /api/studio-social { mode: "presign", filename, contentType, size }      → { uploadUrl, publicUrl }  (PUT the file to uploadUrl)
  *   POST /api/studio-social { mode: "draft", caption, video, cover?, platforms }  → { id, status }  (a Zernio draft, never published)
- *   POST /api/studio-social { mode: "publish", id }                               → { id, status: "scheduled", at }  (only a draft this route made)
+ *   POST /api/studio-social { mode: "publish", id, at? }                          → { id, status: "scheduled", at }  (only a draft this route made; `at` schedules it for a set time, up to 30 days out, 2026-11-26)
  *   POST /api/studio-social { mode: "status", id }                                → { id, status, platforms: [{ platform, status, url? }] }
  *   POST /api/studio-social { mode: "comments" }                                  → { posts: [{ id, accountId, platform, permalink, comments, text }] }
  *   POST /api/studio-social { mode: "reply", postId, accountId, commentId, message } → { id }  (a reply Nikita OKed, as the show)
@@ -53,7 +53,7 @@ export type SocialJob =
   | { mode: "presign"; filename: string; contentType: (typeof UPLOAD_TYPES)[number]; size: number }
   | { mode: "draft"; caption: string; video: string; cover?: string; platforms: Platform[] }
   | { mode: "status"; id: string }
-  | { mode: "publish"; id: string }
+  | { mode: "publish"; id: string; at?: string }
   | { mode: "reply"; postId: string; accountId: string; commentId: string; message: string }
   | { mode: "thread"; postId: string; accountId: string };
 
@@ -103,6 +103,7 @@ export function parseSocialJob(body: unknown): SocialJob | null {
     return { mode: "draft", caption: b.caption, video: b.video, ...(b.cover ? { cover: b.cover as string } : {}), platforms: p as Platform[] };
   }
   if ((b.mode === "status" || b.mode === "publish") && only("mode", "id") && typeof b.id === "string" && ID.test(b.id)) return { mode: b.mode, id: b.id };
+  if (b.mode === "publish" && only("mode", "id", "at") && typeof b.id === "string" && ID.test(b.id) && typeof b.at === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?Z$/.test(b.at) && Number.isFinite(Date.parse(b.at))) return { mode: "publish", id: b.id, at: b.at };
   if (b.mode === "thread" && only("mode", "postId", "accountId") && typeof b.postId === "string" && ID.test(b.postId) && typeof b.accountId === "string" && ID.test(b.accountId)) {
     return { mode: "thread", postId: b.postId, accountId: b.accountId };
   }
@@ -167,16 +168,18 @@ export function draftBody(job: SocialJob & { mode: "draft" }, accountIds: Record
   };
 }
 
-/** Publish one of this route's own drafts, a minute out. Refuses anything else in the account. */
-export async function publishDraft(deps: ZernioDeps, id: string): Promise<{ ok: true; at: string } | { ok: false; error: string; status: number }> {
+/** Publish one of this route's own drafts, a minute out or at a set time (at most 30 days ahead). Refuses anything else in the account. */
+export async function publishDraft(deps: ZernioDeps, id: string, when?: string): Promise<{ ok: true; at: string } | { ok: false; error: string; status: number }> {
   if (!ID.test(id)) return { ok: false, error: "bad-request", status: 400 };
+  const set = when === undefined ? null : Date.parse(when);
+  if (set !== null && (!Number.isFinite(set) || set < deps.now + PUBLISH_LEAD_MS || set > deps.now + 30 * 86_400_000)) return { ok: false, error: "bad-time", status: 400 };
   const r = await zernio(deps, "GET", `/posts/${encodeURIComponent(id)}`);
   if (!r.ok) return { ok: false, error: `zernio-${r.status}`, status: r.status === 401 || r.status === 403 ? 503 : 502 };
   const d = r.data as { post?: Record<string, unknown> } & Record<string, unknown>;
   const post = (d?.post ?? d ?? {}) as { status?: unknown; externalId?: unknown };
   if (typeof post.externalId !== "string" || !post.externalId.startsWith(MINE)) return { ok: false, error: "not-ours", status: 403 };
   if (post.status !== "draft") return { ok: false, error: "not-a-draft", status: 409 };
-  const at = new Date(deps.now + PUBLISH_LEAD_MS).toISOString();
+  const at = new Date(set ?? deps.now + PUBLISH_LEAD_MS).toISOString();
   const put = await zernio(deps, "PUT", `/posts/${encodeURIComponent(id)}`, { isDraft: false, scheduledFor: at });
   if (!put.ok) return { ok: false, error: `zernio-${put.status}`, status: put.status === 401 || put.status === 403 ? 503 : 502 };
   console.log(JSON.stringify({ at: new Date(deps.now).toISOString(), event: "studio.social.publish", id, scheduledFor: at }));
@@ -235,7 +238,7 @@ export async function studioSocial(request: Request, deps: StudioSocialDeps): Pr
       return json({ id: str(post?._id) ?? "", status: str(post?.status) ?? "draft" }, 201);
     }
     if (job.mode === "publish") {
-      const r = await publishDraft(deps, job.id);
+      const r = await publishDraft(deps, job.id, job.at);
       return r.ok ? json({ id: job.id, status: "scheduled", at: r.at }) : json({ error: r.error }, r.status);
     }
     if (job.mode === "reply") {

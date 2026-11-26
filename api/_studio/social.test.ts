@@ -90,6 +90,20 @@ describe("studio-social", () => {
     expect(calls.filter((c) => c.method === "PUT")).toHaveLength(1);
   });
 
+  it("schedules its own draft for a set time, within 30 days (2026-11-26)", async () => {
+    const { fetcher, calls } = fakeZernio({
+      "GET /posts/post_mine1": { post: { _id: "post_mine1", status: "draft", externalId: "ceo-studio-1" } },
+      "PUT /posts/post_mine1": { post: { _id: "post_mine1", status: "scheduled" } },
+    });
+    const ok = await post({ mode: "publish", id: "post_mine1", at: "2026-11-26T15:00:00Z" }, fetcher);
+    expect(await ok.json()).toEqual({ id: "post_mine1", status: "scheduled", at: "2026-11-26T15:00:00.000Z" });
+    expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ isDraft: false, scheduledFor: "2026-11-26T15:00:00.000Z" });
+    expect((await post({ mode: "publish", id: "post_mine1", at: "2026-11-25T04:00:00Z" }, fetcher)).status).toBe(400);
+    expect((await post({ mode: "publish", id: "post_mine1", at: "2027-02-01T00:00:00Z" }, fetcher)).status).toBe(400);
+    expect((await post({ mode: "publish", id: "post_mine1", at: "tomorrow" }, fetcher)).status).toBe(400);
+    expect(calls.filter((c) => c.method === "PUT")).toHaveLength(1);
+  });
+
   it("replies only from the show's own accounts, short", async () => {
     const { fetcher, calls } = fakeZernio({ "GET /accounts": ACCOUNTS, "POST /inbox/comments/p1aaaa": { success: true, data: { commentId: "r1" } } });
     const ok = await post({ mode: "reply", postId: "p1aaaa", accountId: "acc_tt_0001", commentId: "c1", message: "Taxes are on the list." }, fetcher);

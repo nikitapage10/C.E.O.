@@ -74,7 +74,7 @@
 /* The reference monitor: the cut's own player, docked left of the edit screen; stowed (still playing into the stage's
    frame) otherwise, and the thing that goes full screen. */
 .desk .st-ref{position:absolute;z-index:5;left:0;top:0;width:2px;height:2px;opacity:0;overflow:hidden;pointer-events:none}
-.desk .st-ref[data-on]{left:clamp(12px,1.6vw,28px);top:64px;bottom:20px;width:calc(30% - clamp(24px,3.2vw,56px));height:auto;opacity:1;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:opacity .4s ease .25s}
+.desk .st-ref[data-on]{left:clamp(12px,1.6vw,28px);top:64px;bottom:20px;width:calc(38% - clamp(24px,3.2vw,56px));height:auto;opacity:1;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:opacity .4s ease .25s}
 .desk .st-ref-v{display:block;max-width:100%;max-height:calc(100% - 28px);aspect-ratio:9/16;background:#000;border:1px solid rgba(255,241,214,.5);border-radius:3px;box-shadow:0 0 0 6px #0d0e13,0 0 0 7px var(--st-gl),0 30px 60px rgba(0,0,0,.7);cursor:pointer}
 .desk .st-ref[data-on] .st-ref-v{height:100%;width:auto}
 .desk .st-ref-k{margin:0;font-family:var(--wv-mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--st-gold)}
@@ -218,6 +218,60 @@
 .desk .sx-comments{display:grid;gap:5px}
 .desk .sx-comments li{padding:7px 10px;border-radius:4px;background:#101116;font-size:13px;line-height:1.4}
 .desk .sx-comments b{margin-right:6px;font-weight:500;color:var(--st-gold)}
+
+/* Feed, analytics first (2026-11-26) */
+.desk .sx-feed{overflow:auto}
+.desk .sx-feedhead img{width:44px;height:44px}
+.desk .sx-feedhead .sx-feedtabs{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.desk .sx-feedtabs [role=tablist]{display:flex;gap:4px}
+.desk .sx-feedtabs button{padding:4px 10px;border:1px solid rgba(201,168,92,.22);border-radius:4px;background:#121318;font-family:var(--wv-mono);font-size:11px;color:var(--wv-soft)}
+.desk .sx-feedtabs button[aria-selected=true]{border-color:var(--st-gold);background:rgba(201,168,92,.16);color:#fff0c8}
+.desk .sx-analytics{display:grid;gap:10px}
+.desk .sx-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin:0}
+.desk .sx-kpis div{padding:8px 10px;border:1px solid rgba(201,168,92,.18);border-radius:4px;background:linear-gradient(180deg,#14141a,#0e0f13)}
+.desk .sx-kpis dt{font-family:var(--wv-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--wv-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.desk .sx-kpis dd{margin:3px 0 0;font-family:var(--wv-serif);font-size:24px;line-height:1;color:#fff3dc;font-variant-numeric:tabular-nums}
+.desk .sx-charts{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:10px}
+.desk .sx-charts figure{margin:0;padding:8px 10px;border:1px solid rgba(255,255,255,.07);border-radius:4px;background:#0f1014}
+.desk .sx-charts figcaption{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;font-family:var(--wv-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .sx-key{display:flex;align-items:center;gap:5px;letter-spacing:.04em;text-transform:none}
+.desk .sx-key i{display:inline-block;width:10px;height:8px;border-radius:1px;background:var(--st-gold)}
+.desk .sx-key i.is-line{height:2px;background:#9fd4ff}
+.desk .sx-chart{display:block;width:100%;height:auto}
+.desk .sx-chart .sx-grid{stroke:rgba(255,255,255,.06);stroke-width:1}
+.desk .sx-chart .sx-axis{fill:var(--wv-faint);font-family:var(--wv-mono);font-size:10px}
+.desk .sx-chart .sx-val{fill:#fff3dc;font-family:var(--wv-mono);font-size:11px}
+.desk .sx-chart .sx-bar{cursor:pointer}
+.desk .sx-chart .sx-barfill{fill:rgba(201,168,92,.55)}
+.desk .sx-chart .sx-bar:hover .sx-barfill{fill:rgba(227,201,141,.8)}
+.desk .sx-chart .sx-bar[data-on] .sx-barfill{fill:#e3c98d}
+.desk .sx-chart .sx-line{fill:none;stroke:#9fd4ff;stroke-width:2;stroke-linejoin:round}
+.desk .sx-chart .sx-dot{fill:#0f1014;stroke:#9fd4ff;stroke-width:2;pointer-events:none}
+.desk .sx-mix{display:grid;gap:7px;margin:4px 0 0;padding:0;list-style:none}
+.desk .sx-mix li{display:grid;grid-template-columns:72px minmax(0,1fr) 40px;align-items:center;gap:8px;font-size:12px}
+.desk .sx-mix span{color:var(--wv-soft)}
+.desk .sx-mix i{display:block;height:9px;min-width:2px;border-radius:2px;background:linear-gradient(90deg,rgba(201,168,92,.5),#e3c98d)}
+.desk .sx-mix b{font-family:var(--wv-mono);font-weight:400;text-align:right;color:#fff3dc}
+.desk .sx-feed .sx-feed-grid{flex:none;min-height:300px;grid-template-columns:200px minmax(0,1fr)}
+.desk .sx-feed .sx-embed{max-height:420px}
+
+/* Edit: ads folder, script with the pitch, waveform and thumbnails on the scrub (2026-11-26) */
+.desk .sx-folder{position:relative}
+.desk .sx-eps .sx-folderbtn small{margin-left:3px;color:var(--wv-faint)}
+.desk .sx-folderlist{position:absolute;right:0;top:calc(100% + 6px);z-index:4;display:grid;gap:4px;min-width:220px;padding:6px;border:1px solid rgba(201,168,92,.3);border-radius:5px;background:#0d0e12;box-shadow:0 14px 30px rgba(0,0,0,.6);margin:0;text-transform:none;letter-spacing:0}
+.desk .sx-folderlist button{text-align:left;white-space:nowrap}
+.desk .sx-scripthead{margin:14px 0 6px;font-family:var(--wv-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--st-gold)}
+.desk .sx-scrub[data-rich]{height:96px}
+.desk .sx-strip{position:absolute;left:0;right:0;bottom:4px;height:64px;display:flex;overflow:hidden;opacity:.85;pointer-events:none;border-radius:2px}
+.desk .sx-strip i{flex:none;background-repeat:no-repeat;box-shadow:inset -1px 0 rgba(0,0,0,.6)}
+.desk .sx-wave{position:absolute;left:0;right:0;bottom:4px;width:100%;height:70px;pointer-events:none}
+.desk .sx-scrub[data-rich] .sx-mk{bottom:auto;top:16px;height:20px}
+.desk .sx-peek{position:absolute;top:calc(100% + 8px);transform:translateX(-50%);z-index:3;display:grid;justify-items:center;gap:3px;padding:4px;border:1px solid rgba(255,243,220,.55);border-radius:4px;background:#0b0c10;box-shadow:0 10px 26px rgba(0,0,0,.7);pointer-events:none}
+.desk .sx-peek i{display:block;background-repeat:no-repeat;border-radius:2px}
+.desk .sx-peek b{font-family:var(--wv-mono);font-size:11px;font-weight:400;color:#fff3dc}
+.desk .st-screen.is-flat .sx-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.desk .st-screen.is-flat .sx-charts{grid-template-columns:minmax(0,1fr)}
+.desk .st-screen.is-flat .sx-feedhead{flex-wrap:wrap}
 
 /* ---------- flat: a phone, or no WebGL ---------- */
 .desk .st-flatdesk{padding:14px 16px 96px;background:#08080a;border-top:1px solid rgba(201,168,92,.35)}
@@ -396,3 +450,4 @@
   .desk:has([data-room="studio"][data-phone] .px-dock) .vdock__mic{display:none}
   .desk [data-room="studio"][data-phone] .st-said{bottom:calc(var(--ph-bot) + 132px)}
 }
+.desk .px-eps button.px-folder{flex:0 0 auto;border-style:dashed;border-left-style:dashed}

@@ -175,6 +175,16 @@ describe("studio-desk", () => {
     expect(got.social).toBeNull();
   });
 
+  it("keeps a cut's thumbnail sheet and a mix's waveform on its version (2026-11-26)", () => {
+    const sprite = { url: "https://a.test/s.jpg", cols: 20, w: 108, h: 192, every: 1, n: 179 };
+    const ok = readEpisode({ ...EP3, stages: { render: { status: "ready", versions: [{ v: 1, media: "https://a.test/1.mp4", sprite }] }, mix: { status: "ready", versions: [{ v: 1, media: "https://a.test/m.m4a", peaks: "https://a.test/p.json" }] } } });
+    expect(ok?.stages.render?.versions?.[0]?.sprite).toEqual(sprite);
+    expect(ok?.stages.mix?.versions?.[0]?.peaks).toBe("https://a.test/p.json");
+    expect(readEpisode({ ...EP3, stages: { render: { status: "ready", versions: [{ v: 1, media: "https://a.test/1.mp4", sprite: { ...sprite, cols: 0 } }] } } })).toBeNull();
+    expect(readEpisode({ ...EP3, stages: { render: { status: "ready", versions: [{ v: 1, media: "https://a.test/1.mp4", sprite: { ...sprite, url: "http://a.test/s.jpg" } }] } } })).toBeNull();
+    expect(readEpisode({ ...EP3, stages: { mix: { status: "ready", versions: [{ v: 1, media: "https://a.test/m.m4a", peaks: "javascript:x" }] } } })).toBeNull();
+  });
+
   it("keeps timed notes as his drafts until Send notes, then the Director marks them (#1229)", async () => {
     const { d, store } = deps({ "GET /accounts": { accounts: [] } });
     const cookie = { Cookie: await signedInCookie(DESK, NOW, store) };

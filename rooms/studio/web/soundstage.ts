@@ -368,7 +368,8 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   riserLip.position.set(0, 0.26, -2.35);
   scene.add(riserLip);
   // The tall frame: a 9:16 light box standing on the riser, the shape every short is cut to.
-  const FRAME_W = 1.3;
+  // Half as big again (Nikita, 2026-11-26: "make this video substantially bigger"); a click on it plays and pauses.
+  const FRAME_W = 1.95;
   const FRAME_H = (FRAME_W * 16) / 9;
   const tallFrame = new Group();
   tallFrame.position.set(0, 0.26, -3.95);
@@ -406,7 +407,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
   // A tall stool by the frame, for the analogy's props.
   {
     const st = new Group();
-    st.position.set(1.15, 0.26, -3.1);
+    st.position.set(1.5, 0.26, -2.75);
     const seat = solid(mesh(new CylinderGeometry(0.22, 0.22, 0.06, 24), keep(new MeshStandardMaterial({ color: 0x3a2618, roughness: 0.55 }))));
     seat.position.y = 0.78;
     st.add(skin(seat, 0.3));
@@ -1087,7 +1088,7 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
       } else {
         // Round the tall frame, a loose swarm.
         const a = Math.random() * Math.PI * 2;
-        const rr = 0.9 + Math.random() * 0.8;
+        const rr = 1.25 + Math.random() * 0.8;
         p.set([Math.cos(a) * rr, 0.4 + Math.random() * (FRAME_H + 0.4), -3.95 + Math.sin(a) * rr * 0.6], i * 3);
       }
       r[i] = Math.random();
@@ -1478,7 +1479,11 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     const ek = reduce ? 1 : 1 - Math.exp(-dt * 4);
     yaw += (yawTo - yaw) * ek;
     zoom += (zoomTo - zoom) * ek;
-    const th = yaw + (reduce ? 0 : Math.sin(TT * 0.06) * 0.06);
+    if (Math.abs(yawTo - yaw) < 1e-5) yaw = yawTo;
+    if (Math.abs(zoomTo - zoom) < 1e-5) zoom = zoomTo;
+    // No idle drift: a camera that never rests keeps the pages on the monitors moving, and the browser then never
+    // redraws them sharp (the blurry screens, Nikita 2026-11-26).
+    const th = yaw;
     // Over the editor's shoulder, across the suite to the stage; a phone stands further back and higher.
     const D = (ph ? (cam.aspect < 0.7 ? 15.5 : 13) : 11.4) * zoom;
     const camY = (ph ? 4.2 : 4.5) * (0.8 + zoom * 0.2);
@@ -1510,6 +1515,11 @@ export async function createSoundstage(host: HTMLElement, canvas: HTMLCanvasElem
     camLook.lerp(wantLook, ck);
     camOff.x += (offX - camOff.x) * ck;
     camOff.y += (offY - camOff.y) * ck;
+    // Land exactly once close, so the CSS layer stops changing and the screens re-rasterise crisp.
+    if (camPos.distanceToSquared(wantPos) < 1e-8) camPos.copy(wantPos);
+    if (camLook.distanceToSquared(wantLook) < 1e-8) camLook.copy(wantLook);
+    if (Math.abs(offX - camOff.x) < 0.05) camOff.x = offX;
+    if (Math.abs(offY - camOff.y) < 0.05) camOff.y = offY;
     cam.position.copy(camPos);
     cam.lookAt(camLook);
     cam.setViewOffset(w, h, camOff.x, camOff.y, w, h);

@@ -36,11 +36,11 @@ const PATH = /^(?!.*\.\.)(?!\/)[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+){0,8}$/;
 
 export const isKitPath = (p: unknown): p is string => typeof p === "string" && p.length <= 200 && PATH.test(p);
 /** A review file's name under media/ (#1243). */
-const MEDIA = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(mp4|m4a|mp3|jpg|png)$/;
+const MEDIA = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(mp4|m4a|mp3|jpg|png|json)$/;
 export const isMediaName = (m: unknown): m is string => typeof m === "string" && MEDIA.test(m) && !m.includes("..");
 /** The most one answer carries (the Functions host buffers answers): about ten seconds of a review cut. */
 export const MEDIA_SLICE = 8 * 1024 * 1024;
-const MEDIA_TYPE: Record<string, string> = { mp4: "video/mp4", m4a: "audio/mp4", mp3: "audio/mpeg", jpg: "image/jpeg", png: "image/png" };
+const MEDIA_TYPE: Record<string, string> = { mp4: "video/mp4", m4a: "audio/mp4", mp3: "audio/mpeg", jpg: "image/jpeg", png: "image/png", json: "application/json" };
 export const mediaType = (m: string) => MEDIA_TYPE[m.slice(m.lastIndexOf(".") + 1)] ?? "application/octet-stream";
 
 /** A Range header's one span ("bytes=a-b", "bytes=a-" or "bytes=-n") against a size, or null for none or one we don't serve. */

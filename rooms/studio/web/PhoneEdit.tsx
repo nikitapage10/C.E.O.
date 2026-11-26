@@ -14,7 +14,7 @@ import { NoteRow, Scrub, useEdit, type EditProps } from "./screens.tsx";
 export function PhoneEdit(p: EditProps & { video: ReactNode }) {
   const { ep, sel, player, run, busy } = p;
   const e = useEdit(p);
-  const { stage, st, versions, timed, mark, setMark, text, setText, here, drafts, range, at, add } = e;
+  const { cur, stage, st, versions, timed, mark, setMark, text, setText, here, drafts, range, at, add } = e;
   if (!ep) return <p className="px-empty">Nothing in production. Pitch an idea and the Director writes it up; it lands here.</p>;
   const say = {
     onPointerDown: (ev: React.PointerEvent) => {
@@ -99,7 +99,7 @@ export function PhoneEdit(p: EditProps & { video: ReactNode }) {
             </button>
           </div>
           <div className="px-scrub">
-            <Scrub player={player} notes={here} mark={mark} setMark={setMark} />
+            <Scrub player={player} notes={here} mark={mark} setMark={setMark} sprite={stage.id === "render" ? cur?.sprite : undefined} peaks={stage.id === "mix" ? cur?.peaks : undefined} />
           </div>
           <div className="px-transport">
             <button type="button" onClick={() => player.seek(Math.max(0, player.t - 5))} aria-label="Back 5 seconds">
@@ -139,7 +139,13 @@ export function PhoneEdit(p: EditProps & { video: ReactNode }) {
       ) : (
         <div className="px-read">
           {st?.cover && <img className="px-cover" src={st.cover} alt={`Cover for ${ep.title}`} loading="lazy" />}
-          {st?.text ? <pre>{st.text}</pre> : !st?.captions?.length && !st?.cover && <p className="px-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
+          {st?.text ? <pre>{st.text}</pre> : !(stage.id === "pitch" && ep.stages.mix?.text) && !st?.captions?.length && !st?.cover && <p className="px-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
+          {stage.id === "pitch" && ep.stages.mix?.text && (
+            <>
+              <h4 className="sx-scripthead">Script</h4>
+              <pre>{ep.stages.mix.text}</pre>
+            </>
+          )}
           {!!st?.captions?.length && (
             <ol className="px-caps" aria-label="Caption options">
               {st.captions.map((c) => (

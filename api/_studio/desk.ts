@@ -83,6 +83,31 @@ export interface Version {
   /** What changed in it, in a few words. */
   label?: string;
   at?: number;
+  /** The cut's thumbnails in one sheet, for the scrub bar (Nikita, 2026-11-26): a frame every `every` seconds, `n` of
+   * them, `cols` to a row, each `w` by `h`. */
+  sprite?: Sprite;
+  /** The mix's waveform: a JSON of `{ rate, peaks }`, peaks 0..1 at `rate` a second, drawn under the voice scrub. */
+  peaks?: string;
+}
+
+export interface Sprite {
+  url: string;
+  cols: number;
+  w: number;
+  h: number;
+  every: number;
+  n: number;
+}
+
+function readSprite(v: unknown): Sprite | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const r = v as Record<string, unknown>;
+  const keys = ["url", "cols", "w", "h", "every", "n"];
+  if (!Object.keys(r).every((k) => keys.includes(k)) || !isMediaUrl(r.url)) return null;
+  const int = (x: unknown, max: number) => typeof x === "number" && Number.isInteger(x) && x >= 1 && x <= max;
+  if (!int(r.cols, 100) || !int(r.w, 1_000) || !int(r.h, 1_000) || !int(r.n, 10_000)) return null;
+  if (typeof r.every !== "number" || !Number.isFinite(r.every) || r.every <= 0 || r.every > 60) return null;
+  return { url: r.url, cols: r.cols as number, w: r.w as number, h: r.h as number, every: r.every, n: r.n as number };
 }
 
 export const NOTE_STATES = ["draft", "held", "sent", "fixed", "open", "wontfix"] as const;
@@ -208,11 +233,14 @@ function readVersions(v: unknown): Version[] | null {
   for (const x of v) {
     if (!x || typeof x !== "object" || Array.isArray(x)) return null;
     const r = x as Record<string, unknown>;
-    if (!Object.keys(r).every((k) => ["v", "media", "label", "at"].includes(k))) return null;
+    if (!Object.keys(r).every((k) => ["v", "media", "label", "at", "sprite", "peaks"].includes(k))) return null;
     if (typeof r.v !== "number" || !Number.isInteger(r.v) || r.v < 1 || r.v > 99 || !isMediaUrl(r.media)) return null;
     if (r.label !== undefined && !isText(r.label, 120)) return null;
     if (r.at !== undefined && (typeof r.at !== "number" || !Number.isFinite(r.at))) return null;
-    out.push({ v: r.v, media: r.media, ...(r.label ? { label: r.label as string } : {}), ...(typeof r.at === "number" ? { at: r.at } : {}) });
+    const sprite = r.sprite === undefined ? undefined : readSprite(r.sprite);
+    if (sprite === null) return null;
+    if (r.peaks !== undefined && !isMediaUrl(r.peaks)) return null;
+    out.push({ v: r.v, media: r.media, ...(r.label ? { label: r.label as string } : {}), ...(typeof r.at === "number" ? { at: r.at } : {}), ...(sprite ? { sprite } : {}), ...(r.peaks ? { peaks: r.peaks as string } : {}) });
   }
   return new Set(out.map((x) => x.v)).size === out.length ? out : null;
 }

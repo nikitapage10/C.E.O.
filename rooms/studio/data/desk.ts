@@ -21,10 +21,10 @@ export type DeskLoad = { state: "ready"; view: DeskView } | { state: "out" } | {
 
 /** The four gates, in order: what each is and what Nikita does there. */
 export const STAGE_LINE: readonly { id: Stage; t: string; s: string; you: string }[] = [
-  { id: "pitch", t: "Pitch", s: "The lesson, how it ties to the end of the world, and where the hero and his horde are in the story.", you: "Read it, then approve or ask for changes." },
-  { id: "mix", t: "Script, voice and mix", s: "The script, Skippy's read, the music under it and the effects, mixed so the voice always wins.", you: "Listen, then approve or ask for changes." },
-  { id: "render", t: "Render", s: "The tall 9:16 cut with captions burned in, stills to skim, and caption options.", you: "Watch it while the Director runs its own review, then approve." },
-  { id: "post", t: "Post", s: "A Zernio draft for Instagram and TikTok. Publish sends it a minute out.", you: "Tap Publish when it's ready." },
+  { id: "pitch", t: "Pitch and script", s: "The lesson, how it ties to the end of the world, and the script Skippy reads.", you: "Read it, then approve or ask for changes." },
+  { id: "mix", t: "Voice and mix", s: "Skippy's read, the music under it and the effects, mixed so the voice always wins. Scrub the waveform.", you: "Listen, then approve or ask for changes." },
+  { id: "render", t: "Render", s: "The tall 9:16 cut with captions burned in. Drag along the thumbnails to find a moment.", you: "Watch it while the Director runs its own review, then approve." },
+  { id: "post", t: "Post", s: "The cover, the caption and the draft for Instagram and TikTok. Publish sends it a minute out.", you: "Tap Publish when it's ready." },
 ];
 
 export const STATUS_TEXT: Record<Status, string> = {
@@ -51,12 +51,17 @@ export function stageOn(ep: Episode): number {
   return i < 0 ? STAGE_LINE.length - 1 : i;
 }
 
+/** Whether it's an ad rather than an episode: ads sit in their own folder on the desk (Nikita, 2026-11-26). */
+export const isAd = (ep: Episode) => ep.id.startsWith("ad-") || /^ad\b/i.test(ep.title);
+
 /** Whether the episode is out: its post stage approved or done. */
 export const isPosted = (ep: Episode) => isDone(ep.stages.post);
 
 /** The episode the desk opens on: the newest one still on the line, else the newest. */
 export function openOn(episodes: readonly Episode[]): number {
   if (episodes.length === 0) return -1;
+  // An episode first; the ads only when no episode is still on the line.
+  for (let i = episodes.length - 1; i >= 0; i--) if (!isPosted(episodes[i]!) && !isAd(episodes[i]!)) return i;
   for (let i = episodes.length - 1; i >= 0; i--) if (!isPosted(episodes[i]!)) return i;
   return episodes.length - 1;
 }

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Keeper } from "@ceo/desk/rooms/parts.tsx";
 import "@ceo/desk/rooms/rooms.css";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { act, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, STATUS_TEXT, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
+import { act, isAd, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, STATUS_TEXT, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
 import { PhoneEdit } from "./PhoneEdit.tsx";
 import { EditScreen, FeedScreen, PitchScreen, type Player } from "./screens.tsx";
 import { StudioStage, type StageApi } from "./StudioStage.tsx";
@@ -37,7 +37,7 @@ const PHONE_TABS: { id: ScreenId; t: string }[] = [
 ];
 const isVideo = (url: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
 const isPhone = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches;
-const REF_SHIFT = 0.3;
+const REF_SHIFT = 0.38;
 
 export function Studio() {
   const auth = useDeskAuth((s) => s.auth.status);
@@ -51,6 +51,7 @@ export function Studio() {
   const [said, setSaid] = useState<string | null>(null);
   const [api, setApi] = useState<StageApi | null>(null);
   const [focused, setFocused] = useState<ScreenId | null>(null);
+  const [phoneAds, setPhoneAds] = useState(false);
   const [refOn, setRefOn] = useState(false);
   const [flatTab, setFlatTab] = useState<ScreenId>("edit");
   const [phone, setPhone] = useState(isPhone);
@@ -231,7 +232,18 @@ export function Studio() {
     const d = dock.current;
     if (d && !document.fullscreenElement) void d.requestFullscreen?.().catch(() => undefined);
   };
+  // A click on the stage's tall frame plays or pauses the cut right there (Nikita, 2026-11-26); with nothing to play it
+  // opens the edit screen as before.
+  const mediaRef = useRef(media);
+  mediaRef.current = media;
   const onFrame = useCallback(() => {
+    const v = video.current;
+    const m = mediaRef.current;
+    if (v && m && isVideo(m)) {
+      if (v.paused) void v.play().catch(() => undefined);
+      else v.pause();
+      return;
+    }
     setFocused("edit");
     setRefOn(true);
   }, []);
@@ -418,8 +430,16 @@ export function Studio() {
             ))}
           </div>
           {flatTab === "edit" && episodes.length > 0 && (
-            <div className="px-eps" aria-label="Episodes">
+            <div className="px-eps" aria-label={phoneAds ? "Ads" : "Episodes"}>
+              {episodes.some(isAd) && (
+                <button type="button" className="px-folder" aria-pressed={phoneAds} onClick={() => setPhoneAds((x) => !x)}>
+                  <small>▤</small>
+                  <b>{phoneAds ? "Back to episodes" : "Ads"}</b>
+                  <em>{phoneAds ? "" : `${episodes.filter(isAd).length} cuts`}</em>
+                </button>
+              )}
               {[...episodes]
+                .filter((e) => phoneAds === isAd(e))
                 .sort((a, b) => Number(isPosted(a)) - Number(isPosted(b)) || a.n - b.n)
                 .map((e) => {
                   const on = STAGE_LINE[stageOn(e)]!;

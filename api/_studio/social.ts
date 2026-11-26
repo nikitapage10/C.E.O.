@@ -5,7 +5,7 @@
  *
  *   POST /api/studio-social { mode: "accounts" }                                  → { accounts: [{ id, platform, username, active }] }
  *   POST /api/studio-social { mode: "presign", filename, contentType, size }      → { uploadUrl, publicUrl }  (PUT the file to uploadUrl)
- *   POST /api/studio-social { mode: "draft", caption, video, cover?, platforms }  → { id, status }  (a Zernio draft, never published)
+ *   POST /api/studio-social { mode: "draft", caption, video, cover?, platforms, story? }  → { id, status }  (a Zernio draft, never published; story: an Instagram Story, 2026-11-26)
  *   POST /api/studio-social { mode: "publish", id, at? }                          → { id, status: "scheduled", at }  (only a draft this route made; `at` schedules it for a set time, up to 30 days out, 2026-11-26)
  *   POST /api/studio-social { mode: "status", id }                                → { id, status, platforms: [{ platform, status, url? }] }
  *   POST /api/studio-social { mode: "comments" }                                  → { posts: [{ id, accountId, platform, permalink, comments, text }] }
@@ -51,7 +51,7 @@ export type SocialJob =
   | { mode: "comments" }
   | { mode: "stats" }
   | { mode: "presign"; filename: string; contentType: (typeof UPLOAD_TYPES)[number]; size: number }
-  | { mode: "draft"; caption: string; video: string; cover?: string; platforms: Platform[] }
+  | { mode: "draft"; caption: string; video: string; cover?: string; platforms: Platform[]; story?: true }
   | { mode: "status"; id: string }
   | { mode: "publish"; id: string; at?: string }
   | { mode: "reply"; postId: string; accountId: string; commentId: string; message: string }
@@ -94,13 +94,15 @@ export function parseSocialJob(body: unknown): SocialJob | null {
     if (typeof b.size !== "number" || !Number.isInteger(b.size) || b.size <= 0 || b.size > SIZE_MAX) return null;
     return { mode: "presign", filename: b.filename, contentType: ct as (typeof UPLOAD_TYPES)[number], size: b.size };
   }
-  if (b.mode === "draft" && only("mode", "caption", "video", "cover", "platforms")) {
+  if (b.mode === "draft" && only("mode", "caption", "video", "cover", "platforms", "story")) {
     if (!isText(b.caption, CAPTION_MAX) || !isMediaUrl(b.video)) return null;
     if (b.cover !== undefined && !isMediaUrl(b.cover)) return null;
     const p = b.platforms;
     if (!Array.isArray(p) || p.length === 0 || p.length > PLATFORMS.length || new Set(p).size !== p.length) return null;
     if (!p.every((x) => (PLATFORMS as readonly unknown[]).includes(x))) return null;
-    return { mode: "draft", caption: b.caption, video: b.video, ...(b.cover ? { cover: b.cover as string } : {}), platforms: p as Platform[] };
+    // A story is Instagram's alone: TikTok's posting API has no stories (Nikita's preview stories, 2026-11-26).
+    if (b.story !== undefined && (b.story !== true || p.length !== 1 || p[0] !== "instagram")) return null;
+    return { mode: "draft", caption: b.caption, video: b.video, ...(b.cover ? { cover: b.cover as string } : {}), platforms: p as Platform[], ...(b.story ? { story: true as const } : {}) };
   }
   if ((b.mode === "status" || b.mode === "publish") && only("mode", "id") && typeof b.id === "string" && ID.test(b.id)) return { mode: b.mode, id: b.id };
   if (b.mode === "publish" && only("mode", "id", "at") && typeof b.id === "string" && ID.test(b.id) && typeof b.at === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?Z$/.test(b.at) && Number.isFinite(Date.parse(b.at))) return { mode: "publish", id: b.id, at: b.at };
@@ -148,7 +150,7 @@ export function draftBody(job: SocialJob & { mode: "draft" }, accountIds: Record
     isDraft: true,
     externalId: `${MINE}${now}`,
     mediaItems: [{ type: "video", url: job.video, ...(job.cover ? { thumbnail: job.cover, instagramThumbnail: job.cover } : {}) }],
-    platforms: job.platforms.map((platform) => ({ platform, accountId: accountIds[platform] })),
+    platforms: job.platforms.map((platform) => ({ platform, accountId: accountIds[platform], ...(job.story ? { platformSpecificData: { contentType: "story" } } : {}) })),
     ...(job.platforms.includes("tiktok")
       ? {
           tiktokSettings: {

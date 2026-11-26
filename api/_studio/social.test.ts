@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isFeedWrite } from "../_site/roomkeys.ts";
-import { draftBody, parseSocialJob, studioSocial } from "./social.ts";
+import { draftBody, parseSocialJob, studioSocial, type Platform, type SocialJob } from "./social.ts";
 
 /** The Studio's posting line (#1225). Every key, id and link here is made up. */
 
@@ -88,6 +88,17 @@ describe("studio-social", () => {
     expect((await post({ mode: "publish", id: "post_other" }, fetcher)).status).toBe(403);
     expect((await post({ mode: "publish", id: "post_live1" }, fetcher)).status).toBe(409);
     expect(calls.filter((c) => c.method === "PUT")).toHaveLength(1);
+  });
+
+  it("makes an Instagram Story draft, and refuses a story anywhere else (2026-11-26)", () => {
+    const job = parseSocialJob({ mode: "draft", caption: "New chapter out.", video: VIDEO, platforms: ["instagram"], story: true });
+    expect(job).toMatchObject({ story: true });
+    const body = draftBody(job as SocialJob & { mode: "draft" }, { instagram: "acc_ig", tiktok: "acc_tt" } as Record<Platform, string>, NOW);
+    expect(body.platforms).toEqual([{ platform: "instagram", accountId: "acc_ig", platformSpecificData: { contentType: "story" } }]);
+    expect(body.isDraft).toBe(true);
+    expect(parseSocialJob({ mode: "draft", caption: "x", video: VIDEO, platforms: ["tiktok"], story: true })).toBeNull();
+    expect(parseSocialJob({ mode: "draft", caption: "x", video: VIDEO, platforms: ["instagram", "tiktok"], story: true })).toBeNull();
+    expect(parseSocialJob({ mode: "draft", caption: "x", video: VIDEO, platforms: ["instagram"], story: "yes" })).toBeNull();
   });
 
   it("schedules its own draft for a set time, within 30 days (2026-11-26)", async () => {

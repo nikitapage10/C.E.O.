@@ -82,5 +82,5 @@ export function connectionFor(fitId: string, room: string): Connection | undefin
 
 /** Every connection a room owns, live ones first: the detail for a pipe with no whole flow drawn. */
 export function roomConnections(room: string): Connection[] {
-  return CONNECTIONS.filter((c) => c.room === (room as ConnectionRoom)).sort((a, b) => Number(a.status === "planned") - Number(b.status === "planned"));
+  return CONNECTIONS.filter((c) => c.room === (room as ConnectionRoom)).sort((a, b) => Number(a.status !== "live") - Number(b.status !== "live"));
 }

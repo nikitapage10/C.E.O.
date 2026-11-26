@@ -167,6 +167,11 @@ function connOf(fitId: string, room: string): Connection | undefined {
   return connectionFor(fitId, room) ?? (fitId === "blob" || fitId === "worldstate" ? CONNECTIONS.find((c) => c.id === "blob") : undefined);
 }
 
+/** A connection turned off for now (status "off", #1245): grey and quiet, not a fault, not waiting, nothing to do. */
+function offPipe(id: string, room: string, c: Connection): RoomPipe {
+  return { id, room, name: c.name, what: c.serves, kind: "link", state: "dry", why: "Turned off for now.", body: "Turned off on purpose, so its pipe stays cold. It isn't counted as down and raises no alert.", since: "", lastOk: null, facts: factsOf(c), needs: null, fix: null, steps: [], cap: null };
+}
+
 /** The whole map, room by room. */
 export function roomSections(input: RoomsInput): RoomSection[] {
   const { now, rows, map, jobs, lastSeen = {}, caps = {}, signedIn, security } = input;
@@ -185,6 +190,10 @@ export function roomSections(input: RoomsInput): RoomSection[] {
     for (const f of fits) {
       const c = connOf(f.id, r.room);
       if (c) used.add(c.id);
+      if (c?.status === "off") {
+        pipes.push(offPipe(`${r.id}:${f.id}`, r.id, c));
+        continue;
+      }
       // Relay's "Lattice" is the hub's live socket, not the public site's watch.
       const key = f.id === "lattice" && r.id === "relay" ? undefined : FIT_STATION[f.id];
       const st = key ? map.stations[key] : undefined;
@@ -241,6 +250,10 @@ export function roomSections(input: RoomsInput): RoomSection[] {
 
     // The room's other connections, as its room detail listed them.
     for (const c of CONNECTIONS.filter((x) => x.room === r.room && !used.has(x.id))) {
+      if (c.status === "off") {
+        pipes.push(offPipe(`${r.id}:${c.id}`, r.id, c));
+        continue;
+      }
       const planned = c.status === "planned";
       pipes.push({
         id: `${r.id}:${c.id}`,

@@ -194,7 +194,8 @@ function Pipe({ link, x }: { link: Link; x: number }) {
   const needle = useRef<Group>(null);
   const state = link.state;
   const look = statusLooks()[state];
-  const [flavour, word] = (link.id === "world" ? CLOCK_WORDS : WORDS)[state];
+  // A link turned off on purpose (Relay's texts, #1245) says so, rather than "not connected".
+  const [flavour, word] = state === "off" && link.note === "TURNED OFF" ? (["COLD", "TURNED OFF"] as const) : (link.id === "world" ? CLOCK_WORDS : WORDS)[state];
   const lit = state !== "off";
   const ink = lit ? "#0b0f14" : "#8a8a93";
   useFrame(({ clock }) => {

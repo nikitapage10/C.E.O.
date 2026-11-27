@@ -25,6 +25,7 @@ import { pickBlob, type BlobBackend } from "../_blob.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { roomKeyOf, STUDIO_KIT_PATH } from "../_site/roomkeys.js";
+import { locked, reviewLinkOpened } from "../_site/gate.js";
 
 export { STUDIO_KIT_PATH };
 type Env = Record<string, string | undefined>;
@@ -102,7 +103,9 @@ async function store(blob: BlobBackend, path: string, request: Request): Promise
 async function media(request: Request, deps: KitDeps, name: string): Promise<Response> {
   if (!deps.desk) return json({ error: "not-set-up" }, 503);
   const signed = await requireSession(request, deps.desk);
-  if (!signed.ok) return signed.response;
+  // A review link tapped in a browser with the site cookie but no Desk session (the Claude app's own browser): the
+  // passkey login page, which signs the Desk in too and comes back to the file. The player's fetches keep the JSON.
+  if (!signed.ok) return reviewLinkOpened(request) ? locked(request) : signed.response;
   if (!deps.blob) return json({ error: "not-set-up" }, 503);
   const path = PREFIX + "media/" + name;
   const head = { "Content-Type": mediaType(name), "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" };

@@ -132,4 +132,30 @@ describe("the Studio's render kit (#1235)", () => {
     // Signed out stays out, even with a Range.
     expect((await kitGet(new Request(`${URL_}?m=ep2-v8.mp4`, { headers: { Range: "bytes=0-" } }), { ...d, desk })).status).toBe(401);
   });
+  it("plays a signed review link with no Desk session: a player page when tapped, byte ranges for the player (#1259)", async () => {
+    const d = deps();
+    const big = new Uint8Array(MEDIA_SLICE + 10).map((_, i) => i % 251);
+    d.blob.files.set("studio/kit/media/ep6-v1-proxy.mp4", big);
+    d.blob.range = async (p, start, end) => {
+      const f = d.blob.files.get(p);
+      if (!f) return null;
+      const last = Math.min(end ?? f.length - 1, f.length - 1);
+      return { stream: new Response(f.slice(start, last + 1)).body!, size: f.length, start, end: last, contentType: "video/mp4" };
+    };
+    const exp = Math.floor(NOW / 1000) + 3600, path = "media/ep6-v1-proxy.mp4";
+    const link = `${URL_}?p=${encodeURIComponent(path)}&e=${exp}&s=${kitSig("GET", path, exp, env.FOUNDRY_DESK_KEY)}`;
+    const tapped = await kitGet(new Request(link, { headers: { "sec-fetch-dest": "document", accept: "text/html" } }), d);
+    expect(tapped.status).toBe(200);
+    const html = await tapped.text();
+    expect(html).toContain('<video src="/api/studio-kit?p=media%2Fep6-v1-proxy.mp4&amp;e=');
+    expect(tapped.headers.get("set-cookie")).toBeNull();
+    const ranged = await kitGet(new Request(link, { headers: { "sec-fetch-dest": "video", Range: "bytes=0-1" } }), d);
+    expect(ranged.status).toBe(206);
+    expect(ranged.headers.get("content-type")).toBe("video/mp4");
+    expect(ranged.headers.get("content-range")).toBe(`bytes 0-1/${big.length}`);
+    const open = await kitGet(new Request(link, { headers: { "sec-fetch-dest": "video", Range: "bytes=0-" } }), d);
+    expect(open.headers.get("content-range")).toBe(`bytes 0-${MEDIA_SLICE - 1}/${big.length}`);
+    // A bad signature stays out.
+    expect((await kitGet(new Request(link.replace(/s=[^&]+$/, "s=" + "x".repeat(43)), { headers: { Range: "bytes=0-1" } }), d)).status).toBe(401);
+  });
 });

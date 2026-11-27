@@ -6,7 +6,9 @@
  *
  *   PUT  /api/studio-kit  (x-kit-path: ep3/engine/episode.js)   the feed key: stores one file (or one part of a pack).
  *   POST /api/studio-kit  { method: "GET" | "PUT", paths, ttl? } the feed key: signed links, one per path.
- *   GET  /api/studio-kit?p=…&e=…&s=…                            a signed link: the file.
+ *   GET  /api/studio-kit?p=…&e=…&s=…                            a signed link: the file. A signed link to media/<file>
+ *                                                               (#1259) is a review link that needs no Desk session: tapped,
+ *                                                               a player page; from the player, the file in byte ranges.
  *   PUT  /api/studio-kit?p=out/…&e=…&s=…                        a signed upload link: a finished cut (only under out/).
  *   POST /api/studio-kit { join: "out/ep2-v8.part", count, to }  the feed key (#1243): parts out/…part00, part01, … joined
  *                                                               into one review file, media/<to>, on the server.
@@ -100,12 +102,11 @@ async function store(blob: BlobBackend, path: string, request: Request): Promise
 }
 
 /** The player page for a tapped review link: the file in a full-screen <video>, nothing else. */
-export function playerPage(name: string): Response {
-  const src = `${STUDIO_KIT_PATH}?m=${encodeURIComponent(name)}`;
+export function playerPage(name: string, src = `${STUDIO_KIT_PATH}?m=${encodeURIComponent(name)}`): Response {
   const tag = /\.mp4$/.test(name) ? "video" : "audio";
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${name}</title>` +
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>${name}</title>` +
     `<style>html,body{margin:0;height:100%;background:#000}${tag}{width:100%;height:100%;object-fit:contain;display:block}</style></head>` +
-    `<body><${tag} src="${src}" controls playsinline preload="metadata"></${tag}></body></html>`;
+    `<body><${tag} src="${src.replace(/&/g, "&amp;")}" controls playsinline preload="metadata"></${tag}></body></html>`;
   return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" } });
 }
@@ -120,6 +121,11 @@ async function media(request: Request, deps: KitDeps, name: string): Promise<Res
   // Opened as a page (a tapped link): a plain player page around the same link, so the file plays in a <video> like
   // the Desk's. Safari's own full-page media view kept reloading in the Claude app's browser.
   if (reviewLinkOpened(request) && /\.(mp4|m4a|mp3)$/.test(name)) return withCookie(playerPage(name), signed);
+  return withCookie(await serveMedia(request, deps, name), signed);
+}
+
+/** A review file out of media/, a slice at a time in byte ranges (Safari's player always asks for ranges). */
+async function serveMedia(request: Request, deps: KitDeps, name: string): Promise<Response> {
   if (!deps.blob) return json({ error: "not-set-up" }, 503);
   const path = PREFIX + "media/" + name;
   const head = { "Content-Type": mediaType(name), "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" };
@@ -130,7 +136,7 @@ async function media(request: Request, deps: KitDeps, name: string): Promise<Res
     await first.stream.cancel().catch(() => undefined);
     const size = first.size;
     const r = want ? parseRange(want, size) : null;
-    if (want && !r) return withCookie(new Response(null, { status: 416, headers: { ...head, "Content-Range": `bytes */${size}` } }), signed);
+    if (want && !r) return new Response(null, { status: 416, headers: { ...head, "Content-Range": `bytes */${size}` } });
     // The Functions host holds a whole answer in memory, so a long cut goes out a slice at a time: players ask again.
     const start = r?.start ?? 0;
     const end = Math.min(r?.end ?? size - 1, start + MEDIA_SLICE - 1);
@@ -138,12 +144,15 @@ async function media(request: Request, deps: KitDeps, name: string): Promise<Res
     const got = await deps.blob.range(path, start, end);
     if (!got) return json({ error: "gone" }, 404);
     const headers = { ...head, "Content-Length": String(got.end - got.start + 1), ...(partial ? { "Content-Range": `bytes ${got.start}-${got.end}/${size}` } : {}) };
-    return withCookie(new Response(request.method === "HEAD" ? null : got.stream, { status: partial ? 206 : 200, headers }), signed);
+    return new Response(request.method === "HEAD" ? null : got.stream, { status: partial ? 206 : 200, headers });
   }
   const got = await deps.blob.get(path);
   if (!got) return json({ error: "gone" }, 404);
-  return withCookie(new Response(got.stream, { headers: head }), signed);
+  return new Response(got.stream, { headers: head });
 }
+
+/** Whether a request is a page load (a tapped link) rather than a player's or script's fetch. */
+const pageLoad = (request: Request) => { const dest = request.headers.get("sec-fetch-dest"); return dest ? dest === "document" : (request.headers.get("accept") ?? "").includes("text/html"); };
 
 export async function kitGet(request: Request, deps: KitDeps): Promise<Response> {
   const url = new URL(request.url);
@@ -154,6 +163,12 @@ export async function kitGet(request: Request, deps: KitDeps): Promise<Response>
   if (!kitSigned(request, deps.env, deps.now)) return json({ error: "unauthorized" }, 401);
   if (!deps.blob) return json({ error: "not-set-up" }, 503);
   const p = new URL(request.url).searchParams.get("p")!;
+  // A signed review link (#1259): plays with no Desk session, for the Claude app's browser, which doesn't keep one.
+  const name = p.startsWith("media/") ? p.slice(6) : "";
+  if (isMediaName(name)) {
+    if (pageLoad(request) && /\.(mp4|m4a|mp3)$/.test(name)) return playerPage(name, url.pathname + url.search);
+    return serveMedia(request, deps, name);
+  }
   const got = await deps.blob.get(PREFIX + p);
   if (!got) return json({ error: "gone" }, 404);
   return new Response(got.stream, { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });

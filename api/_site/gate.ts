@@ -210,10 +210,22 @@ const SECURITY_HEADERS = {
   [GATE_HEADER]: "locked",
 } as const;
 
+/**
+ * A Studio review link (/api/studio-kit?m=…) opened as a page, as a tap on a link in chat does in a browser that isn't
+ * signed in yet (the Claude app's own browser): it gets the login page and comes back to the file, not a JSON error.
+ * The player's own fetches (a video element, not a document) still get the JSON refusal.
+ */
+function reviewLinkOpened(request: Request, url: URL): boolean {
+  if (url.pathname !== "/api/studio-kit" || [...url.searchParams.keys()].join(",") !== "m") return false;
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest) return dest === "document";
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
 /** The refusal for this request: JSON for the API and anything but a page load, the login page for a page. */
 export function locked(request: Request, message?: "unknown" | "off", passkey = true): Response {
   const url = new URL(request.url);
-  const page = (request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/");
+  const page = (request.method === "GET" || request.method === "HEAD") && (!url.pathname.startsWith("/api/") || reviewLinkOpened(request, url));
   if (!page) {
     // "unknown" (the record can't be read) and "off" (this instance has no keys, as a fresh one can for a moment
     // while a deploy re-reads the vault, #1078) are the server's trouble, not this browser's: a 503 the page leaves

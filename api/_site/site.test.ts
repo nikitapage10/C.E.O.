@@ -169,6 +169,24 @@ describe("the gate (#236)", () => {
     }
   });
 
+  it("sends a Studio review link opened as a page to the login page, and back to the file after", async () => {
+    const c = await ctx();
+    const path = "/api/studio-kit?m=ep4d-v2.mp4";
+    const page = decide(req(path, { headers: { "sec-fetch-dest": "document", accept: "text/html" } }), c);
+    expect(page.allow).toBe(false);
+    if (!page.allow) {
+      expect(page.response.headers.get("content-type")).toContain("text/html");
+      expect(await page.response.text()).toContain(`data-next="${path}"`);
+    }
+    for (const headers of [{ "sec-fetch-dest": "video", accept: "*/*" }, { accept: "*/*" }] as Record<string, string>[]) {
+      const d = decide(req(path, { headers }), c);
+      expect(d.allow).toBe(false);
+      if (!d.allow) expect(await d.response.json()).toEqual({ error: "site-locked" });
+    }
+    const other = decide(req("/api/studio-kit?p=x&e=1&s=y", { headers: { "sec-fetch-dest": "document" } }), c);
+    if (!other.allow) expect(other.response.headers.get("content-type")).toContain("application/json");
+  });
+
   it("opens with a good session, and renews it once a day of use", async () => {
     const c = await ctx();
     const k = c.keys!;

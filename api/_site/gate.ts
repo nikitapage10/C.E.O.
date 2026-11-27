@@ -215,7 +215,7 @@ const SECURITY_HEADERS = {
  * signed in yet (the Claude app's own browser): it gets the login page and comes back to the file, not a JSON error.
  * The player's own fetches (a video element, not a document) still get the JSON refusal.
  */
-function reviewLinkOpened(request: Request, url: URL): boolean {
+export function reviewLinkOpened(request: Request, url: URL = new URL(request.url)): boolean {
   if (url.pathname !== "/api/studio-kit" || [...url.searchParams.keys()].join(",") !== "m") return false;
   const dest = request.headers.get("sec-fetch-dest");
   if (dest) return dest === "document";

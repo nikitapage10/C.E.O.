@@ -98,6 +98,12 @@ describe("the Studio's render kit (#1235)", () => {
     expect((await kitGet(new Request(`${URL_}?m=ep2-v8.mp4`), d)).status).toBe(503);
     const signedOut = await kitGet(new Request(`${URL_}?m=ep2-v8.mp4`), { ...d, desk: { deskKey: env.FOUNDRY_DESK_KEY, store: { passkeys: async () => [] } as never, now: NOW } });
     expect(signedOut.status).toBe(401);
+    expect(signedOut.headers.get("content-type")).toContain("application/json");
+    // Tapped as a page with no Desk session (the Claude app's browser): the passkey login page, back to the file after.
+    const tapped = await kitGet(new Request(`${URL_}?m=ep2-v8.mp4`, { headers: { "sec-fetch-dest": "document", accept: "text/html" } }), { ...d, desk: { deskKey: env.FOUNDRY_DESK_KEY, store: { passkeys: async () => [] } as never, now: NOW } });
+    expect(tapped.status).toBe(401);
+    expect(tapped.headers.get("content-type")).toContain("text/html");
+    expect(await tapped.text()).toContain('data-next="/api/studio-kit?m=ep2-v8.mp4"');
     expect((await kitGet(new Request(`${URL_}?m=../secrets.json`), d)).status).toBe(400);
     expect(isMediaName("ep3-v7.mp4")).toBe(true);
     expect(isMediaName("a/b.mp4")).toBe(false);

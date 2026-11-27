@@ -99,6 +99,17 @@ async function store(blob: BlobBackend, path: string, request: Request): Promise
   return json({ ok: true, path, bytes: body.byteLength });
 }
 
+/** The player page for a tapped review link: the file in a full-screen <video>, nothing else. */
+export function playerPage(name: string): Response {
+  const src = `${STUDIO_KIT_PATH}?m=${encodeURIComponent(name)}`;
+  const tag = /\.mp4$/.test(name) ? "video" : "audio";
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${name}</title>` +
+    `<style>html,body{margin:0;height:100%;background:#000}${tag}{width:100%;height:100%;object-fit:contain;display:block}</style></head>` +
+    `<body><${tag} src="${src}" controls playsinline preload="metadata"></${tag}></body></html>`;
+  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" } });
+}
+
 /** GET /api/studio-kit?m=…: a review file for the signed-in Desk, in byte ranges when asked (Safari's player always asks). */
 async function media(request: Request, deps: KitDeps, name: string): Promise<Response> {
   if (!deps.desk) return json({ error: "not-set-up" }, 503);
@@ -106,6 +117,9 @@ async function media(request: Request, deps: KitDeps, name: string): Promise<Res
   // A review link tapped in a browser with the site cookie but no Desk session (the Claude app's own browser): the
   // passkey login page, which signs the Desk in too and comes back to the file. The player's fetches keep the JSON.
   if (!signed.ok) return reviewLinkOpened(request) ? locked(request) : signed.response;
+  // Opened as a page (a tapped link): a plain player page around the same link, so the file plays in a <video> like
+  // the Desk's. Safari's own full-page media view kept reloading in the Claude app's browser.
+  if (reviewLinkOpened(request) && /\.(mp4|m4a|mp3)$/.test(name)) return withCookie(playerPage(name), signed);
   if (!deps.blob) return json({ error: "not-set-up" }, 503);
   const path = PREFIX + "media/" + name;
   const head = { "Content-Type": mediaType(name), "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" };

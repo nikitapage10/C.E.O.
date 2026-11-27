@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { BlobBackend, StoredBlob } from "../_blob.ts";
 import { decide } from "../_site/gate.ts";
 import { FEED_TOKEN } from "../_site/roomkeys.ts";
-import { isMediaName, kitGet, MEDIA_SLICE, kitPost, kitPut, kitSig, kitSigned, parseRange, type KitDeps } from "./kit.ts";
+import { isMediaName, kitGet, MEDIA_SLICE, kitPost, kitPut, kitSig, kitSigned, parseRange, type KitDeps, playerPage } from "./kit.ts";
 
 const NOW = Date.parse("2026-11-25T20:00:00Z");
 const FEED = "f".repeat(40);
@@ -107,6 +107,9 @@ describe("the Studio's render kit (#1235)", () => {
     expect((await kitGet(new Request(`${URL_}?m=../secrets.json`), d)).status).toBe(400);
     expect(isMediaName("ep3-v7.mp4")).toBe(true);
     expect(isMediaName("a/b.mp4")).toBe(false);
+    const page = playerPage("ep4d-v4.mp4");
+    expect(page.headers.get("content-type")).toContain("text/html");
+    expect(await page.text()).toContain('<video src="/api/studio-kit?m=ep4d-v4.mp4" controls playsinline');
     expect(parseRange("bytes=0-", 10)).toEqual({ start: 0, end: 9 });
     expect(parseRange("bytes=2-4", 10)).toEqual({ start: 2, end: 4 });
     expect(parseRange("bytes=-3", 10)).toEqual({ start: 7, end: 9 });

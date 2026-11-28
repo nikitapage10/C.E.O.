@@ -55,7 +55,23 @@ export interface YoutubeDeps {
 
 export type ShortResult =
   | { ok: true; id: string; privacy: Privacy; channel: string; thumbnail: boolean }
-  | { ok: false; error: "not-connected" | "refused" | "no-video" | "too-big" | "upload-failed" | "quota" };
+  | { ok: false; error: "not-connected" | "refused" | "no-video" | "too-big" | "upload-failed" | "quota"; detail?: string };
+
+/** Where an upload failed, for the Desk and the Director's thread: the step, the HTTP status and Google's reason, no
+ *  token or link (#1270). */
+async function why(step: string, res: Response | null, err?: unknown): Promise<string> {
+  if (!res) return `${step}: ${err instanceof Error ? err.name + " " + err.message : "no answer"}`.slice(0, 160);
+  const text = await res.text().catch(() => "");
+  let reason: string;
+  try {
+    const j = JSON.parse(text) as { error?: { status?: unknown; message?: unknown; errors?: { reason?: unknown }[] } | string; error_description?: unknown };
+    const e = j.error;
+    reason = typeof e === "string" ? `${e} ${typeof j.error_description === "string" ? j.error_description : ""}` : [e?.errors?.[0]?.reason, e?.status, e?.message].filter((x) => typeof x === "string").join(" ");
+  } catch {
+    reason = text.slice(0, 80);
+  }
+  return `${step} ${res.status}${reason ? ": " + reason : ""}`.replace(/\s+/g, " ").slice(0, 160);
+}
 
 /** YouTube's title rules: no angle brackets, at most 100 characters. */
 export function cleanTitle(t: string): string {
@@ -100,7 +116,7 @@ export async function uploadShort(deps: YoutubeDeps, job: ShortJob): Promise<Sho
       await deps.vault.write("google-youtube", { ...grant, refused: true }).catch(() => undefined);
       return { ok: false, error: "refused" };
     }
-    return { ok: false, error: "upload-failed" };
+    return { ok: false, error: "upload-failed", detail: `token: ${e instanceof Error ? e.message : "failed"}`.slice(0, 160) };
   }
 
   const src = await openVideo(deps, job.video);
@@ -111,6 +127,7 @@ export async function uploadShort(deps: YoutubeDeps, job: ShortJob): Promise<Sho
     return { ok: false, error: size > VIDEO_MAX ? "too-big" : "no-video" };
   }
 
+  let failed: unknown;
   const open = await deps
     .fetch(UPLOAD_URL, {
       method: "POST",
@@ -119,11 +136,12 @@ export async function uploadShort(deps: YoutubeDeps, job: ShortJob): Promise<Sho
       signal: AbortSignal.timeout(30_000),
       redirect: "error",
     })
-    .catch(() => null);
+    .catch((e: unknown) => ((failed = e), null));
   const session = open?.headers.get("location") ?? "";
   if (!open?.ok || !session.startsWith("https://www.googleapis.com/")) {
     await src.body.cancel().catch(() => undefined);
-    return { ok: false, error: open?.status === 403 && (await quotaHit(open)) ? "quota" : "upload-failed" };
+    const detail = open?.ok ? `open ${open.status}: no upload session` : await why("open", open, failed);
+    return { ok: false, error: /quotaExceeded|dailyLimitExceeded|uploadLimitExceeded/.test(detail) ? "quota" : "upload-failed", detail };
   }
 
   const put = await deps
@@ -136,11 +154,14 @@ export async function uploadShort(deps: YoutubeDeps, job: ShortJob): Promise<Sho
       signal: AbortSignal.timeout(9 * 60_000),
       redirect: "error",
     } as RequestInit)
-    .catch(() => null);
-  if (!put?.ok) return { ok: false, error: put?.status === 403 && (await quotaHit(put)) ? "quota" : "upload-failed" };
+    .catch((e: unknown) => ((failed = e), null));
+  if (!put?.ok) {
+    const detail = await why("upload", put, failed);
+    return { ok: false, error: /quotaExceeded|dailyLimitExceeded|uploadLimitExceeded/.test(detail) ? "quota" : "upload-failed", detail };
+  }
   const video = (await put.json().catch(() => null)) as { id?: unknown; snippet?: { channelId?: unknown }; status?: { privacyStatus?: unknown } } | null;
   const id = typeof video?.id === "string" && /^[A-Za-z0-9_-]{6,20}$/.test(video.id) ? video.id : "";
-  if (!id) return { ok: false, error: "upload-failed" };
+  if (!id) return { ok: false, error: "upload-failed", detail: "upload: no video id in YouTube's answer" };
   const p = video?.status?.privacyStatus;
   const privacy: Privacy = p === "public" || p === "unlisted" ? p : "private";
   const channel = typeof video?.snippet?.channelId === "string" ? video.snippet.channelId : "";
@@ -159,11 +180,6 @@ async function openVideo(deps: YoutubeDeps, url: string): Promise<VideoSource | 
     return null;
   }
   return { body: res.body, size: Number(res.headers.get("content-length") ?? 0) };
-}
-
-async function quotaHit(res: Response): Promise<boolean> {
-  const text = await res.text().catch(() => "");
-  return /quotaExceeded|dailyLimitExceeded|uploadLimitExceeded/.test(text);
 }
 
 /** The cover as the video's thumbnail: best effort (an unverified channel can't set one). */

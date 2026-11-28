@@ -85,7 +85,7 @@ describe("studio-desk", () => {
     const r = await deskGet(req("GET", undefined, bearer(LOG)), d);
     expect(r.status).toBe(200);
     const got = await r.json();
-    expect(got).toEqual({ ideas: [], episodes: [], notes: [], approvals: [], youtube: [] });
+    expect(got).toEqual({ ideas: [], episodes: [], notes: [], approvals: [], youtube: [], carousels: [] });
     expect(got.social).toBeUndefined();
     expect(calls).toHaveLength(0);
   });
@@ -234,6 +234,30 @@ describe("studio-desk", () => {
     const ep = (await (await deskGet(req("GET", undefined, cookie), d)).json()).episodes[0];
     expect(ep).toMatchObject({ title: "Assured, Not Insured", titles: ["Paper Promises", "Assured, Not Insured"] });
     expect(readEpisode({ ...EP3, titles: ["ok", 5] })).toBeNull();
+  });
+
+  it("shows the thread's carousel and publishes its own draft at the slot, once (#1265)", async () => {
+    const { d, store, calls } = deps({
+      "GET /posts/post_car01": { post: { _id: "post_car01", status: "draft", externalId: "ceo-studio-2" } },
+      "PUT /posts/post_car01": { post: { _id: "post_car01", status: "scheduled" } },
+    });
+    const cookie = { Cookie: await signedInCookie(DESK, NOW, store) };
+    const slides = [1, 2].map((i) => `https://media.zernio.test/u/s${i}.jpg`);
+    const car = { id: "c06-07", title: "The bull did not", slides, caption: "He escaped.", platforms: ["instagram"], slot: "2026-11-25T15:00:00Z", status: "ready" };
+    expect((await deskPut(req("PUT", { action: "carousel", carousel: { ...car, slides: [slides[0]] } }, bearer(FEED)), d)).status).toBe(400);
+    expect((await deskPut(req("PUT", { action: "carousel", carousel: car }, bearer(LOG)), d)).status).toBe(401);
+    expect((await deskPut(req("PUT", { action: "carousel", carousel: car }, bearer(FEED)), d)).status).toBe(200);
+    // No draft yet: nothing to publish.
+    expect((await deskPost(req("POST", { action: "carousel-publish", id: "c06-07" }, cookie), d)).status).toBe(409);
+    await deskPut(req("PUT", { action: "carousel", carousel: { ...car, draft: "post_car01" } }, bearer(FEED)), d);
+    const ok = await deskPost(req("POST", { action: "carousel-publish", id: "c06-07" }, cookie), d);
+    expect(await ok.json()).toEqual({ ok: true, at: "2026-11-25T15:00:00.000Z" });
+    expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ isDraft: false, scheduledFor: "2026-11-25T15:00:00.000Z" });
+    expect((await deskPost(req("POST", { action: "carousel-publish", id: "c06-07" }, cookie), d)).status).toBe(409);
+    // The thread saving it again keeps what the Desk set.
+    await deskPut(req("PUT", { action: "carousel", carousel: { ...car, draft: "post_car01" } }, bearer(FEED)), d);
+    const got = await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json();
+    expect(got.carousels[0]).toMatchObject({ id: "c06-07", scheduledFor: "2026-11-25T15:00:00.000Z" });
   });
 
   it("sets an idea taken with the feed key", async () => {

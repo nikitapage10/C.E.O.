@@ -6,6 +6,7 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { act, isAd, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, STATUS_TEXT, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
 import { PhoneEdit } from "./PhoneEdit.tsx";
 import { EditScreen, FeedScreen, PitchScreen, type Player } from "./screens.tsx";
+import { Carousels } from "./Carousels.tsx";
 import { StudioStage, type StageApi } from "./StudioStage.tsx";
 import type { Mark, ScreenId, StudioView } from "./soundstage.ts";
 import "./studio.css";
@@ -288,7 +289,13 @@ export function Studio() {
     if (!signedIn) return <p className="sx-gate">{auth === "checking" ? "Opening the desk…" : "Sign in with your passkey to open the desk."}</p>;
     if (!desk) return <p className="sx-gate">{down ? "The desk is out of reach right now. It'll try again in a minute." : "Opening the desk…"}</p>;
     if (id === "pitch") return <PitchScreen desk={desk} episodes={episodes} openEp={openEp} run={run} busy={busy} />;
-    if (id === "stats") return <FeedScreen social={social} />;
+    if (id === "stats")
+      return (
+        <>
+          <Carousels list={desk.carousels ?? []} run={run} busy={busy} />
+          <FeedScreen social={social} />
+        </>
+      );
     return <EditScreen {...editProps(desk)} />;
   };
   const editProps = (d: DeskView) => ({

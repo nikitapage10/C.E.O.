@@ -183,6 +183,8 @@ export interface YoutubePost {
   /** Set when the upload landed on a channel other than the show's. */
   channel?: string;
   error?: string;
+  /** Where it failed: the step, status and Google's reason (#1270). */
+  detail?: string;
 }
 
 /** An image carousel between chapters (#1265): the Director makes the slides and the Zernio draft, Nikita publishes. */
@@ -527,7 +529,7 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
     });
     if (!started) return reply({ error: "youtube-already" }, 409);
     const run = uploadShort(yt, job)
-      .catch(() => ({ ok: false as const, error: "upload-failed" as const }))
+      .catch((e: unknown) => ({ ok: false as const, error: "upload-failed" as const, detail: `crashed: ${e instanceof Error ? e.message : "?"}`.slice(0, 160) }))
       .then((got) =>
         change(blob, (cur) => ({
           ...cur,
@@ -535,7 +537,7 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
             y.episode === ep && y.state === "uploading" && y.at === now
               ? got.ok
                 ? { episode: ep, state: "up" as const, at: yt.now(), id: got.id, privacy: got.privacy, ...(got.channel && got.channel !== SHOW_CHANNEL_ID ? { channel: got.channel } : {}) }
-                : { episode: ep, state: "failed" as const, at: yt.now(), error: got.error }
+                : { episode: ep, state: "failed" as const, at: yt.now(), error: got.error, ...("detail" in got && got.detail ? { detail: got.detail } : {}) }
               : y,
           ),
         })),

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { micPress, micRelease } from "@ceo/desk/roomvoice/roomVoice.ts";
-import { clock, STAGE_LINE, STATUS_TEXT } from "../data/desk.ts";
+import { clock, epLabel, STAGE_LINE, STATUS_TEXT } from "../data/desk.ts";
 import { NoteRow, Scrub, useEdit, type EditProps } from "./screens.tsx";
 
 /**
@@ -52,7 +52,7 @@ export function PhoneEdit(p: EditProps & { video: ReactNode }) {
                 e.setTitling(true);
               }}
             >
-              <small>Ep {ep.n}</small>
+              <small>{epLabel(ep)}</small>
               {ep.title}
             </button>
             {e.canReroll && (

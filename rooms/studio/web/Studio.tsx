@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Keeper } from "@ceo/desk/rooms/parts.tsx";
 import "@ceo/desk/rooms/rooms.css";
 import { useDeskAuth } from "@ceo/engine/web/signin.ts";
-import { act, isAd, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, STATUS_TEXT, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
+import { act, isAd, isExperiment, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, STATUS_TEXT, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
 import { PhoneEdit } from "./PhoneEdit.tsx";
 import { EditScreen, FeedScreen, PitchScreen, type Player } from "./screens.tsx";
 import { Carousels } from "./Carousels.tsx";
@@ -52,7 +52,7 @@ export function Studio() {
   const [said, setSaid] = useState<string | null>(null);
   const [api, setApi] = useState<StageApi | null>(null);
   const [focused, setFocused] = useState<ScreenId | null>(null);
-  const [phoneAds, setPhoneAds] = useState(false);
+  const [phoneFolder, setPhoneFolder] = useState<"eps" | "ads" | "x">("eps");
   const [refOn, setRefOn] = useState(false);
   const [flatTab, setFlatTab] = useState<ScreenId>("edit");
   const [phone, setPhone] = useState(isPhone);
@@ -108,7 +108,7 @@ export function Studio() {
   }, [signedIn, read]);
 
   const episodes = useMemo(() => desk?.episodes ?? [], [desk]);
-  const inProduction = useMemo(() => episodes.filter((e) => !isPosted(e)), [episodes]);
+  const inProduction = useMemo(() => episodes.filter((e) => !isPosted(e) && !isExperiment(e)), [episodes]);
   const ep: Episode | undefined = episodes.find((e) => e.id === epId);
   const stage = STAGE_LINE[sel]!;
   const st = ep?.stages[stage.id];
@@ -117,7 +117,7 @@ export function Studio() {
   const media = cur?.media;
   const steps = useMemo(() => stepsOf(ep), [ep]);
   const rolling = episodes.some((e) => Object.values(e.stages).some((s) => s?.status === "working"));
-  const view = useMemo<StudioView>(() => ({ steps, sel, episodes: episodes.slice(-6).map((e) => `${e.n}. ${e.title}`), rolling }), [steps, sel, episodes, rolling]);
+  const view = useMemo<StudioView>(() => ({ steps, sel, episodes: episodes.filter((e) => !isExperiment(e)).slice(-6).map((e) => `${e.n}. ${e.title}`), rolling }), [steps, sel, episodes, rolling]);
   const flat = phone || api === null;
 
   // The newest version opens whenever the stage or episode changes.
@@ -437,23 +437,40 @@ export function Studio() {
             ))}
           </div>
           {flatTab === "edit" && episodes.length > 0 && (
-            <div className="px-eps" aria-label={phoneAds ? "Ads" : "Episodes"}>
-              {episodes.some(isAd) && (
-                <button type="button" className="px-folder" aria-pressed={phoneAds} onClick={() => setPhoneAds((x) => !x)}>
+            <div className="px-eps" aria-label={phoneFolder === "ads" ? "Ads" : phoneFolder === "x" ? "Experiments" : "Episodes"}>
+              {phoneFolder !== "eps" ? (
+                <button type="button" className="px-folder" aria-pressed="true" onClick={() => setPhoneFolder("eps")}>
                   <small>▤</small>
-                  <b>{phoneAds ? "Back to episodes" : "Ads"}</b>
-                  <em>{phoneAds ? "" : `${episodes.filter(isAd).length} cuts`}</em>
+                  <b>Back to episodes</b>
+                  <em />
                 </button>
+              ) : (
+                <>
+                  {episodes.some((e) => isAd(e) && !isExperiment(e)) && (
+                    <button type="button" className="px-folder" aria-pressed="false" onClick={() => setPhoneFolder("ads")}>
+                      <small>▤</small>
+                      <b>Ads</b>
+                      <em>{`${episodes.filter((e) => isAd(e) && !isExperiment(e)).length} cuts`}</em>
+                    </button>
+                  )}
+                  {episodes.some(isExperiment) && (
+                    <button type="button" className="px-folder" aria-pressed="false" onClick={() => setPhoneFolder("x")}>
+                      <small>⚗</small>
+                      <b>Experiments</b>
+                      <em>{`${episodes.filter(isExperiment).length} tests`}</em>
+                    </button>
+                  )}
+                </>
               )}
               {[...episodes]
-                .filter((e) => phoneAds === isAd(e))
-                .sort((a, b) => Number(isPosted(a)) - Number(isPosted(b)) || a.n - b.n)
+                .filter((e) => (phoneFolder === "x" ? isExperiment(e) : !isExperiment(e) && (phoneFolder === "ads") === isAd(e)))
+                .sort((a, b) => (phoneFolder === "x" ? (a.group ?? "").localeCompare(b.group ?? "") || a.id.localeCompare(b.id) : Number(isPosted(a)) - Number(isPosted(b)) || a.n - b.n))
                 .map((e) => {
                   const on = STAGE_LINE[stageOn(e)]!;
                   const status = e.stages[on.id]?.status ?? "waiting";
                   return (
                     <button key={e.id} type="button" aria-pressed={e.id === ep?.id} data-status={isPosted(e) ? "posted" : status} onClick={() => openEp(e.id)}>
-                      <small>{e.n}</small>
+                      <small>{isExperiment(e) ? (e.group ?? "Test") : e.n}</small>
                       <b>{e.title}</b>
                       <em>{isPosted(e) ? "Posted" : `${on.t} · ${STATUS_TEXT[status]}`}</em>
                     </button>

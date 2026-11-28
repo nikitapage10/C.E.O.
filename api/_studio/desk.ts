@@ -136,6 +136,8 @@ export interface Episode {
   title: string;
   /** Other titles the Director offers for it; the desk's re-roll steps through them (#1233). */
   titles?: string[];
+  /** An experiment's set ("Ch 7 experiments"): experiments are `x-` ids, kept apart from the episodes (#1272). */
+  group?: string;
   stages: Partial<Record<Stage, StageState>>;
 }
 
@@ -334,7 +336,8 @@ const isT = (v: unknown): v is number => typeof v === "number" && Number.isFinit
 export function readEpisode(v: unknown): Episode | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const e = v as Record<string, unknown>;
-  if (!Object.keys(e).every((k) => ["id", "n", "title", "titles", "stages"].includes(k))) return null;
+  if (!Object.keys(e).every((k) => ["id", "n", "title", "titles", "group", "stages"].includes(k))) return null;
+  if (e.group !== undefined && !isText(e.group, 80)) return null;
   if (e.titles !== undefined && (!Array.isArray(e.titles) || e.titles.length > 12 || !e.titles.every((t) => isText(t, 200)))) return null;
   if (typeof e.id !== "string" || !ID.test(e.id) || typeof e.n !== "number" || !Number.isInteger(e.n) || e.n < 0 || e.n > 999 || !isText(e.title, 200)) return null;
   if (!e.stages || typeof e.stages !== "object" || Array.isArray(e.stages)) return null;
@@ -345,7 +348,7 @@ export function readEpisode(v: unknown): Episode | null {
     if (!got) return null;
     stages[k] = got;
   }
-  return { id: e.id, n: e.n, title: e.title, ...(Array.isArray(e.titles) ? { titles: e.titles as string[] } : {}), stages };
+  return { id: e.id, n: e.n, title: e.title, ...(Array.isArray(e.titles) ? { titles: e.titles as string[] } : {}), ...(typeof e.group === "string" ? { group: e.group.trim() } : {}), stages };
 }
 
 async function readState(blob: BlobBackend): Promise<DeskState> {

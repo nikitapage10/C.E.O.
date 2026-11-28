@@ -158,6 +158,8 @@ export async function googlePost(request: Request, deps: GoogleRouteDeps): Promi
     if (g) await revoke(deps.fetch, g.refresh);
     await deps.vault.forget(vaultName(body.grant));
     forgetTokens();
+    // YouTube's records go with its grant: the uploads' video ids and privacy (the privacy policy's promise, #1268).
+    if (body.grant === "youtube") await (await import("../../_studio/desk.js")).forgetYoutubeUploads(deps.blob).catch(() => deps.log("haven: youtube records not cleared"));
     deps.log(`haven: google ${body.grant} disconnected`);
     return reply({ ok: true, connected: false });
   }

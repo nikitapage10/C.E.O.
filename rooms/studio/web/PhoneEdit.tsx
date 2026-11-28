@@ -139,7 +139,16 @@ export function PhoneEdit(p: EditProps & { video: ReactNode }) {
       ) : (
         <div className="px-read">
           {st?.cover && <img className="px-cover" src={st.cover} alt={`Cover for ${ep.title}`} loading="lazy" />}
-          {st?.text ? <pre>{st.text}</pre> : !(stage.id === "pitch" && ep.stages.mix?.text) && !st?.captions?.length && !st?.cover && <p className="px-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
+          {!!st?.stills?.length && (
+            <div className="sx-stills" aria-label="Stills">
+              {st.stills.map((u, i) => (
+                <a key={u + i} href={u} target="_blank" rel="noreferrer">
+                  <img src={u} alt={`Still ${i + 1}`} loading="lazy" />
+                </a>
+              ))}
+            </div>
+          )}
+          {st?.text ? <pre>{st.text}</pre> : !(stage.id === "pitch" && ep.stages.mix?.text) && !st?.captions?.length && !st?.cover && !st?.stills?.length && <p className="px-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
           {stage.id === "pitch" && ep.stages.mix?.text && (
             <>
               <h4 className="sx-scripthead">Script</h4>

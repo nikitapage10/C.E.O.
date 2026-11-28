@@ -32,6 +32,8 @@ const THUMB_MAX = 2 * 1024 ** 2;
 export type Privacy = "public" | "private" | "unlisted";
 
 export interface ShortJob {
+  /** When it goes public (ISO, UTC): uploaded private and YouTube publishes it then (the catch-up queue, #1274). */
+  publishAt?: string;
   video: string;
   cover?: string;
   title: string;
@@ -89,7 +91,7 @@ export function shortDescription(caption: string): string {
 export function videoResource(job: ShortJob) {
   return {
     snippet: { title: cleanTitle(job.title) || "So, They're Eating Your Neighbors", description: shortDescription(job.description), categoryId: "24" },
-    status: { privacyStatus: "public", selfDeclaredMadeForKids: false, containsSyntheticMedia: true, embeddable: true },
+    status: { ...(job.publishAt ? { privacyStatus: "private", publishAt: job.publishAt } : { privacyStatus: "public" }), selfDeclaredMadeForKids: false, containsSyntheticMedia: true, embeddable: true },
   };
 }
 

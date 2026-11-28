@@ -366,7 +366,16 @@ export function EditScreen(p: EditProps) {
                     <figcaption>{stage.id === "post" ? "Posted as the cover" : "Cover"}</figcaption>
                   </figure>
                 )}
-                {st?.text ? <pre>{st.text}</pre> : !script && !st?.captions?.length && !st?.cover && <p className="sx-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
+{!!st?.stills?.length && (
+                  <div className="sx-stills" aria-label="Stills">
+                    {st.stills.map((u, i) => (
+                      <a key={u + i} href={u} target="_blank" rel="noreferrer">
+                        <img src={u} alt={`Still ${i + 1}`} loading="lazy" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {st?.text ? <pre>{st.text}</pre> : !script && !st?.captions?.length && !st?.cover && !st?.stills?.length && <p className="sx-empty">Nothing here yet. The Director fills it in when this stage starts.</p>}
                 {script && (
                   <>
                     <h4 className="sx-scripthead">Script</h4>

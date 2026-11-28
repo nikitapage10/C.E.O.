@@ -6,7 +6,7 @@ import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { act, isAd, isExperiment, isPosted, loadDesk, onNoteKept, openOn, setFocus, short, STAGE_LINE, STATUS_TEXT, stageOn, stepsOf, versionsOf, type DeskAction, type DeskView, type Episode } from "../data/desk.ts";
 import { PhoneEdit } from "./PhoneEdit.tsx";
 import { EditScreen, FeedScreen, PitchScreen, type Player } from "./screens.tsx";
-import { Carousels } from "./Carousels.tsx";
+import { Carousels, YoutubeQueue } from "./Carousels.tsx";
 import { StudioStage, type StageApi } from "./StudioStage.tsx";
 import type { Mark, ScreenId, StudioView } from "./soundstage.ts";
 import "./studio.css";
@@ -292,6 +292,7 @@ export function Studio() {
     if (id === "stats")
       return (
         <>
+          <YoutubeQueue list={desk.youtube ?? []} episodes={episodes} />
           <Carousels list={desk.carousels ?? []} run={run} busy={busy} />
           <FeedScreen social={social} />
         </>

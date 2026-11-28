@@ -470,3 +470,11 @@
 .desk .sx-foldergroup{display:grid;gap:4px}
 .desk .sx-foldergroup+.sx-foldergroup{margin-top:6px;padding-top:6px;border-top:1px solid rgba(201,168,92,.18)}
 .desk .sx-foldergroup>small{font-family:var(--wv-mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--wv-faint);padding:2px 4px}
+.desk .sx-ytq ol{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.desk .sx-ytq li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;min-width:0}
+.desk .sx-ytq li b{font-family:var(--wv-mono);font-size:12px;color:#fff3dc;min-width:9ch}
+.desk .sx-ytq li span{flex:1;min-width:0;font-size:13px;color:#eadfc6}
+.desk .sx-ytq li em{font-size:11.5px;color:var(--wv-faint);font-style:normal}
+/* A stage's stills (an experiment's frames, #1274): a grid that opens each full size. */
+.desk .sx-stills{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:0 0 12px}
+.desk .sx-stills img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:4px;border:1px solid rgba(201,168,92,.22);background:#111;display:block}

@@ -1,4 +1,4 @@
-import { slotText, type Carousel, type DeskAction } from "../data/desk.ts";
+import { slotText, youtubeLine, type Carousel, type DeskAction, type Episode, type YoutubePost } from "../data/desk.ts";
 
 type Run = (body: DeskAction, done: string, after?: () => void) => Promise<void>;
 
@@ -42,6 +42,31 @@ export function Carousels({ list, run, busy }: { list: Carousel[]; run: Run; bus
           </article>
         );
       })}
+    </section>
+  );
+}
+
+/** The YouTube catch-up queue (#1274): episodes uploaded private, each going public at its slot, soonest first. */
+export function YoutubeQueue({ list, episodes, now = Date.now() }: { list: YoutubePost[]; episodes: Episode[]; now?: number }) {
+  const ahead = list.filter((y) => y.publishAt && Date.parse(y.publishAt) > now && y.state !== "failed").sort((a, b) => Date.parse(a.publishAt!) - Date.parse(b.publishAt!));
+  if (ahead.length === 0) return null;
+  return (
+    <section className="sx-cars sx-ytq" aria-label="YouTube schedule">
+      <h4>
+        YouTube schedule <small>{ahead.length}</small>
+      </h4>
+      <ol>
+        {ahead.map((y) => {
+          const e = episodes.find((x) => x.id === y.episode);
+          return (
+            <li key={y.episode + y.at}>
+              <b>{slotText(y.publishAt)}</b>
+              <span>{e ? `Ep ${e.n} · ${e.title}` : y.episode}</span>
+              <em>{y.state === "uploading" ? "Uploading" : youtubeLine(y, now).startsWith("On YouTube, private") ? "Uploaded" : ""}</em>
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }

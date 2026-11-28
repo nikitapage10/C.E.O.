@@ -451,3 +451,17 @@
   .desk [data-room="studio"][data-phone] .st-said{bottom:calc(var(--ph-bot) + 132px)}
 }
 .desk .px-eps button.px-folder{flex:0 0 auto;border-style:dashed;border-left-style:dashed}
+
+/* Carousels between chapters (#1265): the slides swipe sideways, 4:5 like the post. */
+.desk .sx-cars{display:grid;gap:12px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid rgba(201,168,92,.2)}
+.desk .sx-cars h4{margin:0;font-family:var(--wv-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--st-gold)}
+.desk .sx-cars h4 small{color:var(--wv-faint);margin-left:6px}
+.desk .sx-car{display:grid;gap:8px;min-width:0;padding:12px;border:1px solid rgba(201,168,92,.25);border-radius:6px;background:rgba(20,16,10,.55)}
+.desk .sx-car header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+.desk .sx-car header b{color:#fff3dc;font-size:15px}
+.desk .sx-car header span{font-size:12px;color:var(--wv-faint)}
+.desk .sx-car-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;min-width:0}
+.desk .sx-car-strip img{flex:0 0 auto;width:min(46vw,200px);aspect-ratio:4/5;object-fit:cover;border-radius:4px;scroll-snap-align:start;background:#111}
+.desk .sx-car-cap{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.45;color:#eadfc6;max-height:9em;overflow:auto}
+.desk .sx-car footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.desk .sx-car footer small{color:var(--wv-faint);font-size:12px}

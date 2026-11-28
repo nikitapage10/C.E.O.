@@ -1,4 +1,4 @@
-import type { Approval, Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version, YoutubePost } from "../../../api/_studio/desk.ts";
+import type { Approval, Carousel, Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version, YoutubePost } from "../../../api/_studio/desk.ts";
 import type { Step } from "../web/line.ts";
 
 /**
@@ -7,7 +7,7 @@ import type { Step } from "../web/line.ts";
  * and stage is on screen, so a note said with Space held lands on it. Pure but for the two fetches.
  */
 
-export type { Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version, YoutubePost };
+export type { Carousel, Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version, YoutubePost };
 
 export interface DeskView {
   ideas: Idea[];
@@ -16,6 +16,8 @@ export interface DeskView {
   approvals: Approval[];
   /** Each episode's trip to YouTube (#1261); absent from an older server. */
   youtube?: YoutubePost[];
+  /** Image carousels between chapters (#1265); absent from an older server. */
+  carousels?: Carousel[];
   social: Social | null;
 }
 
@@ -113,7 +115,8 @@ export type DeskAction =
   | { action: "title"; episode: string; title: string }
   | { action: "approve"; episode: string; stage: Stage }
   | { action: "publish"; episode: string }
-  | { action: "youtube"; episode: string };
+  | { action: "youtube"; episode: string }
+  | { action: "carousel-publish"; id: string };
 
 const ERRORS: Record<string, string> = {
   "not-ready": "That isn't ready yet.",
@@ -122,6 +125,8 @@ const ERRORS: Record<string, string> = {
   "not-a-draft": "That post already went out.",
   "no-drafts": "There are no draft notes to send.",
   "youtube-not-set-up": "YouTube isn't connected yet. Connect it in Boiler Room > Controls > Connections.",
+  "carousel-already": "That carousel is already scheduled.",
+  "bad-time": "That slot is too far out to schedule.",
   "youtube-already": "That episode is already on YouTube, or going up now.",
 };
 
@@ -137,6 +142,13 @@ export function youtubeLine(y: YoutubePost | undefined): string {
   if (y.state === "failed") return y.error === "refused" || y.error === "not-connected" ? "YouTube upload failed: reconnect YouTube in Boiler Room > Controls." : y.error === "quota" ? "YouTube's daily upload quota ran out. Try again tomorrow." : "The YouTube upload failed. Try again.";
   if (y.channel) return "On YouTube, but on a different channel than the show's. Check it in YouTube Studio.";
   return y.privacy === "public" ? "Live on YouTube Shorts." : "On YouTube as private: Google keeps uploads private until the API audit passes.";
+}
+
+/** When a time falls, in Mountain Time (the schedule's clock): "Fri 8:00 PM". */
+export function slotText(iso: string | undefined): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return "";
+  return new Date(t).toLocaleString("en-US", { timeZone: "America/Denver", weekday: "short", hour: "numeric", minute: "2-digit" });
 }
 
 /** One desk action; null when it was kept, else a line saying why not. */

@@ -21,6 +21,12 @@
  *                                                                       YouTube as a Short (api/_studio/youtube.ts),
  *                                                                       once; answers 202 and the upload carries on.
  *                                                                       The read key sees the result (#1261).
+ *   POST /api/studio-desk { action: "carousel-publish", id }            passkey session: publishes a carousel's own Zernio
+ *                                                                       draft at its slot (a minute out when the slot has
+ *                                                                       passed or none was set), once (#1265).
+ *   PUT  /api/studio-desk { action: "carousel", carousel }              the feed key: the Director's thread saves an image
+ *                                                                       carousel (its slides, caption, platforms, draft
+ *                                                                       and slot) for Nikita to look over and publish.
  *   PUT  /api/studio-desk { action: "episode", episode }                the feed key: the Director's thread saves an
  *                                                                       episode's state (stages, links, captions).
  *   PUT  /api/studio-desk { action: "idea", id, status }                the feed key: an idea taken up or set aside.
@@ -44,7 +50,7 @@ import { roomKeyOf, STUDIO_DESK_PATH } from "../_site/roomkeys.js";
 import { waitUntil } from "../_waitUntil.js";
 import { HomeVault, homeKey } from "../_haven/devices/vault.js";
 import { havenClientFrom } from "../_haven/google/oauth.js";
-import { isMediaUrl, publishDraft, type ZernioDeps } from "./social.js";
+import { isMediaUrl, PLATFORMS, publishDraft, SLIDES_MAX, SLIDES_MIN, type Platform, type ZernioDeps } from "./social.js";
 import { SHOW_CHANNEL as SHOW_CHANNEL_ID, uploadShort, type Privacy, type VideoSource, type YoutubeDeps } from "./youtube.js";
 import { isMediaName, STUDIO_KIT_PATH } from "./kit.js";
 import { isSiteHost } from "../_site/hosts.js";
@@ -179,15 +185,52 @@ export interface YoutubePost {
   error?: string;
 }
 
+/** An image carousel between chapters (#1265): the Director makes the slides and the Zernio draft, Nikita publishes. */
+export interface Carousel {
+  id: string;
+  title: string;
+  /** The slides in order, 1080x1350 JPEG or PNG. */
+  slides: string[];
+  caption: string;
+  platforms: Platform[];
+  /** The Zernio draft Publish sends. */
+  draft?: string;
+  /** When it should go out (ISO, UTC), the schedule's slot. */
+  slot?: string;
+  /** "done" once the Director sees it live. */
+  status: "ready" | "done";
+  /** Set by the Desk's Publish: when Zernio will post it. */
+  scheduledFor?: string;
+  at?: number;
+}
+
+const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?Z$/;
+
+/** A carousel as the thread sends it, or null when it doesn't fit exactly. */
+export function readCarousel(v: unknown): Carousel | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const c = v as Record<string, unknown>;
+  if (!Object.keys(c).every((k) => ["id", "title", "slides", "caption", "platforms", "draft", "slot", "status"].includes(k))) return null;
+  if (typeof c.id !== "string" || !ID.test(c.id) || !isText(c.title, 200) || !isText(c.caption, 2_200)) return null;
+  if (!Array.isArray(c.slides) || c.slides.length < SLIDES_MIN || c.slides.length > SLIDES_MAX || !c.slides.every(isMediaUrl)) return null;
+  const p = c.platforms;
+  if (!Array.isArray(p) || p.length === 0 || new Set(p).size !== p.length || !p.every((x) => (PLATFORMS as readonly unknown[]).includes(x))) return null;
+  if (c.draft !== undefined && (typeof c.draft !== "string" || !/^[A-Za-z0-9_-]{6,64}$/.test(c.draft))) return null;
+  if (c.slot !== undefined && (typeof c.slot !== "string" || !ISO.test(c.slot) || !Number.isFinite(Date.parse(c.slot)))) return null;
+  if (c.status !== "ready" && c.status !== "done") return null;
+  return { id: c.id, title: c.title, slides: c.slides as string[], caption: c.caption, platforms: p as Platform[], ...(c.draft ? { draft: c.draft as string } : {}), ...(c.slot ? { slot: c.slot as string } : {}), status: c.status };
+}
+
 export interface DeskState {
   ideas: Idea[];
   episodes: Episode[];
   notes: Note[];
   approvals: Approval[];
   youtube: YoutubePost[];
+  carousels: Carousel[];
 }
 
-const EMPTY: DeskState = { ideas: [], episodes: [], notes: [], approvals: [], youtube: [] };
+const EMPTY: DeskState = { ideas: [], episodes: [], notes: [], approvals: [], youtube: [], carousels: [] };
 /** An upload that says "uploading" longer than this died with its instance; Publish to YouTube may try again. */
 const UPLOAD_STALE_MS = 30 * 60_000;
 
@@ -334,12 +377,12 @@ export async function deskGet(request: Request, deps: StudioDeskDeps): Promise<R
   if (!deps.blob) return json({ error: "not-set-up" }, 503);
   if (roomKeyOf(request, deps.env) === "log") {
     const st = await readState(deps.blob);
-    return json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.filter(isSent).slice(-120), approvals: st.approvals.slice(-60), youtube: st.youtube.slice(-30) });
+    return json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.filter(isSent).slice(-120), approvals: st.approvals.slice(-60), youtube: st.youtube.slice(-30), carousels: st.carousels.slice(-30) });
   }
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   const [st, social] = await Promise.all([readState(deps.blob), socialFor(deps)]);
-  return withCookie(json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.slice(-200), approvals: st.approvals.slice(-60), youtube: st.youtube.slice(-30), social }), signed);
+  return withCookie(json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.slice(-200), approvals: st.approvals.slice(-60), youtube: st.youtube.slice(-30), carousels: st.carousels.slice(-30), social }), signed);
 }
 
 /** POST /api/studio-desk: the signed-in Desk. */
@@ -451,6 +494,23 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
     console.log("studio: an episode was published from the Desk");
     return reply({ ok: true, at: got.at });
   }
+  if (b.action === "carousel-publish") {
+    if (typeof b.id !== "string" || !ID.test(b.id)) return reply({ error: "bad-request" }, 400);
+    const st = await readState(blob);
+    const c = st.carousels.find((x) => x.id === b.id);
+    if (!c?.draft || c.status !== "ready") return reply({ error: "not-ready" }, 409);
+    if (c.scheduledFor) return reply({ error: "carousel-already" }, 409);
+    if (!deps.zernio.key) return reply({ error: "not-set-up" }, 503);
+    // At its slot while that's still ahead (and within Zernio's 30 days), else a minute out.
+    const slot = c.slot ? Date.parse(c.slot) : NaN;
+    const at = Number.isFinite(slot) && slot > now + 2 * 60_000 && slot < now + 29 * 86_400_000 ? c.slot : undefined;
+    const got = await publishDraft(deps.zernio, c.draft, at);
+    if (!got.ok) return reply({ error: got.error }, got.status);
+    const id = c.id;
+    await change(blob, (cur) => ({ ...cur, carousels: cur.carousels.map((x) => (x.id === id ? { ...x, scheduledFor: got.at, at: now } : x)) }));
+    console.log("studio: a carousel was published from the Desk");
+    return reply({ ok: true, at: got.at });
+  }
   if (b.action === "youtube") {
     if (typeof b.episode !== "string" || !ID.test(b.episode)) return reply({ error: "bad-request" }, 400);
     const yt = deps.youtube;
@@ -513,6 +573,17 @@ export async function deskPut(request: Request, deps: StudioDeskDeps): Promise<R
       return { ...st, notes, episodes: [...st.episodes.filter((x) => x.id !== e.id), e].sort((x, y) => x.n - y.n).slice(-60) };
     });
     return json({ ok: true, stages: Object.keys(e.stages).length, ...(released ? { released } : {}) });
+  }
+  if (b.action === "carousel") {
+    const c = readCarousel(b.carousel);
+    if (!c) return json({ error: "bad-carousel" }, 400);
+    await change(deps.blob, (st) => {
+      const old = st.carousels.find((x) => x.id === c.id);
+      // What the Desk set (when it goes out) stays, unless the thread sends a new draft.
+      const keep = old?.scheduledFor && old.draft === c.draft ? { scheduledFor: old.scheduledFor, at: old.at } : {};
+      return { ...st, carousels: [...st.carousels.filter((x) => x.id !== c.id), { ...c, ...keep }].slice(-60) };
+    });
+    return json({ ok: true });
   }
   if (b.action === "idea") {
     const id = b.id;

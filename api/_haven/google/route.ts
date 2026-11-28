@@ -7,7 +7,7 @@
  *   GET  /api/haven/google               passkey session: what is set up and connected, and the Tasks list's title and
  *                                        its last run's counts.
  *   POST /api/haven/google               passkey session only (a phone key or bearer is refused):
- *          { action: "connect", grant: "nest" | "tasks" }   → { url }: Google's page, and a short state cookie
+ *          { action: "connect", grant: "nest" | "tasks" | "youtube" }   → { url }: Google's page, and a short state cookie
  *          { action: "disconnect", grant }                   forgets that grant (and asks Google to revoke it)
  *          { action: "tasks-list", title }                   which Tasks list to read (default "Shopping")
  *          { action: "tasks-sync" }                          runs the quick-add now → { result, imported, skipped }
@@ -79,7 +79,7 @@ export async function checkState(deskKey: string, cookieValue: string | null, st
   return { grant: p.g, passkey: p.c };
 }
 
-const vaultName = (g: Grant): "google-nest" | "google-tasks" => (g === "nest" ? "google-nest" : "google-tasks");
+export const vaultName = (g: Grant): "google-nest" | "google-tasks" | "google-youtube" => (g === "nest" ? "google-nest" : g === "tasks" ? "google-tasks" : "google-youtube");
 
 async function grantOf(deps: GoogleRouteDeps, g: Grant): Promise<StoredGrant | null> {
   return deps.vault ? await deps.vault.read<StoredGrant>(vaultName(g)).catch(() => null) : null;
@@ -106,7 +106,7 @@ export async function googleGet(request: Request, deps: GoogleRouteDeps): Promis
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   const reply = (body: unknown, status = 200) => withCookie(json(body, status), signed);
-  const [nest, tasks, links] = await Promise.all([grantOf(deps, "nest"), grantOf(deps, "tasks"), havenLinks(deps)]);
+  const [nest, tasks, youtube, links] = await Promise.all([grantOf(deps, "nest"), grantOf(deps, "tasks"), grantOf(deps, "youtube"), havenLinks(deps)]);
   const tasksState = deps.blob ? await readTasksState(deps.blob).catch(() => null) : null;
   return reply({
     ready: Boolean(deps.blob && deps.vault),
@@ -114,6 +114,7 @@ export async function googleGet(request: Request, deps: GoogleRouteDeps): Promis
     google: Boolean(deps.client),
     nest: { project: Boolean(deps.project), connected: Boolean(nest && !nest.refused), refused: Boolean(nest?.refused) },
     tasks: { connected: Boolean(tasks && !tasks.refused), refused: Boolean(tasks?.refused), ...(tasksState ?? {}) },
+    youtube: { connected: Boolean(youtube && !youtube.refused), refused: Boolean(youtube?.refused) },
   });
 }
 

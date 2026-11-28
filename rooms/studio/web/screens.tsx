@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
-import { clock, isAd, isDone, NOTE_STATE_TEXT, short, STAGE_LINE, STATUS_TEXT, versionsOf, type DeskAction, type DeskView, type Episode, type Note, type Stage } from "../data/desk.ts";
+import { clock, isAd, isDone, NOTE_STATE_TEXT, short, STAGE_LINE, STATUS_TEXT, versionsOf, youtubeLine, youtubeOf, type DeskAction, type DeskView, type Episode, type Note, type Stage } from "../data/desk.ts";
 import type { Sprite } from "../../../api/_studio/desk.ts";
 import type { PostStat, Social } from "../../../api/_studio/stats.ts";
 
@@ -113,6 +113,13 @@ export function useEdit(p: EditProps) {
     else void run({ action: "approve", episode: ep.id, stage: stage.id as Stage }, `${stage.t} approved. The Director moves on.`);
   };
   const canApprove = stage.id === "post" ? st?.status === "ready" && !!st?.draft : st?.status === "ready";
+  // YouTube Shorts (#1261): its own button, once per episode, on Nikita's tap only.
+  const yt = ep ? youtubeOf(desk, ep.id) : undefined;
+  const ytLine = youtubeLine(yt);
+  const canYoutube = stage.id === "post" && !!ep && !!st && ["ready", "approved", "done"].includes(st.status) && !!(st.media ?? ep.stages.render?.media) && (!yt || yt.state === "failed");
+  const toYoutube = () => {
+    if (ep && canYoutube) void run({ action: "youtube", episode: ep.id }, "Uploading to YouTube as a Short. This takes a few minutes.");
+  };
   const saveTitle = (t: string) => {
     const x = t.trim();
     if (ep && x && x !== ep.title) void run({ action: "title", episode: ep.id, title: x }, "Retitled.");
@@ -120,12 +127,12 @@ export function useEdit(p: EditProps) {
   };
   const canReroll = !!ep && (ep.titles ?? []).some((x) => x !== ep.title);
   const cur = versions.find((v) => v.v === p.version) ?? versions[versions.length - 1];
-  return { cur, stage, st, versions, timed, mark, setMark, text, setText, here, drafts, asks, asking, setAsking, sendNow, titling, setTitling, titleText, setTitleText, reroll, canReroll, saveTitle, range, at, add, approve, canApprove };
+  return { cur, stage, st, versions, timed, mark, setMark, text, setText, here, drafts, asks, asking, setAsking, sendNow, titling, setTitling, titleText, setTitleText, reroll, canReroll, saveTitle, range, at, add, approve, canApprove, ytLine, canYoutube, toYoutube };
 }
 
 export function EditScreen(p: EditProps) {
   const { ep, sel, player, run, busy } = p;
-  const { cur, stage, st, versions, timed, mark, setMark, text, setText, here, drafts, asks, asking, setAsking, sendNow, titling, setTitling, titleText, setTitleText, reroll, range, at, add } = useEdit(p);
+  const { cur, stage, st, versions, timed, mark, setMark, text, setText, here, drafts, asks, asking, setAsking, sendNow, titling, setTitling, titleText, setTitleText, reroll, range, at, add, ytLine, canYoutube, toYoutube } = useEdit(p);
   const [adsOpen, setAdsOpen] = useState(false);
   const eps = p.inProduction.filter((e) => !isAd(e));
   const ads = p.desk.episodes.filter(isAd);
@@ -369,11 +376,17 @@ export function EditScreen(p: EditProps) {
                 <button type="button" className="sx-go" disabled={busy || st?.status !== "ready" || !st?.draft} onClick={() => void run({ action: "publish", episode: ep.id }, "Publishing in a minute, to Instagram and TikTok.")}>
                   Publish
                 </button>
+              ) : null}
+              {stage.id === "post" ? (
+                <button type="button" className="sx-go" disabled={busy || !canYoutube} onClick={toYoutube} title={ytLine || "Upload to YouTube as a Short"}>
+                  Publish to YouTube
+                </button>
               ) : (
                 <button type="button" className="sx-go" disabled={busy || st?.status !== "ready"} onClick={() => void run({ action: "approve", episode: ep.id, stage: stage.id as Stage }, `${stage.t} approved. The Director moves on.`)}>
                   Approve
                 </button>
               )}
+              {stage.id === "post" && ytLine ? <small role="status">{ytLine}</small> : null}
             </div>
           </aside>
         </div>

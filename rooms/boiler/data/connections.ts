@@ -358,6 +358,18 @@ export const CONNECTIONS: Connection[] = [
     when: "When the Desk is open (a 30 second cache), and on a tap or a phone command.",
   },
   {
+    id: "youtube",
+    name: "YouTube",
+    room: "studio",
+    at: [{ system: "home" }],
+    serves: "Publish to YouTube on the Studio Desk: an episode goes up to the show's channel as a Short",
+    kinds: ["REST API"],
+    status: "live",
+    how: "An Azure function calls Google's YouTube Data API v3 over HTTPS: a resumable upload of the episode's cut (9:16, up to three minutes, #Shorts in the description, the AI-made label set), and the cover as its thumbnail where YouTube allows one. Only on your Publish to YouTube tap, once per episode. Until Google audits the API project, YouTube keeps these uploads private.",
+    auth: "The same Google OAuth client as Nest and Tasks, with its own grant for the youtube.upload scope only (it can't read, edit or delete anything on the channel): Connect YouTube in Boiler Room > Controls > Connections (your passkey), where Google asks which channel. The refresh token is sealed in the private store with HOME_TOKEN_KEY.",
+    when: "Only on your tap on the Studio Desk. Never polled.",
+  },
+  {
     id: "google-tasks",
     name: "Google Tasks",
     room: "haven",

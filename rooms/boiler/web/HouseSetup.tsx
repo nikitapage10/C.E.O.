@@ -16,6 +16,9 @@ import { CONNECT_NOTE, groceryAction, GROCERY_NOTE, isKrogerSignIn, loadGrocerie
 export const HAVEN_RESULT: Record<string, string> = {
   "nest-connected": "Google Nest is connected.",
   "tasks-connected": "Google Tasks is connected.",
+  "youtube-connected": "YouTube is connected. The Studio can upload Shorts when you press Publish to YouTube.",
+  "youtube-cancelled": "Connect YouTube was cancelled at Google. Nothing was connected.",
+  "youtube-failed": "Google didn't hand over YouTube uploads. Try again, and pick the show's channel.",
   "nest-cancelled": "Connect Nest was cancelled at Google. Nothing was connected.",
   "tasks-cancelled": "Connect Google Tasks was cancelled at Google. Nothing was connected.",
   "nest-failed": "Google didn't hand over access to Nest. Try again.",
@@ -78,6 +81,20 @@ export function GoogleLinks() {
           </>
         ) : (
           <button type="button" disabled={busy} onClick={() => void run({ action: "connect", grant: "tasks" })}>{g.tasks.refused ? "Reconnect Google Tasks" : "Connect Google Tasks"}</button>
+        )}
+      </p>
+      <p>
+        <b>YouTube</b>{" "}
+        {g.youtube.connected ? (
+          <>
+            uploads Shorts for the Studio.{" "}
+            <button type="button" disabled={busy} onClick={() => void run({ action: "disconnect", grant: "youtube" }, "YouTube disconnected.")}>Disconnect</button>
+          </>
+        ) : (
+          <>
+            <button type="button" disabled={busy} onClick={() => void run({ action: "connect", grant: "youtube" })}>{g.youtube.refused ? "Reconnect YouTube" : "Connect YouTube"}</button>{" "}
+            <small>At Google, pick the show's channel.</small>
+          </>
         )}
       </p>
       {g.tasks.connected ? (

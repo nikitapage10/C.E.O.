@@ -1,4 +1,4 @@
-import type { Approval, Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version } from "../../../api/_studio/desk.ts";
+import type { Approval, Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version, YoutubePost } from "../../../api/_studio/desk.ts";
 import type { Step } from "../web/line.ts";
 
 /**
@@ -7,13 +7,15 @@ import type { Step } from "../web/line.ts";
  * and stage is on screen, so a note said with Space held lands on it. Pure but for the two fetches.
  */
 
-export type { Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version };
+export type { Episode, Idea, Note, NoteState, Social, Stage, StageState, Status, Version, YoutubePost };
 
 export interface DeskView {
   ideas: Idea[];
   episodes: Episode[];
   notes: Note[];
   approvals: Approval[];
+  /** Each episode's trip to YouTube (#1261); absent from an older server. */
+  youtube?: YoutubePost[];
   social: Social | null;
 }
 
@@ -110,7 +112,8 @@ export type DeskAction =
   | { action: "send"; episode?: string; stage?: Stage; hold?: boolean }
   | { action: "title"; episode: string; title: string }
   | { action: "approve"; episode: string; stage: Stage }
-  | { action: "publish"; episode: string };
+  | { action: "publish"; episode: string }
+  | { action: "youtube"; episode: string };
 
 const ERRORS: Record<string, string> = {
   "not-ready": "That isn't ready yet.",
@@ -118,7 +121,23 @@ const ERRORS: Record<string, string> = {
   "not-ours": "That draft wasn't made by the Studio, so it won't publish it.",
   "not-a-draft": "That post already went out.",
   "no-drafts": "There are no draft notes to send.",
+  "youtube-not-set-up": "YouTube isn't connected yet. Connect it in Boiler Room > Controls > Connections.",
+  "youtube-already": "That episode is already on YouTube, or going up now.",
 };
+
+/** The episode's latest trip to YouTube, or undefined. */
+export function youtubeOf(view: Pick<DeskView, "youtube">, episode: string): YoutubePost | undefined {
+  return [...(view.youtube ?? [])].reverse().find((y) => y.episode === episode);
+}
+
+/** A line on where the episode stands on YouTube, or "" before it goes. */
+export function youtubeLine(y: YoutubePost | undefined): string {
+  if (!y) return "";
+  if (y.state === "uploading") return "Going up to YouTube…";
+  if (y.state === "failed") return y.error === "refused" || y.error === "not-connected" ? "YouTube upload failed: reconnect YouTube in Boiler Room > Controls." : y.error === "quota" ? "YouTube's daily upload quota ran out. Try again tomorrow." : "The YouTube upload failed. Try again.";
+  if (y.channel) return "On YouTube, but on a different channel than the show's. Check it in YouTube Studio.";
+  return y.privacy === "public" ? "Live on YouTube Shorts." : "On YouTube as private: Google keeps uploads private until the API audit passes.";
+}
 
 /** One desk action; null when it was kept, else a line saying why not. */
 export async function act(body: DeskAction): Promise<string | null> {

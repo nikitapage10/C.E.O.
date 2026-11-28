@@ -101,7 +101,7 @@ export type Fix =
   | { kind: "url"; label: string; url: string }
   | { kind: "nav"; label: string; path: string; signedIn?: boolean }
   | { kind: "gmail"; label: string }
-  | { kind: "google"; label: string; grant: "nest" | "tasks" }
+  | { kind: "google"; label: string; grant: "nest" | "tasks" | "youtube" }
   | { kind: "kroger"; label: string }
   | { kind: "clock"; label: string };
 

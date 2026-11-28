@@ -463,6 +463,8 @@ export interface HavenGoogle {
   google: boolean;
   nest: { project: boolean; connected: boolean; refused: boolean };
   tasks: { connected: boolean; refused: boolean; list: string; lastRun: string | null; lastResult: string | null; lastImported: number };
+  /** The Studio's YouTube uploads (#1261). */
+  youtube: { connected: boolean; refused: boolean };
 }
 
 export function readGoogle(v: unknown): HavenGoogle | null {
@@ -470,10 +472,12 @@ export function readGoogle(v: unknown): HavenGoogle | null {
   if (typeof b.google !== "boolean") return null;
   const n = o(b.nest);
   const t = o(b.tasks);
+  const y = o(b.youtube);
   return {
     google: b.google,
     nest: { project: n.project === true, connected: n.connected === true, refused: n.refused === true },
     tasks: { connected: t.connected === true, refused: t.refused === true, list: short(t.list, 60) || "Shopping", lastRun: typeof t.lastRun === "string" ? t.lastRun : null, lastResult: short(t.lastResult, 12) || null, lastImported: num(t.lastImported) ?? 0 },
+    youtube: { connected: y.connected === true, refused: y.refused === true },
   };
 }
 
@@ -489,7 +493,7 @@ export async function loadGoogle(): Promise<HavenGoogle | null> {
 }
 
 /** One Google action; `url` comes back for a connect, to send the browser to Google. */
-export async function googleAction(body: { action: "connect" | "disconnect"; grant: "nest" | "tasks" } | { action: "tasks-list"; title: string } | { action: "tasks-sync" }): Promise<{ ok: boolean; url?: string; error?: string; imported?: number }> {
+export async function googleAction(body: { action: "connect" | "disconnect"; grant: "nest" | "tasks" | "youtube" } | { action: "tasks-list"; title: string } | { action: "tasks-sync" }): Promise<{ ok: boolean; url?: string; error?: string; imported?: number }> {
   try {
     const res = await post("/api/haven/google", body);
     if (res.status === 401) useDeskAuth.getState().lost();
@@ -509,7 +513,7 @@ export function forwardHavenResult() {
   try {
     const q = new URLSearchParams(window.location.search);
     const r = q.get("haven");
-    if (!r || !/^(nest|tasks)-(connected|cancelled|failed)$|^refused$/.test(r)) return;
+    if (!r || !/^(nest|tasks|youtube)-(connected|cancelled|failed)$|^refused$/.test(r)) return;
     navigateTo(`/boiler/controls?haven=${r}`);
   } catch {
     /* no address to read */

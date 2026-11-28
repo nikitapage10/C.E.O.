@@ -17,6 +17,10 @@
  *   POST /api/studio-desk { action: "publish", episode }                passkey session: publishes the episode's own
  *                                                                       Zernio draft (api/_studio/social.ts, its own
  *                                                                       drafts only), a minute out.
+ *   POST /api/studio-desk { action: "youtube", episode }                passkey session: uploads the episode's cut to
+ *                                                                       YouTube as a Short (api/_studio/youtube.ts),
+ *                                                                       once; answers 202 and the upload carries on.
+ *                                                                       The read key sees the result (#1261).
  *   PUT  /api/studio-desk { action: "episode", episode }                the feed key: the Director's thread saves an
  *                                                                       episode's state (stages, links, captions).
  *   PUT  /api/studio-desk { action: "idea", id, status }                the feed key: an idea taken up or set aside.
@@ -37,7 +41,13 @@ import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { readJson, updateJson } from "../_haven/json.js";
 import { roomKeyOf, STUDIO_DESK_PATH } from "../_site/roomkeys.js";
+import { waitUntil } from "../_waitUntil.js";
+import { HomeVault, homeKey } from "../_haven/devices/vault.js";
+import { havenClientFrom } from "../_haven/google/oauth.js";
 import { isMediaUrl, publishDraft, type ZernioDeps } from "./social.js";
+import { SHOW_CHANNEL as SHOW_CHANNEL_ID, uploadShort, type Privacy, type VideoSource, type YoutubeDeps } from "./youtube.js";
+import { isMediaName, STUDIO_KIT_PATH } from "./kit.js";
+import { isSiteHost } from "../_site/hosts.js";
 import { readSocial, type Social } from "./stats.js";
 
 export { readSocial };
@@ -157,20 +167,37 @@ export interface Approval {
   stage: Stage;
 }
 
+/** An episode's trip to YouTube (#1261): uploading, then up (with the privacy YouTube set) or failed. */
+export interface YoutubePost {
+  episode: string;
+  state: "uploading" | "up" | "failed";
+  at: number;
+  id?: string;
+  privacy?: Privacy;
+  /** Set when the upload landed on a channel other than the show's. */
+  channel?: string;
+  error?: string;
+}
+
 export interface DeskState {
   ideas: Idea[];
   episodes: Episode[];
   notes: Note[];
   approvals: Approval[];
+  youtube: YoutubePost[];
 }
 
-const EMPTY: DeskState = { ideas: [], episodes: [], notes: [], approvals: [] };
+const EMPTY: DeskState = { ideas: [], episodes: [], notes: [], approvals: [], youtube: [] };
+/** An upload that says "uploading" longer than this died with its instance; Publish to YouTube may try again. */
+const UPLOAD_STALE_MS = 30 * 60_000;
 
 export interface StudioDeskDeps {
   desk: DeskDeps;
   blob: BlobBackend | null;
   env: Record<string, string | undefined>;
   zernio: ZernioDeps;
+  /** The YouTube upload's needs; null where the Google client or the sealing key isn't set. */
+  youtube?: YoutubeDeps | null;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -307,12 +334,12 @@ export async function deskGet(request: Request, deps: StudioDeskDeps): Promise<R
   if (!deps.blob) return json({ error: "not-set-up" }, 503);
   if (roomKeyOf(request, deps.env) === "log") {
     const st = await readState(deps.blob);
-    return json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.filter(isSent).slice(-120), approvals: st.approvals.slice(-60) });
+    return json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.filter(isSent).slice(-120), approvals: st.approvals.slice(-60), youtube: st.youtube.slice(-30) });
   }
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   const [st, social] = await Promise.all([readState(deps.blob), socialFor(deps)]);
-  return withCookie(json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.slice(-200), approvals: st.approvals.slice(-60), social }), signed);
+  return withCookie(json({ ideas: st.ideas, episodes: st.episodes, notes: st.notes.slice(-200), approvals: st.approvals.slice(-60), youtube: st.youtube.slice(-30), social }), signed);
 }
 
 /** POST /api/studio-desk: the signed-in Desk. */
@@ -424,6 +451,40 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
     console.log("studio: an episode was published from the Desk");
     return reply({ ok: true, at: got.at });
   }
+  if (b.action === "youtube") {
+    if (typeof b.episode !== "string" || !ID.test(b.episode)) return reply({ error: "bad-request" }, 400);
+    const yt = deps.youtube;
+    if (!yt?.client || !yt.vault) return reply({ error: "youtube-not-set-up" }, 503);
+    const st = await readState(blob);
+    const e = st.episodes.find((x) => x.id === b.episode);
+    const job = e ? shortJob(e) : null;
+    if (!e || !job) return reply({ error: "not-ready" }, 409);
+    const ep = e.id;
+    const started = await change(blob, (cur) => {
+      const last = [...cur.youtube].reverse().find((y) => y.episode === ep);
+      if (last && (last.state === "up" || (last.state === "uploading" && now - last.at < UPLOAD_STALE_MS))) return null;
+      return { ...cur, youtube: [...cur.youtube, { episode: ep, state: "uploading" as const, at: now }].slice(-60) };
+    });
+    if (!started) return reply({ error: "youtube-already" }, 409);
+    const run = uploadShort(yt, job)
+      .catch(() => ({ ok: false as const, error: "upload-failed" as const }))
+      .then((got) =>
+        change(blob, (cur) => ({
+          ...cur,
+          youtube: cur.youtube.map((y) =>
+            y.episode === ep && y.state === "uploading" && y.at === now
+              ? got.ok
+                ? { episode: ep, state: "up" as const, at: yt.now(), id: got.id, privacy: got.privacy, ...(got.channel && got.channel !== SHOW_CHANNEL_ID ? { channel: got.channel } : {}) }
+                : { episode: ep, state: "failed" as const, at: yt.now(), error: got.error }
+              : y,
+          ),
+        })),
+      )
+      .then(() => console.log("studio: a YouTube upload finished"));
+    waitUntil(run);
+    console.log("studio: an episode is going up to YouTube from the Desk");
+    return reply({ ok: true, state: "uploading" }, 202);
+  }
   return reply({ error: "bad-request" }, 400);
 }
 
@@ -473,10 +534,47 @@ export async function deskPut(request: Request, deps: StudioDeskDeps): Promise<R
   return json({ error: "bad-request" }, 400);
 }
 
+/**
+ * One of the Studio's own review files (a studio-kit link, `?m=<file>` or a signed `?p=media/<file>`) read whole from
+ * the store: those links answer 8 MiB slices, and a `?m=` link needs a Desk session the upload doesn't have.
+ */
+export async function openKitVideo(blob: BlobBackend, url: string): Promise<VideoSource | null> {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || !isSiteHost(u.hostname) || u.pathname !== STUDIO_KIT_PATH || !blob.range) return null;
+  const p = u.searchParams.get("p");
+  const name = u.searchParams.get("m") ?? (p?.startsWith("media/") ? p.slice(6) : null);
+  if (!isMediaName(name) || !name.endsWith(".mp4")) return null;
+  const got = await blob.range(`studio/kit/media/${name}`, 0);
+  return got ? { body: got.stream, size: got.size } : null;
+}
+
+/** What a Short is made of: the post's cut (else the render's), the cover, the title and the first caption. */
+export function shortJob(e: Episode): { video: string; cover?: string; title: string; description: string } | null {
+  const post = e.stages.post;
+  const video = post?.media ?? e.stages.render?.media;
+  if (!post || (post.status !== "ready" && post.status !== "approved" && post.status !== "done") || !video) return null;
+  const caption = post.captions?.[0] ?? e.title;
+  return { video, ...(post.cover ? { cover: post.cover } : {}), title: e.title, description: caption };
+}
+
 function liveDeps(): StudioDeskDeps {
   const env = process.env;
   const now = Date.now();
-  return { desk: { deskKey: env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(env), now }, blob: pickBlob(env), env, zernio: { key: env.ZERNIO_API_KEY?.trim() ?? "", now } };
+  const blob = pickBlob(env);
+  const sealKey = homeKey(env.HOME_TOKEN_KEY, "seal");
+  const client = havenClientFrom(env);
+  return {
+    desk: { deskKey: env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(env), now },
+    blob,
+    env,
+    zernio: { key: env.ZERNIO_API_KEY?.trim() ?? "", now },
+    youtube: blob && sealKey && client ? { fetch: (u, i) => fetch(u, i), open: (u) => openKitVideo(blob, u), client, vault: new HomeVault(blob, sealKey), now: Date.now } : null,
+  };
 }
 
 export const GET = (request: Request) => deskGet(request, liveDeps());

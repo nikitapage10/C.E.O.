@@ -85,7 +85,7 @@ describe("studio-desk", () => {
     const r = await deskGet(req("GET", undefined, bearer(LOG)), d);
     expect(r.status).toBe(200);
     const got = await r.json();
-    expect(got).toEqual({ ideas: [], episodes: [], notes: [], approvals: [] });
+    expect(got).toEqual({ ideas: [], episodes: [], notes: [], approvals: [], youtube: [] });
     expect(got.social).toBeUndefined();
     expect(calls).toHaveLength(0);
   });

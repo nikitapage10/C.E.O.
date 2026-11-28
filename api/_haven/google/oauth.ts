@@ -6,8 +6,10 @@
  *   nest    `sdm.service`, through Google's Partner Connections Manager for the Device Access project
  *           (HAVEN_NEST_PROJECT_ID), where Nikita picks which Nest devices to share
  *   tasks   `tasks`, through Google's usual consent page: read the chosen list and mark imported items completed
+ *   youtube `youtube.upload`, through the same consent page, where Nikita picks the show's channel (a Brand Account
+ *           under his login): the Studio Desk's Publish to YouTube uploads an episode as a Short (#1261)
  *
- * Two grants, not one, so Tasks works without the Device Access project and either can be disconnected alone. Each
+ * Separate grants, so Tasks works without the Device Access project and either can be disconnected alone. Each
  * grant must hold exactly its own scope: a wider one is refused (and its access simply expires). The same pattern as
  * Connect Gmail (api/_email/gmail.ts, api/_email/route.ts): the code is traded server-side, the refresh token never
  * reaches the browser, and nothing here logs a code or a token.
@@ -24,11 +26,13 @@ export const TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 export const SDM_SCOPE = "https://www.googleapis.com/auth/sdm.service";
 export const TASKS_SCOPE = "https://www.googleapis.com/auth/tasks";
+/** Upload only: it can't read, edit or delete anything already on the channel (#1261). */
+export const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.upload";
 
-export type Grant = "nest" | "tasks";
-export const GRANTS: readonly Grant[] = ["nest", "tasks"];
-export const isGrant = (v: unknown): v is Grant => v === "nest" || v === "tasks";
-export const SCOPE: Record<Grant, string> = { nest: SDM_SCOPE, tasks: TASKS_SCOPE };
+export type Grant = "nest" | "tasks" | "youtube";
+export const GRANTS: readonly Grant[] = ["nest", "tasks", "youtube"];
+export const isGrant = (v: unknown): v is Grant => v === "nest" || v === "tasks" || v === "youtube";
+export const SCOPE: Record<Grant, string> = { nest: SDM_SCOPE, tasks: TASKS_SCOPE, youtube: YOUTUBE_SCOPE };
 
 export const CALLBACK_PATH = "/api/haven/google-callback";
 export const DEFAULT_REDIRECT = `https://${AZURE_HOST}${CALLBACK_PATH}`;

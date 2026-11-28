@@ -216,9 +216,15 @@ export function PhoneEdit(p: EditProps & { video: ReactNode }) {
               <button type="button" className="px-go" disabled={busy || !e.canApprove} onClick={e.approve}>
                 {stage.id === "post" ? "Publish" : "Approve"}
               </button>
+              {stage.id === "post" ? (
+                <button type="button" className="px-go" disabled={busy || !e.canYoutube} onClick={e.toYoutube}>
+                  YouTube
+                </button>
+              ) : null}
             </>
           )}
         </div>
+        {stage.id === "post" && e.ytLine ? <small role="status">{e.ytLine}</small> : null}
       </div>
     </div>
   );

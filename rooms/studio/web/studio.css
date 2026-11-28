@@ -465,3 +465,8 @@
 .desk .sx-car-cap{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.45;color:#eadfc6;max-height:9em;overflow:auto}
 .desk .sx-car footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .desk .sx-car footer small{color:var(--wv-faint);font-size:12px}
+
+/* Experiments (#1272): test cuts in sets, in their own folder. */
+.desk .sx-foldergroup{display:grid;gap:4px}
+.desk .sx-foldergroup+.sx-foldergroup{margin-top:6px;padding-top:6px;border-top:1px solid rgba(201,168,92,.18)}
+.desk .sx-foldergroup>small{font-family:var(--wv-mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--wv-faint);padding:2px 4px}

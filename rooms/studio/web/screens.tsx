@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
-import { clock, isAd, isDone, NOTE_STATE_TEXT, short, STAGE_LINE, STATUS_TEXT, versionsOf, youtubeLine, youtubeOf, type DeskAction, type DeskView, type Episode, type Note, type Stage } from "../data/desk.ts";
+import { clock, epLabel, experimentGroups, isAd, isDone, isEpisode, isExperiment, NOTE_STATE_TEXT, short, STAGE_LINE, STATUS_TEXT, versionsOf, youtubeLine, youtubeOf, type DeskAction, type DeskView, type Episode, type Note, type Stage } from "../data/desk.ts";
 import type { Sprite } from "../../../api/_studio/desk.ts";
 import type { PostStat, Social } from "../../../api/_studio/stats.ts";
 
@@ -134,9 +134,12 @@ export function EditScreen(p: EditProps) {
   const { ep, sel, player, run, busy } = p;
   const { cur, stage, st, versions, timed, mark, setMark, text, setText, here, drafts, asks, asking, setAsking, sendNow, titling, setTitling, titleText, setTitleText, reroll, range, at, add, ytLine, canYoutube, toYoutube } = useEdit(p);
   const [adsOpen, setAdsOpen] = useState(false);
-  const eps = p.inProduction.filter((e) => !isAd(e));
-  const ads = p.desk.episodes.filter(isAd);
-  const onAd = !!ep && isAd(ep);
+  const [xOpen, setXOpen] = useState(false);
+  const eps = p.inProduction.filter(isEpisode);
+  const ads = p.desk.episodes.filter((e) => isAd(e) && !isExperiment(e));
+  const onAd = !!ep && isAd(ep) && !isExperiment(ep);
+  const xs = experimentGroups(p.desk.episodes);
+  const xCount = xs.reduce((n, g) => n + g.items.length, 0);
   const script = stage.id === "pitch" ? ep?.stages.mix?.text : undefined;
   return (
     <div className="sx sx-edit">
@@ -159,7 +162,7 @@ export function EditScreen(p: EditProps) {
           <span className="sx-title">
             {ep ? (
               <>
-                Ep {ep.n} ·{" "}
+                {epLabel(ep)} ·{" "}
                 <button
                   type="button"
                   className="sx-titlebtn"
@@ -192,7 +195,17 @@ export function EditScreen(p: EditProps) {
           {eps.length === 0 && <em>none</em>}
           {ads.length > 0 && (
             <span className="sx-folder">
-              <button type="button" className="sx-folderbtn" aria-expanded={adsOpen} aria-pressed={onAd} onClick={() => setAdsOpen((o) => !o)} title="Ads and other cuts">
+              <button
+                type="button"
+                className="sx-folderbtn"
+                aria-expanded={adsOpen}
+                aria-pressed={onAd}
+                onClick={() => {
+                  setAdsOpen((o) => !o);
+                  setXOpen(false);
+                }}
+                title="Ads and other cuts"
+              >
                 ▤ Ads <small>{ads.length}</small>
               </button>
               {adsOpen && (
@@ -210,6 +223,46 @@ export function EditScreen(p: EditProps) {
                     >
                       {e.title.replace(/^ad:\s*/i, "")}
                     </button>
+                  ))}
+                </span>
+              )}
+            </span>
+          )}
+          {xCount > 0 && (
+            <span className="sx-folder">
+              <button
+                type="button"
+                className="sx-folderbtn"
+                aria-expanded={xOpen}
+                aria-pressed={!!ep && isExperiment(ep)}
+                onClick={() => {
+                  setXOpen((o) => !o);
+                  setAdsOpen(false);
+                }}
+                title="Experiments: test cuts, not episodes"
+              >
+                ⚗ Experiments <small>{xCount}</small>
+              </button>
+              {xOpen && (
+                <span className="sx-folderlist" role="menu" aria-label="Experiments">
+                  {xs.map((g) => (
+                    <span key={g.group} className="sx-foldergroup" role="group" aria-label={g.group}>
+                      <small>{g.group}</small>
+                      {g.items.map((e) => (
+                        <button
+                          key={e.id}
+                          type="button"
+                          role="menuitem"
+                          aria-pressed={e.id === ep?.id}
+                          onClick={() => {
+                            setXOpen(false);
+                            p.openEp(e.id);
+                          }}
+                        >
+                          {e.title}
+                        </button>
+                      ))}
+                    </span>
                   ))}
                 </span>
               )}
@@ -665,10 +718,10 @@ export function PitchScreen({ desk, episodes, openEp, run, busy }: { desk: DeskV
         <section>
           <h4>On the line</h4>
           <ol className="sx-line">
-            {[...episodes].reverse().map((e) => (
+            {[...episodes].filter((e) => !isExperiment(e)).reverse().map((e) => (
               <li key={e.id}>
                 <button type="button" onClick={() => openEp(e.id)}>
-                  <b>Ep {e.n}</b>
+                  <b>{epLabel(e)}</b>
                   <span>{e.title}</span>
                   <i className="sx-prog" aria-label={`${STAGE_LINE.filter((s) => isDone(e.stages[s.id])).length} of 4 stages done`}>
                     {STAGE_LINE.map((s) => (

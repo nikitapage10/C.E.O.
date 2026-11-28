@@ -58,6 +58,27 @@ export function stageOn(ep: Episode): number {
 /** Whether it's an ad rather than an episode: ads sit in their own folder on the desk (Nikita, 2026-11-26). */
 export const isAd = (ep: Episode) => ep.id.startsWith("ad-") || /^ad\b/i.test(ep.title);
 
+/** Whether it's an experiment (an `x-` id): a test cut, kept in its own folder with no episode number (Nikita, 2026-11-28). */
+export const isExperiment = (ep: Episode) => ep.id.startsWith("x-");
+
+/** Whether it's a real episode: not an ad, not an experiment. */
+export const isEpisode = (ep: Episode) => !isAd(ep) && !isExperiment(ep);
+
+/** How the desk names it: "Ep 7", or an experiment's set. */
+export const epLabel = (ep: Episode) => (isExperiment(ep) ? (ep.group ?? "Experiment") : `Ep ${ep.n}`);
+
+/** Experiments by set, sets in the order they first appear. */
+export function experimentGroups(episodes: readonly Episode[]): { group: string; items: Episode[] }[] {
+  const out: { group: string; items: Episode[] }[] = [];
+  for (const e of episodes.filter(isExperiment)) {
+    const g = e.group ?? "Experiments";
+    const hit = out.find((x) => x.group === g);
+    if (hit) hit.items.push(e);
+    else out.push({ group: g, items: [e] });
+  }
+  return out;
+}
+
 /** Whether the episode is out: its post stage approved or done. */
 export const isPosted = (ep: Episode) => isDone(ep.stages.post);
 
@@ -65,8 +86,9 @@ export const isPosted = (ep: Episode) => isDone(ep.stages.post);
 export function openOn(episodes: readonly Episode[]): number {
   if (episodes.length === 0) return -1;
   // An episode first; the ads only when no episode is still on the line.
-  for (let i = episodes.length - 1; i >= 0; i--) if (!isPosted(episodes[i]!) && !isAd(episodes[i]!)) return i;
-  for (let i = episodes.length - 1; i >= 0; i--) if (!isPosted(episodes[i]!)) return i;
+  for (let i = episodes.length - 1; i >= 0; i--) if (!isPosted(episodes[i]!) && isEpisode(episodes[i]!)) return i;
+  for (let i = episodes.length - 1; i >= 0; i--) if (!isPosted(episodes[i]!) && !isExperiment(episodes[i]!)) return i;
+  for (let i = episodes.length - 1; i >= 0; i--) if (!isExperiment(episodes[i]!)) return i;
   return episodes.length - 1;
 }
 

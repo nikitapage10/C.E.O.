@@ -27,6 +27,11 @@
  *   PUT  /api/studio-desk { action: "carousel", carousel }              the feed key: the Director's thread saves an image
  *                                                                       carousel (its slides, caption, platforms, draft
  *                                                                       and slot) for Nikita to look over and publish.
+ *   PUT  /api/studio-desk { action: "youtube", episode, publishAt }     the feed key: the YouTube catch-up queue (#1274):
+ *                                                                       that episode's cut goes up private, set to go
+ *                                                                       public at publishAt (20 min to 60 days out), once.
+ *   PUT  /api/studio-desk { action: "episode-remove", id }              the feed key: drops an experiment (an `x-` id) or
+ *                                                                       a stand-in like `ep7x`; a real chapter can't go.
  *   PUT  /api/studio-desk { action: "episode", episode }                the feed key: the Director's thread saves an
  *                                                                       episode's state (stages, links, captions).
  *   PUT  /api/studio-desk { action: "idea", id, status }                the feed key: an idea taken up or set aside.
@@ -187,6 +192,8 @@ export interface YoutubePost {
   error?: string;
   /** Where it failed: the step, status and Google's reason (#1270). */
   detail?: string;
+  /** When YouTube makes it public, for a catch-up upload (#1274). */
+  publishAt?: string;
 }
 
 /** An image carousel between chapters (#1265): the Director makes the slides and the Zernio draft, Nikita publishes. */
@@ -518,19 +525,37 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
   }
   if (b.action === "youtube") {
     if (typeof b.episode !== "string" || !ID.test(b.episode)) return reply({ error: "bad-request" }, 400);
+    const got = await startYoutube(deps, blob, b.episode, now);
+    if (got.status === 202) console.log("studio: an episode is going up to YouTube from the Desk");
+    return reply(got.body, got.status);
+  }
+  return reply({ error: "bad-request" }, 400);
+}
+
+/** The earliest and latest a catch-up upload may be set to go public: past the upload itself, within YouTube's reach. */
+const PUBLISH_AT_MIN_MS = 20 * 60_000;
+const PUBLISH_AT_MAX_MS = 60 * 86_400_000;
+
+/**
+ * One upload of an episode to YouTube, once (#1261): recorded "uploading", run in the background, then "up" or
+ * "failed". With `publishAt` it goes up private and YouTube makes it public then (the catch-up queue, #1274).
+ */
+async function startYoutube(deps: StudioDeskDeps, blob: BlobBackend, episode: string, now: number, publishAt?: string): Promise<{ status: number; body: unknown }> {
+  {
     const yt = deps.youtube;
-    if (!yt?.client || !yt.vault) return reply({ error: "youtube-not-set-up" }, 503);
+    if (!yt?.client || !yt.vault) return { status: 503, body: { error: "youtube-not-set-up" } };
     const st = await readState(blob);
-    const e = st.episodes.find((x) => x.id === b.episode);
-    const job = e ? shortJob(e) : null;
-    if (!e || !job) return reply({ error: "not-ready" }, 409);
+    const e = st.episodes.find((x) => x.id === episode);
+    const base = e ? shortJob(e) : null;
+    if (!e || !base) return { status: 409, body: { error: "not-ready" } };
+    const job = publishAt ? { ...base, publishAt } : base;
     const ep = e.id;
     const started = await change(blob, (cur) => {
       const last = [...cur.youtube].reverse().find((y) => y.episode === ep);
       if (last && (last.state === "up" || (last.state === "uploading" && now - last.at < UPLOAD_STALE_MS))) return null;
-      return { ...cur, youtube: [...cur.youtube, { episode: ep, state: "uploading" as const, at: now }].slice(-60) };
+      return { ...cur, youtube: [...cur.youtube, { episode: ep, state: "uploading" as const, at: now, ...(publishAt ? { publishAt } : {}) }].slice(-60) };
     });
-    if (!started) return reply({ error: "youtube-already" }, 409);
+    if (!started) return { status: 409, body: { error: "youtube-already" } };
     const run = uploadShort(yt, job)
       .catch((e: unknown) => ({ ok: false as const, error: "upload-failed" as const, detail: `crashed: ${e instanceof Error ? e.message : "?"}`.slice(0, 160) }))
       .then((got) =>
@@ -539,7 +564,7 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
           youtube: cur.youtube.map((y) =>
             y.episode === ep && y.state === "uploading" && y.at === now
               ? got.ok
-                ? { episode: ep, state: "up" as const, at: yt.now(), id: got.id, privacy: got.privacy, ...(got.channel && got.channel !== SHOW_CHANNEL_ID ? { channel: got.channel } : {}) }
+                ? { episode: ep, state: "up" as const, at: yt.now(), id: got.id, privacy: got.privacy, ...(publishAt ? { publishAt } : {}), ...(got.channel && got.channel !== SHOW_CHANNEL_ID ? { channel: got.channel } : {}) }
                 : { episode: ep, state: "failed" as const, at: yt.now(), error: got.error, ...("detail" in got && got.detail ? { detail: got.detail } : {}) }
               : y,
           ),
@@ -547,10 +572,8 @@ export async function deskPost(request: Request, deps: StudioDeskDeps): Promise<
       )
       .then(() => console.log("studio: a YouTube upload finished"));
     waitUntil(run);
-    console.log("studio: an episode is going up to YouTube from the Desk");
-    return reply({ ok: true, state: "uploading" }, 202);
+    return { status: 202, body: { ok: true, state: "uploading", ...(publishAt ? { publishAt } : {}) } };
   }
-  return reply({ error: "bad-request" }, 400);
 }
 
 /** PUT /api/studio-desk: the feed key only. */
@@ -589,6 +612,25 @@ export async function deskPut(request: Request, deps: StudioDeskDeps): Promise<R
       return { ...st, carousels: [...st.carousels.filter((x) => x.id !== c.id), { ...c, ...keep }].slice(-60) };
     });
     return json({ ok: true });
+  }
+  if (b.action === "youtube") {
+    // The catch-up queue (#1274; Nikita, 2026-11-28: "post 4 of them a day for YouTube to catch up"): the Director's
+    // thread uploads an episode private, set to go public at a slot. Once per episode, as from the Desk.
+    if (!Object.keys(b).every((k) => ["action", "episode", "publishAt"].includes(k))) return json({ error: "bad-request" }, 400);
+    if (typeof b.episode !== "string" || !ID.test(b.episode) || typeof b.publishAt !== "string" || !ISO.test(b.publishAt)) return json({ error: "bad-request" }, 400);
+    const at = Date.parse(b.publishAt);
+    const now = deps.zernio.now;
+    if (!Number.isFinite(at) || at < now + PUBLISH_AT_MIN_MS || at > now + PUBLISH_AT_MAX_MS) return json({ error: "bad-time" }, 400);
+    const got = await startYoutube(deps, deps.blob, b.episode, now, new Date(at).toISOString());
+    if (got.status === 202) console.log("studio: an episode is going up to YouTube on the catch-up queue");
+    return json(got.body, got.status);
+  }
+  if (b.action === "episode-remove") {
+    // Only test cuts: an experiment (x-…) or an old stand-in (ep7x). A chapter (ep7) or an ad stays (#1274).
+    const id = b.id;
+    if (typeof id !== "string" || !ID.test(id) || !(id.startsWith("x-") || /^ep\d+x$/.test(id))) return json({ error: "bad-request" }, 400);
+    const next = await change(deps.blob, (st) => (st.episodes.some((x) => x.id === id) ? { ...st, episodes: st.episodes.filter((x) => x.id !== id) } : null));
+    return next ? json({ ok: true }) : json({ error: "gone" }, 404);
   }
   if (b.action === "idea") {
     const id = b.id;

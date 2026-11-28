@@ -260,6 +260,43 @@ describe("studio-desk", () => {
     expect(got.carousels[0]).toMatchObject({ id: "c06-07", scheduledFor: "2026-11-25T15:00:00.000Z" });
   });
 
+  it("queues a catch-up YouTube upload with the feed key, private until its slot, once (#1274)", async () => {
+    const { d } = deps();
+    const bodies: unknown[] = [];
+    const yfetch = (async (url: string, init?: RequestInit) => {
+      if (url.startsWith("https://oauth2.googleapis.com/token")) return new Response(JSON.stringify({ access_token: "at", expires_in: 3600 }), { status: 200 });
+      if (url.startsWith("https://media.zernio.test/")) return new Response("vid", { status: 200, headers: { "content-length": "3" } });
+      if (url.includes("uploadType=resumable")) return (bodies.push(JSON.parse(String(init?.body))), new Response(null, { status: 200, headers: { location: "https://www.googleapis.com/upload/youtube/v3/videos?upload_id=q" } }));
+      if (url.includes("upload_id=q")) return new Response(JSON.stringify({ id: "vidQueue01", snippet: { channelId: "UCsHQxHpT02BmHHuLaXcYN1g" }, status: { privacyStatus: "private" } }), { status: 200 });
+      return new Response("", { status: 404 });
+    }) as typeof fetch;
+    d.youtube = { fetch: yfetch, client: { clientId: "c", clientSecret: "s" }, vault: { read: async () => ({ refresh: "r-queue-test-123456", connectedAt: 1 }), write: async () => undefined } as never, now: () => NOW };
+    const ep = { ...EP3, stages: { ...EP3.stages, post: { status: "ready", media: "https://media.zernio.test/u/ep3.mp4", captions: ["cap"] } } };
+    await deskPut(req("PUT", { action: "episode", episode: ep }, bearer(FEED)), d);
+    const at = "2026-11-25T16:00:00Z";
+    expect((await deskPut(req("PUT", { action: "youtube", episode: "ep3", publishAt: at }, bearer(LOG)), d)).status).toBe(401);
+    expect((await deskPut(req("PUT", { action: "youtube", episode: "ep3", publishAt: "2026-11-25T05:05:00Z" }, bearer(FEED)), d)).status).toBe(400);
+    const ok = await deskPut(req("PUT", { action: "youtube", episode: "ep3", publishAt: at }, bearer(FEED)), d);
+    expect(ok.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(bodies[0]).toMatchObject({ status: { privacyStatus: "private", publishAt: "2026-11-25T16:00:00.000Z" } });
+    const got = await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json();
+    expect(got.youtube[0]).toMatchObject({ episode: "ep3", state: "up", id: "vidQueue01", publishAt: "2026-11-25T16:00:00.000Z" });
+    expect((await deskPut(req("PUT", { action: "youtube", episode: "ep3", publishAt: at }, bearer(FEED)), d)).status).toBe(409);
+  });
+
+  it("drops only experiments and stand-ins with the feed key (#1274)", async () => {
+    const { d } = deps();
+    for (const id of ["ep3", "ep7x", "x-ep7-d1"]) await deskPut(req("PUT", { action: "episode", episode: { ...EP3, id } }, bearer(FEED)), d);
+    expect((await deskPut(req("PUT", { action: "episode-remove", id: "ep3" }, bearer(FEED)), d)).status).toBe(400);
+    expect((await deskPut(req("PUT", { action: "episode-remove", id: "ep7x" }, bearer(LOG)), d)).status).toBe(401);
+    expect((await deskPut(req("PUT", { action: "episode-remove", id: "ep7x" }, bearer(FEED)), d)).status).toBe(200);
+    expect((await deskPut(req("PUT", { action: "episode-remove", id: "x-ep7-d1" }, bearer(FEED)), d)).status).toBe(200);
+    expect((await deskPut(req("PUT", { action: "episode-remove", id: "x-ep7-d1" }, bearer(FEED)), d)).status).toBe(404);
+    const got = await (await deskGet(req("GET", undefined, bearer(LOG)), d)).json();
+    expect(got.episodes.map((e: { id: string }) => e.id)).toEqual(["ep3"]);
+  });
+
   it("sets an idea taken with the feed key", async () => {
     const { d, store } = deps({ "GET /accounts": { accounts: [] } });
     const cookie = { Cookie: await signedInCookie(DESK, NOW, store) };

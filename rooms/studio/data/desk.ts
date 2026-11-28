@@ -158,9 +158,11 @@ export function youtubeOf(view: Pick<DeskView, "youtube">, episode: string): You
 }
 
 /** A line on where the episode stands on YouTube, or "" before it goes. */
-export function youtubeLine(y: YoutubePost | undefined): string {
+export function youtubeLine(y: YoutubePost | undefined, now = Date.now()): string {
   if (!y) return "";
-  if (y.state === "uploading") return "Going up to YouTube…";
+  const later = y.publishAt && Date.parse(y.publishAt) > now ? slotText(y.publishAt) : "";
+  if (y.state === "uploading") return later ? `Going up to YouTube, to go public ${later}…` : "Going up to YouTube…";
+  if (y.state === "up" && later) return `On YouTube, private until ${later}, then public.`;
   if (y.state === "failed") return y.error === "refused" || y.error === "not-connected" ? "YouTube upload failed: reconnect YouTube in Boiler Room > Controls." : y.error === "quota" ? "YouTube's daily upload quota ran out. Try again tomorrow." : `The YouTube upload failed${y.detail ? ` (${y.detail})` : ""}. Try again.`;
   if (y.channel) return "On YouTube, but on a different channel than the show's. Check it in YouTube Studio.";
   return y.privacy === "public" ? "Live on YouTube Shorts." : "On YouTube as private: Google keeps uploads private until the API audit passes.";

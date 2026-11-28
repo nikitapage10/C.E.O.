@@ -47,6 +47,12 @@ export interface BlobBackend {
   del(path: string): Promise<void>;
   /** Azure only (#1243): bytes `start` to `end` (inclusive; to the end when left out) and the file's full size, for video seeking. */
   range?(path: string, start: number, end?: number): Promise<BlobRange | null>;
+  /**
+   * Azure only (#1263): a short-lived, read-only https link to one file, straight from storage (a user delegation
+   * SAS from the Function App's identity), for a whole-file download the Functions host can't carry. `filename` makes
+   * it a download (Content-Disposition: attachment). Null when storage won't sign one.
+   */
+  readUrl?(path: string, ttlSec: number, opts?: { filename?: string }): Promise<string | null>;
   /** Azure only (#1243): one file made of others, in order, on the server (each source becomes one block of a block blob). */
   join?(path: string, sources: readonly string[], contentType: string): Promise<{ bytes: number }>;
 }

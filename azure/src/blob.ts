@@ -10,7 +10,7 @@
 
 import { Readable } from "node:stream";
 import { DefaultAzureCredential } from "@azure/identity";
-import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
+import { BlobSASPermissions, BlobServiceClient, generateBlobSASQueryParameters, SASProtocol, type ContainerClient, type UserDelegationKey } from "@azure/storage-blob";
 import { BlobPreconditionError, type BlobBackend, type PutOptions } from "../../api/_blob.js";
 
 type Env = Record<string, string | undefined>;
@@ -52,8 +52,17 @@ const toBytes = (body: string | ArrayBuffer | Uint8Array): Uint8Array =>
  * it (private: no public access, which the account forbids anyway) and tries once more. Reads of a missing container
  * stay null, as for a missing file.
  */
-export function azureBlob(container: ContainerClient): BlobBackend {
+export function azureBlob(container: ContainerClient, service?: BlobServiceClient): BlobBackend {
   let creating: Promise<unknown> | null = null;
+  // One user delegation key, good for a day and swapped an hour before it ends (#1263).
+  let delegation: { key: UserDelegationKey; until: number } | null = null;
+  const delegationKey = async (now: number) => {
+    if (delegation && delegation.until - 3_600_000 > now) return delegation.key;
+    const until = now + 24 * 3_600_000;
+    const key = await service!.getUserDelegationKey(new Date(now - 5 * 60_000), new Date(until));
+    delegation = { key, until };
+    return key;
+  };
   const ensureContainer = () => {
     creating ??= container.createIfNotExists().catch((e: unknown) => {
       creating = null;
@@ -133,6 +142,31 @@ export function azureBlob(container: ContainerClient): BlobBackend {
         throw e;
       }
     },
+    async readUrl(path, ttlSec, opts = {}) {
+      if (!service) return null;
+      try {
+        const now = Date.now();
+        const ttl = Math.max(60, Math.min(ttlSec, 6 * 3600));
+        const key = await delegationKey(now);
+        const safe = opts.filename?.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120);
+        const sas = generateBlobSASQueryParameters(
+          {
+            containerName: container.containerName,
+            blobName: path,
+            permissions: BlobSASPermissions.parse("r"),
+            startsOn: new Date(now - 5 * 60_000),
+            expiresOn: new Date(now + ttl * 1000),
+            protocol: SASProtocol.Https,
+            ...(safe ? { contentDisposition: `attachment; filename="${safe}"` } : {}),
+          },
+          key,
+          service.accountName,
+        ).toString();
+        return `${container.getBlockBlobClient(path).url}?${sas}`;
+      } catch {
+        return null;
+      }
+    },
     async join(path, sources, contentType) {
       // One block per source, read and staged one at a time (a part is ~24 MB), then committed in order.
       const target = container.getBlockBlobClient(path);
@@ -154,5 +188,5 @@ export function azureBlob(container: ContainerClient): BlobBackend {
 /** The backend for these settings, signed in with the Function App's identity. */
 export function azureBlobFromEnv(env: Env): BlobBackend {
   const service = new BlobServiceClient(blobEndpoint(env), new DefaultAzureCredential());
-  return azureBlob(service.getContainerClient(env.AZURE_STORAGE_CONTAINER?.trim() || DEFAULT_CONTAINER));
+  return azureBlob(service.getContainerClient(env.AZURE_STORAGE_CONTAINER?.trim() || DEFAULT_CONTAINER), service);
 }

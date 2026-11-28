@@ -158,4 +158,28 @@ describe("the Studio's render kit (#1235)", () => {
     // A bad signature stays out.
     expect((await kitGet(new Request(link.replace(/s=[^&]+$/, "s=" + "x".repeat(43)), { headers: { Range: "bytes=0-1" } }), d)).status).toBe(401);
   });
+
+  it("hands the whole file over a short-lived store link when asked without a Range, and as a download with dl=1 (#1263)", async () => {
+    const d = deps();
+    d.blob.files.set("studio/kit/media/ep6-v1.mp4", new Uint8Array(MEDIA_SLICE + 10));
+    d.blob.range = async (p, start, end) => {
+      const f = d.blob.files.get(p)!;
+      const last = Math.min(end ?? f.length - 1, f.length - 1);
+      return { stream: new Response(f.slice(start, last + 1)).body!, size: f.length, start, end: last, contentType: "video/mp4" };
+    };
+    const asked: { p: string; ttl: number; name?: string }[] = [];
+    d.blob.readUrl = async (p, ttl, o) => (asked.push({ p, ttl, name: o?.filename }), `https://acct.blob.core.windows.net/ceo-state/${p}?sig`);
+    const exp = Math.floor(NOW / 1000) + 3600, path = "media/ep6-v1.mp4";
+    const link = `${URL_}?p=${encodeURIComponent(path)}&e=${exp}&s=${kitSig("GET", path, exp, env.FOUNDRY_DESK_KEY)}`;
+    const whole = await kitGet(new Request(link), d);
+    expect(whole.status).toBe(302);
+    expect(whole.headers.get("location")).toBe("https://acct.blob.core.windows.net/ceo-state/studio/kit/media/ep6-v1.mp4?sig");
+    const dl = await kitGet(new Request(`${link}&dl=1`, { headers: { "sec-fetch-dest": "document", accept: "text/html" } }), d);
+    expect(dl.status).toBe(302);
+    expect(asked[1]).toMatchObject({ p: "studio/kit/media/ep6-v1.mp4", name: "ep6-v1.mp4" });
+    expect(kitSigned(new Request(`${link}&dl=1`), env, NOW)).toBe(true);
+    expect(kitSigned(new Request(`${link}&dl=2`), env, NOW)).toBe(false);
+    // The player still gets byte ranges.
+    expect((await kitGet(new Request(link, { headers: { "sec-fetch-dest": "video", Range: "bytes=0-1" } }), d)).status).toBe(206);
+  });
 });

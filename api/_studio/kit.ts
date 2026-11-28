@@ -9,6 +9,9 @@
  *   GET  /api/studio-kit?p=…&e=…&s=…                            a signed link: the file. A signed link to media/<file>
  *                                                               (#1259) is a review link that needs no Desk session: tapped,
  *                                                               a player page; from the player, the file in byte ranges.
+ *                                                               Fetched with no Range, or with &dl=1 (a download), it
+ *                                                               answers 302 to a read-only storage link to that one file,
+ *                                                               good for an hour, so the whole cut comes down (#1263).
  *   PUT  /api/studio-kit?p=out/…&e=…&s=…                        a signed upload link: a finished cut (only under out/).
  *   POST /api/studio-kit { join: "out/ep2-v8.part", count, to }  the feed key (#1243): parts out/…part00, part01, … joined
  *                                                               into one review file, media/<to>, on the server.
@@ -68,7 +71,8 @@ export function kitSigned(request: Request, env: Env, now: number): boolean {
   const key = env.FOUNDRY_DESK_KEY?.trim();
   if (!key) return false;
   const keys = [...url.searchParams.keys()].sort().join(",");
-  if (keys !== "e,p,s") return false;
+  // `dl=1` only asks for a download of a GET (#1263); it isn't signed and changes nothing else.
+  if (keys !== "e,p,s" && !(keys === "dl,e,p,s" && url.searchParams.get("dl") === "1")) return false;
   const method = request.method === "HEAD" ? "GET" : request.method;
   if (method !== "GET" && method !== "PUT") return false;
   const p = url.searchParams.get("p") ?? "";
@@ -166,7 +170,14 @@ export async function kitGet(request: Request, deps: KitDeps): Promise<Response>
   // A signed review link (#1259): plays with no Desk session, for the Claude app's browser, which doesn't keep one.
   const name = p.startsWith("media/") ? p.slice(6) : "";
   if (isMediaName(name)) {
-    if (pageLoad(request) && /\.(mp4|m4a|mp3)$/.test(name)) return playerPage(name, url.pathname + url.search);
+    const dl = url.searchParams.get("dl") === "1";
+    if (!dl && pageLoad(request) && /\.(mp4|m4a|mp3)$/.test(name)) return playerPage(name, url.pathname + url.search);
+    // A whole-file fetch (a download, or a plain GET with no Range): the Functions host answers at most a slice, so
+    // the file comes straight from storage on a short read-only link instead (#1263). Players' ranges are served here.
+    if ((dl || !request.headers.get("range")) && request.method === "GET" && deps.blob.readUrl) {
+      const to = await deps.blob.readUrl(PREFIX + "media/" + name, 3600, dl ? { filename: name } : {});
+      if (to) return new Response(null, { status: 302, headers: { Location: to, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
+    }
     return serveMedia(request, deps, name);
   }
   const got = await deps.blob.get(PREFIX + p);

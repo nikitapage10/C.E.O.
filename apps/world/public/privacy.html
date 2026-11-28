@@ -18,7 +18,7 @@
 <body>
 <main>
   <h1>Privacy</h1>
-  <p class="muted">C.E.O. (Command Everything, Obviously) · last updated 12 November 2026</p>
+  <p class="muted">C.E.O. (Command Everything, Obviously) · last updated 28 November 2026</p>
 
   <p>C.E.O. is a personal app built and used by one person, its owner. It isn't offered to the public, and nobody else can sign in to its private parts, which need the owner's passkey.</p>
 
@@ -27,6 +27,19 @@
     <li><b>Google Nest (Smart Device Management):</b> reads the owner's thermostat (temperature, mode, setpoints) and changes it only when the owner asks.</li>
     <li><b>Google Tasks:</b> reads one task list the owner chooses, so quick-adds land on the kitchen list.</li>
     <li><b>Gmail</b> (when connected): reads the inbox read-only, so the owner can see who is waiting on a reply.</li>
+    <li><b>YouTube</b> (when connected): uploads the owner's own show episodes to the owner's YouTube channel as Shorts. See below.</li>
+  </ul>
+
+  <h2 id="youtube">YouTube</h2>
+  <p>C.E.O. uses the <b>YouTube API Services</b> to upload finished episodes of the owner's show to the owner's own YouTube channel. By using this feature you agree to be bound by the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>, and Google's handling of your data is described in the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</p>
+  <ul>
+    <li><b>What it asks for:</b> one permission, <code>https://www.googleapis.com/auth/youtube.upload</code> (“Manage your YouTube videos”), which lets it upload a video and set its thumbnail. It can't read, edit or delete anything else on the channel, and it reads no channel or account information.</li>
+    <li><b>When it acts:</b> only when the owner taps “Publish to YouTube” on an episode in the signed-in Studio desk. Nothing is uploaded automatically.</li>
+    <li><b>What it keeps:</b> the YouTube video ID of each upload, the privacy status YouTube set, and when it happened, stored with the episode in the owner's private Azure storage. The video itself and its title, description and cover come from the owner's own show; nothing is read back from YouTube.</li>
+    <li><b>The sign-in token:</b> Google's refresh token is encrypted on the server (sealed with a key held in Azure Key Vault) and stored in private Azure storage. It never reaches the browser, the public pages, the logs or the code repository.</li>
+    <li><b>Sharing:</b> nothing obtained through the YouTube API Services is sold, shared with anyone, or used for advertising.</li>
+    <li><b>Revoking access:</b> disconnect YouTube in the app's settings (Boiler Room &gt; Controls &gt; Connections), which revokes the token with Google and deletes it, or remove the app's access at any time from your Google Account's security settings: <a href="https://security.google.com/settings/security/permissions">security.google.com/settings/security/permissions</a>.</li>
+    <li><b>Deleting the data:</b> disconnecting YouTube in the app deletes the stored token and the stored upload records (video IDs and privacy statuses) at once. If access is revoked from the Google Account instead, the app finds the token refused on its next use and the owner can delete the records by disconnecting; either way they are deleted within 30 days. The videos themselves stay on YouTube under the channel owner's control.</li>
   </ul>
 
   <h2>How it is kept</h2>
@@ -36,7 +49,12 @@
   <p>Google data is never sold, shared with anyone, or used for advertising. It is used only to show the owner their own home and lists. Its use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
   <h2>Removing access</h2>
-  <p>The owner can disconnect Nest, Tasks or Gmail from the app's settings at any time, which deletes the stored token, or remove the app's access from their Google Account's security settings.</p>
+  <p>The owner can disconnect Nest, Tasks, Gmail or YouTube from the app's settings at any time, which deletes the stored token, or remove the app's access from their Google Account's security settings at <a href="https://security.google.com/settings/security/permissions">security.google.com/settings/security/permissions</a>.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy go to the owner through the contact details on the app's Google consent screen.</p>
+
+  <p class="muted"><a href="/terms.html">Terms of Service</a></p>
 </main>
 </body>
 </html>

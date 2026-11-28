@@ -337,6 +337,18 @@ describe("Connect Nest and Connect Google Tasks (#637)", () => {
     expect(await vault.read("google-tasks")).toBeNull();
     expect(f.calls.map((c) => c.url)).toEqual(["https://oauth2.googleapis.com/revoke"]);
   });
+
+  it("deletes the kept YouTube upload records with the YouTube grant (#1268)", async () => {
+    const f = fakeFetch([[/POST https:\/\/oauth2\.googleapis\.com\/revoke$/, () => ({})]]);
+    const { deps, cookie, vault } = await googleSetup({ fetch: f });
+    await vault.write("google-youtube", { refresh: "test-refresh-yt", connectedAt: NOW });
+    await deps.blob!.put("studio/desk.json", JSON.stringify({ episodes: [{ id: "ep1" }], youtube: [{ episode: "ep1", state: "up", at: 1, id: "abc123", privacy: "private" }] }), { contentType: "application/json", addRandomSuffix: false, allowOverwrite: true });
+    expect((await googlePost(post("/api/haven/google", { action: "disconnect", grant: "youtube" }, { Cookie: cookie }), deps)).status).toBe(200);
+    expect(await vault.read("google-youtube")).toBeNull();
+    const kept = JSON.parse(await new Response((await deps.blob!.get("studio/desk.json"))!.stream).text());
+    expect(kept.youtube).toEqual([]);
+    expect(kept.episodes).toEqual([{ id: "ep1" }]);
+  });
 });
 
 /* ── Google Tasks quick-add ── */

@@ -74,6 +74,8 @@ export function loginPage(opts: LoginPageOptions = {}): string {
   .note { margin: 14px 0 0; color: var(--rose); font-size: 13px; }
   .note:empty { display: none; }
   [hidden] { display: none !important; }
+  .legal { margin: 20px 0 0; padding-top: 14px; border-top: 1px solid var(--hair); color: var(--faint); font-size: 12px; }
+  .legal a { color: var(--muted); }
 </style></head>
 <body><main data-next="${esc(next)}">
 <h1>C.E.O.</h1>
@@ -98,6 +100,7 @@ ${
     : ""
 }
 <p class="note" role="status" id="note">${line ? esc(line) : ""}</p>
+<p class="legal">The Studio publishes the owner's show to YouTube through the YouTube API Services. <a href="/privacy.html">Privacy Policy</a> · <a href="/terms.html">Terms of Service</a></p>
 </main></body></html>`;
 }
 

@@ -605,6 +605,11 @@ export async function deskPut(request: Request, deps: StudioDeskDeps): Promise<R
   return json({ error: "bad-request" }, 400);
 }
 
+/** Deletes the kept YouTube upload records (video ids and privacy), as disconnecting YouTube promises (#1268). */
+export async function forgetYoutubeUploads(blob: BlobBackend): Promise<void> {
+  await change(blob, (st) => (st.youtube.length ? { ...st, youtube: [] } : null));
+}
+
 /**
  * One of the Studio's own review files (a studio-kit link, `?m=<file>` or a signed `?p=media/<file>`) read whole from
  * the store: those links answer 8 MiB slices, and a `?m=` link needs a Desk session the upload doesn't have.

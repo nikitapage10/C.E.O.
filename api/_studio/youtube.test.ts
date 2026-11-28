@@ -49,3 +49,16 @@ describe("youtube shorts", () => {
     expect(r.writes).toEqual([{ ...grant, refused: true }]);
   });
 });
+
+describe("the Studio's own review files", () => {
+  it("reads a studio-kit cut whole from the store, and leaves other links alone", async () => {
+    const { openKitVideo } = await import("./desk.js");
+    const asked: string[] = [];
+    const blob = { kind: "azureblob", range: async (p: string) => (asked.push(p), { stream: new ReadableStream(), size: 400_000_000, start: 0, end: 399_999_999, contentType: "video/mp4" }) } as never;
+    expect(await openKitVideo(blob, "https://ceo.nikita.page/api/studio-kit?m=ep1-ch1.mp4")).toMatchObject({ size: 400_000_000 });
+    expect(await openKitVideo(blob, "https://ceo.nikita.page/api/studio-kit?p=media/ep1-ch1.mp4&e=1&s=x")).toMatchObject({ size: 400_000_000 });
+    expect(asked).toEqual(["studio/kit/media/ep1-ch1.mp4", "studio/kit/media/ep1-ch1.mp4"]);
+    expect(await openKitVideo(blob, "https://evil.example/api/studio-kit?m=ep1-ch1.mp4")).toBeNull();
+    expect(await openKitVideo(blob, "https://ceo.nikita.page/api/studio-kit?m=../x.mp4")).toBeNull();
+  });
+});

@@ -38,8 +38,16 @@ export interface ShortJob {
   description: string;
 }
 
+/** The whole video as a stream and its size. */
+export interface VideoSource {
+  body: ReadableStream<Uint8Array>;
+  size: number;
+}
+
 export interface YoutubeDeps {
   fetch: typeof fetch;
+  /** The Studio's own review files (studio-kit links) straight from the blob store; null for any other link. */
+  open?: (url: string) => Promise<VideoSource | null>;
   client: Pick<HavenClient, "clientId" | "clientSecret"> | null;
   vault: HomeVault | null;
   now: () => number;
@@ -95,9 +103,9 @@ export async function uploadShort(deps: YoutubeDeps, job: ShortJob): Promise<Sho
     return { ok: false, error: "upload-failed" };
   }
 
-  const src = await deps.fetch(job.video, { signal: AbortSignal.timeout(60_000), redirect: "follow" }).catch(() => null);
-  const size = Number(src?.headers.get("content-length") ?? 0);
-  if (!src?.ok || !src.body) return { ok: false, error: "no-video" };
+  const src = await openVideo(deps, job.video);
+  if (!src) return { ok: false, error: "no-video" };
+  const size = src.size;
   if (!Number.isFinite(size) || size <= 0 || size > VIDEO_MAX) {
     await src.body.cancel().catch(() => undefined);
     return { ok: false, error: size > VIDEO_MAX ? "too-big" : "no-video" };
@@ -138,6 +146,19 @@ export async function uploadShort(deps: YoutubeDeps, job: ShortJob): Promise<Sho
   const channel = typeof video?.snippet?.channelId === "string" ? video.snippet.channelId : "";
   const thumbnail = job.cover ? await setThumbnail(deps, token, id, job.cover) : false;
   return { ok: true, id, privacy, channel, thumbnail };
+}
+
+/** The video: from the store when it's one of the Studio's own files, else fetched whole (a partial answer is refused). */
+async function openVideo(deps: YoutubeDeps, url: string): Promise<VideoSource | null> {
+  const own = deps.open ? await deps.open(url).catch(() => null) : null;
+  if (own) return own;
+  const res = await deps.fetch(url, { signal: AbortSignal.timeout(60_000), redirect: "follow" }).catch(() => null);
+  if (!res?.body) return null;
+  if (res.status !== 200) {
+    await res.body.cancel().catch(() => undefined);
+    return null;
+  }
+  return { body: res.body, size: Number(res.headers.get("content-length") ?? 0) };
 }
 
 async function quotaHit(res: Response): Promise<boolean> {

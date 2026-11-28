@@ -45,7 +45,9 @@ import { waitUntil } from "../_waitUntil.js";
 import { HomeVault, homeKey } from "../_haven/devices/vault.js";
 import { havenClientFrom } from "../_haven/google/oauth.js";
 import { isMediaUrl, publishDraft, type ZernioDeps } from "./social.js";
-import { SHOW_CHANNEL as SHOW_CHANNEL_ID, uploadShort, type Privacy, type YoutubeDeps } from "./youtube.js";
+import { SHOW_CHANNEL as SHOW_CHANNEL_ID, uploadShort, type Privacy, type VideoSource, type YoutubeDeps } from "./youtube.js";
+import { isMediaName, STUDIO_KIT_PATH } from "./kit.js";
+import { isSiteHost } from "../_site/hosts.js";
 import { readSocial, type Social } from "./stats.js";
 
 export { readSocial };
@@ -532,6 +534,25 @@ export async function deskPut(request: Request, deps: StudioDeskDeps): Promise<R
   return json({ error: "bad-request" }, 400);
 }
 
+/**
+ * One of the Studio's own review files (a studio-kit link, `?m=<file>` or a signed `?p=media/<file>`) read whole from
+ * the store: those links answer 8 MiB slices, and a `?m=` link needs a Desk session the upload doesn't have.
+ */
+export async function openKitVideo(blob: BlobBackend, url: string): Promise<VideoSource | null> {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || !isSiteHost(u.hostname) || u.pathname !== STUDIO_KIT_PATH || !blob.range) return null;
+  const p = u.searchParams.get("p");
+  const name = u.searchParams.get("m") ?? (p?.startsWith("media/") ? p.slice(6) : null);
+  if (!isMediaName(name) || !name.endsWith(".mp4")) return null;
+  const got = await blob.range(`studio/kit/media/${name}`, 0);
+  return got ? { body: got.stream, size: got.size } : null;
+}
+
 /** What a Short is made of: the post's cut (else the render's), the cover, the title and the first caption. */
 export function shortJob(e: Episode): { video: string; cover?: string; title: string; description: string } | null {
   const post = e.stages.post;
@@ -552,7 +573,7 @@ function liveDeps(): StudioDeskDeps {
     blob,
     env,
     zernio: { key: env.ZERNIO_API_KEY?.trim() ?? "", now },
-    youtube: blob && sealKey && client ? { fetch: (u, i) => fetch(u, i), client, vault: new HomeVault(blob, sealKey), now: Date.now } : null,
+    youtube: blob && sealKey && client ? { fetch: (u, i) => fetch(u, i), open: (u) => openKitVideo(blob, u), client, vault: new HomeVault(blob, sealKey), now: Date.now } : null,
   };
 }
 

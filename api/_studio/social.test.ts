@@ -74,6 +74,25 @@ describe("studio-social", () => {
     expect(made.platforms).toEqual([{ platform: "instagram", accountId: "acc_ig_0001" }, { platform: "tiktok", accountId: "acc_tt_0001" }]);
   });
 
+  it("makes a carousel draft of 2 to 20 slides in order, a silent TikTok photo post (#1265)", async () => {
+    const { fetcher, calls } = fakeZernio({ "GET /accounts": ACCOUNTS, "POST /posts": { post: { _id: "post_0002", status: "draft" } } });
+    const slides = [1, 2, 3].map((i) => `https://media.zernio.test/u/slide-${i}.jpg`);
+    const res = await post({ mode: "carousel", caption: "He escaped the trading floor.", images: slides, platforms: ["instagram", "tiktok"] }, fetcher);
+    expect(res.status).toBe(201);
+    const made = calls.find((c) => c.method === "POST")!.body as Record<string, unknown>;
+    expect(made).toMatchObject({ isDraft: true, externalId: `ceo-studio-${NOW}`, content: "He escaped the trading floor." });
+    expect(made.scheduledFor).toBeUndefined();
+    expect(made.mediaItems).toEqual(slides.map((url) => ({ type: "image", url })));
+    expect(made.tiktokSettings).toMatchObject({ mediaType: "photo", photoCoverIndex: 0, autoAddMusic: false, privacyLevel: "PUBLIC_TO_EVERYONE" });
+    const igOnly = await post({ mode: "carousel", caption: "c", images: slides, platforms: ["instagram"] }, fetcher);
+    expect(igOnly.status).toBe(201);
+    expect((calls.filter((c) => c.method === "POST")[1]!.body as Record<string, unknown>).tiktokSettings).toBeUndefined();
+    expect(parseSocialJob({ mode: "carousel", caption: "c", images: [slides[0]], platforms: ["instagram"] })).toBeNull();
+    expect(parseSocialJob({ mode: "carousel", caption: "c", images: Array(21).fill(slides[0]), platforms: ["instagram"] })).toBeNull();
+    expect(parseSocialJob({ mode: "carousel", caption: "c", images: ["http://x.test/a.jpg", slides[0]], platforms: ["instagram"] })).toBeNull();
+    expect(parseSocialJob({ mode: "carousel", caption: "c", images: slides, platforms: ["instagram"], story: true })).toBeNull();
+  });
+
   it("publishes only its own drafts, a minute out", async () => {
     const { fetcher, calls } = fakeZernio({
       "GET /posts/post_mine1": { post: { _id: "post_mine1", status: "draft", externalId: "ceo-studio-1" } },

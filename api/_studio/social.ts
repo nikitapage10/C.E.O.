@@ -6,6 +6,9 @@
  *   POST /api/studio-social { mode: "accounts" }                                  → { accounts: [{ id, platform, username, active }] }
  *   POST /api/studio-social { mode: "presign", filename, contentType, size }      → { uploadUrl, publicUrl }  (PUT the file to uploadUrl)
  *   POST /api/studio-social { mode: "draft", caption, video, cover?, platforms, story? }  → { id, status }  (a Zernio draft, never published; story: an Instagram Story, 2026-11-26)
+ *   POST /api/studio-social { mode: "carousel", caption, images, platforms }   → { id, status }  (an image carousel draft, 2 to 20 JPEG/PNG
+ *                                                                                  links in order: an Instagram carousel and/or a TikTok photo post with no
+ *                                                                                  music added, #1265; publish it like any other draft)
  *   POST /api/studio-social { mode: "publish", id, at? }                          → { id, status: "scheduled", at }  (only a draft this route made; `at` schedules it for a set time, up to 30 days out, 2026-11-26)
  *   POST /api/studio-social { mode: "status", id }                                → { id, status, platforms: [{ platform, status, url? }] }
  *   POST /api/studio-social { mode: "comments" }                                  → { posts: [{ id, accountId, platform, permalink, comments, text }] }
@@ -29,7 +32,8 @@ import { roomKeyOf, STUDIO_SOCIAL_PATH } from "../_site/roomkeys.js";
 
 export { STUDIO_SOCIAL_PATH };
 const API = "https://zernio.com/api/v1";
-const BODY_MAX = 8_000;
+/** Room for a 20-slide carousel's links and a full caption. */
+const BODY_MAX = 48_000;
 export const CAPTION_MAX = 2_200;
 /** A reply's length: kept short on purpose (short replies read best on both platforms). */
 export const REPLY_MAX = 300;
@@ -44,6 +48,9 @@ const ID = /^[A-Za-z0-9_-]{6,64}$/;
 export const MINE = "ceo-studio-";
 /** How far out a publish is scheduled, so Zernio does the upload after this request has answered. */
 export const PUBLISH_LEAD_MS = 60_000;
+/** A carousel's slides: Instagram takes 2 to 20 (TikTok up to 35, so Instagram's cap rules both). */
+export const SLIDES_MIN = 2;
+export const SLIDES_MAX = 20;
 const FILENAME = /^[A-Za-z0-9._-]{1,120}\.(mp4|jpe?g|png)$/;
 
 export type SocialJob =
@@ -52,6 +59,7 @@ export type SocialJob =
   | { mode: "stats" }
   | { mode: "presign"; filename: string; contentType: (typeof UPLOAD_TYPES)[number]; size: number }
   | { mode: "draft"; caption: string; video: string; cover?: string; platforms: Platform[]; story?: true }
+  | { mode: "carousel"; caption: string; images: string[]; platforms: Platform[] }
   | { mode: "status"; id: string }
   | { mode: "publish"; id: string; at?: string }
   | { mode: "reply"; postId: string; accountId: string; commentId: string; message: string }
@@ -103,6 +111,15 @@ export function parseSocialJob(body: unknown): SocialJob | null {
     // A story is Instagram's alone: TikTok's posting API has no stories (Nikita's preview stories, 2026-11-26).
     if (b.story !== undefined && (b.story !== true || p.length !== 1 || p[0] !== "instagram")) return null;
     return { mode: "draft", caption: b.caption, video: b.video, ...(b.cover ? { cover: b.cover as string } : {}), platforms: p as Platform[], ...(b.story ? { story: true as const } : {}) };
+  }
+  if (b.mode === "carousel" && only("mode", "caption", "images", "platforms")) {
+    if (!isText(b.caption, CAPTION_MAX)) return null;
+    const imgs = b.images;
+    if (!Array.isArray(imgs) || imgs.length < SLIDES_MIN || imgs.length > SLIDES_MAX || !imgs.every(isMediaUrl)) return null;
+    const p = b.platforms;
+    if (!Array.isArray(p) || p.length === 0 || p.length > PLATFORMS.length || new Set(p).size !== p.length) return null;
+    if (!p.every((x) => (PLATFORMS as readonly unknown[]).includes(x))) return null;
+    return { mode: "carousel", caption: b.caption, images: imgs as string[], platforms: p as Platform[] };
   }
   if ((b.mode === "status" || b.mode === "publish") && only("mode", "id") && typeof b.id === "string" && ID.test(b.id)) return { mode: b.mode, id: b.id };
   if (b.mode === "publish" && only("mode", "id", "at") && typeof b.id === "string" && ID.test(b.id) && typeof b.at === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?Z$/.test(b.at) && Number.isFinite(Date.parse(b.at))) return { mode: "publish", id: b.id, at: b.at };
@@ -170,6 +187,34 @@ export function draftBody(job: SocialJob & { mode: "draft" }, accountIds: Record
   };
 }
 
+/**
+ * The Zernio post a carousel becomes (#1265): always `isDraft`, the slides as images in order. On TikTok it's a photo
+ * post: public, comments on, the first slide as its cover, and no music added (the carousels run silent).
+ */
+export function carouselBody(job: SocialJob & { mode: "carousel" }, accountIds: Record<Platform, string>, now: number) {
+  return {
+    content: job.caption,
+    isDraft: true,
+    externalId: `${MINE}${now}`,
+    mediaItems: job.images.map((url) => ({ type: "image", url })),
+    platforms: job.platforms.map((platform) => ({ platform, accountId: accountIds[platform] })),
+    ...(job.platforms.includes("tiktok")
+      ? {
+          tiktokSettings: {
+            privacyLevel: "PUBLIC_TO_EVERYONE",
+            allowComment: true,
+            commercialContentType: "none",
+            contentPreviewConfirmed: true,
+            expressConsentGiven: true,
+            mediaType: "photo",
+            photoCoverIndex: 0,
+            autoAddMusic: false,
+          },
+        }
+      : {}),
+  };
+}
+
 /** Publish one of this route's own drafts, a minute out or at a set time (at most 30 days ahead). Refuses anything else in the account. */
 export async function publishDraft(deps: ZernioDeps, id: string, when?: string): Promise<{ ok: true; at: string } | { ok: false; error: string; status: number }> {
   if (!ID.test(id)) return { ok: false, error: "bad-request", status: 400 };
@@ -225,7 +270,7 @@ export async function studioSocial(request: Request, deps: StudioSocialDeps): Pr
       if (!isMediaUrl(d?.uploadUrl) || !isMediaUrl(d?.publicUrl)) return json({ error: "zernio-shape" }, 502);
       return json({ uploadUrl: d.uploadUrl, publicUrl: d.publicUrl });
     }
-    if (job.mode === "draft") {
+    if (job.mode === "draft" || job.mode === "carousel") {
       const r = await accounts(deps);
       if (!r.ok) return fail(r.status);
       const ids = {} as Record<Platform, string>;
@@ -234,7 +279,7 @@ export async function studioSocial(request: Request, deps: StudioSocialDeps): Pr
         if (!found) return json({ error: `no-${p}-account` }, 409);
         ids[p] = found.id;
       }
-      const made = await zernio(deps, "POST", "/posts", draftBody(job, ids, deps.now));
+      const made = await zernio(deps, "POST", "/posts", job.mode === "draft" ? draftBody(job, ids, deps.now) : carouselBody(job, ids, deps.now));
       if (!made.ok) return fail(made.status);
       const post = (made.data as { post?: { _id?: unknown; status?: unknown } } | null)?.post;
       return json({ id: str(post?._id) ?? "", status: str(post?.status) ?? "draft" }, 201);
